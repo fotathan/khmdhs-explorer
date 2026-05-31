@@ -530,9 +530,11 @@ def act_detail(adam: str, request: Request):
                    a.assign_criteria_code, a.bids_submitted, a.max_bids_submitted,
                    -- payment-specific
                    a.is_credit, a.payment_commitment_code, a.contract_value,
-                   a.raw_json
+                   a.raw_json,
+                   nuts.label AS nuts_label
             FROM proc.procurement_act a
             LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
+            LEFT JOIN proc.nuts_code nuts ON nuts.nuts_code = a.nuts_code
             WHERE a.adam = %s
         """, (adam,))
         notice = c.fetchone()
