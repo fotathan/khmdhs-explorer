@@ -376,6 +376,49 @@ def healthz():
         return c.fetchone()
 
 
+@app.get("/analytics", response_class=HTMLResponse)
+def analytics(request: Request):
+    """Dashboard of deduplicated AWARDED value (contracts only; payments and
+    cancelled acts excluded; merged entities consolidated). Reads precomputed
+    materialized views — refresh them with SELECT proc.refresh_analytics()."""
+    data: dict = {"available": True}
+    try:
+        with cursor() as c:
+            c.execute("""SELECT n_contracts, awarded_value, n_authorities,
+                                earliest, latest FROM proc.mv_analytics_totals""")
+            data["totals"] = c.fetchone()
+
+            # Top authorities — resolve canonical name from authority table.
+            c.execute("""
+                SELECT m.authority_id, auth.name, m.n_contracts, m.awarded_value
+                FROM proc.mv_analytics_authorities m
+                LEFT JOIN proc.authority auth ON auth.org_id = m.authority_id
+                ORDER BY m.awarded_value DESC LIMIT 15
+            """)
+            data["authorities"] = c.fetchall()
+
+            # Top contractors — resolve canonical name + merge flag.
+            c.execute("""
+                SELECT m.vat_number, eo.name, m.n_contracts, m.awarded_value,
+                       EXISTS (SELECT 1 FROM proc.entity_member em
+                               WHERE em.kind='contractor'
+                                 AND em.member_key=m.vat_number) AS is_merged
+                FROM proc.mv_analytics_contractors m
+                LEFT JOIN proc.economic_operator eo ON eo.vat_number = m.vat_number
+                ORDER BY m.awarded_value DESC LIMIT 15
+            """)
+            data["contractors"] = c.fetchall()
+
+            c.execute("""SELECT month, n_contracts, awarded_value
+                         FROM proc.mv_analytics_monthly ORDER BY month""")
+            data["monthly"] = c.fetchall()
+    except Exception:
+        # Materialized views not created yet — show a friendly hint.
+        data = {"available": False}
+
+    return templates.TemplateResponse(request, "analytics.html", data)
+
+
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request,
          page: int = Query(1, ge=1),
