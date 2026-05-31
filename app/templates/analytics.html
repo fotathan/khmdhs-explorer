@@ -108,6 +108,39 @@ psql "$REMOTE" -c "SELECT proc.refresh_analytics();"</pre>
   </div>
 </div>
 
+{% if cpv %}
+<div class="section-h" style="margin-top:32px;">Κατηγορίες αντικειμένου (CPV)</div>
+<p class="meta" style="margin-top:-6px; margin-bottom:12px;">
+  Κατανομή ανά τομέα CPV (διψήφιος κωδικός). Οι αξίες προέρχονται από τις
+  γραμμές ειδών <strong>χωρίς ΦΠΑ</strong>, οπότε δεν αθροίζουν στο συνολικό
+  ποσό αναθέσεων· δείχνουν τη σχετική κατανομή ανά κατηγορία. Συμβάσεις και
+  προκηρύξεις εμφανίζονται χωριστά.
+</p>
+<table class="lines">
+  <thead><tr>
+    <th>Τομέας</th>
+    <th style="text-align:right;">Συμβάσεις</th>
+    <th style="text-align:right;">Αξία συμβ. (χωρίς ΦΠΑ)</th>
+    <th style="text-align:right;">Προκηρύξεις</th>
+    <th style="text-align:right;">Αξία προκ. (χωρίς ΦΠΑ)</th>
+  </tr></thead>
+  <tbody>
+    {% for d in cpv %}
+    <tr>
+      <td class="title-cell">
+        <span style="font-weight:500;">{{ d.label or ('Τομέας ' ~ d.division) }}</span>
+        <code class="cpv" style="margin-left:6px;">{{ d.division }}</code>
+      </td>
+      <td class="val">{{ d.contract_count }}</td>
+      <td class="val">€ {{ "{:,.0f}".format(d.contract_value).replace(",","·") }}</td>
+      <td class="val">{{ d.notice_count }}</td>
+      <td class="val">€ {{ "{:,.0f}".format(d.notice_value).replace(",","·") }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
 <p class="meta" style="margin-top:24px;">
   Τα στοιχεία ανανεώνονται μετά από κάθε εισαγωγή με
   <code style="font-family:var(--mono);">SELECT proc.refresh_analytics();</code>

@@ -412,6 +412,19 @@ def analytics(request: Request):
             c.execute("""SELECT month, n_contracts, awarded_value
                          FROM proc.mv_analytics_monthly ORDER BY month""")
             data["monthly"] = c.fetchall()
+
+            # By-CPV-division — top 15 by contract value. Separate from the
+            # awarded-value figures (line-item costs, without VAT).
+            try:
+                c.execute("""SELECT division, label, contract_count, contract_value,
+                                    notice_count, notice_value
+                             FROM proc.mv_analytics_cpv
+                             WHERE contract_value > 0 OR notice_value > 0
+                             ORDER BY contract_value DESC, notice_value DESC
+                             LIMIT 15""")
+                data["cpv"] = c.fetchall()
+            except Exception:
+                data["cpv"] = []
     except Exception:
         # Materialized views not created yet — show a friendly hint.
         data = {"available": False}
