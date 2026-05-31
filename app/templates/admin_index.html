@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Διαχείριση συλλογής · ΚΗΜΔΗΣ{% endblock %}
+
+{% block content %}
+
+<div class="detail-h">
+  <div class="kicker">Διαχείριση</div>
+  <h1 class="detail-title">Συλλογή δεδομένων</h1>
+  <div class="detail-sub">
+    Εκκίνηση και παρακολούθηση εκτελέσεων backfill για κάθε τύπο πράξης.
+    &nbsp;·&nbsp;<a href="/admin/curate" style="color:var(--accent);">Επιμέλεια σημειώσεων ›</a>
+    &nbsp;·&nbsp;<a href="/admin/merge/contractor" style="color:var(--accent);">Ενοποίηση αναδόχων ›</a>
+    &nbsp;·&nbsp;<a href="/admin/merge/authority" style="color:var(--accent);">Ενοποίηση αρχών ›</a>
+  </div>
+</div>
+
+<div class="detail-grid">
+  <div>
+
+    <div class="section-h">Νέα συλλογή</div>
+    {% if running_now %}
+      <p style="font-family:var(--serif); font-style:italic; color:var(--accent); border-left:2px solid var(--accent); padding:8px 12px; background:var(--paper-2);">
+        Μια εκτέλεση είναι ήδη σε εξέλιξη. Δείτε την παρακάτω ή ακυρώστε την πριν ξεκινήσετε νέα.
+      </p>
+    {% else %}
+    <form method="post" action="/admin/jobs" style="margin-bottom:20px;">
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-bottom:12px;">
+        <div class="field">
+          <label>από</label>
+          <input type="date" name="date_from" value="{{ default_start }}" required>
+        </div>
+        <div class="field">
+          <label>έως</label>
+          <input type="date" name="date_to" value="{{ today }}">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>τύποι πράξεων (επιλέξτε ένα ή περισσότερα — αν τίποτα, όλοι)</label>
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
+          {% for t in act_types %}
+            <label style="display:inline-flex; align-items:center; gap:6px; border:1px solid var(--rule); padding:5px 10px; cursor:pointer; font-size:13px; font-family:var(--sans);">
+              <input type="checkbox" name="types" value="{{ t }}" style="margin:0;">
+              {{ t | type_label }}
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="field">
+        <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" name="resume" value="1" checked>
+          <span style="font-size:13px; letter-spacing:0; text-transform:none; color:var(--ink);">
+            <strong>Συνέχιση</strong> — παράλειψη παραθύρων που έχουν ήδη ολοκληρωθεί (συνιστάται)
+          </span>
+        </label>
+      </div>
+
+      <button type="submit" style="background:var(--ink); color:var(--paper); border:0; padding:10px 22px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; margin-top:8px;">
+        Εκκίνηση συλλογής
+      </button>
+      <p class="meta" style="margin-top:8px;">
+        Η εκτέλεση γίνεται σε ξεχωριστή διαδικασία και επιβιώνει σε επανεκκίνηση του server.
+        Διαστήματα 180 ημερών γίνονται αυτόματα.
+      </p>
+    </form>
+    {% endif %}
+
+    <div class="section-h">Πρόσφατες εκτελέσεις</div>
+    {% if jobs %}
+      <table class="notices">
+        <thead><tr>
+          <th style="width:50px;">#</th>
+          <th>Παράμετροι</th>
+          <th style="width:90px;">Κατάσταση</th>
+          <th style="width:140px;">Εκκίνηση</th>
+          <th style="width:100px;">Διάρκεια</th>
+        </tr></thead>
+        <tbody>
+          {% for j in jobs %}
+          <tr>
+            <td><span class="adam">{{ j.id }}</span></td>
+            <td class="title-cell">
+              <a href="/admin/jobs/{{ j.id }}">
+                {{ j.date_from.strftime('%Y-%m-%d') }} → {{ j.date_to.strftime('%Y-%m-%d') }}
+              </a>
+              <div class="auth">
+                {% for t in j.types %}<span style="display:inline-block; font-size:11px; color:var(--ink-2); border:1px solid var(--rule); padding:1px 6px; margin-right:3px;">{{ t | type_label }}</span>{% endfor %}
+                {% if j.resume %}<span class="meta">+resume</span>{% endif %}
+              </div>
+            </td>
+            <td>
+              {% if j.status == 'running' %}<span class="pill" style="color:var(--ok);">σε εξέλιξη</span>
+              {% elif j.status == 'done' %}<span class="meta">ολοκληρώθηκε</span>
+              {% elif j.status == 'cancelled' %}<span class="pill cancel">ακυρώθηκε</span>
+              {% elif j.status == 'error' %}<span class="pill cancel">σφάλμα</span>
+              {% elif j.status == 'stale' %}<span class="pill amend">χάθηκε</span>
+              {% else %}<span class="meta">{{ j.status }}</span>{% endif %}
+            </td>
+            <td class="meta">{{ j.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td class="meta">
+              {% if j.finished_at %}
+                {% set delta = (j.finished_at - j.started_at).total_seconds() %}
+                {% if delta < 60 %}{{ delta|int }}s
+                {% elif delta < 3600 %}{{ (delta/60)|int }}m
+                {% else %}{{ (delta/3600)|round(1) }}h{% endif %}
+              {% elif j.status == 'running' %}<span style="color:var(--ok);">τρέχει…</span>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3);">Δεν υπάρχουν εκτελέσεις ακόμη.</p>
+    {% endif %}
+
+  </div>
+
+  <aside>
+    <div class="section-h">Κάλυψη ανά τύπο</div>
+    {% if window_summary %}
+      <table class="lines">
+        <thead><tr>
+          <th>Τύπος</th>
+          <th style="text-align:right;">Παράθυρα</th>
+          <th style="text-align:right;">OK</th>
+          <th style="text-align:right;">Σφάλμα</th>
+        </tr></thead>
+        <tbody>
+          {% for r in window_summary %}
+            <tr>
+              <td><strong style="font-size:13px;">{{ r.act_type | type_label }}</strong></td>
+              <td class="val">{{ r.windows }}</td>
+              <td class="val">{{ r.done_n or 0 }}</td>
+              <td class="val" style="{% if r.error_n %}color:var(--accent);{% endif %}">{{ r.error_n or 0 }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="meta" style="padding-top:0; border-top:0;">
+                κάλυψη {{ r.covered_from }} → {{ r.covered_to }}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); font-size:13px;">
+        Καμία συλλογή δεν έχει εκτελεστεί ακόμη.
+      </p>
+    {% endif %}
+  </aside>
+</div>
+
+{% endblock %}

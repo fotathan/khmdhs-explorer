@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+
+# Virtual environments
+khmdhs-env/
+venv/
+.venv/
+
+# Secrets / local env — NEVER commit these
+.env
+.env.*
+*.secret
+
+# Local job logs
+/tmp/khmdhs-jobs/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Data dumps (don't commit large CSVs/DB dumps unless you mean to)
+*.dump
+*.sql.gz

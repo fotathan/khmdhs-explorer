@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Εκτέλεση #{{ job.id }} · Διαχείριση{% endblock %}
+
+{% block content %}
+
+{% if is_active and alive %}
+  {# Auto-refresh every 6s while the job is running. Stops once it isn't. #}
+  <meta http-equiv="refresh" content="6">
+{% endif %}
+
+<p style="margin:20px 0 0;"><a class="back" href="/admin" hx-boost="false">‹ πίσω στη διαχείριση</a></p>
+
+<div class="detail-h">
+  <div class="kicker">Εκτέλεση συλλογής · #{{ job.id }}</div>
+  <h1 class="detail-title">
+    {{ job.date_from.strftime('%Y-%m-%d') }} → {{ job.date_to.strftime('%Y-%m-%d') }}
+  </h1>
+  <div class="detail-sub">
+    {% for t in job.types %}<span style="display:inline-block; font-size:12px; color:var(--ink-2); border:1px solid var(--rule); padding:2px 8px; margin-right:4px;">{{ t | type_label }}</span>{% endfor %}
+    {% if job.resume %} · με συνέχιση{% endif %}
+  </div>
+  <div style="margin-top:12px;">
+    {% if job.status == 'running' %}
+      {% if alive %}
+        <span class="pill" style="color:var(--ok);">σε εξέλιξη — PID {{ job.pid }}</span>
+        <form method="post" action="/admin/jobs/{{ job.id }}/cancel" style="display:inline-block; margin-left:10px;">
+          <button type="submit"
+                  style="background:transparent; color:var(--accent); border:1px solid var(--accent); padding:4px 12px; font-family:var(--sans); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer;"
+                  onclick="return confirm('Σίγουρα ακύρωση εκτέλεσης #{{ job.id }};');">
+            Ακύρωση
+          </button>
+        </form>
+      {% else %}
+        <span class="pill amend">η διαδικασία χάθηκε</span>
+      {% endif %}
+    {% elif job.status == 'done' %}<span class="pill" style="color:var(--ok);">ολοκληρώθηκε</span>
+    {% elif job.status == 'cancelled' %}<span class="pill cancel">ακυρωμένη</span>
+    {% elif job.status == 'error' %}<span class="pill cancel">σφάλμα</span>
+    {% elif job.status == 'stale' %}<span class="pill amend">χάθηκε χωρίς εξήγηση</span>
+    {% endif %}
+  </div>
+  {% if job.last_error %}
+    <div style="margin-top:10px; padding:8px 12px; border-left:2px solid var(--accent); background:var(--paper-2); font-family:var(--mono); font-size:12px; color:var(--ink-2);">
+      {{ job.last_error }}
+    </div>
+  {% endif %}
+</div>
+
+<div class="detail-grid">
+  <div>
+
+    <div class="section-h">Παράθυρα ανά τύπο</div>
+    {% if counts %}
+      <p style="font-family:var(--serif); font-size:15px; color:var(--ink); margin:0 0 14px;">
+        {% if counts.done %}<strong>{{ counts.done }}</strong> ολοκληρωμένα{% endif %}
+        {% if counts.running %}{% if counts.done %}, {% endif %}<strong style="color:var(--ok);">{{ counts.running }}</strong> σε εξέλιξη{% endif %}
+        {% if counts.pending %}{% if counts.done or counts.running %}, {% endif %}<strong>{{ counts.pending }}</strong> εκκρεμή{% endif %}
+        {% if counts.error %}{% if counts.done or counts.running or counts.pending %}, {% endif %}<strong style="color:var(--accent);">{{ counts.error }}</strong> σφάλματα{% endif %}
+      </p>
+    {% endif %}
+
+    {% if windows %}
+      <table class="lines">
+        <thead><tr>
+          <th>Τύπος</th>
+          <th>Διάστημα</th>
+          <th>Κατάσταση</th>
+          <th>Σφάλμα</th>
+        </tr></thead>
+        <tbody>
+          {% for w in windows %}
+            <tr>
+              <td><strong style="font-size:13px;">{{ w.act_type | type_label }}</strong></td>
+              <td class="meta">{{ w.date_from }} → {{ w.date_to }}</td>
+              <td>
+                {% if w.status == 'done' %}<span style="color:var(--ok);">●</span> ολοκλ.
+                {% elif w.status == 'running' %}<span style="color:var(--accent);">●</span> τρέχει
+                {% elif w.status == 'pending' %}<span style="color:var(--ink-3);">○</span> εκκρεμές
+                {% elif w.status == 'error' %}<span style="color:var(--accent);">✗</span> σφάλμα
+                {% else %}{{ w.status }}{% endif %}
+              </td>
+              <td class="meta" style="font-family:var(--mono); font-size:10px;">
+                {% if w.last_error %}{{ w.last_error[:80] }}{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); font-size:14px;">
+        Δεν υπάρχουν παράθυρα για αυτή την εκτέλεση ακόμη.
+      </p>
+    {% endif %}
+
+    <div class="section-h">Έξοδος (τέλος αρχείου)</div>
+    {% if log_tail %}
+      <pre style="font-family:var(--mono); font-size:11px; background:#1a1614; color:#d9d2bf; padding:14px 16px; max-height:340px; overflow:auto; line-height:1.55;">{{ log_tail }}</pre>
+      {% if job.log_path %}<p class="meta" style="margin-top:4px;">{{ job.log_path }}</p>{% endif %}
+    {% else %}
+      <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); font-size:13px;">
+        Καμία έξοδος ακόμη — η εκτέλεση μόλις ξεκίνησε ή δεν δημιουργήθηκε αρχείο log.
+      </p>
+    {% endif %}
+  </div>
+
+  <aside>
+    <div class="section-h">Λεπτομέρειες</div>
+    <dl class="facts">
+      <dt>Εκκίνηση</dt><dd>{{ job.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
+      {% if job.finished_at %}<dt>Λήξη</dt><dd>{{ job.finished_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>{% endif %}
+      <dt>Status</dt><dd>{{ job.status }}</dd>
+      {% if job.exit_code is not none %}<dt>Exit code</dt><dd>{{ job.exit_code }}</dd>{% endif %}
+      {% if job.pid %}<dt>PID</dt><dd><code style="font-family:var(--mono);">{{ job.pid }}</code></dd>{% endif %}
+    </dl>
+
+    {% if is_active and alive %}
+      <p class="meta" style="margin-top:14px; color:var(--accent);">
+        Η σελίδα ανανεώνεται αυτόματα κάθε 6 δευτερόλεπτα.
+      </p>
+    {% endif %}
+  </aside>
+</div>
+
+{% endblock %}

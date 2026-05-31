@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Επιμέλεια πράξεων · Διαχείριση{% endblock %}
+
+{% block content %}
+<p style="margin:20px 0 0;"><a class="back" href="/admin" hx-boost="false">‹ πίσω στη διαχείριση</a></p>
+
+<div class="detail-h">
+  <div class="kicker">Διαχείριση · Επιμέλεια</div>
+  <h1 class="detail-title">Σημειώσεις & επισημάνσεις</h1>
+  <div class="detail-sub">
+    Προσθέστε σημειώσεις, ετικέτες και επισημάνσεις πάνω στις πράξεις. Τα επίσημα
+    δεδομένα δεν τροποποιούνται ποτέ — οι σημειώσεις είναι ξεχωριστό επίπεδο της ομάδας.
+  </div>
+</div>
+
+<form method="get" action="/admin/curate" style="margin:24px 0; display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+  <div class="field" style="flex:1; min-width:240px; margin:0;">
+    <label>Αναζήτηση (τίτλος ή ΑΔΑΜ)</label>
+    <input type="search" name="q" value="{{ q }}" placeholder="π.χ. καθαριότητα ή 24PROC…">
+  </div>
+  <div class="field" style="margin:0;">
+    <label>Επισήμανση</label>
+    <select name="flag">
+      <option value="">— οποιαδήποτε —</option>
+      {% for code, label in flag_labels.items() %}
+        <option value="{{ code }}" {% if flag==code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field" style="margin:0;">
+    <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; text-transform:none; letter-spacing:0;">
+      <input type="checkbox" name="annotated" value="1" {% if annotated=='1' %}checked{% endif %}>
+      μόνο με σημειώσεις
+    </label>
+  </div>
+  <button type="submit" style="background:var(--ink); color:var(--paper); border:0; padding:8px 18px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer;">Εύρεση</button>
+</form>
+
+<div class="results-bar">
+  <div class="counters"><span class="lbl">Βρέθηκαν</span><span class="num">{{ "{:,}".format(total).replace(",", "·") }}</span></div>
+</div>
+
+{% if rows %}
+<table class="notices">
+  <thead><tr>
+    <th style="width:140px;">ΑΔΑΜ</th>
+    <th>Τίτλος</th>
+    <th style="width:200px;">Σημείωση ομάδας</th>
+    <th style="width:110px;">Επισήμανση</th>
+    <th style="width:90px;"></th>
+  </tr></thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td>
+        <span class="adam">{{ r.adam }}</span>
+        <div class="meta" style="margin-top:3px; font-family:var(--serif); font-style:italic; font-size:11px; letter-spacing:0; text-transform:none; color:var(--ink-3);">{{ r.type | type_label }}</div>
+      </td>
+      <td class="title-cell"><a href="/act/{{ r.adam }}">{{ r.title or '—' }}</a></td>
+      <td class="meta" style="text-transform:none; letter-spacing:0; font-family:var(--serif); font-size:12px; color:var(--ink-2);">
+        {% if r.note %}{{ r.note[:90] }}{% if r.note|length > 90 %}…{% endif %}{% endif %}
+        {% if r.tags %}<div style="margin-top:3px;">{% for t in r.tags %}<code class="cpv" style="margin-right:3px;">{{ t }}</code>{% endfor %}</div>{% endif %}
+        {% if not r.note and not r.tags %}<span style="color:var(--ink-3);">—</span>{% endif %}
+      </td>
+      <td>
+        {% if r.flag == 'verified' %}<span class="pill" style="color:var(--ok);">Επαληθευμένο</span>
+        {% elif r.flag == 'review' %}<span class="pill amend">Προς έλεγχο</span>
+        {% elif r.flag == 'suspicious' %}<span class="pill cancel">Ύποπτο</span>
+        {% else %}<span class="meta">—</span>{% endif %}
+      </td>
+      <td><a href="/admin/act/{{ r.adam }}/annotate" style="color:var(--accent); font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.06em;">επιμέλεια ›</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<nav class="pager">
+  <span>σελίδα {{ page }} από {{ total_pages }}</span>
+  <span>
+    {% if page > 1 %}<a href="/admin/curate?q={{ q }}&flag={{ flag }}&annotated={{ annotated }}&page={{ page-1 }}">‹ προηγ.</a>{% else %}<span class="disabled">‹ προηγ.</span>{% endif %}
+    <span class="current">{{ page }}</span>
+    {% if page < total_pages %}<a href="/admin/curate?q={{ q }}&flag={{ flag }}&annotated={{ annotated }}&page={{ page+1 }}">επόμ. ›</a>{% else %}<span class="disabled">επόμ. ›</span>{% endif %}
+  </span>
+</nav>
+{% else %}
+<p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); padding:24px 0;">Καμία πράξη.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,24 @@
+# ---------------------------------------------------------------------------- #
+# render.yaml — Render Blueprint. With this file in your repo root, Render can
+# create the service automatically (New → Blueprint → pick your repo).
+#
+# After it deploys, set the two SECRET env vars in the Render dashboard
+# (they're marked sync:false so they are NOT read from this file / git):
+#   DATABASE_URL  — from Supabase: Project Settings → Database → Connection
+#                   string → URI (use the "Connection pooler" / port 6543 URI
+#                   for serverless-style web apps).
+#   APP_PASSWORD  — the shared login password you choose.
+# ---------------------------------------------------------------------------- #
+services:
+  - type: web
+    name: khmdhs-explorer
+    runtime: docker
+    plan: free                 # sleeps after inactivity; upgrade to "starter" ($7/mo) for always-on
+    healthCheckPath: /healthz
+    envVars:
+      - key: DATABASE_URL
+        sync: false            # set in dashboard (secret)
+      - key: APP_PASSWORD
+        sync: false            # set in dashboard (secret)
+      - key: APP_USERNAME
+        value: team            # not secret; change if you like

@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% set t = n.act_type or 'notice' %}
+{% set type_label_el = t | type_label %}
+
+{% block title %}{{ n.title or n.adam }} · {{ type_label_el }}{% endblock %}
+
+{% block content %}
+
+<p style="margin:20px 0 0;"><a class="back" href="/" hx-boost="false">‹ πίσω στην αναζήτηση</a></p>
+
+<div class="detail-h">
+  <div class="kicker">{{ type_label_el }} · {{ n.adam }}</div>
+  <h1 class="detail-title">{{ n.title or '—' }}</h1>
+  <div class="detail-sub">
+    {% if n.authority_id %}<a href="/authority/{{ n.authority_id }}" style="color:inherit; text-decoration:underline; text-decoration-color:var(--rule);">{{ n.authority_name or '—' }}</a>
+    {% else %}{{ n.authority_name or '—' }}{% endif %}
+  </div>
+  <div style="margin-top:10px;">
+    {% if n.cancelled %}<span class="pill cancel">ακυρωμένη</span>{% endif %}
+    {% if n.is_modified %}<span class="pill amend">ορθή επανάληψη</span>{% endif %}
+  </div>
+</div>
+
+<div class="detail-grid">
+  <div>
+
+    <div class="section-h">Στοιχεία</div>
+    <dl class="facts">
+      <dt>ΑΔΑΜ</dt><dd><code style="font-family:var(--mono); font-size:13px;">{{ n.adam }}</code></dd>
+      <dt>Τύπος πράξης</dt><dd>{{ type_label_el }}</dd>
+      {% if n.submission_date %}<dt>Δημοσίευση</dt><dd>{{ n.submission_date.strftime('%d-%m-%Y %H:%M') }}</dd>{% endif %}
+      <dt>Υπογραφή</dt><dd>{{ n.signed_date.strftime('%d-%m-%Y') if n.signed_date else '—' }}</dd>
+
+      {% if t == 'notice' and n.final_submission_date %}
+        <dt>Λήξη υποβολής</dt><dd>{{ n.final_submission_date.strftime('%d-%m-%Y %H:%M') }}</dd>
+      {% endif %}
+
+      {% if t == 'contract' %}
+        {% if n.contract_number %}<dt>Αριθμός σύμβασης</dt><dd>{{ n.contract_number }}</dd>{% endif %}
+        {% if n.contract_signed_date %}<dt>Ημ. σύμβασης</dt><dd>{{ n.contract_signed_date.strftime('%d-%m-%Y') }}</dd>{% endif %}
+        {% if n.start_date %}<dt>Έναρξη</dt><dd>{{ n.start_date.strftime('%d-%m-%Y') }}</dd>{% endif %}
+        {% if n.end_date %}<dt>Λήξη</dt><dd>{{ n.end_date.strftime('%d-%m-%Y') }}</dd>{% elif n.no_end_date %}<dt>Λήξη</dt><dd><em>χωρίς προκαθορισμένη λήξη</em></dd>{% endif %}
+        {% if n.bids_submitted is not none %}
+          <dt>Προσφορές</dt><dd>{{ n.bids_submitted }}{% if n.max_bids_submitted %} (μέγ. {{ n.max_bids_submitted }}){% endif %}</dd>
+        {% endif %}
+        {% if n.assign_criteria_code %}<dt>Κριτήριο ανάθεσης</dt><dd>{{ n.assign_criteria_code | assign_criteria_label }}</dd>{% endif %}
+      {% endif %}
+
+      {% if t == 'payment' %}
+        {% if n.is_credit is not none %}<dt>Πιστωτικό</dt><dd>{{ 'ναι' if n.is_credit else 'όχι' }}</dd>{% endif %}
+        {% if n.payment_commitment_code %}<dt>Κωδικός δέσμευσης</dt><dd><code class="cpv">{{ n.payment_commitment_code }}</code></dd>{% endif %}
+        {% if n.contract_value %}<dt>Αξία σύμβασης</dt><dd>€ {{ "{:,.2f}".format(n.contract_value).replace(",", "·") }}</dd>{% endif %}
+      {% endif %}
+
+      {% if n.budget %}<dt>Προϋπολογισμός</dt><dd>€ {{ "{:,.2f}".format(n.budget).replace(",", "·") }}</dd>{% endif %}
+      {% if n.total_cost_without_vat %}<dt>Αξία (χωρίς ΦΠΑ)</dt><dd>€ {{ "{:,.2f}".format(n.total_cost_without_vat).replace(",", "·") }}</dd>{% endif %}
+      {% if n.total_cost_with_vat %}<dt>Αξία (με ΦΠΑ)</dt><dd>€ {{ "{:,.2f}".format(n.total_cost_with_vat).replace(",", "·") }}</dd>{% endif %}
+
+      {% if n.contract_type_code %}<dt>Είδος σύμβασης</dt><dd>{{ n.contract_type_code | contract_type_label }}</dd>{% endif %}
+      {% if n.procedure_type_code %}<dt>Τύπος διαδικασίας</dt><dd>{{ n.procedure_type_code | procedure_type_label }}</dd>{% endif %}
+      {% if n.criteria_code %}<dt>Κριτήριο</dt><dd>{{ n.criteria_code | assign_criteria_label }}</dd>{% endif %}
+      <dt>NUTS</dt><dd>{{ n.nuts_code or '—' }}</dd>
+      {% if n.bidding_website %}<dt>Πλατφόρμα</dt><dd><a style="color:var(--accent)" href="{{ n.bidding_website }}" target="_blank" rel="noopener">{{ n.bidding_website }}</a></dd>{% endif %}
+      {% if n.cancellation_reason %}<dt>Αιτία ακύρωσης</dt><dd>{{ n.cancellation_reason }}</dd>{% endif %}
+    </dl>
+
+    {% if operators %}
+      <div class="section-h">
+        {% if t == 'payment' %}Προμηθευτής{% else %}Ανάδοχος / Συμμετέχοντες{% endif %}
+      </div>
+      <table class="lines">
+        <thead><tr><th>Επωνυμία</th><th>ΑΦΜ</th><th>Χώρα</th><th>Ρόλος</th><th style="text-align:right;">Αξία (με ΦΠΑ)</th></tr></thead>
+        <tbody>
+          {% for op in operators %}
+            <tr>
+              <td>
+                {% if op.vat_number %}<a href="/contractor/{{ op.vat_number }}" style="color:var(--ink); text-decoration:underline; text-decoration-color:var(--rule);">{{ op.name or '—' }}</a>
+                {% else %}{{ op.name or '—' }}{% endif %}
+              </td>
+              <td><code class="cpv">{{ op.vat_number or '—' }}</code>{% if op.is_greek_vat %} <span class="meta">ΕΛ</span>{% endif %}</td>
+              <td>{{ op.country or '—' }}</td>
+              <td><span class="meta">{{ op.role }}</span></td>
+              <td class="val">
+                {% if op.awarded_value_with_vat %}€ {{ "{:,.2f}".format(op.awarded_value_with_vat).replace(",", "·") }}{% else %}—{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+
+    <div class="section-h">Είδη / Αντικείμενο</div>
+    {% if line_items %}
+      <table class="lines">
+        <thead><tr><th>Περιγραφή</th><th>CPV</th><th style="text-align:right;">Ποσότητα</th><th style="text-align:right;">Αξία (χωρίς ΦΠΑ)</th></tr></thead>
+        <tbody>
+          {% for li in line_items %}
+            <tr>
+              <td>{{ li.short_description or '—' }}</td>
+              <td>
+                {% for c in li.cpvs %}
+                  <div style="margin-bottom:3px; line-height:1.35;">
+                    <code class="cpv">{{ c.code }}</code>{% if c.desc %} <span class="meta" style="text-transform:none; letter-spacing:0; font-family:var(--serif); font-style:italic; font-size:12px; color:var(--ink-2);">{{ c.desc }}</span>{% endif %}
+                  </div>
+                {% endfor %}
+                {% if not li.cpvs %}—{% endif %}
+              </td>
+              <td class="val">{{ li.quantity if li.quantity is not none else '—' }} {% if li.unit_name %}{{ li.unit_name }}{% elif li.unit_code %}{{ li.unit_code }}{% endif %}</td>
+              <td class="val">
+                {% if li.cost_without_vat %}€ {{ "{:,.2f}".format(li.cost_without_vat).replace(",", "·") }}{% else %}—{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p style="font-style:italic; color:var(--ink-3);">—</p>
+    {% endif %}
+
+    {% if incoming %}
+      <div class="section-h">Συσχετιζόμενα προηγούμενα</div>
+      <ul class="chain">
+        {% for it in incoming %}
+          <li>
+            <div class="chain-type">{{ it.type | type_label }} · <span class="chain-via">{{ it.relation }}</span></div>
+            <a class="chain-title" href="/act/{{ it.source_adam }}">{{ it.title or it.source_adam }}</a>
+            <div class="chain-meta">{{ it.source_adam }}{% if it.signed_date %} · {{ it.signed_date.strftime('%Y-%m-%d') }}{% endif %}</div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+  </div>
+
+  <aside>
+    <div class="section-h">
+      Σημειώσεις ομάδας
+      <a href="/admin/act/{{ n.adam }}/annotate" style="float:right; color:var(--accent); font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; font-weight:400;">επιμέλεια ›</a>
+    </div>
+    {% if annotation and (annotation.note or annotation.tags or annotation.flag) %}
+      {% if annotation.flag %}
+        <div style="margin-bottom:8px;">
+          {% if annotation.flag == 'verified' %}<span class="pill" style="color:var(--ok);">Επαληθευμένο</span>
+          {% elif annotation.flag == 'review' %}<span class="pill amend">Προς έλεγχο</span>
+          {% elif annotation.flag == 'suspicious' %}<span class="pill cancel">Ύποπτο</span>{% endif %}
+        </div>
+      {% endif %}
+      {% if annotation.note %}<p style="font-family:var(--serif); font-size:14px; color:var(--ink); margin:0 0 8px;">{{ annotation.note }}</p>{% endif %}
+      {% if annotation.tags %}<div style="margin-bottom:8px;">{% for t in annotation.tags %}<code class="cpv" style="margin-right:3px;">{{ t }}</code>{% endfor %}</div>{% endif %}
+      <div class="chain-meta">— {{ annotation.author }}, {{ annotation.created_at.strftime('%Y-%m-%d') }}</div>
+    {% else %}
+      <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); font-size:13px;">Καμία σημείωση.</p>
+    {% endif %}
+
+    <div class="section-h" style="margin-top:28px;">Κύκλος ζωής διαδικασίας</div>
+    {% if downstream %}
+      <ul class="chain">
+        <li>
+          <div class="chain-type">{{ type_label_el }} · <span class="chain-via">αυτή η πράξη</span></div>
+          <span class="chain-title" style="font-weight:600;">{{ n.title or n.adam }}</span>
+          <div class="chain-meta">{{ n.adam }}</div>
+        </li>
+        {% for d in downstream %}
+          <li class="{{ d.type or '' }}">
+            <div class="chain-type">{{ d.type | type_label }} · <span class="chain-via">{{ d.via }}</span></div>
+            <a class="chain-title" href="/act/{{ d.adam }}">{{ d.title or d.adam }}</a>
+            <div class="chain-meta">
+              {{ d.adam }}
+              {% if d.signed_date %} · {{ d.signed_date.strftime('%Y-%m-%d') }}{% endif %}
+              {% if d.total_cost_with_vat %} · € {{ "{:,.0f}".format(d.total_cost_with_vat).replace(",", "·") }}{% endif %}
+              {% if d.cancelled %} · <span style="color:var(--accent);">ακυρωμένη</span>{% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); font-size:14px;">
+        Δεν εντοπίστηκαν κατάντη συνδεδεμένες πράξεις στη βάση.
+      </p>
+    {% endif %}
+  </aside>
+</div>
+
+{% endblock %}

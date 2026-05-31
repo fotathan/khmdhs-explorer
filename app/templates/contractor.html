@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}{{ op.name }} · Ανάδοχος / Προμηθευτής{% endblock %}
+
+{% block content %}
+<p style="margin:20px 0 0;"><a class="back" href="/" hx-boost="false">‹ πίσω στην αναζήτηση</a></p>
+
+<div class="detail-h">
+  <div class="kicker">Ανάδοχος / Προμηθευτής · ΑΦΜ {{ op.vat_number or '—' }}</div>
+  <h1 class="detail-title">{{ op.name }}</h1>
+  <div class="detail-sub">
+    {% if op.is_greek_vat %}Ελληνικός ΑΦΜ{% else %}{% if op.country %}{{ op.country }}{% else %}Αλλοδαπός{% endif %}{% endif %}
+    {% if op.first_seen %} · πρώτη εμφάνιση {{ op.first_seen.strftime('%Y-%m-%d') }}{% endif %}
+  </div>
+</div>
+
+{% if merge_info %}
+<div style="margin:0 0 20px; padding:10px 14px; border-left:3px solid var(--accent); background:var(--paper-2); font-size:13px;">
+  <strong>Ενοποιημένη οντότητα.</strong> Συγκεντρώνει {{ merge_info.n }} εγγραφές της πηγής
+  (πιθανά διπλότυπα ΑΦΜ/ονόματος):
+  <span style="font-family:var(--mono); font-size:11px;">
+    {% for m in merge_info.members %}{{ m.vat }}{% if not loop.last %} · {% endif %}{% endfor %}
+  </span>
+  <a href="/admin/merge/contractor?focus={{ merge_info.canonical_key }}" style="color:var(--accent); margin-left:6px;">διαχείριση ›</a>
+</div>
+{% endif %}
+
+<div class="detail-grid">
+  <div>
+
+    <div class="section-h">Σύνολα ανά τύπο πράξης</div>
+    <table class="lines">
+      <thead><tr>
+        <th>Τύπος</th>
+        <th style="text-align:right;">Πλήθος</th>
+        <th style="text-align:right;">Συνολική αξία (με ΦΠΑ)</th>
+      </tr></thead>
+      <tbody>
+        {% for r in by_type %}
+        <tr>
+          <td><strong>{{ r.type | type_label }}</strong></td>
+          <td class="val">{{ "{:,}".format(r.n).replace(",", "·") }}</td>
+          <td class="val">{% if r.total_value %}€ {{ "{:,.0f}".format(r.total_value).replace(",", "·") }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+        <tr style="border-top:2px solid var(--ink);">
+          <td><strong>Σύνολο</strong></td>
+          <td class="val"><strong>{{ "{:,}".format(grand_total).replace(",", "·") }}</strong></td>
+          <td class="val"><strong>€ {{ "{:,.0f}".format(grand_value).replace(",", "·") }}</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="section-h">Πράξεις</div>
+    {% if acts %}
+      <table class="notices">
+        <thead><tr>
+          <th style="width:140px;">ΑΔΑΜ</th>
+          <th>Τίτλος / Αναθέτουσα</th>
+          <th style="width:80px;">Τύπος</th>
+          <th style="width:110px;">Δημοσίευση</th>
+          <th style="width:130px; text-align:right;">Αξία</th>
+        </tr></thead>
+        <tbody>
+          {% for r in acts %}
+          <tr>
+            <td><span class="adam">{{ r.adam }}</span></td>
+            <td class="title-cell">
+              <a href="/act/{{ r.adam }}">{{ r.title or '—' }}</a>
+              {% if r.authority_name %}
+                <div class="auth"><a href="/authority/{{ r.authority_id }}" style="color:var(--ink-2);">{{ r.authority_name }}</a></div>
+              {% endif %}
+            </td>
+            <td class="meta">{{ r.type | type_label }}</td>
+            <td class="meta">{{ r.submission_date.strftime('%Y-%m-%d') if r.submission_date else (r.signed_date.strftime('%Y-%m-%d') if r.signed_date else '—') }}</td>
+            <td class="val">
+              {% if r.awarded_value_with_vat %}€ {{ "{:,.2f}".format(r.awarded_value_with_vat).replace(",", "·") }}
+              {% elif r.total_cost_with_vat %}€ {{ "{:,.2f}".format(r.total_cost_with_vat).replace(",", "·") }}
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <nav class="pager">
+        <span>σελίδα {{ page }} από {{ total_pages }} · {{ total }} συνολικά</span>
+        <span>
+          {% if page > 1 %}<a href="/contractor/{{ op.vat_number }}?page={{ page-1 }}">‹ προηγ.</a>{% else %}<span class="disabled">‹ προηγ.</span>{% endif %}
+          <span class="current">{{ page }}</span>
+          {% if page < total_pages %}<a href="/contractor/{{ op.vat_number }}?page={{ page+1 }}">επόμ. ›</a>{% else %}<span class="disabled">επόμ. ›</span>{% endif %}
+        </span>
+      </nav>
+    {% else %}
+      <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3);">Καμία πράξη.</p>
+    {% endif %}
+
+  </div>
+
+  <aside>
+    <div class="section-h">Κορυφαίοι αγοραστές</div>
+    {% if top_buyers %}
+      <ul class="chain" style="margin-top:0;">
+        {% for b in top_buyers %}
+          <li>
+            <a class="chain-title" href="/authority/{{ b.org_id }}">{{ b.name or b.org_id }}</a>
+            <div class="chain-meta">
+              {{ b.n_acts }} πράξεις
+              {% if b.total_value %} · € {{ "{:,.0f}".format(b.total_value).replace(",", "·") }}{% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p style="font-style:italic; color:var(--ink-3); font-size:13px;">—</p>
+    {% endif %}
+
+    <div class="section-h">Αντικείμενα (CPV)</div>
+    {% if top_cpv %}
+      <table class="lines">
+        <thead><tr><th>Διαίρεση</th><th style="text-align:right;">Πράξεις</th><th style="text-align:right;">Συν. αξία</th></tr></thead>
+        <tbody>
+          {% for r in top_cpv %}
+            <tr>
+              <td>
+                <code class="cpv">{{ r.division }}</code>
+                {% if r.label %}<div class="meta" style="text-transform:none; letter-spacing:0; font-family:var(--serif); font-style:italic; font-size:12px; color:var(--ink-2); margin-top:2px;">{{ r.label }}</div>{% endif %}
+              </td>
+              <td class="val">{{ r.n_acts }}</td>
+              <td class="val">{% if r.total_value %}€ {{ "{:,.0f}".format(r.total_value).replace(",", "·") }}{% else %}—{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p style="font-style:italic; color:var(--ink-3); font-size:13px;">—</p>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

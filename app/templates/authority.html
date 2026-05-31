@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}{{ a.name }} · Αναθέτουσα Αρχή{% endblock %}
+
+{% block content %}
+<p style="margin:20px 0 0;"><a class="back" href="/" hx-boost="false">‹ πίσω στην αναζήτηση</a></p>
+
+<div class="detail-h">
+  <div class="kicker">Αναθέτουσα αρχή · {{ a.org_id }}</div>
+  <h1 class="detail-title">{{ a.name }}</h1>
+  <div class="detail-sub">
+    {% if a.vat_number %}ΑΦΜ <code style="font-family:var(--mono);">{{ a.vat_number }}</code>{% endif %}
+    {% if a.nuts_code %} · NUTS {{ a.nuts_code }}{% endif %}
+    {% if a.city %} · {{ a.city }}{% endif %}
+  </div>
+</div>
+
+{% if merge_info %}
+<div style="margin:0 0 20px; padding:10px 14px; border-left:3px solid var(--accent); background:var(--paper-2); font-size:13px;">
+  <strong>Ενοποιημένη οντότητα.</strong> Συγκεντρώνει {{ merge_info.n }} εγγραφές της πηγής:
+  <span style="font-family:var(--mono); font-size:11px;">
+    {% for m in merge_info.members %}{{ m.org_id }}{% if not loop.last %} · {% endif %}{% endfor %}
+  </span>
+  <a href="/admin/merge/authority?focus={{ merge_info.canonical_key }}" style="color:var(--accent); margin-left:6px;">διαχείριση ›</a>
+</div>
+{% endif %}
+
+<div class="detail-grid">
+  <div>
+
+    <div class="section-h">Σύνολα ανά τύπο πράξης</div>
+    <table class="lines">
+      <thead><tr>
+        <th>Τύπος</th>
+        <th style="text-align:right;">Πλήθος</th>
+        <th style="text-align:right;">Ακυρωμένες</th>
+        <th style="text-align:right;">Συνολική αξία (με ΦΠΑ)</th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+        {% for r in by_type %}
+        <tr>
+          <td><strong>{{ r.type | type_label }}</strong></td>
+          <td class="val">{{ "{:,}".format(r.n).replace(",", "·") }}</td>
+          <td class="val">{{ r.n_cancelled or 0 }}</td>
+          <td class="val">{% if r.total_value %}€ {{ "{:,.0f}".format(r.total_value).replace(",", "·") }}{% else %}—{% endif %}</td>
+          <td class="meta"><a href="/authority/{{ a.org_id }}?type={{ r.type }}" style="color:var(--accent);">μόνο αυτές ›</a></td>
+        </tr>
+        {% endfor %}
+        <tr style="border-top:2px solid var(--ink);">
+          <td><strong>Σύνολο</strong></td>
+          <td class="val"><strong>{{ "{:,}".format(grand_total).replace(",", "·") }}</strong></td>
+          <td></td>
+          <td class="val"><strong>€ {{ "{:,.0f}".format(grand_value).replace(",", "·") }}</strong></td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="section-h">
+      Πράξεις
+      {% if type_filter %}<span class="meta" style="margin-left:8px;">({{ type_filter | type_label }} μόνο · <a href="/authority/{{ a.org_id }}" style="color:var(--accent);">καθαρισμός</a>)</span>{% endif %}
+    </div>
+    {% if acts %}
+      <table class="notices">
+        <thead><tr>
+          <th style="width:140px;">ΑΔΑΜ</th>
+          <th>Τίτλος</th>
+          <th style="width:90px;">Τύπος</th>
+          <th style="width:120px;">Δημοσίευση</th>
+          <th style="width:130px; text-align:right;">Αξία</th>
+        </tr></thead>
+        <tbody>
+          {% for r in acts %}
+          <tr>
+            <td><span class="adam">{{ r.adam }}</span></td>
+            <td class="title-cell">
+              <a href="/act/{{ r.adam }}">{{ r.title or '—' }}</a>
+              <div class="auth">
+                {% if r.cancelled %}<span class="pill cancel">ακυρωμένη</span>{% endif %}
+                {% if r.is_modified %}<span class="pill amend">ορθή επ.</span>{% endif %}
+              </div>
+            </td>
+            <td class="meta">{{ r.type | type_label }}</td>
+            <td class="meta">{{ r.submission_date.strftime('%Y-%m-%d') if r.submission_date else (r.signed_date.strftime('%Y-%m-%d') if r.signed_date else '—') }}</td>
+            <td class="val">{% if r.total_cost_with_vat %}€ {{ "{:,.2f}".format(r.total_cost_with_vat).replace(",", "·") }}{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <nav class="pager">
+        <span>σελίδα {{ page }} από {{ total_pages }} · {{ total }} συνολικά</span>
+        <span>
+          {% if page > 1 %}<a href="/authority/{{ a.org_id }}?page={{ page-1 }}{% if type_filter %}&type={{ type_filter }}{% endif %}">‹ προηγ.</a>{% else %}<span class="disabled">‹ προηγ.</span>{% endif %}
+          <span class="current">{{ page }}</span>
+          {% if page < total_pages %}<a href="/authority/{{ a.org_id }}?page={{ page+1 }}{% if type_filter %}&type={{ type_filter }}{% endif %}">επόμ. ›</a>{% else %}<span class="disabled">επόμ. ›</span>{% endif %}
+        </span>
+      </nav>
+    {% else %}
+      <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3);">Καμία πράξη.</p>
+    {% endif %}
+
+  </div>
+
+  <aside>
+    <div class="section-h">Κορυφαία αντικείμενα (CPV)</div>
+    {% if top_cpv %}
+      <table class="lines">
+        <thead><tr><th>Διαίρεση</th><th style="text-align:right;">Διακηρ.</th><th style="text-align:right;">Συν. αξία</th></tr></thead>
+        <tbody>
+          {% for r in top_cpv %}
+            <tr>
+              <td>
+                <code class="cpv">{{ r.division }}</code>
+                {% if r.label %}<div class="meta" style="text-transform:none; letter-spacing:0; font-family:var(--serif); font-style:italic; font-size:12px; color:var(--ink-2); margin-top:2px;">{{ r.label }}</div>{% endif %}
+              </td>
+              <td class="val">{{ r.n_acts }}</td>
+              <td class="val">{% if r.total_value %}€ {{ "{:,.0f}".format(r.total_value).replace(",", "·") }}{% else %}—{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="meta" style="margin-top:8px;">Πρόθεμα 2 ψηφίων CPV (επίπεδο division).</p>
+    {% else %}
+      <p style="font-style:italic; color:var(--ink-3); font-size:13px;">Δεν εντοπίστηκαν CPVs στις διακηρύξεις αυτής της αρχής.</p>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block content %}
+<form id="filters"
+      hx-get="/"
+      hx-target="#results"
+      hx-trigger="input changed delay:350ms from:input[type=search], change, submit"
+      hx-push-url="true"
+      hx-indicator="#busy">
+
+  <div class="grid">
+
+    <aside class="filters">
+      <div class="filter-h" style="margin-top:0;">Τύπος πράξης</div>
+      <div class="seg-vert" role="group">
+        <label>
+          <input type="radio" name="type" value="" {% if not request.query_params.get('type') %}checked{% endif %}>Όλες οι πράξεις
+        </label>
+        {% for code, label in TYPE_LABELS.items() %}
+        <label>
+          <input type="radio" name="type" value="{{ code }}" {% if request.query_params.get('type')==code %}checked{% endif %}>{{ label }}
+        </label>
+        {% endfor %}
+      </div>
+
+      <div class="filter-h">Αναζήτηση</div>
+      <div class="search-row">
+        <input type="search" name="q" placeholder="τίτλος, λέξη-κλειδί…"
+               value="{{ request.query_params.get('q','') }}">
+        <button type="submit">Εύρεση</button>
+      </div>
+
+      <div class="filter-h">Κατάσταση</div>
+      <div class="seg" role="group">
+        <label><input type="radio" name="status" value=""        {% if not request.query_params.get('status') %}checked{% endif %}><span>Όλες</span></label>
+        <label><input type="radio" name="status" value="active"    {% if request.query_params.get('status')=='active' %}checked{% endif %}><span>Ενεργές</span></label>
+        <label><input type="radio" name="status" value="modified"  {% if request.query_params.get('status')=='modified' %}checked{% endif %}><span>Ορθή επ.</span></label>
+        <label><input type="radio" name="status" value="cancelled" {% if request.query_params.get('status')=='cancelled' %}checked{% endif %}><span>Ακυρωμένες</span></label>
+      </div>
+
+      <div class="filter-h">Αναθέτουσα Αρχή</div>
+      <div class="field">
+        <select name="authority">
+          <option value="">— όλες —</option>
+          {% for a in lk.authorities %}
+            <option value="{{ a.id }}"
+              {% if request.query_params.get('authority')==a.id %}selected{% endif %}>
+              {{ a.name }} ({{ a.n }})
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-h">Αντικείμενο</div>
+      <div class="field">
+        <label>CPV (κωδικός ή πρόθεμα)</label>
+        <input name="cpv" placeholder="π.χ. 33 ή 33100000"
+               value="{{ request.query_params.get('cpv','') }}">
+      </div>
+      <div class="field">
+        <label>Είδος σύμβασης</label>
+        <select name="contract_type">
+          <option value="">— οποιοδήποτε —</option>
+          {% for c in lk.contract_types %}
+            <option value="{{ c.code }}"
+              {% if request.query_params.get('contract_type')==c.code %}selected{% endif %}>
+              {{ c.label }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-h">Γεωγραφία</div>
+      <div class="field">
+        <label>NUTS (πρόθεμα)</label>
+        <select name="nuts">
+          <option value="">— όλη η χώρα —</option>
+          {% for n in lk.nuts %}
+            <option value="{{ n.code }}"
+              {% if request.query_params.get('nuts')==n.code %}selected{% endif %}>
+              {{ n.code }} — {{ n.label }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-h">Ημερομηνία δημοσίευσης</div>
+      <div class="row-2">
+        <div class="field"><label>από</label>
+          <input type="date" name="date_from" value="{{ request.query_params.get('date_from','') }}">
+        </div>
+        <div class="field"><label>έως</label>
+          <input type="date" name="date_to"   value="{{ request.query_params.get('date_to','') }}">
+        </div>
+      </div>
+
+      <div class="filter-h">Αξία (€ με ΦΠΑ)</div>
+      <div class="row-2">
+        <div class="field"><label>ελάχ.</label>
+          <input type="number" name="value_min" step="any" min="0"
+                 value="{{ request.query_params.get('value_min','') }}">
+        </div>
+        <div class="field"><label>μέγ.</label>
+          <input type="number" name="value_max" step="any" min="0"
+                 value="{{ request.query_params.get('value_max','') }}">
+        </div>
+      </div>
+    </aside>
+
+    <section>
+      <div class="results-bar">
+        <div class="counters" id="counters">
+          <span class="lbl">Αποτελέσματα</span>
+        </div>
+        <div class="sort-row">
+          <span id="busy" class="htmx-indicator">φόρτωση…</span>
+          &nbsp;ταξινόμηση
+          <select name="sort">
+            <option value="submission_date"      {% if request.query_params.get('sort','submission_date')=='submission_date' %}selected{% endif %}>πιο πρόσφατη δημοσίευση</option>
+            <option value="submission_date_asc"  {% if request.query_params.get('sort')=='submission_date_asc' %}selected{% endif %}>παλαιότερη δημοσίευση</option>
+            <option value="signed_date"          {% if request.query_params.get('sort')=='signed_date' %}selected{% endif %}>πιο πρόσφατη υπογραφή</option>
+            <option value="signed_date_asc"      {% if request.query_params.get('sort')=='signed_date_asc' %}selected{% endif %}>παλαιότερη υπογραφή</option>
+            <option value="value"                {% if request.query_params.get('sort')=='value' %}selected{% endif %}>μεγαλύτερη αξία</option>
+            <option value="value_asc"            {% if request.query_params.get('sort')=='value_asc' %}selected{% endif %}>μικρότερη αξία</option>
+            <option value="deadline"             {% if request.query_params.get('sort')=='deadline' %}selected{% endif %}>πλησιέστερη λήξη</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="results">
+        {% include "_results.html" %}
+      </div>
+    </section>
+
+  </div>
+</form>
+{% endblock %}
