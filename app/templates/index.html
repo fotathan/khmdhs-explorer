@@ -85,7 +85,7 @@
       </div>
 
       <div class="filter-h">Ημερομηνία δημοσίευσης</div>
-      <div class="row-2">
+      <div class="date-pair">
         <div class="field"><label>από</label>
           <input type="date" name="date_from" value="{{ request.query_params.get('date_from','') }}">
         </div>
@@ -95,7 +95,7 @@
       </div>
 
       <div class="filter-h">Καταληκτική ημ/νία υποβολής</div>
-      <div class="row-2">
+      <div class="date-pair">
         <div class="field"><label>από</label>
           <input type="date" name="deadline_from" value="{{ request.query_params.get('deadline_from','') }}">
         </div>
@@ -103,6 +103,7 @@
           <input type="date" name="deadline_to"   value="{{ request.query_params.get('deadline_to','') }}">
         </div>
       </div>
+
 
       <div class="filter-h">Αξία (€ με ΦΠΑ)</div>
       <div class="row-2">

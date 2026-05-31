@@ -84,6 +84,10 @@
     }
     .field input:focus, .field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
     .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    /* Native date inputs need ~140px (text + calendar icon); too wide for the
+       narrow filter rail in two columns, so date pairs stack full-width. */
+    .date-pair { display: grid; grid-template-columns: 1fr; gap: 8px; }
+    .field input[type=date] { min-width: 0; width: 100%; }
     .seg { display: flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
     .seg label { flex: 1; text-align: center; padding: 7px 4px; font-size: 12px; cursor: pointer; color: var(--ink-2); border-right: 1px solid var(--rule); transition: background 120ms ease; }
     .seg label:last-child { border-right: 0; }
