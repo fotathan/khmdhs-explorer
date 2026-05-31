@@ -215,6 +215,18 @@ def build_where(params: dict) -> tuple[str, list]:
         where.append("a.submission_date < (%s::date + interval '1 day')")
         args.append(date_to)
 
+    # Deadline filter applies to final_submission_date (the bid submission
+    # deadline) — lets users find tenders whose deadline falls in a range,
+    # e.g. "still open" = deadline_from = today.
+    deadline_from = params.get("deadline_from")
+    if deadline_from:
+        where.append("a.final_submission_date >= %s")
+        args.append(deadline_from)
+    deadline_to = params.get("deadline_to")
+    if deadline_to:
+        where.append("a.final_submission_date < (%s::date + interval '1 day')")
+        args.append(deadline_to)
+
     value_min = params.get("value_min")
     if value_min not in (None, ""):
         where.append("a.total_cost_with_vat >= %s")
@@ -489,7 +501,8 @@ def home(request: Request,
 def _params_from(request: Request) -> dict:
     """Pull all known query params into a plain dict, dropping empties."""
     keys = ("type", "q", "authority", "cpv", "contract_type", "nuts",
-            "date_from", "date_to", "value_min", "value_max",
+            "date_from", "date_to", "deadline_from", "deadline_to",
+            "value_min", "value_max",
             "status", "sort")
     return {k: request.query_params.get(k, "") for k in keys}
 

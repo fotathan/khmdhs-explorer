@@ -94,6 +94,16 @@
         </div>
       </div>
 
+      <div class="filter-h">Καταληκτική ημ/νία υποβολής</div>
+      <div class="row-2">
+        <div class="field"><label>από</label>
+          <input type="date" name="deadline_from" value="{{ request.query_params.get('deadline_from','') }}">
+        </div>
+        <div class="field"><label>έως</label>
+          <input type="date" name="deadline_to"   value="{{ request.query_params.get('deadline_to','') }}">
+        </div>
+      </div>
+
       <div class="filter-h">Αξία (€ με ΦΠΑ)</div>
       <div class="row-2">
         <div class="field"><label>ελάχ.</label>
