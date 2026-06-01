@@ -38,17 +38,21 @@
         {% else %}<span>—</span>{% endif %}
       </td>
       <td class="val">
-        {% if r.total_cost_with_vat %}
-          € {{ "{:,.2f}".format(r.total_cost_with_vat).replace(",", "·") }}
+        {% if r.resolved_value is not none %}
+          {% if r.is_corrected %}
+            <span style="color:var(--ok); font-weight:600;" title="Διορθωμένη τιμή — αρχική από πηγή: € {{ '{:,.2f}'.format(r.total_cost_with_vat).replace(',', '·') if r.total_cost_with_vat is not none else '—' }}">€ {{ "{:,.2f}".format(r.resolved_value).replace(",", "·") }}</span>
+          {% else %}
+            € {{ "{:,.2f}".format(r.resolved_value).replace(",", "·") }}
+          {% endif %}
         {% else %}—{% endif %}
       </td>
       <td>
         {% if r.cancelled %}<span class="pill cancel">ακυρωμένη</span>{% endif %}
         {% if r.is_modified %}<span class="pill amend">ορθή επ.</span>{% endif %}
-        {% if r.type == 'contract' and not r.cancelled and r.total_cost_with_vat and r.total_cost_with_vat > ANALYTICS_VALUE_CEILING %}
+        {% if r.type == 'contract' and not r.cancelled and r.resolved_value is not none and r.resolved_value > ANALYTICS_VALUE_CEILING %}
           <span class="pill cancel" title="Ύποπτη τιμή — εξαιρείται από τα στατιστικά">ύποπτη τιμή</span>
         {% endif %}
-        {% if not r.cancelled and not r.is_modified and not (r.type == 'contract' and r.total_cost_with_vat and r.total_cost_with_vat > ANALYTICS_VALUE_CEILING) %}<span class="meta">—</span>{% endif %}
+        {% if not r.cancelled and not r.is_modified and not (r.type == 'contract' and r.resolved_value is not none and r.resolved_value > ANALYTICS_VALUE_CEILING) %}<span class="meta">—</span>{% endif %}
       </td>
     </tr>
     {% endfor %}

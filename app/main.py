@@ -208,6 +208,9 @@ SELECT_COLS = """
     a.submission_date,
     a.final_submission_date,
     a.total_cost_with_vat,
+    proc.resolved_value(a.adam, a.total_cost_with_vat) AS resolved_value,
+    (proc.resolved_value(a.adam, a.total_cost_with_vat)
+        IS DISTINCT FROM a.total_cost_with_vat)        AS is_corrected,
     a.cancelled,
     a.is_modified,
     a.contract_type_code,
