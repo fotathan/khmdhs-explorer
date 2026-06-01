@@ -141,6 +141,25 @@
     .htmx-indicator { opacity: 0; transition: opacity 200ms ease; font-family: var(--sans); font-size: 12px; color: var(--accent); }
     .htmx-request .htmx-indicator { opacity: 1; }
 
+    /* Spinning loader + overlay for slower areas (e.g. aggregations). */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 26px; height: 26px; border-radius: 50%;
+      border: 3px solid var(--rule); border-top-color: var(--accent);
+      animation: spin 0.7s linear infinite; display: inline-block;
+    }
+    /* A results region that dims + shows a centered spinner while loading. */
+    .load-region { position: relative; min-height: 120px; }
+    .load-region > .load-overlay {
+      position: absolute; inset: 0; display: none;
+      align-items: center; justify-content: center; flex-direction: column;
+      gap: 12px; background: rgba(255,255,255,0.72); z-index: 5;
+      font-family: var(--sans); font-size: 13px; color: var(--ink-2);
+    }
+    /* HTMX adds .htmx-request to the element making the request; show overlay. */
+    .load-region.htmx-request > .load-overlay,
+    .htmx-request > .load-region > .load-overlay { display: flex; }
+
     .detail-h { margin: 36px 0 20px; padding-bottom: 18px; border-bottom: 1px solid var(--rule); }
     .kicker { font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
     .detail-title { font-family: var(--sans); font-size: 28px; line-height: 1.2; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 10px; color: var(--ink); }

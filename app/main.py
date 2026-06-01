@@ -625,15 +625,17 @@ def explore(request: Request):
         # If annotation view or merge functions aren't present, degrade to empty.
         by_authority, by_contractor = [], []
 
-    return templates.TemplateResponse(
-        request, "explore.html",
-        {"by_authority": by_authority,
-         "by_contractor": by_contractor,
-         "grand": grand,
-         "params": params,
-         "lk": lookups(),
-         "active_filters": {k: v for k, v in params.items() if v}},
-    )
+    ctx = {"by_authority": by_authority,
+           "by_contractor": by_contractor,
+           "grand": grand,
+           "params": params,
+           "active_filters": {k: v for k, v in params.items() if v}}
+    # HX request from the filter form → return just the results partial so only
+    # that region swaps (and its loading overlay shows during the request).
+    if request.headers.get("hx-request") == "true":
+        return templates.TemplateResponse(request, "_explore_results.html", ctx)
+    ctx["lk"] = lookups()
+    return templates.TemplateResponse(request, "explore.html", ctx)
 
 
 @app.get("/search")

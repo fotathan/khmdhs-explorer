@@ -1,0 +1,58 @@
+<div class="results-bar">
+  <div class="counters">
+    <span class="num">{{ "{:,}".format(grand.n).replace(",","·") }}</span>
+    <span class="lbl">πράξεις στο φίλτρο</span>
+    {% if grand.value %}
+      · <span class="num">€ {{ "{:,.0f}".format(grand.value).replace(",","·") }}</span>
+      <span class="lbl">συνολική αξία</span>
+    {% endif %}
+  </div>
+</div>
+
+{% if active_filters %}
+<p class="meta" style="margin-bottom:18px;">
+  Ενεργά φίλτρα:
+  {% for k, v in active_filters.items() %}<code class="cpv">{{ k }}={{ v }}</code> {% endfor %}
+</p>
+{% endif %}
+
+<div class="section-h">Ανά αναθέτουσα αρχή</div>
+{% if by_authority %}
+<table class="lines">
+  <thead><tr><th>Αρχή</th><th style="text-align:right;">Πράξεις</th><th style="text-align:right;">Αξία</th></tr></thead>
+  <tbody>
+    {% for a in by_authority %}
+    <tr>
+      <td class="title-cell"><a href="/authority/{{ a.key }}">{{ a.name or a.key }}</a></td>
+      <td class="val">{{ "{:,}".format(a.n).replace(",","·") }}</td>
+      <td class="val">{% if a.value %}€ {{ "{:,.0f}".format(a.value).replace(",","·") }}{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="meta">Καμία αρχή για αυτά τα φίλτρα.</p>
+{% endif %}
+
+<div class="section-h" style="margin-top:32px;">Ανά ανάδοχο</div>
+{% if by_contractor %}
+<table class="lines">
+  <thead><tr><th>Ανάδοχος</th><th style="text-align:right;">Συμβάσεις</th><th style="text-align:right;">Αξία</th></tr></thead>
+  <tbody>
+    {% for c in by_contractor %}
+    <tr>
+      <td class="title-cell"><a href="/contractor/{{ c.key }}">{{ c.name or c.key }}</a></td>
+      <td class="val">{{ "{:,}".format(c.n).replace(",","·") }}</td>
+      <td class="val">{% if c.value %}€ {{ "{:,.0f}".format(c.value).replace(",","·") }}{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="meta">Κανένας ανάδοχος για αυτά τα φίλτρα (η ανάλυση αναδόχων αφορά συμβάσεις με νικητή).</p>
+{% endif %}
+
+<p class="meta" style="margin-top:24px;">
+  Εμφανίζονται οι 100 κορυφαίοι ανά κατηγορία. Οι αξίες αναδόχων χρησιμοποιούν
+  το ποσό ανάθεσης ανά οικονομικό φορέα όπου υπάρχει.
+</p>
