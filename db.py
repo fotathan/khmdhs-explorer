@@ -170,6 +170,72 @@ def cmd_backfill(args):
               " re-run with --resume to retry them, or inspect last_error column.)")
 
 
+def _watermark(db, act_type: str):
+    """The latest end-date of a successfully-completed window for this type,
+    or None if the type has never been backfilled. This is our 'last caught
+    up to' marker — derived from ingest_window, so no extra state to keep."""
+    rows = db.query("""SELECT max(date_to) FROM proc.ingest_window
+                       WHERE act_type=%s AND status='done'""", (act_type,))
+    return rows[0][0] if rows and rows[0][0] else None
+
+
+def cmd_catchup(args):
+    """Incremental 'fetch everything since last run' per act type.
+
+    For each type: start = (latest done window end - overlap days), end = today.
+    The overlap re-fetches recent days so late-published / backdated records
+    aren't missed; upserts make the redundant rows harmless. Types never
+    backfilled before have no watermark, so they require an explicit --start
+    (we refuse to silently fetch all of history)."""
+    import khmdhs_ingest as ingest
+
+    end = dt.date.today()
+    overlap = dt.timedelta(days=args.overlap_days)
+    types = args.types or ["request", "notice", "auction", "contract", "payment"]
+    explicit_start = dt.date.fromisoformat(args.start) if args.start else None
+
+    with Database() as db:
+        client = ingest.KhmdhsClient()
+        repo = ingest.Repository(db)
+        totals = {"windows": 0, "done": 0, "skipped": 0, "errored": 0}
+        any_run = False
+        for act_type in types:
+            wm = _watermark(db, act_type)
+            if wm is not None:
+                start = wm - overlap
+                origin = f"watermark {wm} − {args.overlap_days}d"
+            elif explicit_start is not None:
+                start = explicit_start
+                origin = f"--start (no prior history for {act_type})"
+            else:
+                print(f"\n=== {act_type}: SKIPPED — never backfilled and no "
+                      f"--start given. Run a full backfill first, or pass "
+                      f"--start YYYY-MM-DD. ===")
+                continue
+            if start > end:
+                start = end
+            print(f"\n=== catching up {act_type}: {start} .. {end}  ({origin}) ===")
+            s = ingest.ingest_type(client, repo, act_type, start, end, resume=False)
+            for k in totals:
+                totals[k] += s[k]
+            any_run = True
+
+        # surface the watermarks after the run, for the log/audit trail.
+        if any_run:
+            print("\nnew watermarks (latest done window end per type):")
+            for act_type in types:
+                wm = _watermark(db, act_type)
+                print(f"  {act_type:9s} {wm if wm else '—'}")
+
+    print(f"\ncatch-up complete. windows={totals['windows']} "
+          f"done={totals['done']} skipped={totals['skipped']} "
+          f"errored={totals['errored']}")
+    if totals["errored"]:
+        print("  (errored windows recorded with status='error'; "
+              "inspect with: python3 db.py progress --errors-only)")
+    return totals
+
+
 def cmd_stats(args):
     with Database() as db:
         rows = db.query("""
@@ -240,6 +306,19 @@ def main():
     p_bf.add_argument("--resume", action="store_true",
                       help="skip windows already marked 'done'; retry running/error/pending")
     p_bf.set_defaults(func=cmd_backfill)
+
+    p_cu = sub.add_parser("catchup",
+                          help="incremental fetch since last run (per type), "
+                               "with an overlap buffer for late records")
+    p_cu.add_argument("--types", nargs="+",
+                      choices=["request", "notice", "auction", "contract", "payment"],
+                      help="subset of act types (default: all five)")
+    p_cu.add_argument("--overlap-days", type=int, default=7,
+                      help="re-fetch this many days before the watermark "
+                           "(default: 7) to catch late/backdated records")
+    p_cu.add_argument("--start", help="YYYY-MM-DD; used only for types that have "
+                      "never been backfilled (no watermark)")
+    p_cu.set_defaults(func=cmd_catchup)
 
     p_st = sub.add_parser("stats", help="print row counts")
     p_st.set_defaults(func=cmd_stats)
