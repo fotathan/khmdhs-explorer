@@ -111,13 +111,37 @@ _conn: Optional[psycopg.Connection] = None
 def conn() -> psycopg.Connection:
     global _conn
     if _conn is None or _conn.closed:
-        _conn = psycopg.connect(DATABASE_URL, row_factory=dict_row, autocommit=True)
+        # prepare_threshold=None disables psycopg3's automatic prepared
+        # statements. Required when connecting through a transaction-mode
+        # connection pooler (e.g. Supabase port 6543 / PgBouncer): there,
+        # consecutive queries can land on different physical connections, so
+        # server-side prepared statements collide ("prepared statement _pg3_N
+        # already exists"). Disabling them keeps the app pooler-safe. Harmless
+        # against a direct connection (local dev).
+        _conn = psycopg.connect(DATABASE_URL, row_factory=dict_row,
+                                autocommit=True, prepare_threshold=None)
     return _conn
 
 @contextmanager
 def cursor():
-    with conn().cursor() as cur:
-        yield cur
+    """Yield a cursor on the shared connection. If the connection has gone
+    stale (pooler dropped it, or it's in a broken state after an error),
+    reconnect once and retry — so a single dead connection doesn't cause a
+    run of 500s until the next restart."""
+    global _conn
+    try:
+        with conn().cursor() as cur:
+            yield cur
+    except psycopg.OperationalError:
+        # Connection likely dropped by the pooler; force a fresh one.
+        try:
+            if _conn is not None and not _conn.closed:
+                _conn.close()
+        except Exception:
+            pass
+        _conn = None
+        with conn().cursor() as cur:
+            yield cur
 
 
 # ---------------------------------------------------------------------------- #

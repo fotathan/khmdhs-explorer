@@ -119,6 +119,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--types", nargs="+", required=True,
                     help="act types to copy, e.g. notice contract payment")
+    ap.add_argument("--since", help="only acts with submission_date >= this "
+                    "(YYYY-MM-DD). Use to copy just a recent slice.")
+    ap.add_argument("--until", help="only acts with submission_date <= this "
+                    "(YYYY-MM-DD, inclusive). Default: no upper bound.")
     ap.add_argument("--keep-raw-json", action="store_true",
                     help="copy raw_json too (default: strip it)")
     args = ap.parse_args()
@@ -130,6 +134,24 @@ def main():
 
     null_cols = () if args.keep_raw_json else ("raw_json",)
 
+    # Build the act-selection predicate once, reused for the acts query and
+    # every child-table subquery so they stay consistent. Optional date range
+    # narrows by submission_date (publication date).
+    act_pred = "type = ANY(%s)"
+    act_args: list = [args.types]
+    if args.since:
+        act_pred += " AND submission_date >= %s"
+        act_args.append(args.since)
+    if args.until:
+        act_pred += " AND submission_date < (%s::date + interval '1 day')"
+        act_args.append(args.until)
+    act_args = tuple(act_args)
+    # For child subqueries the same predicate is embedded; psycopg needs the
+    # args repeated in order each place it appears.
+    span = ""
+    if args.since or args.until:
+        span = f"  (since={args.since or '—'}, until={args.until or 'today'})"
+
     lconn = psycopg.connect(local)
     rconn = psycopg.connect(remote)
     lconn.autocommit = False
@@ -138,7 +160,7 @@ def main():
         lcur = lconn.cursor()
         rcur = rconn.cursor()
 
-        print(f"Copying act types: {', '.join(args.types)}")
+        print(f"Copying act types: {', '.join(args.types)}{span}")
         print("Parent/reference tables (full):")
         for table, _ in FULL_TABLES:
             n = copy_rows(lcur, rcur, table)
@@ -154,7 +176,7 @@ def main():
         # The acts themselves.
         print("Acts:")
         n = copy_rows(lcur, rcur, "proc.procurement_act",
-                      where="WHERE type = ANY(%s)", args=(args.types,),
+                      where=f"WHERE {act_pred}", args=act_args,
                       null_cols=null_cols)
         print(f"  {'proc.procurement_act':32s} {n:>8} rows"
               f"{' (raw_json stripped)' if not args.keep_raw_json else ''}")
@@ -162,10 +184,10 @@ def main():
 
         # Child tables tied to those acts (filter by adam IN selected acts).
         print("Child tables (tied to those acts):")
-        adam_filter = ("WHERE adam IN (SELECT adam FROM proc.procurement_act "
-                       "WHERE type = ANY(%s))")
+        adam_filter = (f"WHERE adam IN (SELECT adam FROM proc.procurement_act "
+                       f"WHERE {act_pred})")
         for table in CHILD_TABLES_BY_ADAM:
-            n = copy_rows(lcur, rcur, table, where=adam_filter, args=(args.types,))
+            n = copy_rows(lcur, rcur, table, where=adam_filter, args=act_args)
             print(f"  {table:32s} {n:>8} rows")
         rconn.commit()
 
@@ -182,8 +204,8 @@ def main():
                 WHERE object_detail_id IN (
                   SELECT id FROM proc.act_object_detail
                   WHERE adam IN (SELECT adam FROM proc.procurement_act
-                                 WHERE type = ANY(%s)))
-            """, (args.types,))
+                                 WHERE {act_pred}))
+            """, act_args)
             cpv_idx = cols.index("cpv_code")
             rows = [r for r in lcur.fetchall() if r[cpv_idx] in remote_cpvs]
             if rows:
@@ -203,8 +225,8 @@ def main():
             lcur.execute(f"""
                 SELECT {collist} FROM proc.act_link
                 WHERE source_adam IN (SELECT adam FROM proc.procurement_act
-                                      WHERE type = ANY(%s))
-            """, (args.types,))
+                                      WHERE {act_pred})
+            """, act_args)
             rows = lcur.fetchall()
             if rows:
                 ph = ", ".join(["%s"] * len(cols))
