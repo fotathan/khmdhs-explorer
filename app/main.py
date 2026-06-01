@@ -56,6 +56,28 @@ templates = Jinja2Templates(directory=os.path.join(APP_DIR, "templates"))
 ANALYTICS_VALUE_CEILING = 500_000_000
 templates.env.globals["ANALYTICS_VALUE_CEILING"] = ANALYTICS_VALUE_CEILING
 
+# Direct link to the official KHMDHS source document (PDF) for an act. The open
+# API exposes each act's PDF at /{segment}/attachment/{ADAM}, addressable by the
+# universal ADAM key. Segment matches the act type. This is the authoritative
+# source record — the portal's web UI has no per-act permalink, but this does.
+KHMDHS_DOC_BASE = "https://cerpp.eprocurement.gov.gr/khmdhs-opendata"
+KHMDHS_DOC_SEGMENT = {
+    "request":  "request",
+    "notice":   "notice",
+    "auction":  "auction",
+    "contract": "contract",
+    "payment":  "payment",
+}
+
+def khmdhs_doc_url(act_type: str, adam: str) -> str | None:
+    """Official source-PDF URL for an act, or None if the type is unknown."""
+    seg = KHMDHS_DOC_SEGMENT.get(act_type)
+    if not seg or not adam:
+        return None
+    return f"{KHMDHS_DOC_BASE}/{seg}/attachment/{adam}"
+
+templates.env.globals["khmdhs_doc_url"] = khmdhs_doc_url
+
 # --- Single source of truth for act-type display labels (Greek) ------------- #
 # Used by every template via the |type_label filter. Internal codes ("notice",
 # "auction", …) stay English everywhere they're a contract — URLs, form values,
@@ -578,8 +600,8 @@ def explore(request: Request):
     # but we enforce it here too for consistency.
     eligible = """
         NOT a.cancelled
-        AND (a.total_cost_with_vat IS NULL
-             OR a.total_cost_with_vat <= %s)
+        AND (proc.resolved_value(a.adam, a.total_cost_with_vat) IS NULL
+             OR proc.resolved_value(a.adam, a.total_cost_with_vat) <= %s)
         AND NOT EXISTS (SELECT 1 FROM proc.v_act_annotation_current an
                         WHERE an.adam = a.adam AND an.flag = 'suspicious')
     """
@@ -594,7 +616,7 @@ def explore(request: Request):
                 SELECT proc.canon_authority(a.authority_id) AS key,
                        max(auth.name)                       AS name,
                        count(*)                             AS n,
-                       coalesce(sum(a.total_cost_with_vat), 0) AS value
+                       coalesce(sum(proc.resolved_value(a.adam, a.total_cost_with_vat)), 0) AS value
                 FROM proc.procurement_act a
                 LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
                 WHERE {where} AND a.authority_id IS NOT NULL AND {eligible}
@@ -610,7 +632,7 @@ def explore(request: Request):
                        max(eo.name)                          AS name,
                        count(DISTINCT a.adam)                AS n,
                        coalesce(sum(coalesce(ao.awarded_value_with_vat,
-                                             a.total_cost_with_vat)), 0) AS value
+                                             proc.resolved_value(a.adam, a.total_cost_with_vat))), 0) AS value
                 FROM proc.procurement_act a
                 JOIN proc.act_operator ao ON ao.adam = a.adam
                 JOIN proc.economic_operator eo ON eo.operator_id = ao.operator_id
@@ -624,7 +646,7 @@ def explore(request: Request):
             # --- grand totals for the filtered, eligible set ---
             c.execute(f"""
                 SELECT count(*) AS n,
-                       coalesce(sum(a.total_cost_with_vat), 0) AS value
+                       coalesce(sum(proc.resolved_value(a.adam, a.total_cost_with_vat)), 0) AS value
                 FROM proc.procurement_act a
                 WHERE {where} AND {eligible}
             """, (*args, ceiling))
@@ -783,7 +805,7 @@ def act_detail(adam: str, request: Request):
         # Current team annotation (overlay; never part of harvested data).
         annotation = None
         try:
-            c.execute("""SELECT note, tags, flag, author, created_at
+            c.execute("""SELECT note, tags, flag, author, created_at, corrected_value
                          FROM proc.v_act_annotation_current WHERE adam=%s""", (adam,))
             annotation = c.fetchone()
         except Exception:
@@ -795,6 +817,8 @@ def act_detail(adam: str, request: Request):
     excluded_reason = None
     if notice.get("act_type") == "contract" and not notice.get("cancelled"):
         val = notice.get("total_cost_with_vat")
+        if annotation and annotation.get("corrected_value") is not None:
+            val = annotation.get("corrected_value")   # corrected value wins
         if val is not None and val > ANALYTICS_VALUE_CEILING:
             excluded_reason = "over_threshold"
         elif annotation and annotation.get("flag") == "suspicious":

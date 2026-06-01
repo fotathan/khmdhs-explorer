@@ -347,7 +347,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             if not act:
                 raise HTTPException(404, f"act {adam} not found")
             # Current annotation (if any) to pre-fill the form.
-            c.execute("""SELECT note, tags, flag, author, created_at
+            c.execute("""SELECT note, tags, flag, author, created_at, corrected_value
                          FROM proc.v_act_annotation_current WHERE adam=%s""", (adam,))
             current = c.fetchone()
             # Full history (audit trail) for this act.
@@ -368,6 +368,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                       note: str = Form(""),
                       tags: str = Form(""),
                       flag: str = Form(""),
+                      corrected_value: str = Form(""),
                       author: str = Form("")):
         with cursor() as c:
             c.execute("SELECT 1 FROM proc.procurement_act WHERE adam=%s", (adam,))
@@ -380,14 +381,30 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             # Parse comma/space separated tags into a clean list.
             tag_list = [t.strip() for t in tags.replace(",", " ").split() if t.strip()]
 
+            # Parse the corrected value (optional). Accept comma or dot decimals,
+            # ignore thousands separators and currency symbols. Blank => no value.
+            cv = (corrected_value or "").strip()
+            corrected = None
+            if cv:
+                cleaned = (cv.replace("€", "").replace(" ", "")
+                             .replace(".", "").replace(",", ".")
+                           if cv.count(",") == 1 and cv.rfind(",") > cv.rfind(".")
+                           else cv.replace("€", "").replace(" ", "").replace(",", ""))
+                try:
+                    corrected = round(float(cleaned), 2)
+                    if corrected < 0:
+                        corrected = None
+                except ValueError:
+                    corrected = None
+
             # If everything is empty, treat as "clear annotation": just supersede.
             c.execute("""UPDATE proc.act_annotation SET superseded=true
                          WHERE adam=%s AND NOT superseded""", (adam,))
-            if note or tag_list or flag:
+            if note or tag_list or flag or corrected is not None:
                 c.execute("""INSERT INTO proc.act_annotation
-                                 (adam, note, tags, flag, author)
-                             VALUES (%s,%s,%s,%s,%s)""",
-                          (adam, note or None, tag_list, flag, author))
+                                 (adam, note, tags, flag, corrected_value, author)
+                             VALUES (%s,%s,%s,%s,%s,%s)""",
+                          (adam, note or None, tag_list, flag, corrected, author))
 
         resp = RedirectResponse(url=f"/admin/act/{adam}/annotate", status_code=303)
         # Remember the curator's name for next time (attribution, not auth).
