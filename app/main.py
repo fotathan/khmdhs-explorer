@@ -555,6 +555,87 @@ def _params_from(request: Request) -> dict:
     return {k: request.query_params.get(k, "") for k in keys}
 
 
+@app.get("/explore", response_class=HTMLResponse)
+def explore(request: Request):
+    """Aggregated breakdown of the *same* filtered set as the main search.
+    Two tables: by authority and by contractor (both merge-aware, ranked by
+    value). Honors the same analytics exclusions (cancelled / over-ceiling /
+    suspicious-flagged) so totals are consistent with the dashboard."""
+    params = _params_from(request)
+    where, args = build_where(params)
+
+    # Same exclusion the analytics use, expressed inline so it applies to the
+    # filtered population. Cancelled already handled by status filter sometimes,
+    # but we enforce it here too for consistency.
+    eligible = """
+        NOT a.cancelled
+        AND (a.total_cost_with_vat IS NULL
+             OR a.total_cost_with_vat <= %s)
+        AND NOT EXISTS (SELECT 1 FROM proc.v_act_annotation_current an
+                        WHERE an.adam = a.adam AND an.flag = 'suspicious')
+    """
+    ceiling = ANALYTICS_VALUE_CEILING
+
+    by_authority, by_contractor = [], []
+    grand = {"n": 0, "value": 0.0}
+    try:
+        with cursor() as c:
+            # --- by authority ---
+            c.execute(f"""
+                SELECT proc.canon_authority(a.authority_id) AS key,
+                       max(auth.name)                       AS name,
+                       count(*)                             AS n,
+                       coalesce(sum(a.total_cost_with_vat), 0) AS value
+                FROM proc.procurement_act a
+                LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
+                WHERE {where} AND a.authority_id IS NOT NULL AND {eligible}
+                GROUP BY proc.canon_authority(a.authority_id)
+                ORDER BY value DESC, n DESC
+                LIMIT 100
+            """, (*args, ceiling))
+            by_authority = c.fetchall()
+
+            # --- by contractor (needs the operator join; value is contract-only) ---
+            c.execute(f"""
+                SELECT proc.canon_contractor(eo.vat_number) AS key,
+                       max(eo.name)                          AS name,
+                       count(DISTINCT a.adam)                AS n,
+                       coalesce(sum(coalesce(ao.awarded_value_with_vat,
+                                             a.total_cost_with_vat)), 0) AS value
+                FROM proc.procurement_act a
+                JOIN proc.act_operator ao ON ao.adam = a.adam
+                JOIN proc.economic_operator eo ON eo.operator_id = ao.operator_id
+                WHERE {where} AND {eligible}
+                GROUP BY proc.canon_contractor(eo.vat_number)
+                ORDER BY value DESC, n DESC
+                LIMIT 100
+            """, (*args, ceiling))
+            by_contractor = c.fetchall()
+
+            # --- grand totals for the filtered, eligible set ---
+            c.execute(f"""
+                SELECT count(*) AS n,
+                       coalesce(sum(a.total_cost_with_vat), 0) AS value
+                FROM proc.procurement_act a
+                WHERE {where} AND {eligible}
+            """, (*args, ceiling))
+            g = c.fetchone()
+            grand = {"n": g["n"], "value": float(g["value"] or 0)}
+    except Exception:
+        # If annotation view or merge functions aren't present, degrade to empty.
+        by_authority, by_contractor = [], []
+
+    return templates.TemplateResponse(
+        request, "explore.html",
+        {"by_authority": by_authority,
+         "by_contractor": by_contractor,
+         "grand": grand,
+         "params": params,
+         "lk": lookups(),
+         "active_filters": {k: v for k, v in params.items() if v}},
+    )
+
+
 @app.get("/search")
 def search_redirect(request: Request):
     """Back-compat: old links to /search?... redirect to /?... preserving
