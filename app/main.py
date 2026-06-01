@@ -26,6 +26,7 @@ Then open http://localhost:8000
 from __future__ import annotations
 
 import os
+import re
 from contextlib import contextmanager
 from datetime import date
 from typing import Optional
@@ -231,11 +232,20 @@ def build_where(params: dict) -> tuple[str, list]:
 
     q = (params.get("q") or "").strip()
     if q:
-        # Both sides: unaccent + lower + map final-sigma (ς) to medial (σ), so
-        # 'καθαριότητας' and 'καθαριοτητασ' match the same content.
-        norm = "translate(proc.f_unaccent(lower({col})), 'ς', 'σ')"
-        where.append(f"{norm.format(col='a.title')} LIKE {norm.format(col='%s')}")
-        args.append(f"%{q}%")
+        # Auto-detect: if the query looks like an ADAM (e.g. 25SYMV016143474 —
+        # 2 digits, uppercase letters, then digits), search the adam column
+        # directly instead of the title. ADAMs are case-insensitive here and
+        # matched as a prefix, so a partial paste still finds it. Otherwise it's
+        # a normal title keyword search.
+        if re.fullmatch(r"\d{2}[A-Za-z]{2,6}\d{0,15}", q):
+            where.append("a.adam ILIKE %s")
+            args.append(f"{q}%")
+        else:
+            # Both sides: unaccent + lower + map final-sigma (ς) to medial (σ),
+            # so 'καθαριότητας' and 'καθαριοτητασ' match the same content.
+            norm = "translate(proc.f_unaccent(lower({col})), 'ς', 'σ')"
+            where.append(f"{norm.format(col='a.title')} LIKE {norm.format(col='%s')}")
+            args.append(f"%{q}%")
 
     auth_id = (params.get("authority") or "").strip()
     if auth_id:
