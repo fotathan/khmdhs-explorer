@@ -98,6 +98,11 @@ SINGLE_LINK_FIELDS = {
 
 MAX_WINDOW_DAYS = 180
 RATE_LIMIT_PER_MIN = 350
+# Retry policy for transient failures (429 throttle, 5xx, network blips).
+MAX_RETRIES = 5          # attempts per request before giving up
+BACKOFF_BASE = 5.0       # seconds; doubles each retry (5, 10, 20, 40, 80)
+BACKOFF_CAP = 120.0      # never wait longer than this between tries
+RETRY_STATUSES = {429, 500, 502, 503, 504}
 
 
 # --------------------------------------------------------------------------- #
@@ -125,19 +130,56 @@ class KhmdhsClient:
     limiter: RateLimiter = field(default_factory=RateLimiter)
 
     def _post(self, path: str, body: dict, page: int) -> dict:
-        self.limiter.wait()
-        r = self.session.post(
-            f"{OPENDATA}{path}",
-            params={"page": page},
-            json=body,
-            headers={"Accept": "application/json"},
-            timeout=60,
-        )
-        if r.status_code == 429:          # too many requests -> back off and retry once
-            time.sleep(5)
-            return self._post(path, body, page)
-        r.raise_for_status()
-        return r.json()
+        """POST one page, retrying transient failures with exponential backoff.
+
+        Retries on 429 (throttle) and 5xx, plus network/timeout errors, up to
+        MAX_RETRIES times. Honors a Retry-After header when present; otherwise
+        backs off 5,10,20,… seconds (capped). The proactive rate limiter still
+        paces every attempt, so this only kicks in when the server pushes back.
+        Raises after the cap so the window is recorded as an error and can be
+        retried later with --resume."""
+        url = f"{OPENDATA}{path}"
+        last_exc: Exception | None = None
+        for attempt in range(MAX_RETRIES):
+            self.limiter.wait()
+            try:
+                r = self.session.post(
+                    url, params={"page": page}, json=body,
+                    headers={"Accept": "application/json"}, timeout=60,
+                )
+            except (requests.ConnectionError, requests.Timeout) as e:
+                # network blip — back off and retry
+                last_exc = e
+                self._sleep_backoff(attempt, None)
+                continue
+
+            if r.status_code in RETRY_STATUSES:
+                if attempt == MAX_RETRIES - 1:
+                    r.raise_for_status()   # out of retries → surface the error
+                self._sleep_backoff(attempt, r.headers.get("Retry-After"))
+                continue
+
+            r.raise_for_status()           # non-retryable error → raise now
+            return r.json()
+
+        # exhausted retries on network errors
+        if last_exc:
+            raise last_exc
+        raise RuntimeError(f"giving up on {url} page {page} after {MAX_RETRIES} tries")
+
+    @staticmethod
+    def _sleep_backoff(attempt: int, retry_after: str | None) -> None:
+        """Wait before the next attempt: honor Retry-After if the server sent a
+        usable value, else exponential backoff (BACKOFF_BASE * 2**attempt)."""
+        delay = None
+        if retry_after:
+            try:
+                delay = float(retry_after)        # Retry-After: seconds form
+            except (TypeError, ValueError):
+                delay = None                       # HTTP-date form — ignore, use backoff
+        if delay is None:
+            delay = BACKOFF_BASE * (2 ** attempt)
+        time.sleep(min(delay, BACKOFF_CAP))
 
     def search(self, act_type: str, body: dict) -> Iterator[dict]:
         """Yield every act object across all result pages for one search body."""
