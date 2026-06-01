@@ -45,7 +45,10 @@
       <td>
         {% if r.cancelled %}<span class="pill cancel">ακυρωμένη</span>{% endif %}
         {% if r.is_modified %}<span class="pill amend">ορθή επ.</span>{% endif %}
-        {% if not r.cancelled and not r.is_modified %}<span class="meta">—</span>{% endif %}
+        {% if r.type == 'contract' and not r.cancelled and r.total_cost_with_vat and r.total_cost_with_vat > ANALYTICS_VALUE_CEILING %}
+          <span class="pill cancel" title="Ύποπτη τιμή — εξαιρείται από τα στατιστικά">ύποπτη τιμή</span>
+        {% endif %}
+        {% if not r.cancelled and not r.is_modified and not (r.type == 'contract' and r.total_cost_with_vat and r.total_cost_with_vat > ANALYTICS_VALUE_CEILING) %}<span class="meta">—</span>{% endif %}
       </td>
     </tr>
     {% endfor %}

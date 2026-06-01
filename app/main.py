@@ -48,6 +48,14 @@ if not DATABASE_URL:
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 templates = Jinja2Templates(directory=os.path.join(APP_DIR, "templates"))
 
+# Sanity ceiling for contract values (with VAT). Contracts above this are
+# treated as data errors (KHMDHS sometimes inflates values ~1000x) and excluded
+# from analytics aggregates — see analytics_exclusion_migration.sql, which holds
+# the authoritative copy of this number. Kept in sync here so the UI can badge
+# excluded contracts. A contract is also "excluded" if flagged 'suspicious'.
+ANALYTICS_VALUE_CEILING = 500_000_000
+templates.env.globals["ANALYTICS_VALUE_CEILING"] = ANALYTICS_VALUE_CEILING
+
 # --- Single source of truth for act-type display labels (Greek) ------------- #
 # Used by every template via the |type_label filter. Internal codes ("notice",
 # "auction", …) stay English everywhere they're a contract — URLs, form values,
@@ -690,6 +698,16 @@ def act_detail(adam: str, request: Request):
             # annotation table/view not migrated yet — degrade gracefully.
             annotation = None
 
+    # Why (if at all) this contract is excluded from analytics totals, so the
+    # detail page can show a badge explaining it. Two reasons, both surfaced.
+    excluded_reason = None
+    if notice.get("act_type") == "contract" and not notice.get("cancelled"):
+        val = notice.get("total_cost_with_vat")
+        if val is not None and val > ANALYTICS_VALUE_CEILING:
+            excluded_reason = "over_threshold"
+        elif annotation and annotation.get("flag") == "suspicious":
+            excluded_reason = "flagged"
+
     return templates.TemplateResponse(
         request, "notice.html",
         {"n": notice,
@@ -697,7 +715,8 @@ def act_detail(adam: str, request: Request):
          "operators": operators,
          "downstream": downstream,
          "incoming": incoming,
-         "annotation": annotation},
+         "annotation": annotation,
+         "excluded_reason": excluded_reason},
     )
 
 
