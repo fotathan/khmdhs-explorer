@@ -67,6 +67,15 @@ TYPE_LABELS = {
     "payment":  "Εντολή Πληρωμής",
     "request":  "Πρωτογενές Αίτημα",
 }
+# Which act types appear as filter OPTIONS, in display order. 'request' is kept
+# in TYPE_LABELS (so any such act still gets a proper label if encountered) but
+# excluded here — we don't import that type, so it shouldn't clutter the filter.
+# Both the main page and the aggregations page iterate this, so the two stay
+# uniform. The label for the "all types" option is also defined once here.
+TYPE_FILTER_ORDER = ["notice", "auction", "contract", "payment"]
+TYPE_ALL_LABEL = "Όλες οι πράξεις"
+templates.env.globals["TYPE_FILTER_ORDER"] = TYPE_FILTER_ORDER
+templates.env.globals["TYPE_ALL_LABEL"] = TYPE_ALL_LABEL
 # Contract types (contractType) — the kind of object procured.
 CONTRACT_TYPES = {
     "9":  "Υπηρεσίες",

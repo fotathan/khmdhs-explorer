@@ -14,11 +14,11 @@
       <div class="filter-h" style="margin-top:0;">Τύπος πράξης</div>
       <div class="seg-vert" role="group">
         <label>
-          <input type="radio" name="type" value="" {% if not request.query_params.get('type') %}checked{% endif %}>Όλες οι πράξεις
+          <input type="radio" name="type" value="" {% if not request.query_params.get('type') %}checked{% endif %}>{{ TYPE_ALL_LABEL }}
         </label>
-        {% for code, label in TYPE_LABELS.items() %}
+        {% for code in TYPE_FILTER_ORDER %}
         <label>
-          <input type="radio" name="type" value="{{ code }}" {% if request.query_params.get('type')==code %}checked{% endif %}>{{ label }}
+          <input type="radio" name="type" value="{{ code }}" {% if request.query_params.get('type')==code %}checked{% endif %}>{{ TYPE_LABELS[code] }}
         </label>
         {% endfor %}
       </div>

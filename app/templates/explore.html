@@ -21,11 +21,11 @@
       <div class="filter-h">Τύπος πράξης</div>
       <div class="seg-vert">
         <label class="{% if not params.type %}on{% endif %}">
-          <input type="radio" name="type" value="" {% if not params.type %}checked{% endif %}> Όλες
+          <input type="radio" name="type" value="" {% if not params.type %}checked{% endif %}> {{ TYPE_ALL_LABEL }}
         </label>
-        {% for code, lbl in [('notice','Προκηρύξεις'),('contract','Συμβάσεις'),('auction','Διαγωνισμοί'),('payment','Πληρωμές')] %}
+        {% for code in TYPE_FILTER_ORDER %}
         <label class="{% if params.type==code %}on{% endif %}">
-          <input type="radio" name="type" value="{{ code }}" {% if params.type==code %}checked{% endif %}> {{ lbl }}
+          <input type="radio" name="type" value="{{ code }}" {% if params.type==code %}checked{% endif %}> {{ TYPE_LABELS[code] }}
         </label>
         {% endfor %}
       </div>
