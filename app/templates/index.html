@@ -70,6 +70,19 @@
         </select>
       </div>
 
+      <div class="field">
+        <label>Τύπος διαδικασίας</label>
+        <select name="procedure_type">
+          <option value="">— οποιαδήποτε —</option>
+          {% for p in lk.procedure_types %}
+            <option value="{{ p.code }}"
+              {% if request.query_params.get('procedure_type')==p.code %}selected{% endif %}>
+              {{ p.label }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
       <div class="filter-h">Γεωγραφία</div>
       <div class="field">
         <label>NUTS (πρόθεμα)</label>

@@ -220,6 +220,11 @@ def build_where(params: dict) -> tuple[str, list]:
         where.append("a.contract_type_code = %s")
         args.append(contract_type)
 
+    procedure_type = (params.get("procedure_type") or "").strip()
+    if procedure_type:
+        where.append("a.procedure_type_code = %s")
+        args.append(procedure_type)
+
     nuts = (params.get("nuts") or "").strip()
     if nuts:
         # Prefix match: 'EL' matches all of Greece, 'EL5' matches a region cluster.
@@ -327,6 +332,17 @@ def lookups() -> dict:
               for r in rows]
         ct.sort(key=lambda x: x["label"])
         _lookup_cache["contract_types"] = ct
+        # Procedure types present across all acts. Labels from PROCEDURE_TYPES.
+        c.execute("""
+            SELECT DISTINCT a.procedure_type_code AS code
+            FROM proc.procurement_act a
+            WHERE a.procedure_type_code IS NOT NULL
+        """)
+        rows = c.fetchall()
+        pt = [{"code": r["code"], "label": PROCEDURE_TYPES.get(str(r["code"]), r["code"])}
+              for r in rows]
+        pt.sort(key=lambda x: x["label"])
+        _lookup_cache["procedure_types"] = pt
         # NUTS regions present across all acts.
         c.execute("""
             SELECT DISTINCT a.nuts_code AS code,
@@ -524,7 +540,7 @@ def home(request: Request,
 
 def _params_from(request: Request) -> dict:
     """Pull all known query params into a plain dict, dropping empties."""
-    keys = ("type", "q", "authority", "cpv", "contract_type", "nuts",
+    keys = ("type", "q", "authority", "cpv", "contract_type", "procedure_type", "nuts",
             "date_from", "date_to", "deadline_from", "deadline_to",
             "value_min", "value_max",
             "status", "sort")
