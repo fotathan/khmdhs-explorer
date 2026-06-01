@@ -222,7 +222,7 @@ def build_where(params: dict) -> tuple[str, list]:
 
     procedure_type = (params.get("procedure_type") or "").strip()
     if procedure_type:
-        where.append("a.procedure_type_code = %s")
+        where.append("a.procedure_family = %s")
         args.append(procedure_type)
 
     nuts = (params.get("nuts") or "").strip()
@@ -332,16 +332,16 @@ def lookups() -> dict:
               for r in rows]
         ct.sort(key=lambda x: x["label"])
         _lookup_cache["contract_types"] = ct
-        # Procedure types present across all acts. Labels from PROCEDURE_TYPES.
+        # Procedure families — already normalized in the procedure_family
+        # column (see procedure_family_migration.sql), so just list the
+        # distinct families present. No dict mapping or dedup needed.
         c.execute("""
-            SELECT DISTINCT a.procedure_type_code AS code
-            FROM proc.procurement_act a
-            WHERE a.procedure_type_code IS NOT NULL
+            SELECT DISTINCT procedure_family AS code
+            FROM proc.procurement_act
+            WHERE procedure_family IS NOT NULL
+            ORDER BY procedure_family
         """)
-        rows = c.fetchall()
-        pt = [{"code": r["code"], "label": PROCEDURE_TYPES.get(str(r["code"]), r["code"])}
-              for r in rows]
-        pt.sort(key=lambda x: x["label"])
+        pt = [{"code": r["code"], "label": r["code"]} for r in c.fetchall()]
         _lookup_cache["procedure_types"] = pt
         # NUTS regions present across all acts.
         c.execute("""
