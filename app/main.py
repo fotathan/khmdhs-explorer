@@ -1206,7 +1206,11 @@ def authority_detail(org_id: str, request: Request,
 
     total_pages = max(1, (total + per_page - 1) // per_page)
     grand_total = sum((r["n"] or 0) for r in by_type)
-    grand_value = sum(float(r["total_value"] or 0) for r in by_type)
+    # Headline value is CONTRACTS ONLY — summing across types would double-count
+    # (an auction and its follow-on contract are the same award). The by_type
+    # table still shows every type's breakdown; only this headline is restricted.
+    grand_value = sum(float(r["total_value"] or 0)
+                      for r in by_type if r["type"] == "contract")
 
     return templates.TemplateResponse(
         request, "authority.html",
@@ -1274,7 +1278,7 @@ def contractor_detail(vat: str, request: Request,
             SELECT a.type,
                    count(*) AS n,
                    coalesce(sum(coalesce(ao.awarded_value_with_vat,
-                                         a.total_cost_with_vat)), 0) AS total_value
+                                         proc.resolved_value(a.adam, a.total_cost_with_vat))), 0) AS total_value
             FROM proc.act_operator ao
             JOIN proc.procurement_act a ON a.adam = ao.adam
             WHERE ao.operator_id = ANY(%s)
@@ -1283,36 +1287,37 @@ def contractor_detail(vat: str, request: Request,
         """, (op_ids,))
         by_type = c.fetchall()
 
-        # Top buying authorities (who pays this contractor most).
+        # Top buying authorities (who pays this contractor most). Contracts only
+        # — auctions are the pre-contract stage and would double-count the same
+        # award (an auction can also split into several contracts).
         c.execute("""
             SELECT auth.org_id, auth.name,
                    count(DISTINCT a.adam) AS n_acts,
                    coalesce(sum(coalesce(ao.awarded_value_with_vat,
-                                         a.total_cost_with_vat)), 0) AS total_value
+                                         proc.resolved_value(a.adam, a.total_cost_with_vat))), 0) AS total_value
             FROM proc.act_operator ao
             JOIN proc.procurement_act a ON a.adam = ao.adam
             LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
-            WHERE ao.operator_id = ANY(%s)
+            WHERE ao.operator_id = ANY(%s) AND a.type = 'contract'
             GROUP BY auth.org_id, auth.name
             ORDER BY total_value DESC NULLS LAST
             LIMIT 10
         """, (op_ids,))
         top_buyers = c.fetchall()
 
-        # Top CPV divisions this contractor has supplied across all their acts.
-        # Division-level label resolved via prefix LIKE (the catalog has real
-        # EU checksums on the division-level entries, not always '-0').
+        # Top CPV divisions this contractor has supplied. Contracts only, for
+        # the same anti-double-count reason as above.
         c.execute("""
             WITH agg AS (
               SELECT substr(oc.cpv_code, 1, 2) AS division,
                      count(DISTINCT a.adam) AS n_acts,
                      coalesce(sum(coalesce(ao.awarded_value_with_vat,
-                                           a.total_cost_with_vat)), 0) AS total_value
+                                           proc.resolved_value(a.adam, a.total_cost_with_vat))), 0) AS total_value
               FROM proc.act_operator ao
               JOIN proc.procurement_act a ON a.adam = ao.adam
               JOIN proc.act_object_detail od ON od.adam = a.adam
               JOIN proc.object_detail_cpv oc ON oc.object_detail_id = od.id
-              WHERE ao.operator_id = ANY(%s)
+              WHERE ao.operator_id = ANY(%s) AND a.type = 'contract'
               GROUP BY substr(oc.cpv_code, 1, 2)
             )
             SELECT agg.division, agg.n_acts, agg.total_value,
@@ -1348,7 +1353,10 @@ def contractor_detail(vat: str, request: Request,
 
     total_pages = max(1, (total + per_page - 1) // per_page)
     grand_total = sum((r["n"] or 0) for r in by_type)
-    grand_value = sum(float(r["total_value"] or 0) for r in by_type)
+    # Contracts only — an auction and its follow-on contract are the same award,
+    # so summing across types double-counts. by_type still shows the breakdown.
+    grand_value = sum(float(r["total_value"] or 0)
+                      for r in by_type if r["type"] == "contract")
 
     return templates.TemplateResponse(
         request, "contractor.html",
