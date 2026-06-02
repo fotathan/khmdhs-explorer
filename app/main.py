@@ -1195,7 +1195,11 @@ def authority_detail(org_id: str, request: Request,
         offset = (page - 1) * per_page
         c.execute(f"""
             SELECT a.adam, a.type, a.title, a.signed_date, a.submission_date,
-                   a.total_cost_with_vat, a.cancelled, a.is_modified
+                   a.total_cost_with_vat,
+                   proc.resolved_value(a.adam, a.total_cost_with_vat) AS resolved_value,
+                   (proc.resolved_value(a.adam, a.total_cost_with_vat)
+                       IS DISTINCT FROM a.total_cost_with_vat) AS is_corrected,
+                   a.cancelled, a.is_modified
             FROM proc.procurement_act a
             WHERE {where_sql}
             ORDER BY a.submission_date DESC NULLS LAST,
@@ -1338,7 +1342,11 @@ def contractor_detail(vat: str, request: Request,
         offset = (page - 1) * per_page
         c.execute("""
             SELECT a.adam, a.type, a.title, a.signed_date, a.submission_date,
-                   a.total_cost_with_vat, a.cancelled,
+                   a.total_cost_with_vat,
+                   proc.resolved_value(a.adam, a.total_cost_with_vat) AS resolved_value,
+                   (proc.resolved_value(a.adam, a.total_cost_with_vat)
+                       IS DISTINCT FROM a.total_cost_with_vat) AS is_corrected,
+                   a.cancelled,
                    ao.role, ao.awarded_value_with_vat,
                    auth.org_id AS authority_id, auth.name AS authority_name
             FROM proc.act_operator ao

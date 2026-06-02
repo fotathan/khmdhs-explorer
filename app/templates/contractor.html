@@ -74,7 +74,10 @@
             <td class="meta">{{ r.submission_date.strftime('%Y-%m-%d') if r.submission_date else (r.signed_date.strftime('%Y-%m-%d') if r.signed_date else '—') }}</td>
             <td class="val">
               {% if r.awarded_value_with_vat %}€ {{ "{:,.2f}".format(r.awarded_value_with_vat).replace(",", "·") }}
-              {% elif r.total_cost_with_vat %}€ {{ "{:,.2f}".format(r.total_cost_with_vat).replace(",", "·") }}
+              {% elif r.resolved_value is not none %}
+                {% if r.is_corrected %}
+                  <span style="color:var(--ok); font-weight:600;" title="Διορθωμένη τιμή — αρχική: € {{ '{:,.2f}'.format(r.total_cost_with_vat).replace(',', '·') if r.total_cost_with_vat is not none else '—' }}">€ {{ "{:,.2f}".format(r.resolved_value).replace(",", "·") }}</span>
+                {% else %}€ {{ "{:,.2f}".format(r.resolved_value).replace(",", "·") }}{% endif %}
               {% else %}—{% endif %}
             </td>
           </tr>
