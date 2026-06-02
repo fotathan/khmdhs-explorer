@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Διόρθωση ειδών · {{ act.adam }}{% endblock %}
+
+{% block content %}
+<div class="detail-h">
+  <div class="kicker">Διόρθωση ειδών · {{ act.adam }}</div>
+  <h1 class="detail-title">{{ act.title or '—' }}</h1>
+  <div class="detail-sub">
+    Διόρθωση της αξίας (χωρίς ΦΠΑ) κάθε είδους. Η αρχική τιμή από την πηγή
+    διατηρείται· η διόρθωση χρησιμοποιείται στην εμφάνιση και στα στατιστικά ανά CPV.
+    Άφησε ένα πεδίο κενό για καμία διόρθωση.
+  </div>
+  <div style="margin-top:10px;">
+    <a href="/admin/act/{{ act.adam }}/annotate" class="back">‹ σημειώσεις & αξία σύμβασης</a>
+    <a href="/act/{{ act.adam }}" class="back" style="margin-left:14px;">προβολή πράξης ›</a>
+  </div>
+</div>
+
+<form method="post" action="/admin/act/{{ act.adam }}/items">
+  <table class="lines">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Περιγραφή</th>
+        <th style="text-align:right;">Αρχική αξία (χωρίς ΦΠΑ)</th>
+        <th style="text-align:right;">Διορθωμένη αξία</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td class="val">{{ it.line_no }}</td>
+        <td class="title-cell">{{ it.short_description or '—' }}
+          {% if it.quantity is not none %}<span class="meta">({{ it.quantity }} {{ it.unit_code or '' }})</span>{% endif %}
+        </td>
+        <td class="val">{% if it.cost_without_vat is not none %}€ {{ "{:,.2f}".format(it.cost_without_vat).replace(",","·") }}{% else %}—{% endif %}</td>
+        <td class="val">
+          <input name="item_{{ it.line_no }}" inputmode="decimal"
+                 value="{{ '%.2f'|format(it.corrected) if it.corrected is not none else '' }}"
+                 placeholder="π.χ. 4950.00"
+                 style="width:140px; padding:6px 8px; border:1px solid var(--rule); border-radius:6px; text-align:right;">
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="meta">Καμία γραμμή ειδών για αυτή την πράξη.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if items %}
+  <div class="field" style="margin-top:18px; max-width:320px;">
+    <label>Επιμελητής (για το ιστορικό)</label>
+    <input name="author" value="{{ author_cookie }}" placeholder="το όνομά σας" required
+           style="width:100%; padding:8px 10px; border:1px solid var(--rule); border-radius:8px;">
+  </div>
+  <div style="margin-top:16px;">
+    <button type="submit"
+            style="padding:9px 18px; background:var(--accent); color:#fff; border:0; border-radius:8px; font-weight:600; cursor:pointer;">
+      Αποθήκευση διορθώσεων
+    </button>
+  </div>
+  {% endif %}
+</form>
+{% endblock %}

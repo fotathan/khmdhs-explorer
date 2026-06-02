@@ -763,9 +763,14 @@ def act_detail(adam: str, request: Request):
         # can render them inline. unit_code is joined to proc.unit_code to
         # resolve UNECE Rec 20 codes (e.g. LTR -> 'λίτρο').
         c.execute("""
-            SELECT od.short_description, od.quantity, od.unit_code,
+            SELECT od.line_no,
+                   od.short_description, od.quantity, od.unit_code,
                    u.name AS unit_name,
-                   od.cost_without_vat, od.vat_rate, od.currency_code,
+                   od.cost_without_vat,
+                   proc.resolved_item_cost(od.adam, od.line_no, od.cost_without_vat) AS resolved_cost,
+                   (proc.resolved_item_cost(od.adam, od.line_no, od.cost_without_vat)
+                       IS DISTINCT FROM od.cost_without_vat) AS cost_corrected,
+                   od.vat_rate, od.currency_code,
                    coalesce(
                      array_agg(jsonb_build_object('code', c.cpv_code,
                                                   'desc', c.description)
@@ -777,7 +782,7 @@ def act_detail(adam: str, request: Request):
             LEFT JOIN proc.cpv_code c ON c.cpv_code = x.cpv_code
             LEFT JOIN proc.unit_code u ON upper(u.code) = upper(od.unit_code)
             WHERE od.adam = %s
-            GROUP BY od.id, u.name
+            GROUP BY od.id, od.line_no, u.name
             ORDER BY od.line_no
         """, (adam,))
         line_items = c.fetchall()

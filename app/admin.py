@@ -425,6 +425,83 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         return resp
 
     # ------------------------------------------------------------------ #
+    # Line-item value corrections. Per-item editable cost_without_vat,
+    # keyed by (adam, line_no) so corrections survive re-imports. Feeds the
+    # by-CPV analytics and the detail-page line-item table. Original kept.
+    # ------------------------------------------------------------------ #
+    @router.get("/act/{adam}/items", response_class=HTMLResponse)
+    def items_form(adam: str, request: Request):
+        with cursor() as c:
+            c.execute("""SELECT adam, title, total_cost_with_vat
+                         FROM proc.procurement_act WHERE adam=%s""", (adam,))
+            act = c.fetchone()
+            if not act:
+                raise HTTPException(404, f"act {adam} not found")
+            # Line items with any current correction joined in.
+            c.execute("""
+                SELECT od.line_no, od.short_description, od.quantity,
+                       od.unit_code, od.cost_without_vat,
+                       lic.corrected_cost_without_vat AS corrected
+                FROM proc.act_object_detail od
+                LEFT JOIN proc.v_line_item_correction_current lic
+                       ON lic.adam = od.adam AND lic.line_no = od.line_no
+                WHERE od.adam = %s
+                ORDER BY od.line_no
+            """, (adam,))
+            items = c.fetchall()
+        from urllib.parse import unquote
+        author_cookie = unquote(request.cookies.get("curator", ""))
+        return templates.TemplateResponse(
+            request, "admin_items.html",
+            {"act": act, "items": items, "author_cookie": author_cookie})
+
+    @router.post("/act/{adam}/items")
+    async def items_save(adam: str, request: Request):
+        form = await request.form()
+        author = (form.get("author") or "").strip() or "(anonymous)"
+
+        def parse_money(s: str):
+            s = (s or "").strip()
+            if not s:
+                return None
+            cleaned = (s.replace("€", "").replace(" ", "")
+                         .replace(".", "").replace(",", ".")
+                       if s.count(",") == 1 and s.rfind(",") > s.rfind(".")
+                       else s.replace("€", "").replace(" ", "").replace(",", ""))
+            try:
+                v = round(float(cleaned), 2)
+                return v if v >= 0 else None
+            except ValueError:
+                return None
+
+        with cursor() as c:
+            c.execute("SELECT 1 FROM proc.procurement_act WHERE adam=%s", (adam,))
+            if not c.fetchone():
+                raise HTTPException(404, f"act {adam} not found")
+            # Each correctable line item posts a field named "item_{line_no}".
+            # Supersede that line's prior correction, insert a new one if a value
+            # was given (blank clears it).
+            c.execute("""SELECT line_no FROM proc.act_object_detail
+                         WHERE adam=%s ORDER BY line_no""", (adam,))
+            line_nos = [r["line_no"] for r in c.fetchall()]
+            for ln in line_nos:
+                raw = form.get(f"item_{ln}", "")
+                val = parse_money(raw)
+                c.execute("""UPDATE proc.line_item_correction SET superseded=true
+                             WHERE adam=%s AND line_no=%s AND NOT superseded""",
+                          (adam, ln))
+                if val is not None:
+                    c.execute("""INSERT INTO proc.line_item_correction
+                                     (adam, line_no, corrected_cost_without_vat, author)
+                                 VALUES (%s,%s,%s,%s)""", (adam, ln, val, author))
+
+        resp = RedirectResponse(url=f"/admin/act/{adam}/items", status_code=303)
+        from urllib.parse import quote
+        resp.set_cookie("curator", quote(author), max_age=60 * 60 * 24 * 365,
+                        samesite="lax")
+        return resp
+
+    # ------------------------------------------------------------------ #
     # Entity merge UI — group duplicate contractors / authorities.
     # Pure overlay (entity_group/entity_member); never touches harvested rows.
     # ------------------------------------------------------------------ #

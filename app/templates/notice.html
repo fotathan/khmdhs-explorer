@@ -135,7 +135,14 @@
               </td>
               <td class="val">{{ li.quantity if li.quantity is not none else '—' }} {% if li.unit_name %}{{ li.unit_name }}{% elif li.unit_code %}{{ li.unit_code }}{% endif %}</td>
               <td class="val">
-                {% if li.cost_without_vat %}€ {{ "{:,.2f}".format(li.cost_without_vat).replace(",", "·") }}{% else %}—{% endif %}
+                {% if li.resolved_cost is not none %}
+                  {% if li.cost_corrected %}
+                    <span style="color:var(--ok); font-weight:600;">€ {{ "{:,.2f}".format(li.resolved_cost).replace(",", "·") }}</span>
+                    <span style="text-decoration:line-through; color:var(--ink-3); margin-left:6px;">€ {{ "{:,.2f}".format(li.cost_without_vat).replace(",", "·") }}</span>
+                  {% else %}
+                    € {{ "{:,.2f}".format(li.resolved_cost).replace(",", "·") }}
+                  {% endif %}
+                {% else %}—{% endif %}
               </td>
             </tr>
           {% endfor %}
