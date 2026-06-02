@@ -341,13 +341,14 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
     def annotate_form(adam: str, request: Request):
         with cursor() as c:
             c.execute("""SELECT adam, type, title, signed_date, submission_date,
-                                total_cost_with_vat
+                                total_cost_with_vat, total_cost_without_vat
                          FROM proc.procurement_act WHERE adam=%s""", (adam,))
             act = c.fetchone()
             if not act:
                 raise HTTPException(404, f"act {adam} not found")
             # Current annotation (if any) to pre-fill the form.
-            c.execute("""SELECT note, tags, flag, author, created_at, corrected_value
+            c.execute("""SELECT note, tags, flag, author, created_at,
+                                corrected_value, corrected_value_without_vat
                          FROM proc.v_act_annotation_current WHERE adam=%s""", (adam,))
             current = c.fetchone()
             # Full history (audit trail) for this act.
@@ -356,7 +357,8 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                          WHERE adam=%s ORDER BY created_at DESC""", (adam,))
             history = c.fetchall()
 
-        author_cookie = request.cookies.get("curator", "")
+        from urllib.parse import unquote
+        author_cookie = unquote(request.cookies.get("curator", ""))
         return templates.TemplateResponse(
             request, "admin_annotate.html",
             {"act": act, "current": current, "history": history,
@@ -369,7 +371,25 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                       tags: str = Form(""),
                       flag: str = Form(""),
                       corrected_value: str = Form(""),
+                      corrected_value_without_vat: str = Form(""),
                       author: str = Form("")):
+        # Parse a user-typed money value (optional). Accepts comma or dot
+        # decimals, ignores thousands separators and currency symbols. Returns a
+        # rounded float, or None if blank/invalid/negative.
+        def parse_money(s: str):
+            s = (s or "").strip()
+            if not s:
+                return None
+            cleaned = (s.replace("€", "").replace(" ", "")
+                         .replace(".", "").replace(",", ".")
+                       if s.count(",") == 1 and s.rfind(",") > s.rfind(".")
+                       else s.replace("€", "").replace(" ", "").replace(",", ""))
+            try:
+                v = round(float(cleaned), 2)
+                return v if v >= 0 else None
+            except ValueError:
+                return None
+
         with cursor() as c:
             c.execute("SELECT 1 FROM proc.procurement_act WHERE adam=%s", (adam,))
             if not c.fetchone():
@@ -378,37 +398,29 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             author = (author or "").strip() or "(anonymous)"
             note = (note or "").strip()
             flag = flag if flag in FLAG_LABELS else None
-            # Parse comma/space separated tags into a clean list.
             tag_list = [t.strip() for t in tags.replace(",", " ").split() if t.strip()]
 
-            # Parse the corrected value (optional). Accept comma or dot decimals,
-            # ignore thousands separators and currency symbols. Blank => no value.
-            cv = (corrected_value or "").strip()
-            corrected = None
-            if cv:
-                cleaned = (cv.replace("€", "").replace(" ", "")
-                             .replace(".", "").replace(",", ".")
-                           if cv.count(",") == 1 and cv.rfind(",") > cv.rfind(".")
-                           else cv.replace("€", "").replace(" ", "").replace(",", ""))
-                try:
-                    corrected = round(float(cleaned), 2)
-                    if corrected < 0:
-                        corrected = None
-                except ValueError:
-                    corrected = None
+            corrected = parse_money(corrected_value)
+            corrected_wo = parse_money(corrected_value_without_vat)
 
             # If everything is empty, treat as "clear annotation": just supersede.
             c.execute("""UPDATE proc.act_annotation SET superseded=true
                          WHERE adam=%s AND NOT superseded""", (adam,))
-            if note or tag_list or flag or corrected is not None:
+            if note or tag_list or flag or corrected is not None or corrected_wo is not None:
                 c.execute("""INSERT INTO proc.act_annotation
-                                 (adam, note, tags, flag, corrected_value, author)
-                             VALUES (%s,%s,%s,%s,%s,%s)""",
-                          (adam, note or None, tag_list, flag, corrected, author))
+                                 (adam, note, tags, flag, corrected_value,
+                                  corrected_value_without_vat, author)
+                             VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+                          (adam, note or None, tag_list, flag, corrected,
+                           corrected_wo, author))
 
         resp = RedirectResponse(url=f"/admin/act/{adam}/annotate", status_code=303)
         # Remember the curator's name for next time (attribution, not auth).
-        resp.set_cookie("curator", author, max_age=60 * 60 * 24 * 365,
+        # Cookies are latin-1 only, so URL-encode to allow Greek names; the form
+        # route unquotes it when prefilling. quote() with no safe-set handles
+        # any alphabet safely.
+        from urllib.parse import quote
+        resp.set_cookie("curator", quote(author), max_age=60 * 60 * 24 * 365,
                         samesite="lax")
         return resp
 

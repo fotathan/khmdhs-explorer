@@ -57,6 +57,17 @@
       </div>
 
       <div class="field">
+        <label>Διορθωμένη αξία (χωρίς ΦΠΑ)</label>
+        <input name="corrected_value_without_vat" inputmode="decimal"
+               value="{{ '%.2f'|format(current.corrected_value_without_vat) if current and current.corrected_value_without_vat is not none else '' }}"
+               placeholder="π.χ. 4950.00 — άφησέ το κενό για καμία διόρθωση">
+        <div class="meta" style="margin-top:6px;">
+          Αρχική τιμή από την πηγή:
+          {% if act.total_cost_without_vat is not none %}€ {{ "{:,.2f}".format(act.total_cost_without_vat).replace(",","·") }}{% else %}—{% endif %}.
+        </div>
+      </div>
+
+      <div class="field">
         <label>Επιμελητής (για το ιστορικό)</label>
         <input name="author" value="{{ author_cookie }}" placeholder="το όνομά σας" required>
       </div>

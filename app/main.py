@@ -341,7 +341,7 @@ def run_search(params: dict, limit: int, offset: int):
     """
     count_sql = f"""
         SELECT count(*) AS n,
-               coalesce(sum(a.total_cost_with_vat), 0) AS total_value
+               coalesce(sum(proc.resolved_value(a.adam, a.total_cost_with_vat)), 0) AS total_value
         FROM proc.procurement_act a
         WHERE {where}
     """
@@ -818,7 +818,8 @@ def act_detail(adam: str, request: Request):
         # Current team annotation (overlay; never part of harvested data).
         annotation = None
         try:
-            c.execute("""SELECT note, tags, flag, author, created_at, corrected_value
+            c.execute("""SELECT note, tags, flag, author, created_at,
+                                corrected_value, corrected_value_without_vat
                          FROM proc.v_act_annotation_current WHERE adam=%s""", (adam,))
             annotation = c.fetchone()
         except Exception:
@@ -1142,7 +1143,7 @@ def authority_detail(org_id: str, request: Request,
         c.execute("""
             SELECT type,
                    count(*) AS n,
-                   coalesce(sum(total_cost_with_vat), 0) AS total_value,
+                   coalesce(sum(proc.resolved_value(adam, total_cost_with_vat)), 0) AS total_value,
                    sum(CASE WHEN cancelled THEN 1 ELSE 0 END) AS n_cancelled
             FROM proc.procurement_act
             WHERE authority_id = ANY(%s)

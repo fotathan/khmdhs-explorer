@@ -59,7 +59,18 @@
       {% endif %}
 
       {% if n.budget %}<dt>Προϋπολογισμός</dt><dd>€ {{ "{:,.2f}".format(n.budget).replace(",", "·") }}</dd>{% endif %}
-      {% if n.total_cost_without_vat %}<dt>Αξία (χωρίς ΦΠΑ)</dt><dd>€ {{ "{:,.2f}".format(n.total_cost_without_vat).replace(",", "·") }}</dd>{% endif %}
+      {% if n.total_cost_without_vat %}
+        <dt>Αξία (χωρίς ΦΠΑ)</dt>
+        <dd>
+          {% if annotation and annotation.corrected_value_without_vat is not none %}
+            <span style="color:var(--ok); font-weight:600;">€ {{ "{:,.2f}".format(annotation.corrected_value_without_vat).replace(",", "·") }}</span>
+            <span style="text-decoration:line-through; color:var(--ink-3); margin-left:8px;">€ {{ "{:,.2f}".format(n.total_cost_without_vat).replace(",", "·") }}</span>
+            <div class="meta" style="margin-top:4px;">Διορθωμένη τιμή· η αρχική τιμή από την πηγή ήταν € {{ "{:,.2f}".format(n.total_cost_without_vat).replace(",", "·") }}.</div>
+          {% else %}
+            € {{ "{:,.2f}".format(n.total_cost_without_vat).replace(",", "·") }}
+          {% endif %}
+        </dd>
+      {% endif %}
       {% if n.total_cost_with_vat %}
         <dt>Αξία (με ΦΠΑ)</dt>
         <dd>
