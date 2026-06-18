@@ -1,0 +1,78 @@
+{% set kind_label = {
+  "tables": "μορφές πινάκων",
+  "image": "εικόνα — OCR αργότερα",
+  "unsupported": "μη υποστηριζόμενο",
+  "other": "χωρίς πίνακες"
+} %}
+
+<div class="tt-summary">
+  {% if source_label %}{{ source_label }} — {% endif %}
+  Βρέθηκαν <b>{{ entries|length }}</b> αρχ{{ "είο" if entries|length == 1 else "εία" }}
+  ({{ "%.1f"|format(total_size / 1048576) }} MB).
+  Όλα είναι επιλεγμένα — αφαιρέστε ό,τι δεν θέλετε να σαρωθεί, μετά συνεχίστε.
+</div>
+
+{% for err in errors %}
+<div class="tt-card">
+  <div class="tt-head">
+    <span class="tt-badge error">σφάλμα</span>
+    <span class="tt-name">{{ err.source }}</span>
+  </div>
+  <div class="tt-detail">{{ err.detail }}</div>
+</div>
+{% endfor %}
+
+<form hx-post="/tables/scan" hx-target="#tt-results" hx-swap="innerHTML"
+      hx-indicator="#tt-scan-busy" id="tt-select-form">
+  <input type="hidden" name="session_id" value="{{ session_id }}">
+
+  <div class="tt-card">
+    {% for e in entries %}
+    <div class="tt-block">
+      <label class="tt-pick">
+        <input type="checkbox" name="file_ids" value="{{ e.id }}" checked
+               onchange="ttUpdateFileCount()">
+        <span class="tt-name">{{ e.source }}</span>
+        <span class="tt-badge {{ 'ok' if e.kind == 'tables' else ('image' if e.kind == 'image' else 'no_tables') }}">
+          {{ kind_label[e.kind] }}
+        </span>
+        <span class="tt-dims">{{ e.size_human }}</span>
+      </label>
+      {% if e.ext == ".pdf" %}
+      <div class="tt-picker-wrap">
+        <button type="button" class="tt-btn tt-secondary tt-mini"
+                hx-get="/tables/pages?session_id={{ session_id }}&entry_id={{ e.id }}"
+                hx-target="closest .tt-picker-wrap" hx-swap="innerHTML">
+          Προεπισκόπηση / επιλογή σελίδων
+        </button>
+      </div>
+      {% elif e.kind == "image" %}
+      <img class="tt-inline-thumb" loading="lazy" alt="προεπισκόπηση" title="κλικ για μεγέθυνση"
+           src="/tables/thumb?session_id={{ session_id }}&entry_id={{ e.id }}&page=1"
+           onclick="openLightbox(event, '{{ session_id }}', '{{ e.id }}', 1, 1, false)">
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="tt-exportbar">
+    <button type="button" class="tt-btn tt-secondary" onclick="ttSetAllFiles(true)">Επιλογή όλων</button>
+    <button type="button" class="tt-btn tt-secondary" onclick="ttSetAllFiles(false)">Κανένα</button>
+    <button type="submit" class="tt-btn">Σάρωση επιλεγμένων</button>
+    <span class="tt-indicator" id="tt-scan-busy">σάρωση…</span>
+    <span class="tt-count" id="tt-file-count"></span>
+  </div>
+</form>
+
+<script>
+  function ttFileBoxes() {
+    return [...document.querySelectorAll('#tt-select-form input[name="file_ids"]')];
+  }
+  function ttSetAllFiles(state) { ttFileBoxes().forEach(b => b.checked = state); ttUpdateFileCount(); }
+  function ttUpdateFileCount() {
+    const n = ttFileBoxes().filter(b => b.checked).length;
+    const el = document.getElementById('tt-file-count');
+    if (el) el.textContent = n + ' από ' + ttFileBoxes().length + ' επιλεγμένα';
+  }
+  ttUpdateFileCount();
+</script>

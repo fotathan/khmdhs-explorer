@@ -1,0 +1,10 @@
+<button type="button" class="tt-btn tt-secondary tt-mini"
+        hx-get="/tables/pages?session_id={{ session_id }}&entry_id={{ entry_id }}"
+        hx-target="closest .tt-picker-wrap" hx-swap="innerHTML">
+  {% if restricted %}Σελίδες {{ label }} — αλλαγή{% else %}Όλες οι {{ n_pages }} σελίδες — αλλαγή{% endif %}
+</button>
+{% if restricted %}
+<span class="tt-truncated" style="margin-left:.5rem">
+  σάρωση &amp; OCR περιορισμένα σε {{ n_sel }} από {{ n_pages }} σελίδες
+</span>
+{% endif %}

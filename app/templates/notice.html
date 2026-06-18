@@ -182,6 +182,18 @@
     </p>
     {% endif %}
 
+    {% if tables_enabled %}
+    <p style="margin:0 0 24px;">
+      <a href="/tables?adam={{ n.adam }}"
+         style="display:inline-flex; align-items:center; gap:7px; font-weight:600; text-decoration:none;">
+        <span style="font-size:15px;">▦</span> Εξαγωγή πινάκων από τα συνημμένα
+      </a>
+      <span class="meta" style="display:block; margin-top:5px;">
+        Αντλεί το έγγραφο και εξάγει πίνακες (προϋπολογισμού, ειδών) σε Excel.
+      </span>
+    </p>
+    {% endif %}
+
     <div class="section-h">
       Σημειώσεις ομάδας
       <a href="/admin/act/{{ n.adam }}/annotate" style="float:right; color:var(--accent); font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; font-weight:400;">επιμέλεια ›</a>

@@ -1,0 +1,28 @@
+<div class="tt-picker">
+  <input type="hidden" name="session_id" value="{{ session_id }}">
+  <input type="hidden" name="entry_id" value="{{ entry_id }}">
+  <div class="tt-picker-bar">
+    <button type="button" class="tt-btn tt-secondary tt-mini" onclick="ttPickerSet(this, true)">Όλες</button>
+    <button type="button" class="tt-btn tt-secondary tt-mini" onclick="ttPickerSet(this, false)">Καμία</button>
+    <button type="button" class="tt-btn tt-mini"
+            hx-post="/tables/pages" hx-include="closest .tt-picker"
+            hx-target="closest .tt-picker-wrap" hx-swap="innerHTML">
+      Εφαρμογή επιλογής
+    </button>
+    <a class="tt-rawlink" href="/tables/raw?session_id={{ session_id }}&entry_id={{ entry_id }}"
+       target="_blank" rel="noopener">πρωτότυπο ↗</a>
+    <span class="tt-truncated">{{ n_pages }} σελίδες — κλικ σε σελίδα για πλήρη προβολή· αφαιρέστε όσες θέλετε να παραλειφθούν, μετά Εφαρμογή</span>
+  </div>
+  <div class="tt-thumb-grid">
+    {% for p in range(1, n_pages + 1) %}
+    <label class="tt-thumb-pick">
+      <input type="checkbox" name="pages" value="{{ p }}"
+             {% if p in selected %}checked{% endif %}>
+      <img src="/tables/thumb?session_id={{ session_id }}&entry_id={{ entry_id }}&page={{ p }}"
+           loading="lazy" alt="σελίδα {{ p }}"
+           onclick="openLightbox(event, '{{ session_id }}', '{{ entry_id }}', {{ p }}, {{ n_pages }}, true)">
+      <span class="tt-pnum">{{ p }}</span>
+    </label>
+    {% endfor %}
+  </div>
+</div>

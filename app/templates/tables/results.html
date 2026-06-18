@@ -1,0 +1,39 @@
+<div class="tt-summary">
+  Βρέθηκαν <b>{{ n_tables }}</b> πίνακ{{ "ας" if n_tables == 1 else "ες" }}
+  σε <b>{{ reports|length }}</b> αρχ{{ "είο" if reports|length == 1 else "εία" }}.
+  {% if n_stitched %}{{ n_stitched }} εκτείνονται σε πολλές σελίδες και ενώθηκαν. {% endif %}{% if n_tables %}Επιλέξτε όσους θέλετε και εξάγετε παρακάτω.{% endif %}
+</div>
+
+<form action="/tables/export" method="post" id="tt-export-form">
+  <input type="hidden" name="session_id" value="{{ session_id }}">
+
+  {% for report in reports %}
+    {% include "tables/_file_card.html" %}
+  {% endfor %}
+
+  <div class="tt-exportbar">
+    <button type="button" class="tt-btn tt-secondary" onclick="ttSetAll(true)">Επιλογή όλων</button>
+    <button type="button" class="tt-btn tt-secondary" onclick="ttSetAll(false)">Κανένα</button>
+    <select name="mode">
+      <option value="workbook">Ένα βιβλίο, ένα φύλλο ανά πίνακα</option>
+      <option value="separate">Ένα βιβλίο ανά αρχείο (.zip)</option>
+    </select>
+    <button type="submit" class="tt-btn">Εξαγωγή σε Excel</button>
+    <span class="tt-count" id="tt-sel-count"></span>
+  </div>
+</form>
+
+<script>
+  function ttBoxes() {
+    return [...document.querySelectorAll('input[name="table_ids"]')];
+  }
+  function ttSetAll(state) { ttBoxes().forEach(b => b.checked = state); ttUpdateCount(); }
+  function ttUpdateCount() {
+    const n = ttBoxes().filter(b => b.checked).length;
+    const el = document.getElementById('tt-sel-count');
+    if (el) el.textContent = n + ' επιλεγμένοι';
+  }
+  // Exposed under the name the OCR-swapped card calls back into.
+  function updateCount() { ttUpdateCount(); }
+  ttUpdateCount();
+</script>
