@@ -1,0 +1,203 @@
+<style>
+  .tt-wrap { max-width: 980px; }
+  .tt-dropzone {
+    border: 2px dashed var(--rule); border-radius: 10px; background: var(--paper-2);
+    padding: 2rem 1.5rem; text-align: center; transition: border-color .15s, background .15s;
+  }
+  .tt-dropzone.tt-dragover { border-color: var(--accent); background: var(--accent-soft); }
+  .tt-dropzone p { margin: .4rem 0; color: var(--ink-2); }
+  .tt-formats { font-family: var(--mono); font-size: .78rem; color: var(--ink-3); }
+  .tt-filelist { font-family: var(--mono); font-size: .8rem; margin-top: .8rem; color: var(--accent-2); }
+
+  .tt-btn {
+    font: inherit; border: 0; border-radius: 8px; cursor: pointer;
+    padding: .55rem 1.2rem; background: var(--accent); color: #fff; font-weight: 600;
+  }
+  .tt-btn:hover { background: var(--accent-2); }
+  .tt-btn.tt-secondary { background: transparent; color: var(--ink-2); border: 1px solid var(--rule); }
+  .tt-btn.tt-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .tt-btn:disabled { opacity: .5; cursor: default; }
+  .tt-btn.tt-mini { padding: .3rem .7rem; font-size: .78rem; }
+
+  .tt-indicator { display: none; margin-left: .8rem; color: var(--accent);
+    font-family: var(--mono); font-size: .85rem; }
+  .htmx-request .tt-indicator, .htmx-request.tt-indicator { display: inline; }
+
+  .tt-adambar { display: flex; gap: .6rem; align-items: stretch; flex-wrap: wrap; margin-top: .4rem; }
+  .tt-adambar input { flex: 1; min-width: 240px; font: inherit; padding: .6rem .8rem;
+    border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); color: var(--ink); }
+  .tt-adambar input:focus { outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  .tt-or { display: flex; align-items: center; gap: 14px; margin: 26px 0; color: var(--ink-3);
+    font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+  .tt-or::before, .tt-or::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
+
+  .tt-flash { padding: .7rem 1rem; border-radius: 8px; margin: 1.2rem 0; }
+  .tt-flash.tt-error { background: #fdeceb; color: #b42318; }
+  .tt-flash.tt-ok { background: #e4efe8; color: var(--ok); }
+  .tt-fulltext-area { width: 100%; min-height: 320px; font-family: var(--mono);
+    font-size: 12.5px; line-height: 1.5; padding: 12px; border: 1px solid var(--rule);
+    border-radius: 8px; background: var(--paper); color: var(--ink); resize: vertical; }
+  .tt-summary { margin: 1.4rem 0 .6rem; font-size: .95rem; color: var(--ink-2); }
+  .tt-summary b { font-variant-numeric: tabular-nums; color: var(--ink); }
+
+  .tt-card { background: var(--paper); border: 1px solid var(--rule);
+    border-radius: 10px; margin: .9rem 0; overflow: hidden; }
+  .tt-head { padding: .6rem .9rem; display: flex; gap: .7rem; align-items: center;
+    border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+  .tt-head .tt-name { font-family: var(--mono); font-size: .82rem; word-break: break-all; }
+  .tt-badge { font-family: var(--mono); font-size: .68rem; padding: .12rem .5rem;
+    border-radius: 99px; letter-spacing: .04em; white-space: nowrap; }
+  .tt-badge.ok        { background: #e4efe8; color: var(--ok); }
+  .tt-badge.scanned,
+  .tt-badge.image     { background: #fdf1e3; color: var(--warn); }
+  .tt-badge.no_tables { background: var(--paper-2); color: var(--ink-2); }
+  .tt-badge.unsupported,
+  .tt-badge.error     { background: #fdeceb; color: #b42318; }
+  .tt-detail { padding: .6rem .9rem; color: var(--ink-2); font-size: .85rem; }
+
+  .tt-block { padding: .8rem .9rem; border-bottom: 1px solid var(--rule-2); }
+  .tt-block:last-child { border-bottom: 0; }
+  .tt-pick { display: flex; gap: .55rem; align-items: center; margin-bottom: .45rem; }
+  .tt-pick input { width: 1.05rem; height: 1.05rem; accent-color: var(--accent); }
+  .tt-pick .tt-loc { font-weight: 600; font-size: .9rem; }
+  .tt-pick .tt-dims { font-family: var(--mono); font-size: .72rem; color: var(--ink-3); }
+
+  .tt-preview { overflow-x: auto; }
+  .tt-preview table { border-collapse: collapse; font-size: .76rem;
+    font-variant-numeric: tabular-nums; }
+  .tt-preview td { border: 1px solid var(--rule); padding: .18rem .45rem;
+    max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tt-preview tr:first-child td { background: var(--paper-2); font-weight: 600; }
+
+  .tt-picker-wrap { width: 100%; margin-top: .4rem; }
+  .tt-picker-bar { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin: .5rem 0; }
+  .tt-thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+    gap: .5rem; max-height: 430px; overflow-y: auto; padding: .5rem;
+    background: var(--paper-2); border: 1px solid var(--rule); border-radius: 8px; }
+  .tt-thumb-pick { position: relative; cursor: pointer; display: block; }
+  .tt-thumb-pick img { width: 100%; display: block; border: 1px solid var(--rule);
+    border-radius: 4px; background: #fff; cursor: zoom-in; }
+  .tt-thumb-pick input { position: absolute; top: 6px; left: 6px; z-index: 1;
+    width: 1.05rem; height: 1.05rem; accent-color: var(--accent); }
+  .tt-thumb-pick .tt-pnum { position: absolute; bottom: 4px; right: 6px;
+    font-family: var(--mono); font-size: .68rem; background: rgba(255,255,255,.85);
+    padding: 0 .3rem; border-radius: 3px; }
+  .tt-thumb-pick:has(input:not(:checked)) img { opacity: .35; }
+  .tt-thumb-pick:has(input:checked) img { outline: 2px solid var(--accent); }
+  .tt-inline-thumb { max-height: 90px; border: 1px solid var(--rule); border-radius: 4px;
+    margin: .3rem 0 0 1.7rem; cursor: zoom-in; }
+  .tt-rawlink { font-family: var(--mono); font-size: .75rem; color: var(--accent);
+    text-decoration: none; border-bottom: 1px dotted var(--accent); }
+
+  #tt-lightbox { position: fixed; inset: 0; z-index: 50; }
+  .tt-lb-backdrop { position: absolute; inset: 0; background: rgba(20,24,31,.78); }
+  .tt-lb-body { position: relative; max-width: min(960px, 94vw); margin: 3vh auto 0;
+    background: var(--paper); border-radius: 10px; padding: .7rem;
+    box-shadow: 0 12px 40px rgba(0,0,0,.4); }
+  .tt-lb-bar { display: flex; gap: .7rem; align-items: center; flex-wrap: wrap; padding-bottom: .6rem; }
+  .tt-lb-count { font-family: var(--mono); font-size: .8rem; min-width: 7ch; }
+  .tt-lb-include { display: flex; gap: .4rem; align-items: center; font-size: .85rem; margin-left: auto; }
+  .tt-lb-include input { width: 1.05rem; height: 1.05rem; accent-color: var(--accent); }
+  .tt-lb-imgwrap { overflow: auto; max-height: 84vh; text-align: center;
+    background: var(--paper-2); border-radius: 6px; }
+  .tt-lb-imgwrap img { max-width: 100%; display: inline-block; }
+
+  details.tt-fragments { margin-top: .6rem; }
+  details.tt-fragments summary { cursor: pointer; font-size: .8rem; color: var(--ink-3); font-family: var(--mono); }
+  details.tt-fragments .tt-block { border-bottom: 0; padding: .6rem 0 0 1.2rem; }
+  .tt-truncated { font-family: var(--mono); font-size: .7rem; color: var(--ink-3); margin: .3rem 0 0; }
+
+  .tt-exportbar { position: sticky; bottom: 0; background: var(--paper);
+    border: 1px solid var(--rule); border-radius: 10px; padding: .8rem .9rem;
+    margin-top: 1.2rem; display: flex; gap: .8rem; align-items: center; flex-wrap: wrap;
+    box-shadow: 0 -4px 14px rgba(20,24,31,.07); }
+  .tt-exportbar select { font: inherit; padding: .45rem .5rem; border-radius: 8px;
+    border: 1px solid var(--rule); background: #fff; }
+  .tt-exportbar .tt-count { font-family: var(--mono); font-size: .8rem; color: var(--accent-2); margin-left: auto; }
+</style>
+
+<script>
+  // page-picker select all/none (scoped to the picker the button lives in)
+  function ttPickerSet(btn, state) {
+    btn.closest('.tt-picker')
+       .querySelectorAll('input[name="pages"]')
+       .forEach(b => b.checked = state);
+  }
+</script>
+
+<div id="tt-lightbox" hidden>
+  <div class="tt-lb-backdrop" onclick="ttCloseLightbox()"></div>
+  <div class="tt-lb-body">
+    <div class="tt-lb-bar">
+      <button type="button" class="tt-btn tt-secondary" id="tt-lb-prev" onclick="ttLbNav(-1)">‹ Προηγ.</button>
+      <span id="tt-lb-page" class="tt-lb-count"></span>
+      <button type="button" class="tt-btn tt-secondary" id="tt-lb-next" onclick="ttLbNav(1)">Επόμ. ›</button>
+      <label id="tt-lb-include-wrap" class="tt-lb-include">
+        <input type="checkbox" id="tt-lb-include" onchange="ttLbToggleInclude()"> να συμπεριληφθεί
+      </label>
+      <a id="tt-lb-raw" target="_blank" rel="noopener" class="tt-rawlink">πρωτότυπο ↗</a>
+      <button type="button" class="tt-btn tt-secondary" onclick="ttCloseLightbox()">✕ κλείσιμο</button>
+    </div>
+    <div class="tt-lb-imgwrap"><img id="tt-lb-img" alt="προεπισκόπηση σελίδας"></div>
+  </div>
+</div>
+
+<script>
+  const TTLB = { sid: null, eid: null, page: 1, n: 1, selectable: false, open: false };
+
+  function ttLbPicker() {
+    return [...document.querySelectorAll('.tt-picker')].find(p =>
+      p.querySelector('input[name="entry_id"]')?.value === TTLB.eid) || null;
+  }
+  function ttLbPageBox() {
+    const picker = ttLbPicker();
+    return picker ? picker.querySelector(`input[name="pages"][value="${TTLB.page}"]`) : null;
+  }
+  function openLightbox(e, sid, eid, page, n, selectable) {
+    e.preventDefault(); e.stopPropagation();
+    Object.assign(TTLB, { sid, eid, page, n, selectable, open: true });
+    document.getElementById('tt-lightbox').hidden = false;
+    document.body.style.overflow = 'hidden';
+    ttLbRender();
+  }
+  function ttCloseLightbox() {
+    TTLB.open = false;
+    document.getElementById('tt-lightbox').hidden = true;
+    document.body.style.overflow = '';
+  }
+  function ttLbRender() {
+    const q = `session_id=${TTLB.sid}&entry_id=${TTLB.eid}`;
+    document.getElementById('tt-lb-img').src = `/tables/full?${q}&page=${TTLB.page}`;
+    document.getElementById('tt-lb-page').textContent =
+      TTLB.n > 1 ? `σελ. ${TTLB.page} / ${TTLB.n}` : '';
+    document.getElementById('tt-lb-prev').disabled = TTLB.page <= 1;
+    document.getElementById('tt-lb-next').disabled = TTLB.page >= TTLB.n;
+    document.getElementById('tt-lb-raw').href = `/tables/raw?${q}`;
+    const box = TTLB.selectable ? ttLbPageBox() : null;
+    const wrap = document.getElementById('tt-lb-include-wrap');
+    wrap.style.display = box ? '' : 'none';
+    if (box) document.getElementById('tt-lb-include').checked = box.checked;
+  }
+  function ttLbNav(d) {
+    const p = TTLB.page + d;
+    if (p < 1 || p > TTLB.n) return;
+    TTLB.page = p; ttLbRender();
+  }
+  function ttLbToggleInclude() {
+    const box = ttLbPageBox();
+    if (box) box.checked = document.getElementById('tt-lb-include').checked;
+  }
+  document.addEventListener('keydown', e => {
+    if (!TTLB.open) return;
+    if (e.key === 'ArrowLeft') ttLbNav(-1);
+    else if (e.key === 'ArrowRight') ttLbNav(1);
+    else if (e.key === 'Escape') ttCloseLightbox();
+    else if (e.key === ' ' && TTLB.selectable) {
+      e.preventDefault();
+      const lb = document.getElementById('tt-lb-include');
+      lb.checked = !lb.checked; ttLbToggleInclude();
+    }
+  });
+</script>

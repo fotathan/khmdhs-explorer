@@ -42,7 +42,7 @@ from fastapi.responses import HTMLResponse, Response
 # the admin router.
 try:
     from app.exporter import export_separate, export_workbook
-    from app.extractors import collect_files, compress_pages, extract_entry
+    from app.extractors import collect_files, compress_pages, extract_entry, extract_text_from_entry
     from app.ocr import (
         OcrError,
         api_key_present,
@@ -53,7 +53,7 @@ try:
     )
 except ImportError:
     from exporter import export_separate, export_workbook
-    from extractors import collect_files, compress_pages, extract_entry
+    from extractors import collect_files, compress_pages, extract_entry, extract_text_from_entry
     from ocr import (
         OcrError,
         api_key_present,
@@ -523,6 +523,173 @@ def make_router(templates, cursor) -> APIRouter:
         return Response(
             content=data, media_type=media_type,
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    # ------------------------------------------------------------------ #
+    # FULL TEXT — curator extraction of an act's attachment text into the
+    # procurement_act.full_text field. Reuses the same fetch/select/thumbnail/
+    # page-picker machinery as the table extractor above; the only difference
+    # is the action (extract text → preview → save to the field) instead of
+    # export-to-Excel. Manual save always overwrites (unlike the auto importer,
+    # which is fill-only-if-empty).
+    # ------------------------------------------------------------------ #
+
+    def _act_for_fulltext(adam: str):
+        with cursor() as c:
+            c.execute(
+                """SELECT adam, type, title, full_text,
+                          full_text_extracted_at, full_text_source
+                   FROM proc.procurement_act WHERE adam=%s""",
+                (adam,),
+            )
+            return c.fetchone()
+
+    @router.get("/fulltext/{adam}", response_class=HTMLResponse)
+    def fulltext_form(request: Request, adam: str):
+        """Edit page: shows current full_text and a fetch-and-extract panel."""
+        act = _act_for_fulltext(adam)
+        if act is None:
+            return HTMLResponse(
+                "<div class='tt-flash tt-error'>Άγνωστη πράξη.</div>",
+                status_code=404,
+            )
+        return templates.TemplateResponse(
+            request, "tables/fulltext.html",
+            {"act": act, "ocr_available": api_key_present()},
+        )
+
+    @router.post("/fulltext/fetch", response_class=HTMLResponse)
+    def fulltext_fetch(request: Request, adam: str = Form(...)):
+        """Fetch the act's document and show the file/page picker for text."""
+        _prune_sessions()
+        adam = adam.strip()
+        act_type = _act_type(adam) or "notice"
+        try:
+            data, fname = _fetch_act_document(act_type, adam)
+        except ValueError as exc:
+            return HTMLResponse(
+                f"<div class='tt-flash tt-error'>{exc}</div>", status_code=422
+            )
+        entries, errors = collect_files(fname, data)
+        session_id, session = _new_session(entries, errors)
+        session["fulltext_adam"] = adam
+        return templates.TemplateResponse(
+            request, "tables/_fulltext_select.html",
+            {
+                "session_id": session_id,
+                "entries": entries,
+                "errors": errors,
+                "total_size": sum(e.size for e in entries),
+                "adam": adam,
+            },
+        )
+
+    @router.post("/fulltext/upload", response_class=HTMLResponse)
+    async def fulltext_upload(request: Request,
+                              adam: str = Form(...),
+                              files: list[UploadFile] = None):
+        """Alternative to fetch: curator uploads the file(s) directly."""
+        _prune_sessions()
+        adam = adam.strip()
+        entries, errors, total = [], [], 0
+        for f in (files or []):
+            data = await f.read()
+            total += len(data)
+            if total > MAX_UPLOAD_BYTES:
+                return HTMLResponse(
+                    "<div class='tt-flash tt-error'>Πολύ μεγάλο αρχείο.</div>"
+                )
+            if not f.filename:
+                continue
+            ents, errs = collect_files(f.filename, data)
+            entries.extend(ents)
+            errors.extend(errs)
+        session_id, session = _new_session(entries, errors)
+        session["fulltext_adam"] = adam
+        return templates.TemplateResponse(
+            request, "tables/_fulltext_select.html",
+            {
+                "session_id": session_id,
+                "entries": entries,
+                "errors": errors,
+                "total_size": sum(e.size for e in entries),
+                "adam": adam,
+            },
+        )
+
+    @router.post("/fulltext/extract", response_class=HTMLResponse)
+    def fulltext_extract(
+        request: Request,
+        session_id: str = Form(...),
+        file_ids: list[str] = Form(default=[]),
+    ):
+        """Run text extraction on the chosen files (respecting page selection)
+        and return the combined text into an editable textarea for review."""
+        session = SESSIONS.get(session_id)
+        if session is None:
+            return HTMLResponse(
+                "<div class='tt-flash tt-error'>Η συνεδρία έληξε — ξεκινήστε ξανά.</div>",
+                status_code=410,
+            )
+        if not file_ids:
+            return HTMLResponse(
+                "<div class='tt-flash tt-error'>Δεν επιλέχθηκε κανένα αρχείο.</div>",
+                status_code=400,
+            )
+        selected = set(file_ids)
+        chunks: list[str] = []
+        skipped: list[str] = []
+        for eid in session["order"]:
+            if eid in selected and eid in session["entries"]:
+                entry = session["entries"][eid]
+                sel = session["page_sel"].get(eid)
+                txt = extract_text_from_entry(entry, pages=set(sel) if sel else None)
+                if txt:
+                    chunks.append(f"=== {entry.source} ===\n{txt}")
+                else:
+                    skipped.append(entry.source)
+        combined = "\n\n".join(chunks).strip()
+        return templates.TemplateResponse(
+            request, "tables/_fulltext_preview.html",
+            {
+                "session_id": session_id,
+                "adam": session.get("fulltext_adam", ""),
+                "text": combined,
+                "skipped": skipped,
+                "char_count": len(combined),
+            },
+        )
+
+    @router.post("/fulltext/save", response_class=HTMLResponse)
+    def fulltext_save(
+        request: Request,
+        adam: str = Form(...),
+        full_text: str = Form(""),
+    ):
+        """Persist the (possibly hand-edited) text to procurement_act.full_text.
+        Manual save always overwrites — curator intent wins."""
+        adam = adam.strip()
+        text = (full_text or "").strip()
+        with cursor() as c:
+            c.execute("SELECT 1 FROM proc.procurement_act WHERE adam=%s", (adam,))
+            if not c.fetchone():
+                return HTMLResponse(
+                    "<div class='tt-flash tt-error'>Άγνωστη πράξη.</div>",
+                    status_code=404,
+                )
+            c.execute(
+                """UPDATE proc.procurement_act
+                   SET full_text = %s,
+                       full_text_extracted_at = now(),
+                       full_text_source = %s
+                   WHERE adam = %s""",
+                (text or None,
+                 f"manual:{adam}" if text else "manual:cleared",
+                 adam),
+            )
+        return HTMLResponse(
+            "<div class='tt-flash tt-ok'>Αποθηκεύτηκε. "
+            f"<a href='/act/{adam}'>προβολή πράξης ›</a></div>"
         )
 
     return router

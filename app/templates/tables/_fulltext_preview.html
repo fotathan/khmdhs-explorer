@@ -1,0 +1,33 @@
+<div class="tt-card" style="padding:.9rem;">
+  <div class="tt-summary" style="margin-top:0;">
+    Εξήχθησαν <b>{{ char_count }}</b> χαρακτήρες.
+    {% if skipped %}
+      <span class="tt-truncated" style="display:block; margin-top:4px;">
+        Παραλείφθηκαν (χωρίς κείμενο / σαρωμένα): {{ skipped | join(", ") }}
+      </span>
+    {% endif %}
+  </div>
+
+  {% if char_count %}
+  <textarea class="tt-fulltext-area" id="tt-ft-extracted" readonly style="min-height:220px;">{{ text }}</textarea>
+  <div style="margin-top:10px; display:flex; gap:.8rem; align-items:center;">
+    <button type="button" class="tt-btn" onclick="ttFtUseText()">
+      ↑ Χρήση αυτού του κειμένου
+    </button>
+    <span class="tt-truncated">Το κείμενο μεταφέρεται στο πεδίο επάνω· πατήστε «Αποθήκευση κειμένου» για να αποθηκευτεί.</span>
+  </div>
+  {% else %}
+  <p class="tt-truncated">
+    Δεν εξήχθη κείμενο από τα επιλεγμένα αρχεία. Αν είναι σαρωμένα PDF/εικόνες,
+    χρησιμοποιήστε το OCR στο εργαλείο πινάκων ή ελέγξτε άλλο αρχείο.
+  </p>
+  {% endif %}
+</div>
+
+<script>
+  function ttFtUseText() {
+    const src = document.getElementById('tt-ft-extracted');
+    if (!src) return;
+    document.body.dispatchEvent(new CustomEvent('tt:fulltext-extracted', { detail: src.value }));
+  }
+</script>

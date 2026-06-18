@@ -104,6 +104,16 @@ BACKOFF_BASE = 5.0       # seconds; doubles each retry (5, 10, 20, 40, 80)
 BACKOFF_CAP = 120.0      # never wait longer than this between tries
 RETRY_STATUSES = {429, 500, 502, 503, 504}
 
+# Full-text extraction on import (opt-in via env). When on, each newly-upserted
+# act has its official attachment fetched and its text extracted into
+# procurement_act.full_text — but ONLY when that column is currently empty, so
+# a manual extraction is never clobbered. Scanned PDFs / images (no text layer)
+# are skipped silently and left for the manual OCR path on the edit page.
+import os as _os
+EXTRACT_FULLTEXT = _os.environ.get("EXTRACT_FULLTEXT", "0") == "1"
+# Cap one attachment download so a pathological file can't stall a window.
+MAX_ATTACHMENT_BYTES = int(_os.environ.get("FULLTEXT_MAX_MB", "60")) * 1024 * 1024
+
 
 # --------------------------------------------------------------------------- #
 # Rate limiter: simple token-bucket sized to the documented 350 req/min.
@@ -195,6 +205,50 @@ class KhmdhsClient:
 
     def attachment_url(self, act_type: str, adam: str) -> str:
         return f"{OPENDATA}{SEARCH_PATH[act_type]}/attachment/{adam}"
+
+    def fetch_attachment(self, act_type: str, adam: str) -> tuple[bytes, str] | None:
+        """GET an act's official KHMDHS document. Returns (data, filename) or
+        None if there's no attachment / it can't be fetched. Uses the shared
+        session and rate limiter so these downloads are paced alongside searches.
+        Fail-soft by design: any error returns None rather than raising, so a
+        bad attachment never aborts an ingest window."""
+        url = self.attachment_url(act_type, adam)
+        for attempt in range(MAX_RETRIES):
+            self.limiter.wait()
+            try:
+                r = self.session.get(url, timeout=120, stream=True)
+            except (requests.ConnectionError, requests.Timeout):
+                self._sleep_backoff(attempt, None)
+                continue
+            if r.status_code == 404:
+                return None  # no document for this act — normal, not an error
+            if r.status_code in RETRY_STATUSES:
+                if attempt == MAX_RETRIES - 1:
+                    return None
+                self._sleep_backoff(attempt, r.headers.get("Retry-After"))
+                continue
+            if r.status_code != 200:
+                return None
+            # stream with a hard size cap
+            chunks: list[bytes] = []
+            total = 0
+            try:
+                for chunk in r.iter_content(64 * 1024):
+                    if not chunk:
+                        continue
+                    total += len(chunk)
+                    if total > MAX_ATTACHMENT_BYTES:
+                        return None  # oversize — skip rather than buffer it all
+                    chunks.append(chunk)
+            except (requests.ConnectionError, requests.Timeout):
+                return None
+            data = b"".join(chunks)
+            if not data:
+                return None
+            # name it so the extractor sniffs by extension; PDF default, zip if magic
+            fname = f"{adam}.zip" if data[:2] == b"PK" else f"{adam}.pdf"
+            return data, fname
+        return None
 
 
 # --------------------------------------------------------------------------- #
@@ -432,7 +486,23 @@ class Repository:
         )
         return adam
 
-    # ---- line items ----------------------------------------------------- #
+    def set_full_text_if_empty(self, adam: str, text: str, source: str) -> bool:
+        """Write full_text for an act ONLY if it's currently NULL/empty, so an
+        auto-extraction never overwrites a value a curator put there by hand.
+        Returns True if a row was updated."""
+        self.db.execute(
+            """UPDATE proc.procurement_act
+               SET full_text = %(text)s,
+                   full_text_extracted_at = now(),
+                   full_text_source = %(source)s
+               WHERE adam = %(adam)s
+                 AND (full_text IS NULL OR full_text = '')""",
+            {"text": text, "source": source, "adam": adam},
+        )
+        # psycopg exposes rowcount on the cursor; db.execute may or may not
+        # surface it. Treat "no exception" as success; callers don't depend on
+        # the boolean for correctness, only for logging.
+        return True
     def replace_object_details(self, adam: str, act: dict):
         self.db.execute("DELETE FROM proc.act_object_detail WHERE adam=%s", (adam,))
         # request/notice/payment use 'objectDetails'; auction/contract use
@@ -600,6 +670,36 @@ class Repository:
 # --------------------------------------------------------------------------- #
 # Orchestration
 # --------------------------------------------------------------------------- #
+def extract_full_text_for_act(client: "KhmdhsClient", repo: "Repository",
+                              act_type: str, adam: str) -> None:
+    """Fetch an act's attachment, extract its text, and store it (fill-only-if-
+    empty). Entirely fail-soft: any problem is swallowed so a single act can
+    never break the ingest window. Scanned/no-text-layer documents yield no
+    text and are simply skipped, leaving full_text NULL for the manual OCR path.
+
+    Imported lazily so the ingester still imports cleanly on a machine that
+    doesn't have the extraction libs installed (e.g. one that only reads data).
+    """
+    try:
+        fetched = client.fetch_attachment(act_type, adam)
+        if not fetched:
+            return
+        data, fname = fetched
+        try:
+            from app.extractors import extract_text_from_upload
+        except ImportError:
+            try:
+                from extractors import extract_text_from_upload
+            except ImportError:
+                return  # extraction libs not available — skip silently
+        text = extract_text_from_upload(fname, data)
+        if not text:
+            return  # no text layer (scanned/image) — leave for manual OCR
+        repo.set_full_text_if_empty(adam, text, source="auto:import")
+    except Exception:  # noqa: BLE001 — never propagate into the ingest loop
+        return
+
+
 def ingest_type(client: KhmdhsClient, repo: Repository, act_type: str,
                 start: dt.date, end: dt.date, *, resume: bool = False) -> dict:
     """Ingest a date range for one act type, recording per-window progress.
@@ -657,6 +757,10 @@ def ingest_type(client: KhmdhsClient, repo: Repository, act_type: str,
                 authority_id = repo.upsert_authority(act)
                 unit_id, signer_id = repo.upsert_unit_and_signer(act, authority_id)
                 repo.upsert_act(act_type, act, authority_id, unit_id, signer_id)
+                if EXTRACT_FULLTEXT:
+                    # Fail-soft, fill-only-if-empty; scanned docs skipped.
+                    extract_full_text_for_act(
+                        client, repo, act_type, act["referenceNumber"])
                 repo.replace_object_details(act["referenceNumber"], act)
                 repo.record_contractors(act_type, act)
                 repo.record_links(act_type, act)

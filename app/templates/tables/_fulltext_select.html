@@ -1,0 +1,76 @@
+{% set kind_label = {
+  "tables": "κείμενο/πίνακες",
+  "image": "εικόνα — χωρίς κείμενο",
+  "unsupported": "μη υποστηριζόμενο",
+  "other": "χωρίς κείμενο"
+} %}
+
+<div class="tt-summary">
+  ΑΔΑΜ {{ adam }} — βρέθηκαν <b>{{ entries|length }}</b>
+  αρχ{{ "είο" if entries|length == 1 else "εία" }}
+  ({{ "%.1f"|format(total_size / 1048576) }} MB).
+  Επιλέξτε από ποια θέλετε να εξαχθεί κείμενο.
+</div>
+
+{% for err in errors %}
+<div class="tt-card">
+  <div class="tt-head">
+    <span class="tt-badge error">σφάλμα</span>
+    <span class="tt-name">{{ err.source }}</span>
+  </div>
+  <div class="tt-detail">{{ err.detail }}</div>
+</div>
+{% endfor %}
+
+<form hx-post="/tables/fulltext/extract" hx-target="#tt-ft-preview" hx-swap="innerHTML"
+      hx-indicator="#tt-ft-extract-busy" id="tt-ft-select-form">
+  <input type="hidden" name="session_id" value="{{ session_id }}">
+
+  <div class="tt-card">
+    {% for e in entries %}
+    <div class="tt-block">
+      <label class="tt-pick">
+        <input type="checkbox" name="file_ids" value="{{ e.id }}" checked
+               onchange="ttFtUpdateCount()">
+        <span class="tt-name">{{ e.source }}</span>
+        <span class="tt-badge {{ 'ok' if e.kind == 'tables' else ('image' if e.kind == 'image' else 'no_tables') }}">
+          {{ kind_label[e.kind] }}
+        </span>
+        <span class="tt-dims">{{ e.size_human }}</span>
+      </label>
+      {% if e.ext == ".pdf" %}
+      <div class="tt-picker-wrap">
+        <button type="button" class="tt-btn tt-secondary tt-mini"
+                hx-get="/tables/pages?session_id={{ session_id }}&entry_id={{ e.id }}"
+                hx-target="closest .tt-picker-wrap" hx-swap="innerHTML">
+          Προεπισκόπηση / επιλογή σελίδων
+        </button>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="tt-exportbar">
+    <button type="button" class="tt-btn tt-secondary" onclick="ttFtSetAll(true)">Επιλογή όλων</button>
+    <button type="button" class="tt-btn tt-secondary" onclick="ttFtSetAll(false)">Κανένα</button>
+    <button type="submit" class="tt-btn">Εξαγωγή κειμένου</button>
+    <span class="tt-indicator" id="tt-ft-extract-busy">εξαγωγή…</span>
+    <span class="tt-count" id="tt-ft-file-count"></span>
+  </div>
+</form>
+
+<div id="tt-ft-preview" style="margin-top:16px;"></div>
+
+<script>
+  function ttFtBoxes() {
+    return [...document.querySelectorAll('#tt-ft-select-form input[name="file_ids"]')];
+  }
+  function ttFtSetAll(state) { ttFtBoxes().forEach(b => b.checked = state); ttFtUpdateCount(); }
+  function ttFtUpdateCount() {
+    const n = ttFtBoxes().filter(b => b.checked).length;
+    const el = document.getElementById('tt-ft-file-count');
+    if (el) el.textContent = n + ' από ' + ttFtBoxes().length + ' επιλεγμένα';
+  }
+  ttFtUpdateCount();
+</script>

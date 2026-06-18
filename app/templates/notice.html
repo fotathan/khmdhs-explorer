@@ -152,6 +152,21 @@
       <p style="font-style:italic; color:var(--ink-3);">—</p>
     {% endif %}
 
+    {% if n.full_text %}
+      <div class="section-h">
+        Πλήρες κείμενο
+        <a href="/tables/fulltext/{{ n.adam }}" style="float:right; color:var(--accent); font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; font-weight:400;">επεξεργασία ›</a>
+      </div>
+      <details>
+        <summary style="cursor:pointer; font-family:var(--sans); font-size:13px; color:var(--ink-2); margin-bottom:8px;">
+          {{ n.full_text | length }} χαρακτήρες
+          {% if n.full_text_extracted_at %}· {{ n.full_text_extracted_at.strftime('%Y-%m-%d') }}{% endif %}
+          — προβολή κειμένου
+        </summary>
+        <pre style="font-family:var(--mono); font-size:12px; line-height:1.55; white-space:pre-wrap; word-wrap:break-word; background:var(--paper-2); padding:14px 16px; border-left:2px solid var(--rule); max-height:520px; overflow:auto; margin:8px 0 0;">{{ n.full_text }}</pre>
+      </details>
+    {% endif %}
+
     {% if incoming %}
       <div class="section-h">Συσχετιζόμενα προηγούμενα</div>
       <ul class="chain">

@@ -351,6 +351,128 @@ def _extract_pdf(data: bytes, source: str,
 
 # ---------------------------------------------------------------- entry points
 
+# ---------------------------------------------------------------- plain-text extraction
+#
+# Separate from the table extractors above: this pulls the readable *text* out
+# of a file (for a full-text field / search), not its tables. Used both by the
+# KHMDHS ingester (auto fill on import) and the manual edit-page button.
+#
+# Each `_text_*` returns a string, or "" when the format carries no extractable
+# text. `extract_text_from_entry` returns None when there is no text layer at
+# all (e.g. a scanned PDF or a bare image) so callers can cleanly distinguish
+# "empty document" from "needs OCR" and skip it in automatic mode.
+
+# A PDF whose total extracted text is below this many non-space characters is
+# treated as having no real text layer (scanned). Tunable; deliberately small.
+MIN_PDF_TEXT_CHARS = 20
+
+
+def _text_pdf(data: bytes, pages: set[int] | None = None) -> str:
+    out: list[str] = []
+    with pdfplumber.open(io.BytesIO(data)) as pdf:
+        for i, page in enumerate(pdf.pages, start=1):
+            if pages is not None and i not in pages:
+                continue
+            txt = page.extract_text() or ""
+            if txt.strip():
+                out.append(txt)
+    return "\n\n".join(out).strip()
+
+
+def _text_docx(data: bytes) -> str:
+    doc = DocxDocument(io.BytesIO(data))
+    parts: list[str] = [p.text for p in doc.paragraphs if p.text and p.text.strip()]
+    # include table cell text too — tender τεύχη put a lot of content in tables
+    for tbl in doc.tables:
+        for row in tbl.rows:
+            cells = [_clean_cell(c.text) for c in row.cells]
+            line = " | ".join(c for c in cells if c)
+            if line:
+                parts.append(line)
+    return "\n".join(parts).strip()
+
+
+def _text_xlsx(data: bytes) -> str:
+    wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    parts: list[str] = []
+    for ws in wb.worksheets:
+        parts.append(f"[{ws.title}]")
+        for row in ws.iter_rows(values_only=True):
+            cells = [_clean_cell(c) for c in row]
+            line = " | ".join(c for c in cells if c)
+            if line:
+                parts.append(line)
+    return "\n".join(parts).strip()
+
+
+def _text_xls(data: bytes) -> str:
+    if xlrd is None:
+        return ""
+    book = xlrd.open_workbook(file_contents=data)
+    parts: list[str] = []
+    for sh in book.sheets():
+        parts.append(f"[{sh.name}]")
+        for r in range(sh.nrows):
+            cells = [_clean_cell(sh.cell_value(r, c)) for c in range(sh.ncols)]
+            line = " | ".join(c for c in cells if c)
+            if line:
+                parts.append(line)
+    return "\n".join(parts).strip()
+
+
+def _text_csv(data: bytes) -> str:
+    for enc in ("utf-8-sig", "utf-8", "cp1253", "iso-8859-7", "latin-1"):
+        try:
+            return data.decode(enc).strip()
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace").strip()
+
+
+def extract_text_from_entry(entry: FileEntry,
+                            pages: set[int] | None = None) -> str | None:
+    """Pull plain text out of one collected file.
+
+    Returns the text, or None when there is no extractable text layer (scanned
+    PDF, image, or unsupported type) — so automatic callers can skip it and
+    leave OCR to a deliberate manual step. `pages` (PDF only) restricts which
+    1-based pages are read.
+    """
+    ext = entry.ext
+    try:
+        if ext == ".pdf":
+            txt = _text_pdf(entry.data, pages)
+            return txt if len(txt.replace(" ", "")) >= MIN_PDF_TEXT_CHARS else None
+        if ext == ".docx":
+            return _text_docx(entry.data) or None
+        if ext in (".xlsx", ".xlsm"):
+            return _text_xlsx(entry.data) or None
+        if ext == ".xls":
+            return _text_xls(entry.data) or None
+        if ext == ".csv":
+            return _text_csv(entry.data) or None
+        # images, .doc, .rar, anything else: no text layer here
+        return None
+    except Exception:  # noqa: BLE001 — never let one bad file break a batch
+        return None
+
+
+def extract_text_from_upload(filename: str, data: bytes) -> str | None:
+    """Convenience for the ingester: take a raw downloaded attachment (which may
+    itself be a zip of τεύχη), unpack it, extract text from every text-bearing
+    file inside, and return the concatenation — or None if nothing yielded text.
+    """
+    entries, _errors = collect_files(filename, data)
+    chunks: list[str] = []
+    for e in entries:
+        t = extract_text_from_entry(e)
+        if t:
+            # label each file so a multi-doc attachment stays legible
+            chunks.append(f"=== {e.source} ===\n{t}")
+    combined = "\n\n".join(chunks).strip()
+    return combined or None
+
+
 def collect_files(filename: str, data: bytes, depth: int = 0,
                   prefix: str = "") -> tuple[list[FileEntry], list[FileReport]]:
     """
