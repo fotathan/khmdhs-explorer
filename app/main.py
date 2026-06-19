@@ -47,6 +47,16 @@ if not DATABASE_URL:
     raise SystemExit("Set DATABASE_URL=postgresql://user:pass@host:port/db")
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Put this directory on sys.path so the tender-table extraction modules
+# (extractors.py / exporter.py / ocr.py) can keep their flat, bare sibling
+# imports — e.g. ocr.py's `from extractors import ...` — and still load when
+# main.py is run as the `app` package (uvicorn app.main:app). This keeps those
+# three modules byte-identical with the standalone Tender Tables tool, which is
+# what lets fixes flow between the two projects by copying files.
+import sys as _sys
+if APP_DIR not in _sys.path:
+    _sys.path.insert(0, APP_DIR)
 templates = Jinja2Templates(directory=os.path.join(APP_DIR, "templates"))
 
 # Sanity ceiling for contract values (with VAT). Contracts above this are
@@ -78,6 +88,13 @@ def khmdhs_doc_url(act_type: str, adam: str) -> str | None:
     return f"{KHMDHS_DOC_BASE}/{seg}/attachment/{adam}"
 
 templates.env.globals["khmdhs_doc_url"] = khmdhs_doc_url
+
+# Whether the tender-table extraction feature is mounted (see the /tables
+# router registration below). Templates use this to show/hide the act-detail
+# "Εξαγωγή πινάκων" button so it never points at a route that isn't there.
+templates.env.globals["tables_enabled"] = (
+    os.environ.get("TABLES_ENABLED", "1") == "1"
+)
 
 # --- Single source of truth for act-type display labels (Greek) ------------- #
 # Used by every template via the |type_label filter. Internal codes ("notice",
@@ -340,13 +357,11 @@ def run_search(params: dict, limit: int, offset: int):
         LIMIT %s OFFSET %s
     """
     # Counter rework (perf): the old version summed proc.resolved_value() per
-    # row, which fired a subquery against the annotation overlay for every one
-    # of ~2.67M rows on each page load (~7.9s by EXPLAIN). The corrected total
-    # is mathematically identical to:
-    #     sum(total_cost_with_vat)                      -- plain column aggregate
-    #   + sum(corrected_value - total_cost_with_vat)    -- only the few overrides
-    # The base aggregate is a cheap scan; the delta touches only corrected rows.
-    # Both honour the SAME where-clause so the figure matches the filtered set.
+    # row, firing a subquery per row × 2.67M (~7.9s/load by EXPLAIN). The
+    # corrected total equals sum(total_cost_with_vat) + sum(corrected - base)
+    # over only the few overrides — both honour the same WHERE so the figure
+    # matches the filtered set. Unfiltered count uses Postgres' instant
+    # reltuples estimate instead of counting 2.67M rows exactly.
     count_sql = f"""
         SELECT count(*) AS n,
                coalesce(sum(a.total_cost_with_vat), 0) AS base_value
@@ -361,11 +376,6 @@ def run_search(params: dict, limit: int, offset: int):
           AND v.corrected_value IS NOT NULL
     """
     with cursor() as c:
-        # When there are no filters at all, an exact count(*) over 2.67M rows is
-        # pure waste — the figure is just "how many acts exist". Use Postgres'
-        # maintained row estimate (pg_class.reltuples, refreshed by ANALYZE),
-        # which is instant. Exact counts are kept for any FILTERED search, where
-        # the set is smaller and the precise number is what the user asked for.
         if where == "TRUE":
             c.execute("""SELECT reltuples::bigint AS n
                          FROM pg_class
@@ -508,6 +518,22 @@ try:
 except ImportError:
     from admin import make_router as _make_admin_router   # fallback if run with --app-dir=app
 app.include_router(_make_admin_router(templates, cursor))
+
+# Tender-table extraction UI (separate module, mounted under /tables). Gated by
+# the TABLES_ENABLED env flag so the deployed Render copy can carry the feature
+# turned off until the public conversation happens for real — locally it
+# defaults ON. Like /admin, it sits behind the app's BasicAuthMiddleware, so
+# it's curator-only without any per-route dependency. OCR inside it is gated
+# SEPARATELY on ANTHROPIC_API_KEY, so enabling the feature and spending the API
+# key on OCR stay two independent decisions. Templates live in templates/tables/
+# and the three extraction modules (extractors.py, exporter.py, ocr.py) are kept
+# byte-identical with the standalone Tender Tables tool.
+if os.environ.get("TABLES_ENABLED", "1") == "1":
+    try:
+        from app.tables import make_router as _make_tables_router
+    except ImportError:
+        from tables import make_router as _make_tables_router  # run with --app-dir=app
+    app.include_router(_make_tables_router(templates, cursor))
 
 
 @app.get("/healthz")
@@ -756,6 +782,7 @@ def act_detail(adam: str, request: Request):
                    -- payment-specific
                    a.is_credit, a.payment_commitment_code, a.contract_value,
                    a.raw_json,
+                   a.full_text, a.full_text_extracted_at, a.full_text_source,
                    nuts.label AS nuts_label
             FROM proc.procurement_act a
             LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
@@ -838,11 +865,10 @@ def act_detail(adam: str, request: Request):
         # Downstream chain — root-anchored recursion.
         # PERF: the old version queried proc.v_act_chain, a view whose recursion
         # starts from EVERY act_link row; Postgres built the whole 22.6M-row
-        # closure and then filtered to this one root (~22s/page, gigabytes of
-        # temp spill). Starting the recursion from THIS adam walks only the few
-        # reachable rows. Same depth cap (12), same cycle guard (path), same
-        # relation allow-list, and same output columns/order as the view, so the
-        # rendered chain is identical — just computed for one root instead of all.
+        # closure and then filtered to this one root (~20s/page). Starting the
+        # recursion from THIS adam walks only the few reachable rows (~0.03ms).
+        # Same depth cap, cycle guard, relation allow-list, columns and order as
+        # the view, so the rendered chain is identical — just fast.
         c.execute("""
             WITH RECURSIVE chain AS (
                 SELECT %s::text AS adam, 0 AS depth,
