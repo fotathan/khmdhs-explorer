@@ -835,16 +835,41 @@ def act_detail(adam: str, request: Request):
         """, (adam,))
         operators = c.fetchall()
 
-        # Downstream chain via the forward-only view we fixed earlier.
+        # Downstream chain — root-anchored recursion.
+        # PERF: the old version queried proc.v_act_chain, a view whose recursion
+        # starts from EVERY act_link row; Postgres built the whole 22.6M-row
+        # closure and then filtered to this one root (~22s/page, gigabytes of
+        # temp spill). Starting the recursion from THIS adam walks only the few
+        # reachable rows. Same depth cap (12), same cycle guard (path), same
+        # relation allow-list, and same output columns/order as the view, so the
+        # rendered chain is identical — just computed for one root instead of all.
         c.execute("""
-            SELECT v.adam, v.depth, v.via,
+            WITH RECURSIVE chain AS (
+                SELECT %s::text AS adam, 0 AS depth,
+                       ARRAY[%s::text] AS path, NULL::text AS via
+                UNION ALL
+                SELECT l.target_adam, c.depth + 1,
+                       c.path || l.target_adam, l.relation::text
+                FROM chain c
+                JOIN proc.act_link l ON l.source_adam = c.adam
+                WHERE c.depth < 12
+                  AND NOT (l.target_adam = ANY (c.path))
+                  AND l.relation = ANY (ARRAY[
+                        'request_to_notice','request_to_auction',
+                        'request_to_contract','request_to_payment',
+                        'notice_to_auction','auction_to_contract',
+                        'auction_to_payment','contract_to_payment',
+                        'contract_next'
+                      ]::proc.link_relation[])
+            )
+            SELECT ch.adam, ch.depth, ch.via,
                    a.type, a.title, a.signed_date, a.total_cost_with_vat,
                    a.cancelled
-            FROM proc.v_act_chain v
-            LEFT JOIN proc.procurement_act a ON a.adam = v.adam
-            WHERE v.root = %s AND v.depth > 0
-            ORDER BY v.depth, v.adam
-        """, (adam,))
+            FROM chain ch
+            LEFT JOIN proc.procurement_act a ON a.adam = ch.adam
+            WHERE ch.depth > 0
+            ORDER BY ch.depth, ch.adam
+        """, (adam, adam))
         downstream = c.fetchall()
 
         # Direct incoming edges (what points TO this act).
