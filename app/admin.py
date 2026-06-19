@@ -125,7 +125,8 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                         date_from: str = Form(...),
                         date_to: str = Form(""),
                         types: list[str] = Form(default=[]),
-                        resume: str = Form(default="")):
+                        resume: str = Form(default=""),
+                        extract_fulltext: str = Form(default="")):
         # Validate inputs up front so a bad request fails before we spawn anything.
         try:
             df = dt.date.fromisoformat(date_from)
@@ -138,6 +139,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         if not chosen:
             chosen = ACT_TYPES[:]   # all five
         resume_flag = bool(resume)
+        fulltext_flag = bool(extract_fulltext)
 
         # Refuse if another backfill is already running. The reconcile call
         # ensures we don't get blocked by a stale 'running' row.
@@ -168,7 +170,24 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         # Spawn DETACHED: own process group, stdout/stderr to the log file.
         # On POSIX this means uvicorn restarting won't kill the backfill, and
         # we can later signal the whole group with os.killpg().
+        # Subprocess environment: inherit everything (incl. DATABASE_URL), and
+        # turn on full-text extraction for THIS run only if the toggle was set.
+        # khmdhs_ingest reads EXTRACT_FULLTEXT; it defaults off otherwise, so a
+        # plain backfill stays fast.
+        job_env = {**os.environ}
+        if fulltext_flag:
+            job_env["EXTRACT_FULLTEXT"] = "1"
+        else:
+            job_env.pop("EXTRACT_FULLTEXT", None)
+
         log_fh = open(log_path, "w")
+        # Record what this run is doing at the top of its own log, so the job
+        # detail page shows whether full-text extraction was on.
+        log_fh.write(
+            f"# backfill job {job_id}: types={chosen} "
+            f"{df.isoformat()}..{dtt.isoformat()} resume={resume_flag} "
+            f"extract_fulltext={fulltext_flag}\n\n")
+        log_fh.flush()
         try:
             proc = subprocess.Popen(
                 cmd,
@@ -176,7 +195,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 stdin=subprocess.DEVNULL,
                 start_new_session=True,             # detach process group
                 cwd=root,
-                env={**os.environ},                  # inherit DATABASE_URL
+                env=job_env,                         # inherit + optional fulltext
             )
         except Exception as e:
             with cursor() as c:

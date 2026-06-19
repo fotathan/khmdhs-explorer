@@ -56,6 +56,20 @@
         </label>
       </div>
 
+      <div class="field">
+        <label style="display:inline-flex; align-items:flex-start; gap:8px; cursor:pointer;">
+          <input type="checkbox" name="extract_fulltext" value="1" style="margin-top:3px;">
+          <span style="font-size:13px; letter-spacing:0; text-transform:none; color:var(--ink);">
+            <strong>Εξαγωγή πλήρους κειμένου</strong> — για κάθε νέα πράξη, αντλεί το
+            συνημμένο και αποθηκεύει το κείμενό του.
+            <span style="display:block; color:var(--warn); margin-top:3px;">
+              Πιο αργό &amp; με πολλές λήψεις από το ΚΗΜΔΗΣ. Συμπληρώνει μόνο όσες
+              πράξεις δεν έχουν ήδη κείμενο· τα σαρωμένα PDF παραλείπονται.
+            </span>
+          </span>
+        </label>
+      </div>
+
       <button type="submit" style="background:var(--ink); color:var(--paper); border:0; padding:10px 22px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; margin-top:8px;">
         Εκκίνηση συλλογής
       </button>
