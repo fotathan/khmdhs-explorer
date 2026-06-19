@@ -339,34 +339,12 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
 
     @router.get("/act/{adam}/annotate", response_class=HTMLResponse)
     def annotate_form(adam: str, request: Request):
-        with cursor() as c:
-            c.execute("""SELECT adam, type, title, signed_date, submission_date,
-                                total_cost_with_vat, total_cost_without_vat
-                         FROM proc.procurement_act WHERE adam=%s""", (adam,))
-            act = c.fetchone()
-            if not act:
-                raise HTTPException(404, f"act {adam} not found")
-            # Current annotation (if any) to pre-fill the form.
-            c.execute("""SELECT note, tags, flag, author, created_at,
-                                corrected_value, corrected_value_without_vat
-                         FROM proc.v_act_annotation_current WHERE adam=%s""", (adam,))
-            current = c.fetchone()
-            # Full history (audit trail) for this act.
-            c.execute("""SELECT note, tags, flag, author, created_at, superseded
-                         FROM proc.act_annotation
-                         WHERE adam=%s ORDER BY created_at DESC""", (adam,))
-            history = c.fetchall()
-
-        from urllib.parse import unquote
-        author_cookie = unquote(request.cookies.get("curator", ""))
         return templates.TemplateResponse(
-            request, "admin_annotate.html",
-            {"act": act, "current": current, "history": history,
-             "author_cookie": author_cookie,
-             "flags": FLAGS, "flag_labels": FLAG_LABELS})
+            request, "admin_annotate.html", _annotate_context(adam, request))
 
     @router.post("/act/{adam}/annotate")
     def annotate_save(adam: str,
+                      request: Request,
                       note: str = Form(""),
                       tags: str = Form(""),
                       flag: str = Form(""),
@@ -414,15 +392,101 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                           (adam, note or None, tag_list, flag, corrected,
                            corrected_wo, author))
 
+        from urllib.parse import quote
+        panel = request.query_params.get("panel") == "1"
+        if panel:
+            # Called from the act-edit hub via HTMX: re-render the annotate panel
+            # in place (with the new history) instead of a full-page redirect.
+            data = _annotate_context(adam, request)
+            data["saved"] = True
+            resp = templates.TemplateResponse(request, "_panel_annotate.html", data)
+            resp.set_cookie("curator", quote(author),
+                            max_age=60 * 60 * 24 * 365, samesite="lax")
+            return resp
+
         resp = RedirectResponse(url=f"/admin/act/{adam}/annotate", status_code=303)
         # Remember the curator's name for next time (attribution, not auth).
         # Cookies are latin-1 only, so URL-encode to allow Greek names; the form
         # route unquotes it when prefilling. quote() with no safe-set handles
         # any alphabet safely.
-        from urllib.parse import quote
         resp.set_cookie("curator", quote(author), max_age=60 * 60 * 24 * 365,
                         samesite="lax")
         return resp
+
+    # ------------------------------------------------------------------ #
+    # Act-edit hub: one page per act hosting Σημειώσεις / Πλήρες κείμενο /
+    # Πίνακες as lazy HTMX tabs. The standalone pages (annotate, /tables,
+    # /tables/fulltext) keep working; the hub reuses their logic via these
+    # panel fragments. New features become new tabs here.
+    # ------------------------------------------------------------------ #
+    def _annotate_context(adam: str, request: Request) -> dict:
+        """Shared context for the annotate panel + standalone page."""
+        with cursor() as c:
+            c.execute("""SELECT adam, type, title, signed_date, submission_date,
+                                total_cost_with_vat, total_cost_without_vat
+                         FROM proc.procurement_act WHERE adam=%s""", (adam,))
+            act = c.fetchone()
+            if not act:
+                raise HTTPException(404, f"act {adam} not found")
+            c.execute("""SELECT note, tags, flag, author, created_at,
+                                corrected_value, corrected_value_without_vat
+                         FROM proc.v_act_annotation_current WHERE adam=%s""", (adam,))
+            current = c.fetchone()
+            c.execute("""SELECT note, tags, flag, author, created_at, superseded
+                         FROM proc.act_annotation
+                         WHERE adam=%s ORDER BY created_at DESC""", (adam,))
+            history = c.fetchall()
+        from urllib.parse import unquote
+        author_cookie = unquote(request.cookies.get("curator", ""))
+        return {"act": act, "current": current, "history": history,
+                "author_cookie": author_cookie,
+                "flags": FLAGS, "flag_labels": FLAG_LABELS}
+
+    def _act_basic(adam: str):
+        """Minimal act row for the fulltext/tables panels."""
+        with cursor() as c:
+            c.execute("""SELECT adam, type, title,
+                                full_text, full_text_extracted_at, full_text_source
+                         FROM proc.procurement_act WHERE adam=%s""", (adam,))
+            act = c.fetchone()
+        if not act:
+            raise HTTPException(404, f"act {adam} not found")
+        return act
+
+    @router.get("/act/{adam}/edit", response_class=HTMLResponse)
+    def act_edit_hub(adam: str, request: Request):
+        with cursor() as c:
+            c.execute("""SELECT adam, type, title FROM proc.procurement_act
+                         WHERE adam=%s""", (adam,))
+            act = c.fetchone()
+            if not act:
+                raise HTTPException(404, f"act {adam} not found")
+        return templates.TemplateResponse(request, "act_edit.html", {"act": act})
+
+    @router.get("/act/{adam}/panel/annotate", response_class=HTMLResponse)
+    def panel_annotate(adam: str, request: Request):
+        return templates.TemplateResponse(
+            request, "_panel_annotate.html", _annotate_context(adam, request))
+
+    @router.get("/act/{adam}/panel/fulltext", response_class=HTMLResponse)
+    def panel_fulltext(adam: str, request: Request):
+        try:
+            from app.ocr import api_key_present
+        except ImportError:
+            from ocr import api_key_present
+        return templates.TemplateResponse(
+            request, "_panel_fulltext.html",
+            {"act": _act_basic(adam), "ocr_available": api_key_present()})
+
+    @router.get("/act/{adam}/panel/tables", response_class=HTMLResponse)
+    def panel_tables(adam: str, request: Request):
+        try:
+            from app.ocr import api_key_present
+        except ImportError:
+            from ocr import api_key_present
+        return templates.TemplateResponse(
+            request, "_panel_tables.html",
+            {"prefill_adam": adam, "ocr_available": api_key_present()})
 
     # ------------------------------------------------------------------ #
     # Line-item value corrections. Per-item editable cost_without_vat,

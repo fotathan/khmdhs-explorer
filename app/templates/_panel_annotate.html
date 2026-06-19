@@ -1,0 +1,107 @@
+{# Annotation panel — rendered inside the act-edit hub's "Σημειώσεις" tab.
+   Chrome-less (no base.html, no detail-h): the hub supplies the header.
+   The form still posts to the existing /admin/act/{adam}/annotate route, but
+   via HTMX so the save stays on the hub instead of full-page redirecting. #}
+<div class="detail-grid">
+  <div>
+    <div class="section-h">Σημείωση ομάδας</div>
+    <form hx-post="/admin/act/{{ act.adam }}/annotate?panel=1"
+          hx-target="#edit-panel" hx-swap="innerHTML">
+      <div class="field">
+        <label>Σημείωση</label>
+        <textarea name="note" rows="5"
+          style="width:100%; font-family:var(--serif); font-size:15px; padding:10px; border:1px solid var(--rule); background:var(--paper); color:var(--ink); resize:vertical;"
+          placeholder="ελεύθερο κείμενο…">{{ current.note if current and current.note else '' }}</textarea>
+      </div>
+
+      <div class="field">
+        <label>Ετικέτες (χωρισμένες με κόμμα ή κενό)</label>
+        <input name="tags" value="{{ current.tags | join(', ') if current and current.tags else '' }}"
+          placeholder="π.χ. προς-έρευνα, υγεία, 2024">
+      </div>
+
+      <div class="field">
+        <label>Επισήμανση</label>
+        <select name="flag">
+          {% for code in flags %}
+            <option value="{{ code }}" {% if current and current.flag==code %}selected{% endif %}{% if not current and code=='' %}selected{% endif %}>
+              {% if code=='' %}— καμία —{% else %}{{ flag_labels[code] }}{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Διορθωμένη αξία (με ΦΠΑ)</label>
+        <input name="corrected_value" inputmode="decimal"
+               value="{{ '%.2f'|format(current.corrected_value) if current and current.corrected_value is not none else '' }}"
+               placeholder="π.χ. 6138.00 — άφησέ το κενό για καμία διόρθωση">
+        <div class="meta" style="margin-top:6px;">
+          Αρχική τιμή από την πηγή:
+          {% if act.total_cost_with_vat is not none %}€ {{ "{:,.2f}".format(act.total_cost_with_vat).replace(",","·") }}{% else %}—{% endif %}.
+          Η διόρθωση χρησιμοποιείται στους υπολογισμούς· η αρχική τιμή διατηρείται και εμφανίζεται.
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Διορθωμένη αξία (χωρίς ΦΠΑ)</label>
+        <input name="corrected_value_without_vat" inputmode="decimal"
+               value="{{ '%.2f'|format(current.corrected_value_without_vat) if current and current.corrected_value_without_vat is not none else '' }}"
+               placeholder="π.χ. 4950.00 — άφησέ το κενό για καμία διόρθωση">
+        <div class="meta" style="margin-top:6px;">
+          Αρχική τιμή από την πηγή:
+          {% if act.total_cost_without_vat is not none %}€ {{ "{:,.2f}".format(act.total_cost_without_vat).replace(",","·") }}{% else %}—{% endif %}.
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Επιμελητής (για το ιστορικό)</label>
+        <input name="author" value="{{ author_cookie }}" placeholder="το όνομά σας" required>
+      </div>
+
+      <button type="submit"
+        style="background:var(--ink); color:var(--paper); border:0; padding:10px 22px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; margin-top:8px;">
+        Αποθήκευση σημείωσης
+      </button>
+      {% if saved %}<span class="meta" style="margin-left:12px; color:var(--ok);">✓ αποθηκεύτηκε</span>{% endif %}
+      <p class="meta" style="margin-top:8px;">
+        Άδειο πεδίο σε όλα → η τρέχουσα σημείωση αφαιρείται (το ιστορικό διατηρείται).
+      </p>
+    </form>
+
+    <p class="meta" style="margin-top:18px;">
+      <a class="back" href="/admin/act/{{ act.adam }}/items" hx-boost="false">διόρθωση ειδών ›</a>
+      &nbsp;·&nbsp;
+      <a class="back" href="/act/{{ act.adam }}" hx-boost="false">προβολή πράξης ›</a>
+    </p>
+  </div>
+
+  <aside>
+    <div class="section-h">Ιστορικό αλλαγών</div>
+    {% if history %}
+      <ul class="chain" style="margin-top:0;">
+        {% for h in history %}
+          <li {% if h.superseded %}style="opacity:0.55;"{% endif %}>
+            <div class="chain-meta">
+              {{ h.created_at.strftime('%Y-%m-%d %H:%M') }} · {{ h.author }}
+              {% if not h.superseded %}<span style="color:var(--ok);"> · τρέχον</span>{% endif %}
+            </div>
+            {% if h.flag %}
+              <div style="margin:2px 0;">
+                {% if h.flag == 'verified' %}<span class="pill" style="color:var(--ok);">Επαληθευμένο</span>
+                {% elif h.flag == 'review' %}<span class="pill amend">Προς έλεγχο</span>
+                {% elif h.flag == 'suspicious' %}<span class="pill cancel">Ύποπτο</span>{% endif %}
+              </div>
+            {% endif %}
+            {% if h.note %}<div style="font-family:var(--serif); font-size:13px; color:var(--ink-2);">{{ h.note }}</div>{% endif %}
+            {% if h.tags %}<div style="margin-top:3px;">{% for t in h.tags %}<code class="cpv" style="margin-right:3px;">{{ t }}</code>{% endfor %}</div>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); font-size:14px;">
+        Καμία σημείωση ακόμη.
+      </p>
+    {% endif %}
+  </aside>
+</div>
