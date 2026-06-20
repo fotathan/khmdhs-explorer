@@ -34,6 +34,17 @@ try:
 except ImportError:
     HAS_XLRD = False
 
+# Quiet pdfminer's noisy per-object warnings on malformed PDFs — e.g.
+# "Could not get FontBBox from font descriptor" and "Execute called on
+# non-indirect object (inline image?)". These are about quirky source-PDF
+# geometry/structure, not our text extraction, which proceeds regardless.
+# Greek procurement PDFs trigger them constantly; left at WARNING they flood
+# the backfill output. ERROR keeps genuine problems visible while hiding the
+# routine noise. (pdfplumber sits on top of pdfminer; this covers both.)
+import logging as _logging
+for _noisy in ("pdfminer", "pdfplumber"):
+    _logging.getLogger(_noisy).setLevel(_logging.ERROR)
+
 MAX_ZIP_DEPTH = 3
 MIN_TABLE_ROWS = 2
 MIN_TABLE_COLS = 2
