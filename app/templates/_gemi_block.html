@@ -1,0 +1,85 @@
+{# _gemi_block.html — ΓΕΜΗ (business registry) enrichment for an entity.
+   Expects `gemi` in context (a row from proc.gemi_enrichment, or None).
+   Renders nothing when absent — most authorities won't have a record.
+   ODC-BY-1.0 requires attribution, hence the source line at the foot. #}
+{% if gemi %}
+<div class="gemi-block" style="margin:0 0 22px; padding:14px 16px; border:1px solid var(--rule); border-radius:8px; background:var(--paper-2);">
+  <div class="section-h" style="margin-top:0;">Στοιχεία μητρώου ΓΕΜΗ</div>
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px 24px; font-size:13px;">
+
+    {# identity #}
+    <div>
+      <div class="gemi-lbl">Επωνυμία</div>
+      <div>{{ gemi.legal_name or '—' }}</div>
+      {% if gemi.trade_title %}<div style="color:var(--ink-2); font-style:italic;">{{ gemi.trade_title }}</div>{% endif %}
+    </div>
+
+    {% if gemi.legal_type or gemi.status %}
+    <div>
+      <div class="gemi-lbl">Νομική μορφή / Κατάσταση</div>
+      <div>{{ gemi.legal_type or '—' }}{% if gemi.status %} · <span style="color:{{ 'var(--ok)' if gemi.status == 'Ενεργή' else 'var(--accent)' }};">{{ gemi.status }}</span>{% endif %}</div>
+    </div>
+    {% endif %}
+
+    {% if gemi.ar_gemi %}
+    <div>
+      <div class="gemi-lbl">Αρ. ΓΕΜΗ</div>
+      <div style="font-family:var(--mono);">{{ gemi.ar_gemi }}</div>
+    </div>
+    {% endif %}
+
+    {# address #}
+    {% if gemi.street or gemi.city or gemi.zip_code %}
+    <div>
+      <div class="gemi-lbl">Διεύθυνση</div>
+      <div>
+        {{ gemi.street or '' }}{% if gemi.street_number %} {{ gemi.street_number }}{% endif %}
+        {% if gemi.zip_code or gemi.city %}<br>{{ gemi.zip_code or '' }} {{ gemi.city or '' }}{% endif %}
+        {% if gemi.municipality %}<br><span style="color:var(--ink-2);">{{ gemi.municipality }}</span>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# contact #}
+    {% if gemi.phone or gemi.email or gemi.url %}
+    <div>
+      <div class="gemi-lbl">Επικοινωνία</div>
+      <div>
+        {% if gemi.phone %}<div>τηλ. {{ gemi.phone }}</div>{% endif %}
+        {% if gemi.email %}<div><a href="mailto:{{ gemi.email }}" style="color:var(--accent);">{{ gemi.email | lower }}</a></div>{% endif %}
+        {% if gemi.url %}<div><a href="{{ gemi.url if '://' in gemi.url else 'https://' ~ gemi.url }}" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">{{ gemi.url }}</a></div>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# primary ΚΑΔ #}
+    {% if gemi.primary_kad %}
+    <div>
+      <div class="gemi-lbl">Κύριος ΚΑΔ</div>
+      <div><span style="font-family:var(--mono);">{{ gemi.primary_kad }}</span>{% if gemi.primary_kad_descr %} — {{ gemi.primary_kad_descr }}{% endif %}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# all active ΚΑΔ, if more than just the primary #}
+  {% if gemi.activities_active and gemi.activities_active|length > 1 %}
+  <details style="margin-top:10px; font-size:12px;">
+    <summary style="cursor:pointer; color:var(--ink-2);">Όλοι οι ενεργοί ΚΑΔ ({{ gemi.activities_active|length }})</summary>
+    <ul style="margin:8px 0 0; padding-left:18px;">
+      {% for k in gemi.activities_active %}
+      <li><span style="font-family:var(--mono);">{{ k.id }}</span> — {{ k.descr }}{% if k.type %} <span style="color:var(--ink-3);">({{ k.type }})</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+
+  <div style="margin-top:12px; font-size:10px; color:var(--ink-3); font-family:var(--mono); letter-spacing:0.03em;">
+    Πηγή: ΓΕΜΗ Open Data (opendata.businessportal.gr) · ODC-BY-1.0{% if gemi.fetched_at %} · ενημ. {{ gemi.fetched_at.strftime('%Y-%m-%d') }}{% endif %}
+  </div>
+</div>
+<style>
+  .gemi-block .gemi-lbl { font-family:var(--mono); font-size:10px; letter-spacing:0.06em;
+    text-transform:uppercase; color:var(--ink-3); margin-bottom:2px; }
+</style>
+{% endif %}

@@ -1457,6 +1457,22 @@ def authority_detail(org_id: str, request: Request,
         """, args + [per_page, offset])
         acts = c.fetchall()
 
+        # ΓΕΜΗ registry enrichment for the authority's ΑΦΜ, if present. Most
+        # public bodies aren't in the commercial registry, so this is usually
+        # absent — shown only when we actually have an 'ok' row.
+        gemi = None
+        if auth.get("vat_number"):
+            padded = (auth["vat_number"].strip().upper()
+                      .removeprefix("EL").strip().zfill(9))
+            c.execute("""SELECT legal_name, trade_title, legal_type, status,
+                                street, street_number, zip_code, city,
+                                municipality, prefecture, phone, fax, email, url,
+                                primary_kad, primary_kad_descr, activities_active,
+                                ar_gemi, incorporation_date, fetched_at
+                         FROM proc.gemi_enrichment
+                         WHERE afm = %s AND fetch_status = 'ok'""", (padded,))
+            gemi = c.fetchone()
+
     total_pages = max(1, (total + per_page - 1) // per_page)
     grand_total = sum((r["n"] or 0) for r in by_type)
     # Headline value is CONTRACTS ONLY — summing across types would double-count
@@ -1469,6 +1485,7 @@ def authority_detail(org_id: str, request: Request,
         request, "authority.html",
         {"a": auth, "by_type": by_type, "top_cpv": top_cpv,
          "acts": acts, "total": total, "type_filter": type, "merge_info": merge_info,
+         "gemi": gemi,
          "grand_total": grand_total, "grand_value": grand_value,
          "page": page, "per_page": per_page, "total_pages": total_pages},
     )
@@ -1608,6 +1625,30 @@ def contractor_detail(vat: str, request: Request,
         """, (op_ids, per_page, offset))
         acts = c.fetchall()
 
+        # ΓΕΜΗ registry enrichment (address / contact / ΚΑΔ), if we have it for
+        # this ΑΦΜ. For a merged contractor, the enriched row may sit under any
+        # member VAT, so try the canonical first, then the others. Only 'ok'
+        # rows carry real data. ΑΦΜ may be stored 8-digit upstream, so compare
+        # on the zero-padded 9-digit form the enrichment is keyed by.
+        candidate_vats = [op["vat_number"]] + [
+            r["vat_number"] for r in member_rows
+            if r["vat_number"] != op["vat_number"]]
+        gemi = None
+        for cand in candidate_vats:
+            if not cand:
+                continue
+            padded = cand.strip().upper().removeprefix("EL").strip().zfill(9)
+            c.execute("""SELECT legal_name, trade_title, legal_type, status,
+                                street, street_number, zip_code, city,
+                                municipality, prefecture, phone, fax, email, url,
+                                primary_kad, primary_kad_descr, activities_active,
+                                ar_gemi, incorporation_date, fetched_at
+                         FROM proc.gemi_enrichment
+                         WHERE afm = %s AND fetch_status = 'ok'""", (padded,))
+            gemi = c.fetchone()
+            if gemi:
+                break
+
     total_pages = max(1, (total + per_page - 1) // per_page)
     grand_total = sum((r["n"] or 0) for r in by_type)
     # Contracts only — an auction and its follow-on contract are the same award,
@@ -1620,6 +1661,7 @@ def contractor_detail(vat: str, request: Request,
         {"op": op, "by_type": by_type, "top_buyers": top_buyers,
          "top_cpv": top_cpv,
          "acts": acts, "total": total, "merge_info": merge_info,
+         "gemi": gemi,
          "grand_total": grand_total, "grand_value": grand_value,
          "page": page, "per_page": per_page, "total_pages": total_pages},
     )
