@@ -1,0 +1,24 @@
+{# _panel_extracted.html — per-act admin list of extracted tables.
+   Lazy-loaded into the act edit hub's Πίνακες tab via:
+     hx-get="/tables/admin/{{ adam }}"
+   Each table has its own publish/unpublish toggle and a delete button. #}
+<div class="tt-extracted-admin">
+  {% if not tables %}
+    <p class="tt-truncated" style="padding:14px 0;">
+      Δεν υπάρχουν αποθηκευμένοι πίνακες για αυτή την πράξη.
+      Χρησιμοποιήστε το εργαλείο <a href="/tables?adam={{ adam }}">Πίνακες</a>
+      για εξαγωγή και αποθήκευση.
+    </p>
+  {% else %}
+    <p class="tt-truncated" style="margin-bottom:10px;">
+      {{ tables|length }} αποθηκευμέν{{ "ος" if tables|length == 1 else "οι" }}
+      πίνακ{{ "ας" if tables|length == 1 else "ες" }}. Δημοσιευμένοι εμφανίζονται
+      στη δημόσια σελίδα της πράξης.
+    </p>
+    <div id="tt-extracted-list">
+      {% for t in tables %}
+        {% include "tables/_extracted_row.html" %}
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>

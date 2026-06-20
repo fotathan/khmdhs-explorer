@@ -48,7 +48,33 @@
   {% endif %}
 
   <div id="tt-results"></div>
+
+  {# ---- Saved tables for this act (per-table publish / delete) ----
+     Lazy-loads the admin list of tables already persisted to proc.extracted_table
+     for this ΑΔΑΜ. Separate from #tt-results (which shows fresh extraction output);
+     this is the durable, curator-managed set. Refreshes itself after a save via
+     the htmx:afterRequest hook below. #}
+  {% if prefill_adam %}
+  <div class="section-h" style="margin-top:28px;">Αποθηκευμένοι πίνακες</div>
+  <div id="tt-saved-tables"
+       hx-get="/tables/admin/{{ prefill_adam }}"
+       hx-trigger="load, tt-saved-refresh from:body"
+       hx-swap="innerHTML">
+    <div class="panel-loading" style="color:var(--ink-3); font-family:var(--sans); font-size:13px; padding:18px 0;">Φόρτωση…</div>
+  </div>
+  {% endif %}
 </div>
+
+<script>
+  // When a save POST to /tables/save succeeds anywhere on this page, refresh the
+  // saved-tables list so the newly-saved drafts appear without a manual reload.
+  document.body.addEventListener('htmx:afterRequest', function (e) {
+    var url = (e.detail && e.detail.requestConfig && e.detail.requestConfig.path) || '';
+    if (url.indexOf('/tables/save') !== -1 && e.detail.successful) {
+      document.body.dispatchEvent(new CustomEvent('tt-saved-refresh'));
+    }
+  });
+</script>
 
 <script>
   (function () {

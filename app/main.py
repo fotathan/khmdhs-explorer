@@ -287,6 +287,22 @@ def build_where(params: dict) -> tuple[str, list]:
         where.append("a.full_text_tsv @@ websearch_to_tsquery('greek', %s)")
         args.append(fulltext)
 
+    # Search inside curator-extracted tables: keep only acts that have at least
+    # one PUBLISHED extracted table whose cell content matches. Greek-stemmed,
+    # same websearch_to_tsquery syntax as the full-text filter above, reading
+    # the stored content_tsv (see extracted_table_tsv_migration.sql). Combinable
+    # with every other filter — it's just one more EXISTS clause in the same
+    # WHERE. Empty/whitespace ignored.
+    tables_q = (params.get("tables_q") or "").strip()
+    if tables_q:
+        where.append("""EXISTS (
+            SELECT 1 FROM proc.extracted_table et
+            WHERE et.adam = a.adam
+              AND et.is_published
+              AND et.content_tsv @@ websearch_to_tsquery('greek', %s)
+        )""")
+        args.append(tables_q)
+
     cpv = (params.get("cpv") or "").strip()
     if cpv:
         # Notices that have any line item with this CPV (or its prefix).
@@ -736,7 +752,7 @@ def home(request: Request,
 
 def _params_from(request: Request) -> dict:
     """Pull all known query params into a plain dict, dropping empties."""
-    keys = ("type", "q", "fulltext", "authority", "cpv", "contract_type", "procedure_type", "nuts",
+    keys = ("type", "q", "fulltext", "tables_q", "authority", "cpv", "contract_type", "procedure_type", "nuts",
             "date_from", "date_to", "deadline_from", "deadline_to",
             "value_min", "value_max",
             "status", "sort")

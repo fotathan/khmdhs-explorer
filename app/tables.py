@@ -34,6 +34,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, Response
+from psycopg.types.json import Json
 
 # Sibling extraction modules. These are kept byte-identical with the standalone
 # tool, which runs flat (bare imports). Inside KHMDHS this module is loaded as
@@ -212,6 +213,7 @@ def make_router(templates, cursor) -> APIRouter:
                 "n_stitched": n_stitched,
                 "ocr_available": api_key_present(),
                 "page_sel": _page_sel_view(session),
+                "adam": session.get("tables_adam", ""),
                 "PREVIEW_ROWS": 8,
                 "PREVIEW_COLS": 10,
             },
@@ -254,6 +256,7 @@ def make_router(templates, cursor) -> APIRouter:
 
         entries, errors = collect_files(fname, data)
         session_id, session = _new_session(entries, errors)
+        session["tables_adam"] = adam
 
         # One file, no surprises: scan straight away.
         if len(entries) <= 1 and not errors:
@@ -523,6 +526,170 @@ def make_router(templates, cursor) -> APIRouter:
         return Response(
             content=data, media_type=media_type,
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    # ------------------------------------------------------------------ #
+    # SAVE TO ACT — persist selected tables to proc.extracted_table so they
+    # can be shown inline on the act detail page. Same selection UI as Excel
+    # export; this is the second submit button on results.html. Saved tables
+    # start UNPUBLISHED (is_published = FALSE) — curator publishes them per
+    # table from the act edit hub. A table dict carries no separate header
+    # field: rows[0] is the header (matching exporter's _write_table, which
+    # styles the first data row as the header). We store source + locator +
+    # rows verbatim, so the inline render and the per-table Excel re-export
+    # use the exact same data the curator previewed.
+    # ------------------------------------------------------------------ #
+    @router.post("/save", response_class=HTMLResponse)
+    def tables_save(
+        request: Request,
+        session_id: str = Form(...),
+        adam: str = Form(...),
+        table_ids: list[str] = Form(default=[]),
+    ):
+        session = SESSIONS.get(session_id)
+        if session is None:
+            return HTMLResponse(
+                "<div class='tt-flash tt-error'>Η συνεδρία έληξε — "
+                "ξεκινήστε ξανά.</div>", status_code=410,
+            )
+        adam = adam.strip()
+        if not adam:
+            return HTMLResponse(
+                "<div class='tt-flash tt-error'>Λείπει ο ΑΔΑΜ — η αποθήκευση "
+                "στην πράξη απαιτεί ΑΔΑΜ. Ξεκινήστε από κουμπί πράξης ή "
+                "συμπληρώστε τον.</div>", status_code=400,
+            )
+        selected = [session["tables"][tid] for tid in table_ids
+                    if tid in session["tables"]]
+        if not selected:
+            return HTMLResponse(
+                "<div class='tt-flash tt-error'>Καμία επιλογή — επιλέξτε "
+                "τουλάχιστον έναν πίνακα.</div>", status_code=400,
+            )
+        with cursor() as c:
+            c.execute("SELECT 1 FROM proc.procurement_act WHERE adam=%s", (adam,))
+            if not c.fetchone():
+                return HTMLResponse(
+                    "<div class='tt-flash tt-error'>Άγνωστη πράξη — ο ΑΔΑΜ δεν "
+                    "αντιστοιχεί σε καταχωρημένη πράξη.</div>", status_code=404,
+                )
+            n = 0
+            for t in selected:
+                c.execute(
+                    """INSERT INTO proc.extracted_table
+                       (adam, source, locator, rows, n_rows, n_cols)
+                       VALUES (%s,%s,%s,%s,%s,%s)""",
+                    (adam, t["source"], t["locator"],
+                     Json(t["rows"]), int(t["n_rows"]), int(t["n_cols"])),
+                )
+                n += 1
+        return HTMLResponse(
+            f"<div class='tt-flash tt-ok'>Αποθηκεύτηκαν {n} πίνακ"
+            f"{'ας' if n == 1 else 'ες'} στην πράξη (μη δημοσιευμένοι). "
+            f"<a href='/admin/act/{adam}/edit#tables'>διαχείριση & δημοσίευση ›</a></div>"
+        )
+
+    # ------------------------------------------------------------------ #
+    # ADMIN — per-table management for one act: list, publish/unpublish
+    # (per table), delete. Rendered as a panel inside the act edit hub.
+    # ------------------------------------------------------------------ #
+    def _act_tables(adam: str) -> list[dict]:
+        with cursor() as c:
+            c.execute(
+                """SELECT id, source, locator, rows, n_rows, n_cols, is_published
+                   FROM proc.extracted_table WHERE adam=%s ORDER BY id""",
+                (adam,),
+            )
+            return list(c.fetchall())
+
+    @router.get("/admin/{adam}", response_class=HTMLResponse)
+    def tables_admin_panel(request: Request, adam: str):
+        """Panel listing every extracted table for an act, with per-table
+        publish/delete. Embedded (lazy) in the act edit hub's Πίνακες tab."""
+        return templates.TemplateResponse(
+            request, "tables/_panel_extracted.html",
+            {"adam": adam, "tables": _act_tables(adam),
+             "PREVIEW_ROWS": 5, "PREVIEW_COLS": 10},
+        )
+
+    @router.post("/admin/{adam}/{tid}/toggle", response_class=HTMLResponse)
+    def tables_admin_toggle(request: Request, adam: str, tid: int):
+        """Flip one table's published state; return the single re-rendered row."""
+        with cursor() as c:
+            c.execute(
+                """UPDATE proc.extracted_table
+                   SET is_published = NOT is_published
+                   WHERE id=%s AND adam=%s
+                   RETURNING id, source, locator, rows, n_rows, n_cols,
+                             is_published""",
+                (tid, adam),
+            )
+            row = c.fetchone()
+        if row is None:
+            return HTMLResponse("", status_code=404)
+        return templates.TemplateResponse(
+            request, "tables/_extracted_row.html",
+            {"adam": adam, "t": row, "PREVIEW_ROWS": 5, "PREVIEW_COLS": 10},
+        )
+
+    @router.delete("/admin/{adam}/{tid}", response_class=HTMLResponse)
+    def tables_admin_delete(adam: str, tid: int):
+        """Delete one extracted table. Returns empty body so the row is swapped
+        out of the panel."""
+        with cursor() as c:
+            c.execute(
+                "DELETE FROM proc.extracted_table WHERE id=%s AND adam=%s",
+                (tid, adam),
+            )
+        return HTMLResponse("")
+
+    # ------------------------------------------------------------------ #
+    # PUBLIC — published tables for an act, rendered as a lazy-loaded tab on
+    # the detail page. Empty body when there are none (the tab hides itself).
+    # ------------------------------------------------------------------ #
+    @router.get("/public/{adam}", response_class=HTMLResponse)
+    def tables_public(request: Request, adam: str):
+        with cursor() as c:
+            c.execute(
+                """SELECT id, source, locator, rows, n_rows, n_cols
+                   FROM proc.extracted_table
+                   WHERE adam=%s AND is_published
+                   ORDER BY id""",
+                (adam,),
+            )
+            rows = list(c.fetchall())
+        if not rows:
+            return HTMLResponse("")
+        return templates.TemplateResponse(
+            request, "tables/_panel_pub_tables.html",
+            {"adam": adam, "tables": rows},
+        )
+
+    # ------------------------------------------------------------------ #
+    # PER-TABLE EXCEL — re-export one stored table to .xlsx, reusing the
+    # standalone tool's export_workbook unchanged. We rebuild the exact table
+    # dict shape it consumes (source/locator/rows/n_rows/n_cols) from JSONB.
+    # ------------------------------------------------------------------ #
+    @router.get("/public/{adam}/{tid}.xlsx")
+    def tables_download_one(adam: str, tid: int):
+        with cursor() as c:
+            c.execute(
+                """SELECT source, locator, rows, n_rows, n_cols
+                   FROM proc.extracted_table WHERE id=%s AND adam=%s""",
+                (tid, adam),
+            )
+            row = c.fetchone()
+        if row is None:
+            return Response(status_code=404)
+        table = {
+            "source": row["source"], "locator": row["locator"],
+            "rows": row["rows"], "n_rows": row["n_rows"], "n_cols": row["n_cols"],
+        }
+        data, _filename, media_type = export_workbook([table])
+        return Response(
+            content=data, media_type=media_type,
+            headers={"Content-Disposition":
+                     f'attachment; filename="{adam}-table-{tid}.xlsx"'},
         )
 
     # ------------------------------------------------------------------ #

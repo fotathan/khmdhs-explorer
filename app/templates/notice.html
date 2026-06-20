@@ -152,6 +152,18 @@
       <p style="font-style:italic; color:var(--ink-3);">—</p>
     {% endif %}
 
+    {# ---- Extracted tables (published only) ----
+       Curator-published tables pulled from this act's attachments, shown as
+       native HTML grids. Lazy-loaded so large tables don't weigh on the main
+       act query; the route returns an empty body when nothing is published,
+       and hx-swap="outerHTML" then collapses this whole block to nothing. #}
+    {% if tables_enabled %}
+    <div id="tt-pub-tables-mount"
+         hx-get="/tables/public/{{ n.adam }}"
+         hx-trigger="load" hx-swap="outerHTML">
+    </div>
+    {% endif %}
+
     {% if n.full_text %}
       <div class="section-h">
         Πλήρες κείμενο

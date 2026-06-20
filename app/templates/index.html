@@ -44,6 +44,20 @@
         <code class="cpv">-λέξη</code> για εξαίρεση.
       </div>
 
+      <div class="filter-h">Μέσα στους πίνακες</div>
+      <div class="search-row">
+        <input type="search" name="tables_q"
+               placeholder="λέξεις στους εξαγμένους πίνακες…"
+               value="{{ request.query_params.get('tables_q','') }}">
+        <button type="submit">Εύρεση</button>
+      </div>
+      <div class="meta" style="margin-top:5px; line-height:1.4;">
+        Κρατά μόνο πράξεις με δημοσιευμένο πίνακα που περιέχει τους όρους.
+        Ίδια σύνταξη με το πλήρες κείμενο
+        (<code class="cpv">"φράση"</code>, <code class="cpv">OR</code>,
+        <code class="cpv">-λέξη</code>).
+      </div>
+
       <div class="filter-h">Κατάσταση</div>
       <div class="seg" role="group">
         <label><input type="radio" name="status" value=""        {% if not request.query_params.get('status') %}checked{% endif %}><span>Όλες</span></label>

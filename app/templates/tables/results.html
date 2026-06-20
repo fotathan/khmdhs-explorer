@@ -1,7 +1,7 @@
 <div class="tt-summary">
   Βρέθηκαν <b>{{ n_tables }}</b> πίνακ{{ "ας" if n_tables == 1 else "ες" }}
   σε <b>{{ reports|length }}</b> αρχ{{ "είο" if reports|length == 1 else "εία" }}.
-  {% if n_stitched %}{{ n_stitched }} εκτείνονται σε πολλές σελίδες και ενώθηκαν. {% endif %}{% if n_tables %}Επιλέξτε όσους θέλετε και εξάγετε παρακάτω.{% endif %}
+  {% if n_stitched %}{{ n_stitched }} εκτείνονται σε πολλές σελίδες και ενώθηκαν. {% endif %}{% if n_tables %}Επιλέξτε όσους θέλετε και εξάγετε ή αποθηκεύστε παρακάτω.{% endif %}
 </div>
 
 <form action="/tables/export" method="post" id="tt-export-form">
@@ -19,8 +19,29 @@
       <option value="separate">Ένα βιβλίο ανά αρχείο (.zip)</option>
     </select>
     <button type="submit" class="tt-btn">Εξαγωγή σε Excel</button>
+
+    {% if adam %}
+    {# Save-to-act: same checkbox selection, different action. Posts to
+       /tables/save with the act's ΑΔΑΜ; HTMX so we stay on the page and
+       show a flash instead of downloading. Only shown when we know the act
+       (ΑΔΑΜ-fetch path); the upload path has no act to attach to.
+       type="button" so it never triggers the form's native Excel submit. #}
+    <button type="button" class="tt-btn"
+            hx-post="/tables/save"
+            hx-include="#tt-export-form"
+            hx-vals='{"adam": "{{ adam }}"}'
+            hx-target="#tt-save-flash" hx-swap="innerHTML">
+      Αποθήκευση στην πράξη
+    </button>
+    {% endif %}
+
     <span class="tt-count" id="tt-sel-count"></span>
   </div>
+
+  {% if adam %}
+  <input type="hidden" name="adam" value="{{ adam }}" form="tt-export-form">
+  <div id="tt-save-flash" style="margin-top:.6rem"></div>
+  {% endif %}
 </form>
 
 <script>

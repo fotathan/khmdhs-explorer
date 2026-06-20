@@ -1,0 +1,31 @@
+{# _panel_pub_tables.html — published extracted tables for the public act
+   detail page. Loaded lazily (hx-trigger="revealed") so it doesn't weigh on
+   the main act query. Returns empty body upstream when there are none, so
+   this template only renders when there is at least one table.
+   rows[0] is the header row. #}
+<div class="tt-pub-tables">
+  {% for t in tables %}
+  <figure class="tt-pub-table" style="margin:0 0 22px;">
+    <figcaption style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:6px;">
+      <span class="tt-loc"><b>{{ t.locator }}</b></span>
+      <span class="tt-name" style="color:var(--ink-2,#666); font-size:13px;">{{ t.source }}</span>
+      <a class="tt-btn tt-secondary tt-mini" style="margin-left:auto;"
+         href="/tables/public/{{ adam }}/{{ t.id }}.xlsx">Λήψη Excel</a>
+    </figcaption>
+    <div class="tt-pub-scroll" style="overflow-x:auto;">
+      <table class="tt-pub-grid">
+        {% if t.rows %}
+        <thead>
+          <tr>{% for cell in t.rows[0] %}<th>{{ cell }}</th>{% endfor %}</tr>
+        </thead>
+        {% endif %}
+        <tbody>
+          {% for row in t.rows[1:] %}
+          <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </figure>
+  {% endfor %}
+</div>
