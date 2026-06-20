@@ -242,6 +242,67 @@ SELECT_COLS = """
 """
 
 
+# Greek text-search clause builder shared by the full-text and tables filters.
+#
+# Two modes, chosen by a trailing '*':
+#
+#  • No star — stemmed full-text. websearch_to_tsquery over the stored tsvector:
+#    friendly syntax (bare words = AND, "quoted phrase", OR, -exclude) and Greek
+#    stemming, so ηλεκτρολογικά already finds ηλεκτρολογικών etc. This is the
+#    default and the common case.
+#
+#  • Trailing star — literal prefix via ILIKE on the RAW text (NOT the tsvector).
+#    Prefix search can't go through the tsvector: the stored lexemes are stems
+#    (ηλεκτρολογικά → ηλεκτρολογ), so a typed prefix like ηλεκτρολογικ is LONGER
+#    than the stem and :* matches nothing. Verified on real data. So in prefix
+#    mode we bypass stemming entirely and substring-match the raw source text,
+#    normalised the same way the title search is (unaccent + lower + final-sigma
+#    ς→σ) so accents/case/sigma don't block matches. Every word in the query
+#    becomes its own normalised ILIKE term, ANDed. Matching is substring (the
+#    prefix can appear anywhere in a word), consistent with the title box.
+#
+# Because the two filters target different sources, the caller passes both the
+# tsvector column (for stemmed mode) and the raw-text SQL expression (for ILIKE
+# mode — a.full_text for documents, et.rows::text for tables).
+#
+# Returns (sql_clause, args) where sql_clause is a complete boolean SQL fragment
+# with %s placeholders and args is the matching list of bind values. Returns
+# (None, None) when there's nothing usable to search (caller skips the filter).
+_NORM = "translate(proc.f_unaccent(lower({expr})), 'ς', 'σ')"
+
+
+def _text_search_clause(raw: str, tsv_col: str, raw_text_expr: str
+                        ) -> tuple[str | None, list | None]:
+    raw = (raw or "").strip()
+    if not raw:
+        return None, None
+
+    if raw.endswith("*"):
+        # Prefix mode → normalised substring ILIKE on the raw text, per word.
+        body = raw.rstrip("*").strip()
+        terms = []
+        args: list = []
+        for tok in re.split(r"\s+", body):
+            # Keep Greek (incl. extended/polytonic), Latin, digits; drop quotes,
+            # parens, % and _ so the user can't inject LIKE wildcards.
+            clean = re.sub(r"[^0-9A-Za-z\u0370-\u03FF\u1F00-\u1FFF]", "", tok)
+            if not clean:
+                continue
+            # Normalise BOTH sides identically; substring match. Wildcards go in
+            # the bind VALUE (not as %% in the SQL), matching the title search's
+            # convention in this file so the % is data, never SQL.
+            col_norm = _NORM.format(expr=raw_text_expr)
+            pat_norm = _NORM.format(expr="%s")
+            terms.append(f"{col_norm} LIKE {pat_norm}")
+            args.append(f"%{clean}%")
+        if not terms:
+            return None, None
+        return "(" + " AND ".join(terms) + ")", args
+
+    # Normal mode → stemmed full-text match over the tsvector.
+    return f"{tsv_col} @@ websearch_to_tsquery('greek', %s)", [raw]
+
+
 def build_where(params: dict) -> tuple[str, list]:
     """Translate query parameters into a parameterised WHERE clause."""
     where: list[str] = []
@@ -284,8 +345,11 @@ def build_where(params: dict) -> tuple[str, list]:
     # -word = exclude. Empty/whitespace query is ignored.
     fulltext = (params.get("fulltext") or "").strip()
     if fulltext:
-        where.append("a.full_text_tsv @@ websearch_to_tsquery('greek', %s)")
-        args.append(fulltext)
+        ft_sql, ft_args = _text_search_clause(
+            fulltext, "a.full_text_tsv", "a.full_text")
+        if ft_sql:
+            where.append(ft_sql)
+            args.extend(ft_args)
 
     # Search inside curator-extracted tables: keep only acts that have at least
     # one PUBLISHED extracted table whose cell content matches. Greek-stemmed,
@@ -295,13 +359,16 @@ def build_where(params: dict) -> tuple[str, list]:
     # WHERE. Empty/whitespace ignored.
     tables_q = (params.get("tables_q") or "").strip()
     if tables_q:
-        where.append("""EXISTS (
-            SELECT 1 FROM proc.extracted_table et
-            WHERE et.adam = a.adam
-              AND et.is_published
-              AND et.content_tsv @@ websearch_to_tsquery('greek', %s)
-        )""")
-        args.append(tables_q)
+        tq_sql, tq_args = _text_search_clause(
+            tables_q, "et.content_tsv", "et.rows::text")
+        if tq_sql:
+            where.append(f"""EXISTS (
+                SELECT 1 FROM proc.extracted_table et
+                WHERE et.adam = a.adam
+                  AND et.is_published
+                  AND {tq_sql}
+            )""")
+            args.extend(tq_args)
 
     cpv = (params.get("cpv") or "").strip()
     if cpv:
@@ -379,31 +446,28 @@ def build_where(params: dict) -> tuple[str, list]:
 def run_search(params: dict, limit: int, offset: int):
     where, args = build_where(params)
 
-    # Relevance sort only makes sense with a full-text query; it ranks by how
-    # well the document text matches. The rank expression needs the query text
-    # as its own bind param, placed BEFORE the LIMIT/OFFSET args. For any other
-    # sort (or relevance without a query) fall back to the normal column sorts.
+    # Relevance sort and snippet highlighting only apply to STEMMED full-text
+    # (websearch_to_tsquery over the tsvector). Prefix mode (trailing *) uses
+    # ILIKE on raw text — there's no tsquery to rank with or to feed ts_headline,
+    # so in prefix mode we fall back to the normal column sort and show no
+    # snippet. The WHERE clause itself is already handled by build_where for both
+    # modes; this block only governs ranking + the highlighted excerpt.
     fulltext = (params.get("fulltext") or "").strip()
     sort_key = params.get("sort") or DEFAULT_SORT
 
-    # Snippet (ts_headline): when the user searched document text, show a short
-    # highlighted excerpt per result so they see WHY it matched. Only computed
-    # when there's a full-text query, and only for the ≤50 rows on this page, so
-    # the per-row cost (it re-parses full_text, can't use the stored tsvector)
-    # stays bounded. The query text is a bind param in the SELECT, so it must go
-    # FIRST in the arg list (before WHERE args). StartSel/StopSel use <mark>;
-    # ts_headline only ever wraps matched terms and escapes nothing else, so the
-    # template must still escape the surrounding text (see _results.html: we mark
-    # ONLY this value safe after building it here).
+    # Stemmed mode = a full-text query that is present and NOT a trailing-* prefix
+    # query. We rebuild just the tsquery fragment here (websearch_to_tsquery) for
+    # the rank and snippet; it mirrors what build_where emitted for this case.
+    stemmed_ft = bool(fulltext) and not fulltext.endswith("*")
+
     rank_args: list = []
-    if sort_key == "relevance" and fulltext:
-        order_by = ("ts_rank(a.full_text_tsv, "
-                    "websearch_to_tsquery('greek', %s)) DESC")
+    if sort_key == "relevance" and stemmed_ft:
+        order_by = "ts_rank(a.full_text_tsv, websearch_to_tsquery('greek', %s)) DESC"
         rank_args.append(fulltext)
     else:
         order_by = SORT_COLS.get(sort_key, SORT_COLS[DEFAULT_SORT])
 
-    if fulltext:
+    if stemmed_ft:
         # PERF: compute the highlighted snippet ONLY for the final page of rows.
         # ts_headline re-parses full_text (it can't use the stored tsvector), so
         # it's the expensive part. We do the match + rank + LIMIT in an inner
@@ -480,7 +544,7 @@ def run_search(params: dict, limit: int, offset: int):
     # markup could otherwise inject HTML. Escape everything, then re-enable only
     # the <mark> tags we asked ts_headline to add, and mark the result safe so
     # Jinja renders the highlight instead of showing literal tags.
-    if fulltext:
+    if stemmed_ft:
         import html as _html
         from markupsafe import Markup
         for r in rows:
