@@ -170,6 +170,69 @@ def cmd_backfill(args):
               " re-run with --resume to retry them, or inspect last_error column.)")
 
 
+def cmd_fulltext_backfill(args):
+    """Mass full-text extraction over acts ALREADY in the database that have no
+    text yet. Resumable: each act commits as it finishes, and the selection is
+    'never tried' (full_text NULL and full_text_source NULL), so a re-run picks
+    up where the last left off. Scanned/no-text acts are marked tried-empty so
+    they aren't re-downloaded on the next run. Bounded by --limit per run.
+    """
+    import khmdhs_ingest as ingest
+
+    types = args.types or ["request", "notice", "auction", "contract", "payment"]
+    limit = args.limit
+
+    # Build the WHERE for "untried" acts, with optional type/date filters.
+    where = ["full_text IS NULL", "full_text_source IS NULL"]
+    params: list = []
+    where.append("type = ANY(%s)")
+    params.append(types)
+    if args.start:
+        where.append("coalesce(submission_date, signed_date) >= %s")
+        params.append(dt.date.fromisoformat(args.start))
+    if args.end:
+        where.append("coalesce(submission_date, signed_date) <= %s")
+        params.append(dt.date.fromisoformat(args.end))
+    where_sql = " AND ".join(where)
+
+    with Database() as db:
+        # How many are still untried (for a sense of scale)?
+        remaining = db.query(
+            f"SELECT count(*) FROM proc.procurement_act WHERE {where_sql}", tuple(params)
+        )[0][0]
+        print(f"untried acts matching filter: {remaining:,}")
+        if remaining == 0:
+            print("nothing to do.")
+            return
+
+        # Pull this run's batch of ADAMs (+ type, needed for the attachment URL).
+        rows = db.query(
+            f"""SELECT adam, type FROM proc.procurement_act
+                WHERE {where_sql}
+                ORDER BY coalesce(submission_date, signed_date) DESC NULLS LAST
+                LIMIT %s""",
+            tuple(params) + (limit,),
+        )
+        print(f"this run will attempt: {len(rows):,} (limit={limit})\n")
+
+        client = ingest.KhmdhsClient()
+        repo = ingest.Repository(db)
+        n = {"stored": 0, "empty": 0, "error": 0}
+        for i, (adam, act_type) in enumerate(rows, start=1):
+            status = ingest.extract_full_text_status(client, repo, str(act_type), adam)
+            n[status] += 1
+            db.commit()  # commit each act → resumable
+            if i % 100 == 0 or i == len(rows):
+                print(f"  {i:>6}/{len(rows)}  "
+                      f"stored={n['stored']} empty={n['empty']} error={n['error']}")
+
+    print(f"\nfull-text backfill run complete. "
+          f"stored={n['stored']} empty={n['empty']} error={n['error']}")
+    still = remaining - n["stored"] - n["empty"]
+    print(f"  approx still-untried after this run: {max(still, 0):,} "
+          f"(re-run to continue; 'error' acts will be retried, 'empty' won't)")
+
+
 def _watermark(db, act_type: str):
     """The latest end-date of a successfully-completed window for this type,
     or None if the type has never been backfilled. This is our 'last caught
@@ -306,6 +369,19 @@ def main():
     p_bf.add_argument("--resume", action="store_true",
                       help="skip windows already marked 'done'; retry running/error/pending")
     p_bf.set_defaults(func=cmd_backfill)
+
+    p_ft = sub.add_parser("fulltext-backfill",
+                          help="extract & store full text for already-imported "
+                               "acts that don't have it yet (resumable, --limit)")
+    p_ft.add_argument("--types", nargs="+",
+                      choices=["request", "notice", "auction", "contract", "payment"],
+                      help="subset of act types (default: all five)")
+    p_ft.add_argument("--limit", type=int, default=5000,
+                      help="max acts to attempt this run (default: 5000). "
+                           "Re-run to continue; it's resumable.")
+    p_ft.add_argument("--start", help="YYYY-MM-DD; only acts on/after this date")
+    p_ft.add_argument("--end", help="YYYY-MM-DD; only acts on/before this date")
+    p_ft.set_defaults(func=cmd_fulltext_backfill)
 
     p_cu = sub.add_parser("catchup",
                           help="incremental fetch since last run (per type), "

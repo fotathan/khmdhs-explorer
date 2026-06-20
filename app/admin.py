@@ -211,8 +211,64 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
 
         return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
 
-    @router.get("/jobs/{job_id}", response_class=HTMLResponse)
-    def admin_job_detail(job_id: int, request: Request):
+    @router.post("/jobs/fulltext")
+    def admin_start_fulltext_job(request: Request,
+                                 types: list[str] = Form(default=[]),
+                                 limit: str = Form(default="5000")):
+        """Spawn a mass full-text backfill (db.py fulltext-backfill) over acts
+        already in the LOCAL database that have no text yet. Resumable & bounded
+        by --limit; uses the same job infrastructure as the harvest backfill so
+        progress/log/monitoring all work. For PRODUCTION, use ingest.sh from the
+        terminal instead — this UI runs where the web server runs."""
+        chosen = [t for t in types if t in ACT_TYPES]
+        if not chosen:
+            chosen = ACT_TYPES[:]
+        try:
+            lim = max(1, int(limit))
+        except ValueError:
+            lim = 5000
+
+        reconcile_stale()
+        if any_running():
+            raise HTTPException(409,
+                "another job is already running; cancel it or wait for it to finish")
+
+        root = project_root()
+        cmd = [sys.executable, os.path.join(root, "db.py"), "fulltext-backfill",
+               "--types", *chosen, "--limit", str(lim)]
+
+        today = dt.date.today()
+        with cursor() as c:
+            c.execute("""INSERT INTO proc.ingest_job
+                         (status, types, date_from, date_to, resume)
+                         VALUES ('running', %s, %s, %s, %s) RETURNING id""",
+                      (chosen, today, today, False))
+            job_id = c.fetchone()["id"]
+        log_path = os.path.join(LOG_DIR, f"job-{job_id}.log")
+
+        log_fh = open(log_path, "w")
+        log_fh.write(f"# full-text backfill job {job_id}: types={chosen} "
+                     f"limit={lim}\n\n")
+        log_fh.flush()
+        try:
+            proc = subprocess.Popen(
+                cmd, stdout=log_fh, stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL, start_new_session=True,
+                cwd=root, env={**os.environ},
+            )
+        except Exception as e:
+            with cursor() as c:
+                c.execute("""UPDATE proc.ingest_job
+                             SET status='error', last_error=%s, finished_at=now()
+                             WHERE id=%s""", (f"spawn failed: {e!r}", job_id))
+            log_fh.close()
+            raise HTTPException(500, f"failed to launch subprocess: {e!r}")
+
+        with cursor() as c:
+            c.execute("""UPDATE proc.ingest_job SET pid=%s, log_path=%s
+                         WHERE id=%s""", (proc.pid, log_path, job_id))
+
+        return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
         reconcile_stale()
         with cursor() as c:
             c.execute("""SELECT * FROM proc.ingest_job WHERE id=%s""", (job_id,))

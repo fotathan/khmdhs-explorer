@@ -486,6 +486,23 @@ class Repository:
         )
         return adam
 
+    def mark_full_text_attempted_empty(self, adam: str, reason: str) -> None:
+        """Record that we tried to extract text for this act but got none
+        (scanned PDF, no attachment, etc.), WITHOUT setting full_text. This lets
+        a mass re-run skip acts already known to yield nothing — otherwise every
+        run would re-download the same un-extractable attachments forever.
+        Only marks rows that are still untouched (full_text NULL and no prior
+        source), so it never overwrites real text or a manual edit."""
+        self.db.execute(
+            """UPDATE proc.procurement_act
+               SET full_text_extracted_at = now(),
+                   full_text_source = %(reason)s
+               WHERE adam = %(adam)s
+                 AND full_text IS NULL
+                 AND full_text_source IS NULL""",
+            {"reason": reason, "adam": adam},
+        )
+
     def set_full_text_if_empty(self, adam: str, text: str, source: str) -> bool:
         """Write full_text for an act ONLY if it's currently NULL/empty, so an
         auto-extraction never overwrites a value a curator put there by hand.
@@ -698,6 +715,39 @@ def extract_full_text_for_act(client: "KhmdhsClient", repo: "Repository",
         repo.set_full_text_if_empty(adam, text, source="auto:import")
     except Exception:  # noqa: BLE001 — never propagate into the ingest loop
         return
+
+
+def extract_full_text_status(client: "KhmdhsClient", repo: "Repository",
+                             act_type: str, adam: str) -> str:
+    """Like extract_full_text_for_act, but for the MASS backfill: returns a
+    status and records 'tried but empty' so a resumed run can skip acts that
+    will never yield text. Returns one of:
+        'stored' — text extracted and saved
+        'empty'  — no attachment / no text layer (marked, won't be retried)
+        'error'  — a fetch/parse error (left unmarked so it CAN be retried)
+    Fail-soft: never raises.
+    """
+    try:
+        fetched = client.fetch_attachment(act_type, adam)
+        if not fetched:
+            repo.mark_full_text_attempted_empty(adam, "auto:no-attachment")
+            return "empty"
+        data, fname = fetched
+        try:
+            from app.extractors import extract_text_from_upload
+        except ImportError:
+            try:
+                from extractors import extract_text_from_upload
+            except ImportError:
+                return "error"  # libs missing — don't mark, allow retry later
+        text = extract_text_from_upload(fname, data)
+        if not text:
+            repo.mark_full_text_attempted_empty(adam, "auto:no-text")
+            return "empty"
+        repo.set_full_text_if_empty(adam, text, source="auto:mass")
+        return "stored"
+    except Exception:  # noqa: BLE001
+        return "error"
 
 
 def ingest_type(client: KhmdhsClient, repo: Repository, act_type: str,

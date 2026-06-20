@@ -80,6 +80,40 @@
     </form>
     {% endif %}
 
+    {% if not running_now %}
+    <div class="section-h" style="margin-top:28px;">Μαζική εξαγωγή πλήρους κειμένου</div>
+    <p class="meta" style="margin-top:-4px; margin-bottom:12px;">
+      Για πράξεις που <strong>υπάρχουν ήδη</strong> στη βάση αλλά δεν έχουν πλήρες
+      κείμενο. Αντλεί &amp; αποθηκεύει το κείμενο σε παρτίδες (resumable — μπορείτε
+      να το ξανατρέξετε για να συνεχίσει). Τα σαρωμένα PDF παραλείπονται.
+      <span style="display:block; color:var(--warn); margin-top:4px;">
+        Αφορά την <strong>τοπική</strong> βάση (εκεί που τρέχει ο server). Για την
+        παραγωγή, χρησιμοποιήστε το <code>ingest.sh</code> από το terminal.
+      </span>
+    </p>
+    <form method="post" action="/admin/jobs/fulltext" style="margin-bottom:20px;">
+      <div class="field">
+        <label>τύποι πράξεων (αν τίποτα, όλοι)</label>
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
+          {% for t in act_types %}
+            <label style="display:inline-flex; align-items:center; gap:6px; border:1px solid var(--rule); padding:5px 10px; cursor:pointer; font-size:13px; font-family:var(--sans);">
+              <input type="checkbox" name="types" value="{{ t }}" style="margin:0;">
+              {{ t | type_label }}
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="field" style="max-width:220px;">
+        <label>όριο ανά εκτέλεση</label>
+        <input type="number" name="limit" value="5000" min="1" step="100">
+        <div class="meta" style="margin-top:4px;">Πόσες πράξεις θα επιχειρηθούν αυτή τη φορά.</div>
+      </div>
+      <button type="submit" style="background:var(--ink); color:var(--paper); border:0; padding:10px 22px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; margin-top:4px;">
+        Εκκίνηση εξαγωγής κειμένου
+      </button>
+    </form>
+    {% endif %}
+
     <div class="section-h">Πρόσφατες εκτελέσεις</div>
     {% if jobs %}
       <table class="notices">
