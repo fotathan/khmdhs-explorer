@@ -213,6 +213,10 @@ SORT_COLS = {
     "value":                  "a.total_cost_with_vat DESC NULLS LAST",
     "value_asc":              "a.total_cost_with_vat ASC  NULLS LAST",
     "deadline":               "a.final_submission_date ASC NULLS LAST",
+    # 'relevance' is handled specially in run_search (needs the query text);
+    # mapped here to the default so it's a recognised key and falls back safely
+    # when there's no full-text query to rank by.
+    "relevance":              "a.submission_date DESC NULLS LAST",
 }
 DEFAULT_SORT = "submission_date"
 
@@ -271,6 +275,17 @@ def build_where(params: dict) -> tuple[str, list]:
     if auth_id:
         where.append("a.authority_id = %s")
         args.append(auth_id)
+
+    # Full-text search across the extracted document text (full_text_tsv is a
+    # stored, Greek-stemmed tsvector — see full_text_tsv_migration.sql). Separate
+    # from `q` (which searches title/ADAM) so users can search document CONTENT
+    # independently or in combination. websearch_to_tsquery gives friendly
+    # syntax: bare words = AND, "quoted phrase" = exact phrase, OR = alternation,
+    # -word = exclude. Empty/whitespace query is ignored.
+    fulltext = (params.get("fulltext") or "").strip()
+    if fulltext:
+        where.append("a.full_text_tsv @@ websearch_to_tsquery('greek', %s)")
+        args.append(fulltext)
 
     cpv = (params.get("cpv") or "").strip()
     if cpv:
@@ -347,15 +362,65 @@ def build_where(params: dict) -> tuple[str, list]:
 
 def run_search(params: dict, limit: int, offset: int):
     where, args = build_where(params)
-    sort = SORT_COLS.get(params.get("sort") or DEFAULT_SORT, SORT_COLS[DEFAULT_SORT])
-    sql = f"""
-        SELECT {SELECT_COLS}
-        FROM proc.procurement_act a
-        LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
-        WHERE {where}
-        ORDER BY {sort}
-        LIMIT %s OFFSET %s
-    """
+
+    # Relevance sort only makes sense with a full-text query; it ranks by how
+    # well the document text matches. The rank expression needs the query text
+    # as its own bind param, placed BEFORE the LIMIT/OFFSET args. For any other
+    # sort (or relevance without a query) fall back to the normal column sorts.
+    fulltext = (params.get("fulltext") or "").strip()
+    sort_key = params.get("sort") or DEFAULT_SORT
+
+    # Snippet (ts_headline): when the user searched document text, show a short
+    # highlighted excerpt per result so they see WHY it matched. Only computed
+    # when there's a full-text query, and only for the ≤50 rows on this page, so
+    # the per-row cost (it re-parses full_text, can't use the stored tsvector)
+    # stays bounded. The query text is a bind param in the SELECT, so it must go
+    # FIRST in the arg list (before WHERE args). StartSel/StopSel use <mark>;
+    # ts_headline only ever wraps matched terms and escapes nothing else, so the
+    # template must still escape the surrounding text (see _results.html: we mark
+    # ONLY this value safe after building it here).
+    rank_args: list = []
+    if sort_key == "relevance" and fulltext:
+        order_by = ("ts_rank(a.full_text_tsv, "
+                    "websearch_to_tsquery('greek', %s)) DESC")
+        rank_args.append(fulltext)
+    else:
+        order_by = SORT_COLS.get(sort_key, SORT_COLS[DEFAULT_SORT])
+
+    if fulltext:
+        # PERF: compute the highlighted snippet ONLY for the final page of rows.
+        # ts_headline re-parses full_text (it can't use the stored tsvector), so
+        # it's the expensive part. We do the match + rank + LIMIT in an inner
+        # query first, then call ts_headline in the outer SELECT over just those
+        # ≤50 rows — guaranteeing 50 headline computations regardless of how many
+        # acts match. Bind order: snippet arg (outer SELECT, appears first in the
+        # text) → inner WHERE args → rank arg → limit/offset.
+        select_args: list = [fulltext]
+        sql = f"""
+            SELECT page.*,
+                   ts_headline('greek', page.full_text,
+                       websearch_to_tsquery('greek', %s),
+                       'StartSel=<mark>, StopSel=</mark>, MaxFragments=2, '
+                       'MaxWords=24, MinWords=8, FragmentDelimiter=" … "') AS snippet
+            FROM (
+                SELECT {SELECT_COLS}, a.full_text
+                FROM proc.procurement_act a
+                LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
+                WHERE {where}
+                ORDER BY {order_by}
+                LIMIT %s OFFSET %s
+            ) AS page
+        """
+    else:
+        select_args = []
+        sql = f"""
+            SELECT {SELECT_COLS}, NULL AS snippet
+            FROM proc.procurement_act a
+            LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
+            WHERE {where}
+            ORDER BY {order_by}
+            LIMIT %s OFFSET %s
+        """
     # Counter rework (perf): the old version summed proc.resolved_value() per
     # row, firing a subquery per row × 2.67M (~7.9s/load by EXPLAIN). The
     # corrected total equals sum(total_cost_with_vat) + sum(corrected - base)
@@ -391,8 +456,24 @@ def run_search(params: dict, limit: int, offset: int):
             base_value = base["base_value"]
         c.execute(delta_sql, args)
         delta = c.fetchone()
-        c.execute(sql, args + [limit, offset])
+        c.execute(sql, select_args + args + rank_args + [limit, offset])
         rows = c.fetchall()
+
+    # Make snippets safe to render: ts_headline wraps matched terms in <mark>
+    # but does NOT escape the surrounding document text, so a document containing
+    # markup could otherwise inject HTML. Escape everything, then re-enable only
+    # the <mark> tags we asked ts_headline to add, and mark the result safe so
+    # Jinja renders the highlight instead of showing literal tags.
+    if fulltext:
+        import html as _html
+        from markupsafe import Markup
+        for r in rows:
+            snip = r.get("snippet")
+            if snip:
+                safe = _html.escape(snip)
+                safe = safe.replace("&lt;mark&gt;", "<mark>").replace("&lt;/mark&gt;", "</mark>")
+                r["snippet"] = Markup(safe)
+
     agg = {
         "n": n,
         "total_value": (base_value or 0) + (delta["delta"] or 0),
@@ -655,7 +736,7 @@ def home(request: Request,
 
 def _params_from(request: Request) -> dict:
     """Pull all known query params into a plain dict, dropping empties."""
-    keys = ("type", "q", "authority", "cpv", "contract_type", "procedure_type", "nuts",
+    keys = ("type", "q", "fulltext", "authority", "cpv", "contract_type", "procedure_type", "nuts",
             "date_from", "date_to", "deadline_from", "deadline_to",
             "value_min", "value_max",
             "status", "sort")

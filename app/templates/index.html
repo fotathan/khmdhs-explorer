@@ -4,7 +4,7 @@
 <form id="filters"
       hx-get="/"
       hx-target="#results"
-      hx-trigger="input changed delay:350ms from:input[type=search], change, submit"
+      hx-trigger="change, submit"
       hx-push-url="true"
       hx-indicator="#busy">
 
@@ -28,6 +28,20 @@
         <input type="search" name="q" placeholder="τίτλος, λέξη-κλειδί ή ΑΔΑΜ…"
                value="{{ request.query_params.get('q','') }}">
         <button type="submit">Εύρεση</button>
+      </div>
+
+      <div class="filter-h">Στο πλήρες κείμενο</div>
+      <div class="search-row">
+        <input type="search" name="fulltext"
+               placeholder="λέξεις στο κείμενο εγγράφων…"
+               value="{{ request.query_params.get('fulltext','') }}">
+        <button type="submit">Εύρεση</button>
+      </div>
+      <div class="meta" style="margin-top:5px; line-height:1.4;">
+        Αναζήτηση μέσα στο κείμενο των συνημμένων. Χρησιμοποιήστε
+        <code class="cpv">"εισαγωγικά"</code> για ακριβή φράση,
+        <code class="cpv">OR</code> για εναλλακτικές,
+        <code class="cpv">-λέξη</code> για εξαίρεση.
       </div>
 
       <div class="filter-h">Κατάσταση</div>
@@ -140,6 +154,7 @@
           <span id="busy" class="htmx-indicator">φόρτωση…</span>
           &nbsp;ταξινόμηση
           <select name="sort">
+            <option value="relevance"            {% if request.query_params.get('sort')=='relevance' %}selected{% endif %}>σχετικότητα (στο κείμενο)</option>
             <option value="submission_date"      {% if request.query_params.get('sort','submission_date')=='submission_date' %}selected{% endif %}>πιο πρόσφατη δημοσίευση</option>
             <option value="submission_date_asc"  {% if request.query_params.get('sort')=='submission_date_asc' %}selected{% endif %}>παλαιότερη δημοσίευση</option>
             <option value="signed_date"          {% if request.query_params.get('sort')=='signed_date' %}selected{% endif %}>πιο πρόσφατη υπογραφή</option>

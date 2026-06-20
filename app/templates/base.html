@@ -103,10 +103,10 @@
 
     .search-row { display: flex; border: 1px solid var(--rule); background: var(--paper); border-radius: 10px; overflow: hidden; transition: border-color 120ms ease, box-shadow 120ms ease; }
     .search-row:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-    .search-row input[type=search] { flex: 1; border: 0; background: transparent; padding: 13px 16px; font-family: var(--sans); font-size: 16px; color: var(--ink); }
+    .search-row input[type=search] { flex: 1 1 0; min-width: 0; border: 0; background: transparent; padding: 13px 16px; font-family: var(--sans); font-size: 16px; color: var(--ink); }
     .search-row input[type=search]::placeholder { color: var(--ink-3); }
     .search-row input[type=search]:focus { outline: none; }
-    .search-row button { border: 0; background: var(--accent); color: #fff; padding: 0 22px; font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: background 120ms ease; }
+    .search-row button { border: 0; background: var(--accent); color: #fff; padding: 0 22px; font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: background 120ms ease; flex: 0 0 auto; white-space: nowrap; min-width: max-content; }
     .search-row button:hover { background: var(--accent-2); }
 
     .results-bar { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin: 26px 0 14px; padding-bottom: 14px; border-bottom: 1px solid var(--rule); }
@@ -125,6 +125,8 @@
     .title-cell a { color: var(--ink); text-decoration: none; font-family: var(--sans); font-size: 14.5px; font-weight: 500; line-height: 1.4; display: block; }
     .title-cell a:hover { color: var(--accent); }
     .auth { font-size: 12px; color: var(--ink-2); margin-top: 4px; }
+    .snippet { font-size: 12.5px; color: var(--ink-2); margin-top: 7px; line-height: 1.5; font-family: var(--serif); padding-left: 10px; border-left: 2px solid var(--rule); }
+    .snippet mark { background: var(--accent-soft); color: var(--ink); font-weight: 600; padding: 0 1px; border-radius: 2px; }
     .val { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 12.5px; text-align: right; white-space: nowrap; color: var(--ink); }
     .meta { font-family: var(--sans); font-size: 12px; color: var(--ink-3); }
 

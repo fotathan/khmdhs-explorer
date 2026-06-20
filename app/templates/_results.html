@@ -30,6 +30,7 @@
           {% if r.authority_id %}<a href="/authority/{{ r.authority_id }}" style="color:var(--ink-2);">{{ r.authority_name or '—' }}</a>
           {% else %}{{ r.authority_name or '—' }}{% endif %}
         </div>
+        {% if r.snippet %}<div class="snippet">{{ r.snippet }}</div>{% endif %}
       </td>
       <td class="meta">
         {{ r.submission_date.strftime('%Y-%m-%d') if r.submission_date else (r.signed_date.strftime('%Y-%m-%d') if r.signed_date else '—') }}<br>
