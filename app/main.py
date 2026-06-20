@@ -1486,6 +1486,7 @@ def authority_detail(org_id: str, request: Request,
         {"a": auth, "by_type": by_type, "top_cpv": top_cpv,
          "acts": acts, "total": total, "type_filter": type, "merge_info": merge_info,
          "gemi": gemi,
+         "gemi_refresh_url": f"/authority/{auth['org_id']}/gemi-refresh",
          "grand_total": grand_total, "grand_value": grand_value,
          "page": page, "per_page": per_page, "total_pages": total_pages},
     )
@@ -1662,6 +1663,94 @@ def contractor_detail(vat: str, request: Request,
          "top_cpv": top_cpv,
          "acts": acts, "total": total, "merge_info": merge_info,
          "gemi": gemi,
+         "gemi_refresh_url": f"/contractor/{op['vat_number']}/gemi-refresh",
          "grand_total": grand_total, "grand_value": grand_value,
          "page": page, "per_page": per_page, "total_pages": total_pages},
     )
+
+
+# ---------------------------------------------------------------------------- #
+# On-demand ΓΕΜΗ enrichment (admin-only via the app-wide BasicAuth middleware).
+# A button on the contractor/authority page POSTs here; we call the registry
+# for that single ΑΦΜ, upsert, and return the refreshed _gemi_block partial for
+# HTMX to swap in place. Same fetch/flatten/upsert as the batch script (shared
+# gemi_client module), so results are identical. Fetch-and-overwrite: creates
+# the row first time, refreshes it thereafter.
+# ---------------------------------------------------------------------------- #
+def _render_gemi_block(request: Request, gemi_row, refresh_url: str,
+                       message: str | None = None, tone: str = "ok"):
+    return templates.TemplateResponse(
+        request, "_gemi_block.html",
+        {"gemi": gemi_row, "gemi_refresh_url": refresh_url,
+         "gemi_flash": message, "gemi_flash_tone": tone},
+    )
+
+
+def _refetch_gemi(c, afm_raw: str):
+    """Run enrich_one and return the freshly-stored row (or None) for display."""
+    import gemi_client
+    status, afm = gemi_client.enrich_one(c, afm_raw)
+    gemi_row = None
+    if afm:
+        c.execute("""SELECT legal_name, trade_title, legal_type, status,
+                            street, street_number, zip_code, city, municipality,
+                            prefecture, phone, fax, email, url, primary_kad,
+                            primary_kad_descr, activities_active, ar_gemi,
+                            incorporation_date, fetched_at
+                     FROM proc.gemi_enrichment
+                     WHERE afm = %s AND fetch_status = 'ok'""", (afm,))
+        gemi_row = c.fetchone()
+    return status, gemi_row
+
+
+@app.post("/contractor/{vat}/gemi-refresh", response_class=HTMLResponse)
+def contractor_gemi_refresh(vat: str, request: Request):
+    url = f"/contractor/{vat}/gemi-refresh"
+    with cursor() as c:
+        c.execute("SELECT vat_number FROM proc.economic_operator WHERE vat_number=%s",
+                  (vat,))
+        if not c.fetchone():
+            raise HTTPException(status_code=404, detail="contractor not found")
+        try:
+            status, gemi_row = _refetch_gemi(c, vat)
+        except RuntimeError:
+            return _render_gemi_block(
+                request, None, url,
+                "Το κλειδί ΓΕΜΗ (GEMI_API_KEY) δεν είναι ορισμένο στον διακομιστή.",
+                "error")
+    msg, tone = _gemi_status_message(status)
+    return _render_gemi_block(request, gemi_row, url, msg, tone)
+
+
+@app.post("/authority/{org_id}/gemi-refresh", response_class=HTMLResponse)
+def authority_gemi_refresh(org_id: str, request: Request):
+    url = f"/authority/{org_id}/gemi-refresh"
+    with cursor() as c:
+        c.execute("SELECT vat_number FROM proc.authority WHERE org_id=%s",
+                  (org_id,))
+        row = c.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="authority not found")
+        if not row["vat_number"]:
+            return _render_gemi_block(
+                request, None, url,
+                "Η αναθέτουσα δεν έχει καταχωρημένο ΑΦΜ.", "error")
+        try:
+            status, gemi_row = _refetch_gemi(c, row["vat_number"])
+        except RuntimeError:
+            return _render_gemi_block(
+                request, None, url,
+                "Το κλειδί ΓΕΜΗ (GEMI_API_KEY) δεν είναι ορισμένο στον διακομιστή.",
+                "error")
+    msg, tone = _gemi_status_message(status)
+    return _render_gemi_block(request, gemi_row, url, msg, tone)
+
+
+def _gemi_status_message(status: str) -> tuple[str, str]:
+    return {
+        "ok":        ("Τα στοιχεία ΓΕΜΗ ενημερώθηκαν.", "ok"),
+        "not_found": ("Δεν βρέθηκε εγγραφή στο ΓΕΜΗ για αυτόν τον ΑΦΜ.", "warn"),
+        "ambiguous": ("Βρέθηκαν πολλαπλές εγγραφές — εμφανίζεται η πιο σχετική.", "warn"),
+        "bad_afm":   ("Μη έγκυρος ΑΦΜ — δεν έγινε αναζήτηση.", "error"),
+        "error":     ("Σφάλμα κατά την επικοινωνία με το ΓΕΜΗ — δοκιμάστε ξανά.", "error"),
+    }.get(status, ("", "ok"))
