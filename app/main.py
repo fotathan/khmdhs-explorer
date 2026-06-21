@@ -1195,6 +1195,10 @@ def authority_index(request: Request,
             SELECT count(*) AS n FROM proc.authority auth WHERE {where_sql}
         """, search_args)
         total = c.fetchone()["n"]
+        # Counts from the precomputed matview (proc.mv_authority_counts,
+        # refreshed after ingest) — replaces the per-row LATERAL aggregation
+        # over procurement_act that made this page slow. base = surviving
+        # (canonical/unmerged) authority rows after search.
         c.execute(f"""
             WITH base AS (
               SELECT auth.org_id, auth.name, auth.vat_number,
@@ -1203,31 +1207,13 @@ def authority_index(request: Request,
                        AS is_merged
               FROM proc.authority auth
               WHERE {where_sql}
-            ),
-            members AS (
-              SELECT b.org_id AS canon,
-                     COALESCE(
-                       (SELECT array_agg(m2.member_key)
-                        FROM proc.entity_member m1
-                        JOIN proc.entity_member m2 ON m2.group_id=m1.group_id
-                        WHERE m1.kind='authority' AND m1.member_key=b.org_id),
-                       ARRAY[b.org_id]
-                     ) AS ids
-              FROM base b
             )
             SELECT b.org_id, b.name, b.vat_number, b.is_merged,
-                   COALESCE(agg.n_acts, 0) AS n_acts,
-                   COALESCE(agg.n_notices, 0) AS n_notices,
-                   COALESCE(agg.n_contracts, 0) AS n_contracts
+                   COALESCE(mc.n_acts, 0)      AS n_acts,
+                   COALESCE(mc.n_notices, 0)   AS n_notices,
+                   COALESCE(mc.n_contracts, 0) AS n_contracts
             FROM base b
-            JOIN members mm ON mm.canon = b.org_id
-            LEFT JOIN LATERAL (
-              SELECT count(a.adam) AS n_acts,
-                     count(a.adam) FILTER (WHERE a.type='notice')   AS n_notices,
-                     count(a.adam) FILTER (WHERE a.type='contract') AS n_contracts
-              FROM proc.procurement_act a
-              WHERE a.authority_id = ANY(mm.ids)
-            ) agg ON true
+            LEFT JOIN proc.mv_authority_counts mc ON mc.org_id = b.org_id
             ORDER BY {order}
             LIMIT %s OFFSET %s
         """, search_args + [per_page, offset])
@@ -1296,45 +1282,25 @@ def contractor_index(request: Request,
         """, search_args)
         total = c.fetchone()["n"]
 
-        # Strategy: aggregate act counts per operator in ONE grouped pass
-        # (uses ix on act_operator.operator_id), map each operator to its
-        # canonical key, sum per canonical, then sort+limit. Only the buyers
-        # distinct-count is deferred to the page's rows. This avoids a
-        # per-row correlated subquery over the whole acts table.
+        # Counts come from the precomputed matview (proc.mv_contractor_counts,
+        # refreshed after ingest) — see entity_counts_matview_migration.sql.
+        # This turns the old ~4s full aggregation over act_operator+
+        # procurement_act into a simple indexed sort+limit over ~134k rows.
+        # canon = the surviving (canonical/unmerged) operator rows after search.
         c.execute(f"""
             WITH canon AS (
-              -- every surviving (canonical or unmerged) operator row
               SELECT eo.vat_number, eo.name, eo.is_greek_vat, eo.country,
                      EXISTS (SELECT 1 FROM proc.entity_member m
                              WHERE m.kind='contractor' AND m.member_key=eo.vat_number)
                        AS is_merged
               FROM proc.economic_operator eo
               WHERE {where_sql}
-            ),
-            -- map ANY vat -> its canonical vat (itself if unmerged)
-            keymap AS (
-              SELECT eo.vat_number AS member_vat, eo.operator_id,
-                     COALESCE(g.canonical_key, eo.vat_number) AS canon_vat
-              FROM proc.economic_operator eo
-              LEFT JOIN proc.entity_member m
-                ON m.kind='contractor' AND m.member_key = eo.vat_number
-              LEFT JOIN proc.entity_group g ON g.id = m.group_id
-            ),
-            counts AS (
-              SELECT k.canon_vat,
-                     count(ao.adam) AS n_acts,
-                     count(DISTINCT a.authority_id) AS n_buyers
-              FROM keymap k
-              JOIN proc.act_operator ao ON ao.operator_id = k.operator_id
-              LEFT JOIN proc.procurement_act a ON a.adam = ao.adam
-              WHERE k.canon_vat IN (SELECT vat_number FROM canon)
-              GROUP BY k.canon_vat
             )
             SELECT c.vat_number, c.name, c.is_greek_vat, c.country, c.is_merged,
-                   COALESCE(ct.n_acts, 0)   AS n_acts,
-                   COALESCE(ct.n_buyers, 0) AS n_buyers
+                   COALESCE(mc.n_acts, 0)   AS n_acts,
+                   COALESCE(mc.n_buyers, 0) AS n_buyers
             FROM canon c
-            LEFT JOIN counts ct ON ct.canon_vat = c.vat_number
+            LEFT JOIN proc.mv_contractor_counts mc ON mc.vat_number = c.vat_number
             ORDER BY {order}
             LIMIT %s OFFSET %s
         """, search_args + [per_page, offset])
