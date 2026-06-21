@@ -64,14 +64,14 @@
   <span>σελίδα {{ page }} από {{ total_pages }} · {{ per_page }} ανά σελίδα</span>
   <span>
     {% if page > 1 %}
-      <a href="#" hx-get="/?{% for k,v in request.query_params.items() if k not in ['page'] %}{{k}}={{v}}&{% endfor %}page={{ page-1 }}"
+      <a href="#" hx-get="/?{% for k,v in request.query_params.multi_items() if k != 'page' %}{{k}}={{v|urlencode}}&{% endfor %}page={{ page-1 }}"
          hx-target="#results" hx-include="#filters">‹ προηγ.</a>
     {% else %}<span class="disabled">‹ προηγ.</span>{% endif %}
 
     <span class="current">{{ page }}</span>
 
     {% if page < total_pages %}
-      <a href="#" hx-get="/?{% for k,v in request.query_params.items() if k not in ['page'] %}{{k}}={{v}}&{% endfor %}page={{ page+1 }}"
+      <a href="#" hx-get="/?{% for k,v in request.query_params.multi_items() if k != 'page' %}{{k}}={{v|urlencode}}&{% endfor %}page={{ page+1 }}"
          hx-target="#results" hx-include="#filters">επόμ. ›</a>
     {% else %}<span class="disabled">επόμ. ›</span>{% endif %}
   </span>

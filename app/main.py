@@ -303,17 +303,30 @@ def _text_search_clause(raw: str, tsv_col: str, raw_text_expr: str
     return f"{tsv_col} @@ websearch_to_tsquery('greek', %s)", [raw]
 
 
+def _as_list(v) -> list[str]:
+    """Normalise a filter param to a clean list of values. Accepts a list
+    (multi-select), a single string (legacy / single value), or None. Strips
+    blanks. Lets build_where treat all five multi-filters uniformly while still
+    tolerating a stray single string."""
+    if v is None:
+        return []
+    if isinstance(v, str):
+        v = [v]
+    return [s.strip() for s in v if s and s.strip()]
+
+
 def build_where(params: dict) -> tuple[str, list]:
     """Translate query parameters into a parameterised WHERE clause."""
     where: list[str] = []
     args: list = []
 
-    # Act type — the primary filter. Empty/absent => all types. Validate against
-    # the known set so the value is safe to cast to the enum.
-    act_type = (params.get("type") or "").strip()
-    if act_type in TYPE_LABELS:
-        where.append("a.type = %s::proc.act_type")
-        args.append(act_type)
+    # Act type — multi-select. Empty/absent => all types. Validate each against
+    # the known set so values are safe to cast to the enum.
+    act_types = _as_list(params.get("type"))
+    act_types = [t for t in act_types if t in TYPE_LABELS]
+    if act_types:
+        where.append("a.type = ANY(%s::proc.act_type[])")
+        args.append(act_types)
 
     q = (params.get("q") or "").strip()
     if q:
@@ -332,10 +345,10 @@ def build_where(params: dict) -> tuple[str, list]:
             where.append(f"{norm.format(col='a.title')} LIKE {norm.format(col='%s')}")
             args.append(f"%{q}%")
 
-    auth_id = (params.get("authority") or "").strip()
-    if auth_id:
-        where.append("a.authority_id = %s")
-        args.append(auth_id)
+    auth_ids = _as_list(params.get("authority"))
+    if auth_ids:
+        where.append("a.authority_id = ANY(%s)")
+        args.append(auth_ids)
 
     # Full-text search across the extracted document text (full_text_tsv is a
     # stored, Greek-stemmed tsvector — see full_text_tsv_migration.sql). Separate
@@ -382,21 +395,26 @@ def build_where(params: dict) -> tuple[str, list]:
         # everything under "Business services". Always treat as prefix.
         args.append(f"{cpv}%")
 
-    contract_type = (params.get("contract_type") or "").strip()
-    if contract_type:
-        where.append("a.contract_type_code = %s")
-        args.append(contract_type)
+    contract_types = _as_list(params.get("contract_type"))
+    if contract_types:
+        where.append("a.contract_type_code = ANY(%s)")
+        args.append(contract_types)
 
-    procedure_type = (params.get("procedure_type") or "").strip()
-    if procedure_type:
-        where.append("a.procedure_family = %s")
-        args.append(procedure_type)
+    procedure_types = _as_list(params.get("procedure_type"))
+    if procedure_types:
+        where.append("a.procedure_family = ANY(%s)")
+        args.append(procedure_types)
 
-    nuts = (params.get("nuts") or "").strip()
-    if nuts:
-        # Prefix match: 'EL' matches all of Greece, 'EL5' matches a region cluster.
-        where.append("a.nuts_code LIKE %s")
-        args.append(f"{nuts}%")
+    nuts_vals = _as_list(params.get("nuts"))
+    if nuts_vals:
+        # Each value is a prefix ('EL' = all Greece, 'EL5' = a region cluster);
+        # multi-select means match ANY of the chosen prefixes. Build an OR of
+        # LIKE prefix tests, each wildcard living in the bind value (never SQL).
+        ors = []
+        for n in nuts_vals:
+            ors.append("a.nuts_code LIKE %s")
+            args.append(f"{n}%")
+        where.append("(" + " OR ".join(ors) + ")")
 
     # Date filter applies to *publication* date (KHMDHS submission) — that's
     # the "this became public" timestamp users care about for transparency.
@@ -815,12 +833,22 @@ def home(request: Request,
 
 
 def _params_from(request: Request) -> dict:
-    """Pull all known query params into a plain dict, dropping empties."""
-    keys = ("type", "q", "fulltext", "tables_q", "authority", "cpv", "contract_type", "procedure_type", "nuts",
-            "date_from", "date_to", "deadline_from", "deadline_to",
-            "value_min", "value_max",
-            "status", "sort")
-    return {k: request.query_params.get(k, "") for k in keys}
+    """Pull all known query params into a plain dict, dropping empties.
+
+    Five filters are MULTI-valued (the user can pick several): type, authority,
+    contract_type, procedure_type, nuts. They arrive as repeated query params
+    (?type=notice&type=contract) and are read as lists via getlist(). The rest
+    stay single-valued strings. build_where handles both shapes.
+    """
+    single = ("q", "fulltext", "tables_q", "cpv",
+              "date_from", "date_to", "deadline_from", "deadline_to",
+              "value_min", "value_max", "status", "sort")
+    multi = ("type", "authority", "contract_type", "procedure_type", "nuts")
+    out = {k: request.query_params.get(k, "") for k in single}
+    for k in multi:
+        # keep only non-empty values; preserves order, drops blanks
+        out[k] = [v for v in request.query_params.getlist(k) if v.strip()]
+    return out
 
 
 @app.get("/explore", response_class=HTMLResponse)

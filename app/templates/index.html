@@ -11,14 +11,18 @@
   <div class="grid">
 
     <aside class="filters">
-      <div class="filter-h" style="margin-top:0;">Τύπος πράξης</div>
-      <div class="seg-vert" role="group">
-        <label>
-          <input type="radio" name="type" value="" {% if not request.query_params.get('type') %}checked{% endif %}>{{ TYPE_ALL_LABEL }}
-        </label>
+      <div class="filter-h" style="margin-top:0;">Τύπος πράξης
+        <span class="chk-allnone">
+          <a href="#" onclick="chkAll(this,'type');return false">όλα</a> ·
+          <a href="#" onclick="chkNone(this,'type');return false">κανένα</a>
+        </span>
+      </div>
+      <div class="seg-vert chk-group" role="group">
+        {% set sel_types = request.query_params.getlist('type') %}
         {% for code in TYPE_FILTER_ORDER %}
         <label>
-          <input type="radio" name="type" value="{{ code }}" {% if request.query_params.get('type')==code %}checked{% endif %}>{{ TYPE_LABELS[code] }}
+          <input type="checkbox" name="type" value="{{ code }}"
+                 {% if code in sel_types %}checked{% endif %}>{{ TYPE_LABELS[code] }}
         </label>
         {% endfor %}
       </div>
@@ -70,11 +74,12 @@
 
       <div class="filter-h">Αναθέτουσα Αρχή</div>
       <div class="field">
+        {% set sel_auth = request.query_params.getlist('authority') %}
         <select name="authority">
           <option value="">— όλες —</option>
           {% for a in lk.authorities %}
             <option value="{{ a.id }}"
-              {% if request.query_params.get('authority')==a.id %}selected{% endif %}>
+              {% if a.id in sel_auth %}selected{% endif %}>
               {{ a.name }} ({{ a.n }})
             </option>
           {% endfor %}
@@ -88,43 +93,58 @@
                value="{{ request.query_params.get('cpv','') }}">
       </div>
       <div class="field">
-        <label>Είδος σύμβασης</label>
-        <select name="contract_type">
-          <option value="">— οποιοδήποτε —</option>
+        <label>Είδος σύμβασης
+          <span class="chk-allnone">
+            <a href="#" onclick="chkAll(this,'contract_type');return false">όλα</a> ·
+            <a href="#" onclick="chkNone(this,'contract_type');return false">κανένα</a>
+          </span>
+        </label>
+        <div class="chk-group chk-list">
+          {% set sel_ct = request.query_params.getlist('contract_type') %}
           {% for c in lk.contract_types %}
-            <option value="{{ c.code }}"
-              {% if request.query_params.get('contract_type')==c.code %}selected{% endif %}>
-              {{ c.label }}
-            </option>
+          <label>
+            <input type="checkbox" name="contract_type" value="{{ c.code }}"
+                   {% if c.code in sel_ct %}checked{% endif %}>{{ c.label }}
+          </label>
           {% endfor %}
-        </select>
+        </div>
       </div>
 
       <div class="field">
-        <label>Τύπος διαδικασίας</label>
-        <select name="procedure_type">
-          <option value="">— οποιαδήποτε —</option>
+        <label>Τύπος διαδικασίας
+          <span class="chk-allnone">
+            <a href="#" onclick="chkAll(this,'procedure_type');return false">όλα</a> ·
+            <a href="#" onclick="chkNone(this,'procedure_type');return false">κανένα</a>
+          </span>
+        </label>
+        <div class="chk-group chk-list">
+          {% set sel_pt = request.query_params.getlist('procedure_type') %}
           {% for p in lk.procedure_types %}
-            <option value="{{ p.code }}"
-              {% if request.query_params.get('procedure_type')==p.code %}selected{% endif %}>
-              {{ p.label }}
-            </option>
+          <label>
+            <input type="checkbox" name="procedure_type" value="{{ p.code }}"
+                   {% if p.code in sel_pt %}checked{% endif %}>{{ p.label }}
+          </label>
           {% endfor %}
-        </select>
+        </div>
       </div>
 
       <div class="filter-h">Γεωγραφία</div>
       <div class="field">
-        <label>NUTS (πρόθεμα)</label>
-        <select name="nuts">
-          <option value="">— όλη η χώρα —</option>
+        <label>NUTS (πρόθεμα)
+          <span class="chk-allnone">
+            <a href="#" onclick="chkAll(this,'nuts');return false">όλα</a> ·
+            <a href="#" onclick="chkNone(this,'nuts');return false">κανένα</a>
+          </span>
+        </label>
+        <div class="chk-group chk-list">
+          {% set sel_nuts = request.query_params.getlist('nuts') %}
           {% for n in lk.nuts %}
-            <option value="{{ n.code }}"
-              {% if request.query_params.get('nuts')==n.code %}selected{% endif %}>
-              {{ n.code }} — {{ n.label }}
-            </option>
+          <label>
+            <input type="checkbox" name="nuts" value="{{ n.code }}"
+                   {% if n.code in sel_nuts %}checked{% endif %}>{{ n.code }} — {{ n.label }}
+          </label>
           {% endfor %}
-        </select>
+        </div>
       </div>
 
       <div class="filter-h">Ημερομηνία δημοσίευσης</div>
@@ -189,4 +209,31 @@
 
   </div>
 </form>
+
+<script>
+  // Toggle all checkboxes for a given filter name, then fire one change so the
+  // HTMX form re-runs the search a single time (not once per box).
+  function _chkSet(name, state) {
+    var form = document.getElementById('filters');
+    if (!form) return;
+    var boxes = form.querySelectorAll('input[type="checkbox"][name="' + name + '"]');
+    boxes.forEach(function (b) { b.checked = state; });
+    // one synthetic change on the form triggers hx-trigger="change"
+    form.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  function chkAll(el, name) { _chkSet(name, true); }
+  function chkNone(el, name) { _chkSet(name, false); }
+</script>
+
+<style>
+  .chk-group.chk-list { display:flex; flex-direction:column; gap:3px;
+    max-height:220px; overflow-y:auto; padding:4px 2px;
+    border:1px solid var(--rule); border-radius:6px; background:var(--paper); }
+  .chk-group label { display:flex; align-items:center; gap:7px; font-weight:400;
+    cursor:pointer; font-size:13px; line-height:1.3; }
+  .chk-group input[type="checkbox"] { flex:0 0 auto; margin:0; }
+  .chk-allnone { font-weight:400; font-size:11px; margin-left:6px; }
+  .chk-allnone a { color:var(--accent); text-decoration:none; }
+  .chk-allnone a:hover { text-decoration:underline; }
+</style>
 {% endblock %}
