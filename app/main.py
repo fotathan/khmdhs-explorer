@@ -1389,7 +1389,8 @@ def authority_detail(org_id: str, request: Request,
             )
             SELECT agg.division, agg.n_acts, agg.total_value,
               (SELECT description FROM proc.cpv_code
-               WHERE cpv_code LIKE agg.division || '000000-_'
+               WHERE substr(cpv_code, 1, 2) = agg.division
+                 AND substr(cpv_code, 3, 6) = '000000'
                LIMIT 1) AS label
             FROM agg
             ORDER BY agg.total_value DESC NULLS LAST
@@ -1541,7 +1542,8 @@ def contractor_detail(vat: str, request: Request,
             )
             SELECT agg.division, agg.n_acts, agg.total_value,
               (SELECT description FROM proc.cpv_code
-               WHERE cpv_code LIKE agg.division || '000000-_'
+               WHERE substr(cpv_code, 1, 2) = agg.division
+                 AND substr(cpv_code, 3, 6) = '000000'
                LIMIT 1) AS label
             FROM agg
             ORDER BY agg.total_value DESC NULLS LAST
