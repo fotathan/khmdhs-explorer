@@ -1457,22 +1457,6 @@ def authority_detail(org_id: str, request: Request,
         """, args + [per_page, offset])
         acts = c.fetchall()
 
-        # ΓΕΜΗ registry enrichment for the authority's ΑΦΜ, if present. Most
-        # public bodies aren't in the commercial registry, so this is usually
-        # absent — shown only when we actually have an 'ok' row.
-        gemi = None
-        if auth.get("vat_number"):
-            padded = (auth["vat_number"].strip().upper()
-                      .removeprefix("EL").strip().zfill(9))
-            c.execute("""SELECT legal_name, trade_title, legal_type, status,
-                                street, street_number, zip_code, city,
-                                municipality, prefecture, phone, fax, email, url,
-                                primary_kad, primary_kad_descr, activities_active,
-                                ar_gemi, incorporation_date, fetched_at
-                         FROM proc.gemi_enrichment
-                         WHERE afm = %s AND fetch_status = 'ok'""", (padded,))
-            gemi = c.fetchone()
-
     total_pages = max(1, (total + per_page - 1) // per_page)
     grand_total = sum((r["n"] or 0) for r in by_type)
     # Headline value is CONTRACTS ONLY — summing across types would double-count
@@ -1485,8 +1469,6 @@ def authority_detail(org_id: str, request: Request,
         request, "authority.html",
         {"a": auth, "by_type": by_type, "top_cpv": top_cpv,
          "acts": acts, "total": total, "type_filter": type, "merge_info": merge_info,
-         "gemi": gemi,
-         "gemi_refresh_url": f"/authority/{auth['org_id']}/gemi-refresh",
          "grand_total": grand_total, "grand_value": grand_value,
          "page": page, "per_page": per_page, "total_pages": total_pages},
     )
@@ -1713,30 +1695,6 @@ def contractor_gemi_refresh(vat: str, request: Request):
             raise HTTPException(status_code=404, detail="contractor not found")
         try:
             status, gemi_row = _refetch_gemi(c, vat)
-        except RuntimeError:
-            return _render_gemi_block(
-                request, None, url,
-                "Το κλειδί ΓΕΜΗ (GEMI_API_KEY) δεν είναι ορισμένο στον διακομιστή.",
-                "error")
-    msg, tone = _gemi_status_message(status)
-    return _render_gemi_block(request, gemi_row, url, msg, tone)
-
-
-@app.post("/authority/{org_id}/gemi-refresh", response_class=HTMLResponse)
-def authority_gemi_refresh(org_id: str, request: Request):
-    url = f"/authority/{org_id}/gemi-refresh"
-    with cursor() as c:
-        c.execute("SELECT vat_number FROM proc.authority WHERE org_id=%s",
-                  (org_id,))
-        row = c.fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="authority not found")
-        if not row["vat_number"]:
-            return _render_gemi_block(
-                request, None, url,
-                "Η αναθέτουσα δεν έχει καταχωρημένο ΑΦΜ.", "error")
-        try:
-            status, gemi_row = _refetch_gemi(c, row["vat_number"])
         except RuntimeError:
             return _render_gemi_block(
                 request, None, url,
