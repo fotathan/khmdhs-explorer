@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "cd frontend && npx vite --host",
-    "build": "cd frontend && npx tsc -b && npx vite build",
-    "preview": "cd frontend && npx vite preview"
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "preview": "npm --prefix frontend run preview"
   }
 }
