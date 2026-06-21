@@ -1,0 +1,156 @@
+{% extends "beta_base.html" %}
+{% block title %}KHMDHS · Εξερευνητής{% endblock %}
+{% block content %}
+<form id="filters" hx-get="/" hx-target="#results" hx-trigger="change, submit"
+      hx-push-url="true" hx-indicator="#busy">
+
+<div class="hero">
+  <div class="hero-in">
+    <div class="searchbar">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="text" name="q" value="{{ params.q or '' }}" placeholder="Αναζήτηση σε τίτλους, αναθέτουσες, αναδόχους, ΑΔΑΜ…">
+      <button class="go" type="submit">Αναζήτηση</button>
+    </div>
+    <div class="hero-meta">
+      <span>βρέθηκαν <b id="hero-count">{{ "{:,}".format(total_count).replace(",", ".") }}</b> πράξεις</span>
+      <span id="busy" class="htmx-indicator">ανανέωση…</span>
+    </div>
+  </div>
+</div>
+
+<main>
+  <div class="layout">
+
+    <aside class="filters">
+      <div class="filters-head">
+        <h2>Φίλτρα</h2>
+        <a href="/">καθαρισμός</a>
+      </div>
+
+      {% set sel_types = request.query_params.getlist('type') %}
+      <div class="fgroup">
+        <div class="fgroup-h">Τύπος πράξης</div>
+        <div class="chips">
+          {% for code in TYPE_FILTER_ORDER %}
+          <label class="chip {% if code in sel_types %}on{% endif %}">
+            <input type="checkbox" name="type" value="{{ code }}" {% if code in sel_types %}checked{% endif %}>{{ TYPE_LABELS[code] }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% set sel_auth = request.query_params.getlist('authority') %}
+      <div class="fgroup">
+        <div class="fgroup-h">Αναθέτουσα αρχή</div>
+        <div class="auth-picker">
+          <select name="authority" class="auth-sel">
+            <option value="">— όλες —</option>
+            {% for a in lk.authorities %}
+            <option value="{{ a.id }}" {% if a.id in sel_auth %}selected{% endif %}>{{ a.name }} ({{ a.n }})</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      {% set sel_ct = request.query_params.getlist('contract_type') %}
+      <div class="fgroup">
+        <div class="fgroup-h">Είδος σύμβασης</div>
+        <div class="chips">
+          {% for c in lk.contract_types %}
+          <label class="chip {% if c.code in sel_ct %}on{% endif %}">
+            <input type="checkbox" name="contract_type" value="{{ c.code }}" {% if c.code in sel_ct %}checked{% endif %}>{{ c.label }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% set sel_pt = request.query_params.getlist('procedure_type') %}
+      <div class="fgroup">
+        <div class="fgroup-h">Τύπος διαδικασίας</div>
+        <div class="chips">
+          {% for p in lk.procedure_types %}
+          <label class="chip {% if p.code in sel_pt %}on{% endif %}">
+            <input type="checkbox" name="procedure_type" value="{{ p.code }}" {% if p.code in sel_pt %}checked{% endif %}>{{ p.label }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% set sel_nuts = request.query_params.getlist('nuts') %}
+      <div class="fgroup">
+        <div class="fgroup-h">Γεωγραφία — Περιφέρεια</div>
+        <div class="chips">
+          {% for r in nuts_regions %}
+          <label class="chip {% if r.code in sel_nuts %}on{% endif %}" title="{{ r.code }}">
+            <input type="checkbox" name="nuts" value="{{ r.code }}" {% if r.code in sel_nuts %}checked{% endif %}>{{ r.label }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="fgroup">
+        <div class="fgroup-h">Εκτιμώμενη αξία / προϋπολογισμός (€)</div>
+        <div class="frow-2">
+          <input type="text" name="value_min" value="{{ params.value_min or '' }}" placeholder="από">
+          <input type="text" name="value_max" value="{{ params.value_max or '' }}" placeholder="έως">
+        </div>
+      </div>
+
+      <div class="fgroup">
+        <div class="fgroup-h">Ημ/νία δημοσίευσης</div>
+        <div class="frow-2">
+          <input type="date" name="date_from" value="{{ params.date_from or '' }}">
+          <input type="date" name="date_to" value="{{ params.date_to or '' }}">
+        </div>
+      </div>
+
+      <div class="fgroup">
+        <div class="fgroup-h">Καταληκτική ημ/νία (λήξη)</div>
+        <div class="frow-2">
+          <input type="date" name="deadline_from" value="{{ params.deadline_from or '' }}">
+          <input type="date" name="deadline_to" value="{{ params.deadline_to or '' }}">
+        </div>
+      </div>
+    </aside>
+
+    <section>
+      <div class="results-bar">
+        <div class="results-count">
+          <b id="rb-count">{{ "{:,}".format(total_count).replace(",", ".") }}</b> πράξεις
+          <span class="val" id="rb-value">συνολική αξία € {{ "{:,.0f}".format(total_value).replace(",", ".") }}</span>
+        </div>
+        <div style="display:flex;gap:18px;align-items:center;">
+          <div class="sort-sel">ανά σελίδα
+            <select name="per_page" form="filters">
+              {% for n in [10,5,20,50] %}<option value="{{ n }}" {% if per_page==n %}selected{% endif %}>{{ n }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="sort-sel">ταξινόμηση
+            <select name="sort">
+              <option value="" {% if not params.sort %}selected{% endif %}>Νεότερες πρώτα</option>
+              <option value="value" {% if params.sort=='value' %}selected{% endif %}>Αξία ↓</option>
+              <option value="relevance" {% if params.sort=='relevance' %}selected{% endif %}>Σχετικότητα</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div id="results">
+        {% include "beta_results.html" %}
+      </div>
+    </section>
+  </div>
+</main>
+</form>
+{% endblock %}
+{% block body_end %}
+<script>
+  // Toggle the .on class on a chip label when its checkbox changes, so the
+  // visual state follows selection without a server round-trip for the styling.
+  document.addEventListener('change', function(e){
+    if(e.target.matches('.chip input[type=checkbox]')){
+      e.target.closest('.chip').classList.toggle('on', e.target.checked);
+    }
+  });
+</script>
+{% endblock %}

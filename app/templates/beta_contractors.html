@@ -1,0 +1,32 @@
+{% extends "beta_base.html" %}
+{% block title %}Ανάδοχοι · Εξερευνητής{% endblock %}
+{% block content %}
+<main>
+  <div class="page-head">
+    <h1>Ανάδοχοι / Προμηθευτές</h1>
+    <div class="sub"><b id="rec-count">{{ "{:,}".format(total).replace(",", ".") }}</b> εγγραφές</div>
+  </div>
+
+  <form id="filters" hx-get="/contractors" hx-target="#results"
+        hx-trigger="submit, change from:select" hx-push-url="true">
+    <div class="toolbar">
+      <div class="searchbar" style="max-width:480px;flex:1;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" name="q" value="{{ q }}" placeholder="Αναζήτηση ονόματος ή ΑΦΜ…">
+        <button class="go" type="submit">Αναζήτηση</button>
+      </div>
+      <div class="sort-sel">ταξινόμηση
+        <select name="sort">
+          <option value="activity" {% if sort=='activity' %}selected{% endif %}>Δραστηριότητα ↓</option>
+          <option value="name" {% if sort=='name' %}selected{% endif %}>Όνομα Α–Ω</option>
+          <option value="name_desc" {% if sort=='name_desc' %}selected{% endif %}>Όνομα Ω–Α</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="results">
+      {% include "beta_contractors_results.html" %}
+    </div>
+  </form>
+</main>
+{% endblock %}

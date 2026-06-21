@@ -1,0 +1,148 @@
+{% extends "beta_base.html" %}
+{% block title %}{{ op.name }} · Ανάδοχος{% endblock %}
+{% block content %}
+<main>
+  <a class="back-link" href="/contractors" hx-boost="false">‹ πίσω στους αναδόχους</a>
+
+  <div class="detail-head">
+    <div class="detail-kicker">Ανάδοχος / Προμηθευτής</div>
+    {% with kind='contractor', ident=op.vat_number, name=op.name, editing=False, edited=False %}
+      {% include "_editable_name.html" %}
+    {% endwith %}
+    <div class="detail-sub">
+      <span>ΑΦΜ <code>{{ op.vat_number }}</code></span>
+      {% if not op.is_greek_vat and op.country %}<span>{{ op.country }}</span>{% endif %}
+    </div>
+    {% if merge_info %}
+    <div class="merge-note">
+      Συγχωνευμένη οντότητα — {{ merge_info.n }} ΑΦΜ:
+      {% for m in merge_info.members %}<code>{{ m.vat }}</code>{% if not loop.last %} · {% endif %}{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="stat-row">
+    <div class="stat-box">
+      <div class="num">{{ "{:,}".format(grand_total).replace(",", ".") }}</div>
+      <div class="lbl">σύνολο πράξεων</div>
+    </div>
+    <div class="stat-box">
+      <div class="num">€ {{ "{:,.0f}".format(grand_value).replace(",", ".") }}</div>
+      <div class="lbl">αξία συμβάσεων</div>
+    </div>
+  </div>
+
+  {# ΓΕΜΗ registry enrichment — self-contained partial with its own refresh button. #}
+  <div class="panel">
+    {% include "_gemi_block.html" %}
+  </div>
+
+  <div class="panel">
+    <h3 class="panel-h">Σύνολα ανά τύπο πράξης</h3>
+    <table class="dtable">
+      <thead>
+        <tr><th>Τύπος</th><th class="val">Πράξεις</th><th class="val">Αξία</th></tr>
+      </thead>
+      <tbody>
+        {% for r in by_type %}
+        <tr>
+          <td>{{ r.type | type_label }}</td>
+          <td class="val">{{ "{:,}".format(r.n).replace(",", ".") }}</td>
+          <td class="val">{% if r.total_value %}€ {{ "{:,.0f}".format(r.total_value).replace(",", ".") }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+          <td>Σύνολο</td>
+          <td class="val">{{ "{:,}".format(grand_total).replace(",", ".") }}</td>
+          <td class="val">€ {{ "{:,.0f}".format(grand_value).replace(",", ".") }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h3 class="panel-h">Κορυφαίες αναθέτουσες (πελάτες)</h3>
+    {% if top_buyers %}
+    <table class="dtable">
+      <thead>
+        <tr><th>Αναθέτουσα</th><th class="val">Συμβάσεις</th><th class="val">Αξία</th></tr>
+      </thead>
+      <tbody>
+        {% for r in top_buyers %}
+        <tr>
+          <td>{% if r.org_id %}<a href="/authority/{{ r.org_id }}">{{ r.name or '—' }}</a>{% else %}{{ r.name or '—' }}{% endif %}</td>
+          <td class="val">{{ r.n_acts }}</td>
+          <td class="val">{% if r.total_value %}€ {{ "{:,.0f}".format(r.total_value).replace(",", ".") }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">Δεν υπάρχουν συμβάσεις.</div>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <h3 class="panel-h">Πράξεις</h3>
+    {% if acts %}
+    <table class="dtable">
+      <thead>
+        <tr><th>ΑΔΑΜ</th><th>Τίτλος / Αναθέτουσα</th><th>Τύπος</th><th>Ημ/νία</th><th class="val">Αξία</th></tr>
+      </thead>
+      <tbody>
+        {% for r in acts %}
+        <tr>
+          <td><span class="adam">{{ r.adam }}</span></td>
+          <td>
+            <a href="/act/{{ r.adam }}">{{ r.title or '—' }}</a>
+            {% if r.authority_name %}<div style="font-size:12px;color:var(--ink-3);margin-top:2px;">{% if r.authority_id %}<a href="/authority/{{ r.authority_id }}" style="color:var(--ink-2);">{{ r.authority_name }}</a>{% else %}{{ r.authority_name }}{% endif %}</div>{% endif %}
+            {% if r.cancelled %}<span class="pill cancel">ακυρωμένη</span>{% endif %}
+          </td>
+          <td style="color:var(--ink-3);">{{ r.type | type_label }}</td>
+          <td style="color:var(--ink-3);">{{ r.submission_date.strftime('%d/%m/%Y') if r.submission_date else (r.signed_date.strftime('%d/%m/%Y') if r.signed_date else '—') }}</td>
+          <td class="val">
+            {% set v = r.awarded_value_with_vat if r.awarded_value_with_vat is not none else r.resolved_value %}
+            {% if v is not none %}€ {{ "{:,.0f}".format(v).replace(",", ".") }}{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="pager">
+      {% if page > 1 %}<a href="/contractor/{{ op.vat_number }}?page={{ page-1 }}">‹ προηγ.</a>{% else %}<span class="disabled">‹ προηγ.</span>{% endif %}
+      <span class="cur">{{ page }}</span>
+      <span style="border:0;background:transparent;color:var(--ink-3);">από {{ total_pages }}</span>
+      {% if page < total_pages %}<a href="/contractor/{{ op.vat_number }}?page={{ page+1 }}">επόμ. ›</a>{% else %}<span class="disabled">επόμ. ›</span>{% endif %}
+    </div>
+    {% else %}
+    <div class="empty">Καμία πράξη.</div>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <h3 class="panel-h">Κορυφαία αντικείμενα (CPV)</h3>
+    {% if top_cpv %}
+    <table class="dtable">
+      <thead>
+        <tr><th>Κατηγορία CPV</th><th class="val">Συμβάσεις</th><th class="val">Αξία</th></tr>
+      </thead>
+      <tbody>
+        {% for r in top_cpv %}
+        <tr>
+          <td>
+            <code class="adam">{{ r.division }}</code>
+            {% if r.label %}<div style="font-size:12px;color:var(--ink-2);margin-top:2px;">{{ r.label }}</div>{% endif %}
+          </td>
+          <td class="val">{{ r.n_acts }}</td>
+          <td class="val">{% if r.total_value %}€ {{ "{:,.0f}".format(r.total_value).replace(",", ".") }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p style="font-size:11.5px;color:var(--ink-3);margin-top:10px;">Πρόθεμα 2 ψηφίων CPV (επίπεδο division) · μόνο συμβάσεις.</p>
+    {% else %}
+    <div class="empty">Δεν υπάρχουν δεδομένα CPV.</div>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}

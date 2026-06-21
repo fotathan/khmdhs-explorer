@@ -114,6 +114,28 @@ TYPE_LABELS = {
 # uniform. The label for the "all types" option is also defined once here.
 TYPE_FILTER_ORDER = ["notice", "auction", "contract", "payment"]
 TYPE_ALL_LABEL = "Όλες οι πράξεις"
+
+# Curated NUTS-2 regions (περιφέρειες) for the geography filter. The data has
+# codes at mixed depths (EL, EL3, EL303, EL522…); showing them all is unusable.
+# Because the NUTS filter does PREFIX matching, a region code like 'EL52' also
+# catches EL521/EL522/… beneath it. These 13 are the standard Greek περιφέρειες
+# plus a whole-country option, with stable official names — not derived from the
+# messy data, so they're always clean and correct.
+NUTS_REGIONS = [
+    {"code": "EL30", "label": "Αττική"},
+    {"code": "EL51", "label": "Αν. Μακεδονία & Θράκη"},
+    {"code": "EL52", "label": "Κεντρική Μακεδονία"},
+    {"code": "EL53", "label": "Δυτική Μακεδονία"},
+    {"code": "EL54", "label": "Ήπειρος"},
+    {"code": "EL61", "label": "Θεσσαλία"},
+    {"code": "EL62", "label": "Ιόνια Νησιά"},
+    {"code": "EL63", "label": "Δυτική Ελλάδα"},
+    {"code": "EL64", "label": "Στερεά Ελλάδα"},
+    {"code": "EL65", "label": "Πελοπόννησος"},
+    {"code": "EL41", "label": "Βόρειο Αιγαίο"},
+    {"code": "EL42", "label": "Νότιο Αιγαίο"},
+    {"code": "EL43", "label": "Κρήτη"},
+]
 templates.env.globals["TYPE_FILTER_ORDER"] = TYPE_FILTER_ORDER
 templates.env.globals["TYPE_ALL_LABEL"] = TYPE_ALL_LABEL
 # Contract types (contractType) — the kind of object procured.
@@ -781,7 +803,7 @@ def analytics(request: Request):
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request,
          page: int = Query(1, ge=1),
-         per_page: int = Query(25, ge=1, le=100)):
+         per_page: int = Query(10, ge=1, le=100)):
     """Main search page — dual mode.
 
     * Normal browser navigation (or reload): returns the full index.html page
@@ -825,11 +847,13 @@ def home(request: Request,
     }
     if request.headers.get("hx-request") == "true":
         # HTMX fragment swap — partial only.
-        return templates.TemplateResponse(request, "_results.html", ctx)
+        return templates.TemplateResponse(request, "beta_results.html", ctx)
     # Full page render. The template inlines the partial so the first paint
     # already has results — no second roundtrip from a hx-trigger='load'.
     ctx["lk"] = lookups()
-    return templates.TemplateResponse(request, "index.html", ctx)
+    ctx["nuts_regions"] = NUTS_REGIONS
+    ctx["nav_active"] = "search"
+    return templates.TemplateResponse(request, "beta_index.html", ctx)
 
 
 def _params_from(request: Request) -> dict:
@@ -1121,15 +1145,18 @@ def act_detail(adam: str, request: Request):
             excluded_reason = "flagged"
 
     return templates.TemplateResponse(
-        request, "notice.html",
+        request, "beta_act.html",
         {"n": notice,
          "line_items": line_items,
          "operators": operators,
          "downstream": downstream,
          "incoming": incoming,
          "annotation": annotation,
-         "excluded_reason": excluded_reason},
+         "excluded_reason": excluded_reason,
+         "nav_active": "search"},
     )
+
+
 
 
 # ---------------------------------------------------------------------------- #
@@ -1248,10 +1275,12 @@ def authority_index(request: Request,
         rows = c.fetchall()
 
     total_pages = max(1, (total + per_page - 1) // per_page)
-    return templates.TemplateResponse(
-        request, "authorities_index.html",
-        {"rows": rows, "q": q, "sort": sort, "total": total,
-         "page": page, "per_page": per_page, "total_pages": total_pages})
+    ctx = {"rows": rows, "q": q, "sort": sort, "total": total,
+           "page": page, "per_page": per_page, "total_pages": total_pages,
+           "nav_active": "authorities"}
+    if request.headers.get("hx-request") == "true":
+        return templates.TemplateResponse(request, "beta_authorities_results.html", ctx)
+    return templates.TemplateResponse(request, "beta_authorities.html", ctx)
 
 
 @app.get("/contractors", response_class=HTMLResponse)
@@ -1335,10 +1364,12 @@ def contractor_index(request: Request,
         rows = c.fetchall()
 
     total_pages = max(1, (total + per_page - 1) // per_page)
-    return templates.TemplateResponse(
-        request, "contractors_index.html",
-        {"rows": rows, "q": q, "sort": sort, "total": total,
-         "page": page, "per_page": per_page, "total_pages": total_pages})
+    ctx = {"rows": rows, "q": q, "sort": sort, "total": total,
+           "page": page, "per_page": per_page, "total_pages": total_pages,
+           "nav_active": "contractors"}
+    if request.headers.get("hx-request") == "true":
+        return templates.TemplateResponse(request, "beta_contractors_results.html", ctx)
+    return templates.TemplateResponse(request, "beta_contractors.html", ctx)
 
 
 # ---------------------------------------------------------------------------- #
@@ -1461,11 +1492,12 @@ def authority_detail(org_id: str, request: Request,
                       for r in by_type if r["type"] == "contract")
 
     return templates.TemplateResponse(
-        request, "authority.html",
+        request, "beta_authority.html",
         {"a": auth, "by_type": by_type, "top_cpv": top_cpv,
          "acts": acts, "total": total, "type_filter": type, "merge_info": merge_info,
          "grand_total": grand_total, "grand_value": grand_value,
-         "page": page, "per_page": per_page, "total_pages": total_pages},
+         "page": page, "per_page": per_page, "total_pages": total_pages,
+         "nav_active": "authorities"},
     )
 
 
@@ -1636,14 +1668,15 @@ def contractor_detail(vat: str, request: Request,
                       for r in by_type if r["type"] == "contract")
 
     return templates.TemplateResponse(
-        request, "contractor.html",
+        request, "beta_contractor.html",
         {"op": op, "by_type": by_type, "top_buyers": top_buyers,
          "top_cpv": top_cpv,
          "acts": acts, "total": total, "merge_info": merge_info,
          "gemi": gemi,
          "gemi_refresh_url": f"/contractor/{op['vat_number']}/gemi-refresh",
          "grand_total": grand_total, "grand_value": grand_value,
-         "page": page, "per_page": per_page, "total_pages": total_pages},
+         "page": page, "per_page": per_page, "total_pages": total_pages,
+         "nav_active": "contractors"},
     )
 
 
