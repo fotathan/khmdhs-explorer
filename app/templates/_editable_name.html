@@ -1,0 +1,36 @@
+{# _editable_name.html — detail-page H1 with an inline edit affordance.
+   Context: kind ('contractor'|'authority'), ident (vat or org_id), name,
+            editing (bool), edited (bool just-saved flag).
+   Wrapped in #entity-name so the GET form / POST save can swap it. Behind the
+   app's BasicAuth, so the pencil only appears to authenticated curators anyway;
+   we still only render it when editing isn't active. #}
+<div id="entity-name">
+{% if editing %}
+  <form class="name-edit-form" style="margin:0;"
+        hx-post="/{{ kind }}/{{ ident }}/name-edit"
+        hx-target="#entity-name" hx-swap="outerHTML">
+    <div style="display:flex; gap:8px; align-items:flex-start; flex-wrap:wrap;">
+      <input type="text" name="name" value="{{ name }}" autofocus
+             style="flex:1; min-width:280px; font-family:var(--serif); font-size:22px;
+                    padding:6px 10px; border:1px solid var(--accent); border-radius:6px;">
+      <button type="submit" class="tt-btn" style="font-size:13px;">Αποθήκευση</button>
+      <button type="button" class="tt-btn tt-secondary" style="font-size:13px;"
+              hx-get="/{{ kind }}/{{ ident }}/name-cancel"
+              hx-target="#entity-name" hx-swap="outerHTML">Άκυρο</button>
+    </div>
+    <div class="meta" style="margin-top:4px; font-size:11px; color:var(--ink-3);">
+      Η διόρθωση αντικαθιστά το όνομα· το αρχικό διατηρείται για ασφάλεια.
+    </div>
+  </form>
+{% else %}
+  <h1 class="detail-title" style="display:flex; align-items:center; gap:10px;">
+    <span>{{ name }}</span>
+    <button type="button" title="Επεξεργασία ονόματος"
+            hx-get="/{{ kind }}/{{ ident }}/name-edit"
+            hx-target="#entity-name" hx-swap="outerHTML"
+            style="border:0; background:transparent; cursor:pointer; font-size:14px;
+                   color:var(--ink-3); padding:2px 4px; line-height:1;">✎</button>
+    {% if edited %}<span class="meta" style="font-size:11px; color:var(--ok);">αποθηκεύτηκε</span>{% endif %}
+  </h1>
+{% endif %}
+</div>

@@ -6,7 +6,7 @@
 
 <div class="detail-h">
   <div class="kicker">Αναθέτουσα αρχή · {{ a.org_id }}</div>
-  <h1 class="detail-title">{{ a.name }}</h1>
+  {% with kind='authority', ident=a.org_id, name=a.name, editing=False, edited=False %}{% include "_editable_name.html" %}{% endwith %}
   <div class="detail-sub">
     {% if a.vat_number %}ΑΦΜ <code style="font-family:var(--mono);">{{ a.vat_number }}</code>{% endif %}
     {% if a.nuts_code %} · NUTS {{ a.nuts_code }}{% endif %}

@@ -6,7 +6,7 @@
 
 <div class="detail-h">
   <div class="kicker">Ανάδοχος / Προμηθευτής · ΑΦΜ {{ op.vat_number or '—' }}</div>
-  <h1 class="detail-title">{{ op.name }}</h1>
+  {% with kind='contractor', ident=op.vat_number, name=op.name, editing=False, edited=False %}{% include "_editable_name.html" %}{% endwith %}
   <div class="detail-sub">
     {% if op.is_greek_vat %}Ελληνικός ΑΦΜ{% else %}{% if op.country %}{{ op.country }}{% else %}Αλλοδαπός{% endif %}{% endif %}
     {% if op.first_seen %} · πρώτη εμφάνιση {{ op.first_seen.strftime('%Y-%m-%d') }}{% endif %}

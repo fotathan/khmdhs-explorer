@@ -33,7 +33,7 @@ from typing import Optional
 
 import psycopg
 from psycopg.rows import dict_row
-from fastapi import FastAPI, Request, Query, HTTPException
+from fastapi import FastAPI, Request, Query, HTTPException, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -1704,6 +1704,27 @@ def contractor_gemi_refresh(vat: str, request: Request):
     return _render_gemi_block(request, gemi_row, url, msg, tone)
 
 
+@app.get("/contractor/{vat}/name-cancel", response_class=HTMLResponse)
+def contractor_name_cancel(vat: str, request: Request):
+    with cursor() as c:
+        c.execute("SELECT name FROM proc.economic_operator WHERE vat_number=%s",
+                  (vat,))
+        row = c.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="contractor not found")
+    return _name_heading(request, "contractor", vat, row["name"])
+
+
+@app.get("/authority/{org_id}/name-cancel", response_class=HTMLResponse)
+def authority_name_cancel(org_id: str, request: Request):
+    with cursor() as c:
+        c.execute("SELECT name FROM proc.authority WHERE org_id=%s", (org_id,))
+        row = c.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="authority not found")
+    return _name_heading(request, "authority", org_id, row["name"])
+
+
 def _gemi_status_message(status: str) -> tuple[str, str]:
     return {
         "ok":        ("Τα στοιχεία ΓΕΜΗ ενημερώθηκαν.", "ok"),
@@ -1712,3 +1733,90 @@ def _gemi_status_message(status: str) -> tuple[str, str]:
         "bad_afm":   ("Μη έγκυρος ΑΦΜ — δεν έγινε αναζήτηση.", "error"),
         "error":     ("Σφάλμα κατά την επικοινωνία με το ΓΕΜΗ — δοκιμάστε ξανά.", "error"),
     }.get(status, ("", "ok"))
+
+
+# ---------------------------------------------------------------------------- #
+# Editable entity names (admin-only via app-wide BasicAuth). Curators can
+# correct garbled / wrong names. The edit overwrites `name`; the first edit
+# snapshots the original ingested value into name_original (recoverable). The
+# heading on the detail page is an HTMX-swappable fragment: a pencil reveals an
+# inline form, submit swaps the heading back with the new name.
+#
+# NOTE on future roles: these routes sit behind the same BasicAuth as the rest
+# of the app, so they're curator-only today. When real ADMIN/curator roles
+# arrive, gate THESE routes (and the gemi-refresh routes) behind the new
+# permission check — the templates/logic don't change, only the gate.
+# ---------------------------------------------------------------------------- #
+def _name_heading(request: Request, kind: str, ident: str, name: str,
+                  editing: bool = False, edited: bool = False):
+    """Render the editable-name heading fragment. kind is 'contractor' or
+    'authority'; ident is the URL id (vat or org_id)."""
+    return templates.TemplateResponse(
+        request, "_editable_name.html",
+        {"kind": kind, "ident": ident, "name": name,
+         "editing": editing, "edited": edited},
+    )
+
+
+@app.get("/contractor/{vat}/name-edit", response_class=HTMLResponse)
+def contractor_name_form(vat: str, request: Request):
+    with cursor() as c:
+        c.execute("SELECT name FROM proc.economic_operator WHERE vat_number=%s",
+                  (vat,))
+        row = c.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="contractor not found")
+    return _name_heading(request, "contractor", vat, row["name"], editing=True)
+
+
+@app.post("/contractor/{vat}/name-edit", response_class=HTMLResponse)
+def contractor_name_save(vat: str, request: Request, name: str = Form(...)):
+    new = (name or "").strip()
+    with cursor() as c:
+        c.execute("SELECT name FROM proc.economic_operator WHERE vat_number=%s",
+                  (vat,))
+        row = c.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="contractor not found")
+        if not new:
+            # empty submission → just re-show current name, no change
+            return _name_heading(request, "contractor", vat, row["name"])
+        # snapshot original only on the first edit (name_original still NULL)
+        c.execute("""UPDATE proc.economic_operator
+                     SET name_original = COALESCE(name_original, name),
+                         name = %s,
+                         name_edited_at = now()
+                     WHERE vat_number = %s
+                     RETURNING name""", (new, vat))
+        saved = c.fetchone()["name"]
+    return _name_heading(request, "contractor", vat, saved, edited=True)
+
+
+@app.get("/authority/{org_id}/name-edit", response_class=HTMLResponse)
+def authority_name_form(org_id: str, request: Request):
+    with cursor() as c:
+        c.execute("SELECT name FROM proc.authority WHERE org_id=%s", (org_id,))
+        row = c.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="authority not found")
+    return _name_heading(request, "authority", org_id, row["name"], editing=True)
+
+
+@app.post("/authority/{org_id}/name-edit", response_class=HTMLResponse)
+def authority_name_save(org_id: str, request: Request, name: str = Form(...)):
+    new = (name or "").strip()
+    with cursor() as c:
+        c.execute("SELECT name FROM proc.authority WHERE org_id=%s", (org_id,))
+        row = c.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="authority not found")
+        if not new:
+            return _name_heading(request, "authority", org_id, row["name"])
+        c.execute("""UPDATE proc.authority
+                     SET name_original = COALESCE(name_original, name),
+                         name = %s,
+                         name_edited_at = now()
+                     WHERE org_id = %s
+                     RETURNING name""", (new, org_id))
+        saved = c.fetchone()["name"]
+    return _name_heading(request, "authority", org_id, saved, edited=True)
