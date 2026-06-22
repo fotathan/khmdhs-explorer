@@ -659,14 +659,25 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
 
     @router.get("/merge/{kind}", response_class=HTMLResponse)
     def merge_home(kind: str, request: Request,
-                   q: str = Query(""), focus: str = Query("")):
+                   q: str = Query(""), focus: str = Query(""),
+                   sort: str = Query("name"),
+                   page: int = Query(1, ge=1),
+                   per_page: int = Query(100, ge=1, le=500)):
         cfg = _kind_cfg(kind)
         key, name = cfg["key"], cfg["name"]
         join_tbl, join_cnt = cfg["join"]
         q = q.strip()
         candidates = []
+        total = 0
+        # Sort options — name (best for spotting duplicates) is the default;
+        # activity surfaces the biggest entities first.
+        order = {"name": f"t.{name} ASC",
+                 "name_desc": f"t.{name} DESC",
+                 "activity": "n_acts DESC NULLS LAST"}.get(sort, f"t.{name} ASC")
+        offset = (page - 1) * per_page
         with cursor() as c:
             if q:
+                # SEARCH MODE — matching records, ranked by activity, capped.
                 c.execute(f"""
                     SELECT t.{key} AS key, t.{name} AS name,
                            count({join_cnt}) AS n_acts,
@@ -679,9 +690,27 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                           LIKE translate(proc.f_unaccent(lower(%s)),'ς','σ')
                        OR t.{key} ILIKE %s
                     GROUP BY t.{key}, t.{name}
-                    ORDER BY n_acts DESC
-                    LIMIT 50
+                    ORDER BY {order}
+                    LIMIT 100
                 """, (kind, f"%{q}%", f"%{q}%"))
+                candidates = c.fetchall()
+            else:
+                # BROWSE MODE — the full entity list, paginated and sortable, so
+                # duplicates can be discovered without knowing what to search.
+                c.execute(f"SELECT count(*) AS n FROM {cfg['table']}")
+                total = c.fetchone()["n"]
+                c.execute(f"""
+                    SELECT t.{key} AS key, t.{name} AS name,
+                           count({join_cnt}) AS n_acts,
+                           (SELECT g.id FROM proc.entity_member m
+                              JOIN proc.entity_group g ON g.id=m.group_id
+                              WHERE m.kind=%s AND m.member_key=t.{key}) AS group_id
+                    FROM {cfg['table']} t
+                    LEFT JOIN {join_tbl}
+                    GROUP BY t.{key}, t.{name}
+                    ORDER BY {order}
+                    LIMIT %s OFFSET %s
+                """, (kind, per_page, offset))
                 candidates = c.fetchall()
             # Existing groups for this kind.
             c.execute("""
@@ -703,10 +732,13 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                           (g["members"],))
                 gname[g["id"]] = {r["key"]: r["name"] for r in c.fetchall()}
 
+        total_pages = max(1, (total + per_page - 1) // per_page) if not q else 1
         return templates.TemplateResponse(
             request, "admin_merge.html",
             {"kind": kind, "label": cfg["label"], "q": q, "focus": focus,
-             "candidates": candidates, "groups": groups, "gname": gname})
+             "candidates": candidates, "groups": groups, "gname": gname,
+             "sort": sort, "page": page, "per_page": per_page,
+             "total": total, "total_pages": total_pages, "browse": not q})
 
     @router.post("/merge/{kind}/create")
     def merge_create(kind: str,

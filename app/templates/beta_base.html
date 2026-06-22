@@ -175,7 +175,7 @@
   .dtable th{text-align:left;font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);font-weight:500;padding:0 10px 8px;border-bottom:1px solid var(--rule-2);}
   .dtable td{padding:9px 10px;border-bottom:1px solid var(--rule-2);vertical-align:top;}
   .dtable tr:last-child td{border-bottom:0;}
-  .dtable .val{text-align:right;font-variant-numeric:tabular-nums;}
+  .dtable .val{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
   .dtable .total-row td{font-weight:700;border-top:2px solid var(--rule);border-bottom:0;}
   .type-tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px;}
   .type-tab{font-size:12.5px;padding:5px 12px;border-radius:999px;border:1px solid var(--rule);color:var(--ink-2);cursor:pointer;}
@@ -240,7 +240,8 @@
         <a href="/" {% if nav_active=='search' %}class="on"{% endif %}>Πράξεις</a>
         <a href="/authorities" {% if nav_active=='authorities' %}class="on"{% endif %}>Αναθέτουσες</a>
         <a href="/contractors" {% if nav_active=='contractors' %}class="on"{% endif %}>Ανάδοχοι</a>
-        <a href="/analytics">Στατιστικά</a>
+        <a href="/explore" {% if nav_active=='explore' %}class="on"{% endif %}>Σύνοψη</a>
+        <a href="/analytics" {% if nav_active=='analytics' %}class="on"{% endif %}>Στατιστικά</a>
       </nav>
     </div>
   </div>

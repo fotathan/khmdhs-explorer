@@ -1,0 +1,54 @@
+<script>
+  // OOB: refresh the summary counters (outside #explore-results) on every swap.
+  (function(){
+    var n="{{ '{:,}'.format(grand.n).replace(',', '.') }}";
+    var v="{% if grand.value %}€ {{ '{:,.0f}'.format(grand.value).replace(',', '.') }}{% else %}—{% endif %}";
+    var en=document.getElementById('ex-count'); if(en) en.textContent=n;
+    var ev=document.getElementById('ex-value'); if(ev) ev.textContent=v;
+  })();
+</script>
+
+<div class="act-grid" style="grid-template-columns:1fr 1fr;">
+  <div class="panel" style="margin-bottom:0;">
+    <h3 class="panel-h">Ανά αναθέτουσα αρχή</h3>
+    {% if by_authority %}
+    <table class="dtable">
+      <thead><tr><th>Αρχή</th><th class="val">Πράξεις</th><th class="val">Αξία</th></tr></thead>
+      <tbody>
+        {% for a in by_authority %}
+        <tr>
+          <td><a href="/authority/{{ a.key }}">{{ a.name or a.key }}</a></td>
+          <td class="val">{{ "{:,}".format(a.n).replace(",",".") }}</td>
+          <td class="val">{% if a.value %}€ {{ "{:,.0f}".format(a.value).replace(",",".") }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty">Καμία αρχή για αυτά τα φίλτρα.</div>{% endif %}
+  </div>
+
+  <div class="panel" style="margin-bottom:0;">
+    <h3 class="panel-h">Ανά ανάδοχο</h3>
+    {% if by_contractor %}
+    <table class="dtable">
+      <thead><tr><th>Ανάδοχος</th><th class="val">Συμβ.</th><th class="val">Αξία</th></tr></thead>
+      <tbody>
+        {% for c in by_contractor %}
+        <tr>
+          <td>
+            <a href="/contractor/{{ c.key }}">{{ c.name or c.key }}</a>
+            {% if c.is_merged %}<span class="merge-badge">συγχ.</span>{% endif %}
+          </td>
+          <td class="val">{{ "{:,}".format(c.n).replace(",",".") }}</td>
+          <td class="val">{% if c.value %}€ {{ "{:,.0f}".format(c.value).replace(",",".") }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty">Κανένας ανάδοχος για αυτά τα φίλτρα (η ανάλυση αφορά συμβάσεις με νικητή).</div>{% endif %}
+  </div>
+</div>
+
+<p style="font-size:11.5px;color:var(--ink-3);margin-top:14px;">
+  Κορυφαίοι 100 ανά κατηγορία. Οι αξίες αναδόχων χρησιμοποιούν το ποσό ανάθεσης ανά οικονομικό φορέα όπου υπάρχει.
+</p>

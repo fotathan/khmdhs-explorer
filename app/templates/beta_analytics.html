@@ -1,0 +1,124 @@
+{% extends "beta_base.html" %}
+{% block title %}Στατιστικά · Εξερευνητής{% endblock %}
+{% block content %}
+<main>
+  <div class="page-head">
+    <h1>Επισκόπηση αναθέσεων</h1>
+    <div class="sub">Αξία <strong>αναθέσεων</strong> από <em>συμβάσεις</em> μόνο (όχι πληρωμές, όχι ακυρωμένες), με ενοποιημένες τις διπλότυπες οντότητες. Τα ποσά δεν διπλομετρώνται.</div>
+  </div>
+
+  {% if not available %}
+  <div class="panel">
+    <p style="margin:0 0 8px;">Τα στατιστικά δεν έχουν δημιουργηθεί ακόμη. Εκτελέστε μία φορά:</p>
+    <pre class="full-text-pre">psql "$REMOTE" -f analytics_migration.sql
+psql "$REMOTE" -c "SELECT proc.refresh_analytics();"</pre>
+  </div>
+  {% else %}
+
+  <div class="stat-row">
+    <div class="stat-box">
+      <div class="num">€ {{ "{:,.0f}".format(totals.awarded_value).replace(",", ".") }}</div>
+      <div class="lbl">συνολική αξία αναθέσεων</div>
+    </div>
+    <div class="stat-box">
+      <div class="num">{{ "{:,}".format(totals.n_contracts).replace(",", ".") }}</div>
+      <div class="lbl">συμβάσεις</div>
+    </div>
+    <div class="stat-box">
+      <div class="num">{{ "{:,}".format(totals.n_authorities).replace(",", ".") }}</div>
+      <div class="lbl">αναθέτουσες αρχές</div>
+    </div>
+  </div>
+  {% if totals.earliest %}
+  <p style="font-size:12px;color:var(--ink-3);margin:-6px 0 18px;">Κάλυψη: {{ totals.earliest.strftime('%d/%m/%Y') }} → {{ totals.latest.strftime('%d/%m/%Y') }}</p>
+  {% endif %}
+
+  {% if monthly %}
+  <div class="panel">
+    <h3 class="panel-h">Μηνιαία αξία αναθέσεων</h3>
+    {% set maxval = (monthly | map(attribute='awarded_value') | max) or 1 %}
+    {% set bw = 100.0 / monthly|length %}
+    <svg viewBox="0 0 100 38" preserveAspectRatio="none" style="width:100%; height:220px;">
+      {% for m in monthly %}
+        {% set h = (m.awarded_value / maxval * 34) if maxval else 0 %}
+        <rect x="{{ (loop.index0 * bw) + (bw*0.12) }}" y="{{ 36 - h }}"
+              width="{{ bw*0.76 }}" height="{{ h }}"
+              rx="0.3" fill="var(--accent)" opacity="0.85">
+          <title>{{ m.month.strftime('%m/%Y') }}: € {{ "{:,.0f}".format(m.awarded_value).replace(",",".") }} ({{ m.n_contracts }} συμβ.)</title>
+        </rect>
+      {% endfor %}
+      <line x1="0" y1="36" x2="100" y2="36" stroke="var(--rule)" stroke-width="0.2"/>
+    </svg>
+    <div style="display:flex; justify-content:space-between; font-family:var(--mono); font-size:10px; color:var(--ink-3); margin-top:4px;">
+      <span>{{ monthly[0].month.strftime('%m/%Y') }}</span>
+      <span>{{ monthly[-1].month.strftime('%m/%Y') }}</span>
+    </div>
+    <p style="font-size:11.5px;color:var(--ink-3);margin-top:8px;">Περάστε τον δείκτη πάνω από κάθε στήλη για το ποσό.</p>
+  </div>
+  {% endif %}
+
+  <div class="act-grid" style="grid-template-columns:1fr 1fr;">
+    <div class="panel" style="margin-bottom:0;">
+      <h3 class="panel-h">Κορυφαίες αρχές κατά αξία</h3>
+      <table class="dtable">
+        <thead><tr><th>Αρχή</th><th class="val">Συμβ.</th><th class="val">Αξία</th></tr></thead>
+        <tbody>
+          {% for a in authorities %}
+          <tr>
+            <td><a href="/authority/{{ a.authority_id }}">{{ a.name or a.authority_id }}</a></td>
+            <td class="val">{{ a.n_contracts }}</td>
+            <td class="val">€ {{ "{:,.0f}".format(a.awarded_value).replace(",",".") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="panel" style="margin-bottom:0;">
+      <h3 class="panel-h">Κορυφαίοι ανάδοχοι κατά αξία</h3>
+      <table class="dtable">
+        <thead><tr><th>Ανάδοχος</th><th class="val">Συμβ.</th><th class="val">Αξία</th></tr></thead>
+        <tbody>
+          {% for c in contractors %}
+          <tr>
+            <td>
+              <a href="/contractor/{{ c.vat_number }}">{{ c.name or c.vat_number }}</a>
+              {% if c.is_merged %}<span class="merge-badge">συγχ.</span>{% endif %}
+            </td>
+            <td class="val">{{ c.n_contracts }}</td>
+            <td class="val">€ {{ "{:,.0f}".format(c.awarded_value).replace(",",".") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if cpv %}
+  <div class="panel" style="margin-top:18px;">
+    <h3 class="panel-h">Κατηγορίες αντικειμένου (CPV)</h3>
+    <p style="font-size:12px;color:var(--ink-3);margin:-6px 0 12px;">Κατανομή ανά τομέα CPV (διψήφιος κωδικός). Οι αξίες προέρχονται από τις γραμμές ειδών <strong>χωρίς ΦΠΑ</strong>, οπότε δεν αθροίζουν στο συνολικό ποσό· δείχνουν τη σχετική κατανομή. Συμβάσεις και προκηρύξεις χωριστά.</p>
+    <table class="dtable">
+      <thead><tr>
+        <th>Τομέας</th>
+        <th class="val">Συμβάσεις</th><th class="val">Αξία συμβ. (χωρίς ΦΠΑ)</th>
+        <th class="val">Προκηρύξεις</th><th class="val">Αξία προκ. (χωρίς ΦΠΑ)</th>
+      </tr></thead>
+      <tbody>
+        {% for d in cpv %}
+        <tr>
+          <td><span style="font-weight:500;">{{ d.label or ('Τομέας ' ~ d.division) }}</span> <code class="adam">{{ d.division }}</code></td>
+          <td class="val">{{ d.contract_count }}</td>
+          <td class="val">€ {{ "{:,.0f}".format(d.contract_value).replace(",",".") }}</td>
+          <td class="val">{{ d.notice_count }}</td>
+          <td class="val">€ {{ "{:,.0f}".format(d.notice_value).replace(",",".") }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <p style="font-size:11.5px;color:var(--ink-3);margin-top:18px;">Τα στοιχεία ανανεώνονται μετά από κάθε εισαγωγή με <code class="adam">SELECT proc.refresh_analytics();</code></p>
+  {% endif %}
+</main>
+{% endblock %}

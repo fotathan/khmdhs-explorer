@@ -797,7 +797,8 @@ def analytics(request: Request):
         # Materialized views not created yet — show a friendly hint.
         data = {"available": False}
 
-    return templates.TemplateResponse(request, "analytics.html", data)
+    data["nav_active"] = "analytics"
+    return templates.TemplateResponse(request, "beta_analytics.html", data)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -884,66 +885,130 @@ def explore(request: Request):
     params = _params_from(request)
     where, args = build_where(params)
 
-    # Same exclusion the analytics use, expressed inline so it applies to the
-    # filtered population. Cancelled already handled by status filter sometimes,
-    # but we enforce it here too for consistency.
-    eligible = """
-        NOT a.cancelled
-        AND (proc.resolved_value(a.adam, a.total_cost_with_vat) IS NULL
-             OR proc.resolved_value(a.adam, a.total_cost_with_vat) <= %s)
-        AND NOT EXISTS (SELECT 1 FROM proc.v_act_annotation_current an
-                        WHERE an.adam = a.adam AND an.flag = 'suspicious')
-    """
     ceiling = ANALYTICS_VALUE_CEILING
+
+    # FAST PATH: when only "coarse" filters are active — nothing, or just an act
+    # type — read the precomputed explore matviews (instant). Fine filters (text
+    # search, CPV, contract/procedure type, dates, NUTS, value range) require the
+    # live aggregation below, but that population is narrower so it is acceptable.
+    fine_keys = ("q", "fulltext", "cpv", "contract_type", "procedure_type",
+                 "nuts", "date_from", "date_to", "deadline_from", "deadline_to",
+                 "value_min", "value_max", "authority", "status")
+    has_fine = any(_as_list(params.get(k)) if k in ("type", "authority",
+                   "contract_type", "procedure_type", "nuts")
+                   else (params.get(k) or "").strip() for k in fine_keys)
+    type_sel = _as_list(params.get("type"))
+    type_sel = [t for t in type_sel if t in TYPE_LABELS]
 
     by_authority, by_contractor = [], []
     grand = {"n": 0, "value": 0.0}
-    try:
-        with cursor() as c:
-            # --- by authority ---
-            c.execute(f"""
-                SELECT proc.canon_authority(a.authority_id) AS key,
-                       max(auth.name)                       AS name,
-                       count(*)                             AS n,
-                       coalesce(sum(proc.resolved_value(a.adam, a.total_cost_with_vat)), 0) AS value
-                FROM proc.procurement_act a
-                LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
-                WHERE {where} AND a.authority_id IS NOT NULL AND {eligible}
-                GROUP BY proc.canon_authority(a.authority_id)
-                ORDER BY value DESC, n DESC
-                LIMIT 100
-            """, (*args, ceiling))
-            by_authority = c.fetchall()
+    used_fast_path = False
+    if not has_fine:
+        # ---- matview fast path -------------------------------------------------
+        try:
+            with cursor() as c:
+                tfilter = "WHERE ea.type = ANY(%s)" if type_sel else ""
+                targs = (type_sel,) if type_sel else ()
+                c.execute(f"""
+                    SELECT ea.auth_key AS key,
+                           max(nm.name) AS name,
+                           sum(ea.n)     AS n,
+                           sum(ea.value) AS value
+                    FROM proc.mv_explore_authority ea
+                    LEFT JOIN proc.mv_explore_authority_name nm
+                           ON nm.auth_key = ea.auth_key
+                    {tfilter}
+                    GROUP BY ea.auth_key
+                    ORDER BY value DESC NULLS LAST, n DESC
+                    LIMIT 100
+                """, targs)
+                by_authority = c.fetchall()
 
-            # --- by contractor (needs the operator join; value is contract-only) ---
-            c.execute(f"""
-                SELECT proc.canon_contractor(eo.vat_number) AS key,
-                       max(eo.name)                          AS name,
-                       count(DISTINCT a.adam)                AS n,
-                       coalesce(sum(coalesce(ao.awarded_value_with_vat,
-                                             proc.resolved_value(a.adam, a.total_cost_with_vat))), 0) AS value
-                FROM proc.procurement_act a
-                JOIN proc.act_operator ao ON ao.adam = a.adam
-                JOIN proc.economic_operator eo ON eo.operator_id = ao.operator_id
-                WHERE {where} AND {eligible}
-                GROUP BY proc.canon_contractor(eo.vat_number)
-                ORDER BY value DESC, n DESC
-                LIMIT 100
-            """, (*args, ceiling))
-            by_contractor = c.fetchall()
+                tfilter2 = "WHERE ec.type = ANY(%s)" if type_sel else ""
+                c.execute(f"""
+                    SELECT ec.contr_key AS key,
+                           max(nm.name) AS name,
+                           bool_or(nm.is_merged) AS is_merged,
+                           sum(ec.n)     AS n,
+                           sum(ec.value) AS value
+                    FROM proc.mv_explore_contractor ec
+                    LEFT JOIN proc.mv_explore_contractor_name nm
+                           ON nm.contr_key = ec.contr_key
+                    {tfilter2}
+                    GROUP BY ec.contr_key
+                    ORDER BY value DESC NULLS LAST, n DESC
+                    LIMIT 100
+                """, targs)
+                by_contractor = c.fetchall()
 
-            # --- grand totals for the filtered, eligible set ---
-            c.execute(f"""
-                SELECT count(*) AS n,
-                       coalesce(sum(proc.resolved_value(a.adam, a.total_cost_with_vat)), 0) AS value
-                FROM proc.procurement_act a
-                WHERE {where} AND {eligible}
-            """, (*args, ceiling))
-            g = c.fetchone()
-            grand = {"n": g["n"], "value": float(g["value"] or 0)}
-    except Exception:
-        # If annotation view or merge functions aren't present, degrade to empty.
-        by_authority, by_contractor = [], []
+                # grand totals from the authority matview (covers all acts with
+                # an authority; consistent with the dashboard's scope).
+                c.execute(f"""
+                    SELECT COALESCE(sum(n),0) AS n, COALESCE(sum(value),0) AS value
+                    FROM proc.mv_explore_authority ea {tfilter}
+                """, targs)
+                g = c.fetchone()
+                grand = {"n": int(g["n"] or 0), "value": float(g["value"] or 0)}
+                used_fast_path = True
+        except Exception:
+            # matviews not present yet → fall through to the live query.
+            used_fast_path = False
+
+    if not used_fast_path:
+        # ---- live fallback (fine filters, or matviews missing) ----------------
+        rv = "COALESCE(corr.corrected_value, a.total_cost_with_vat)"
+        corr_join = ("LEFT JOIN proc.v_act_annotation_current corr "
+                     "ON corr.adam = a.adam")
+        eligible = f"""
+            NOT a.cancelled
+            AND ({rv} IS NULL OR {rv} <= %s)
+            AND (corr.flag IS DISTINCT FROM 'suspicious')
+        """
+        try:
+            with cursor() as c:
+                c.execute(f"""
+                    SELECT proc.canon_authority(a.authority_id) AS key,
+                           max(auth.name)                       AS name,
+                           count(*)                             AS n,
+                           coalesce(sum({rv}), 0)               AS value
+                    FROM proc.procurement_act a
+                    {corr_join}
+                    LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
+                    WHERE {where} AND a.authority_id IS NOT NULL AND {eligible}
+                    GROUP BY proc.canon_authority(a.authority_id)
+                    ORDER BY value DESC, n DESC
+                    LIMIT 100
+                """, (*args, ceiling))
+                by_authority = c.fetchall()
+
+                c.execute(f"""
+                    SELECT proc.canon_contractor(eo.vat_number) AS key,
+                           max(eo.name)                          AS name,
+                           NULL::boolean                         AS is_merged,
+                           count(DISTINCT a.adam)                AS n,
+                           coalesce(sum(coalesce(ao.awarded_value_with_vat, {rv})), 0) AS value
+                    FROM proc.procurement_act a
+                    {corr_join}
+                    JOIN proc.act_operator ao ON ao.adam = a.adam
+                    JOIN proc.economic_operator eo ON eo.operator_id = ao.operator_id
+                    WHERE {where} AND {eligible}
+                    GROUP BY proc.canon_contractor(eo.vat_number)
+                    ORDER BY value DESC, n DESC
+                    LIMIT 100
+                """, (*args, ceiling))
+                by_contractor = c.fetchall()
+
+                c.execute(f"""
+                    SELECT count(*) AS n,
+                           coalesce(sum({rv}), 0) AS value
+                    FROM proc.procurement_act a
+                    {corr_join}
+                    WHERE {where} AND {eligible}
+                """, (*args, ceiling))
+                g = c.fetchone()
+                grand = {"n": g["n"], "value": float(g["value"] or 0)}
+        except Exception:
+            by_authority, by_contractor = [], []
 
     ctx = {"by_authority": by_authority,
            "by_contractor": by_contractor,
@@ -953,9 +1018,11 @@ def explore(request: Request):
     # HX request from the filter form → return just the results partial so only
     # that region swaps (and its loading overlay shows during the request).
     if request.headers.get("hx-request") == "true":
-        return templates.TemplateResponse(request, "_explore_results.html", ctx)
+        return templates.TemplateResponse(request, "beta_explore_results.html", ctx)
     ctx["lk"] = lookups()
-    return templates.TemplateResponse(request, "explore.html", ctx)
+    ctx["nuts_regions"] = NUTS_REGIONS
+    ctx["nav_active"] = "explore"
+    return templates.TemplateResponse(request, "beta_explore.html", ctx)
 
 
 @app.get("/search")

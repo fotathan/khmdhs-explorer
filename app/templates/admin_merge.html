@@ -18,12 +18,27 @@
   </div>
 </div>
 
-<div class="section-h">1 · Αναζήτηση εγγραφών προς ενοποίηση</div>
-<form method="get" action="/admin/merge/{{ kind }}" style="margin-bottom:16px; display:flex; gap:10px;">
-  <input type="search" name="q" value="{{ q }}" placeholder="όνομα ή ΑΦΜ/κωδικός…"
+<div class="section-h">1 · Επιλογή εγγραφών προς ενοποίηση</div>
+<form method="get" action="/admin/merge/{{ kind }}" style="margin-bottom:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+  <input type="search" name="q" value="{{ q }}" placeholder="όνομα ή ΑΦΜ/κωδικός… (κενό = πλήρης λίστα)"
          style="flex:1; max-width:480px;">
   <button type="submit" style="background:var(--ink); color:var(--paper); border:0; padding:8px 18px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer;">Εύρεση</button>
+  {% if q %}<a class="back" href="/admin/merge/{{ kind }}" hx-boost="false" style="font-size:12px;">✕ καθαρισμός — προβολή όλων</a>{% endif %}
 </form>
+
+{% if browse %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+  <div class="meta">Πλήρης λίστα · <strong>{{ "{:,}".format(total).replace(",", ".") }}</strong> εγγραφές</div>
+  <form method="get" action="/admin/merge/{{ kind }}" style="display:flex; gap:6px; align-items:center;">
+    <label class="meta" style="margin:0;">ταξινόμηση</label>
+    <select name="sort" onchange="this.form.submit()" style="padding:5px 8px; font-family:var(--sans); font-size:12px;">
+      <option value="name" {% if sort=='name' %}selected{% endif %}>Όνομα Α–Ω</option>
+      <option value="name_desc" {% if sort=='name_desc' %}selected{% endif %}>Όνομα Ω–Α</option>
+      <option value="activity" {% if sort=='activity' %}selected{% endif %}>Δραστηριότητα ↓</option>
+    </select>
+  </form>
+</div>
+{% endif %}
 
 {% if candidates %}
 <form method="post" action="/admin/merge/{{ kind }}/create">
@@ -47,7 +62,8 @@
           <input type="radio" name="canonical" value="{{ c.key }}">
         </td>
         <td class="title-cell">
-          {{ c.name or '—' }}
+          <a href="/{{ kind }}/{{ c.key }}" target="_blank" rel="noopener"
+             title="Άνοιγμα καρτέλας σε νέα καρτέλα">{{ c.name or '—' }} ↗</a>
           {% if c.group_id %}<span class="meta" title="ήδη ενοποιημένο" style="color:var(--accent);">◆ ομάδα #{{ c.group_id }}</span>{% endif %}
         </td>
         <td class="meta"><code class="cpv">{{ c.key }}</code></td>
@@ -63,6 +79,7 @@
       Επιλέξτε ≥2 εγγραφές. <strong>Για να προσθέσετε σε υπάρχουσα ομάδα</strong>,
       επιλέξτε τη νέα εγγραφή <em>μαζί</em> με τουλάχιστον ένα μέλος της ομάδας (◆).
       Αν δεν ορίσετε «Κύριο», διατηρείται το υπάρχον (ή επιλέγεται το πιο ενεργό).
+      {% if browse %}<br><em>Σημ.: ολοκληρώστε την ενοποίηση πριν αλλάξετε σελίδα — οι επιλογές δεν διατηρούνται μεταξύ σελίδων.</em>{% endif %}
     </p>
     <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
       <div class="field" style="margin:0; flex:1; min-width:240px;">
@@ -83,6 +100,18 @@
     </button>
   </div>
 </form>
+
+{% if browse and total_pages > 1 %}
+<div style="display:flex; justify-content:center; align-items:center; gap:10px; margin:18px 0;">
+  {% if page > 1 %}
+    <a class="back" href="/admin/merge/{{ kind }}?sort={{ sort }}&page={{ page-1 }}" hx-boost="false">‹ προηγ.</a>
+  {% else %}<span class="meta">‹ προηγ.</span>{% endif %}
+  <span class="meta">σελίδα {{ page }} από {{ total_pages }}</span>
+  {% if page < total_pages %}
+    <a class="back" href="/admin/merge/{{ kind }}?sort={{ sort }}&page={{ page+1 }}" hx-boost="false">επόμ. ›</a>
+  {% else %}<span class="meta">επόμ. ›</span>{% endif %}
+</div>
+{% endif %}
 {% elif q %}
 <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3);">Καμία εγγραφή για «{{ q }}».</p>
 {% endif %}
@@ -106,7 +135,7 @@
       </td>
       <td class="meta" style="font-size:11px;">
         {% for m in g.members %}
-          <div>{{ gname[g.id].get(m, '') }} <code class="cpv">{{ m }}</code></div>
+          <div><a href="/{{ kind }}/{{ m }}" target="_blank" rel="noopener">{{ gname[g.id].get(m, '') }} <code class="cpv">{{ m }}</code></a></div>
         {% endfor %}
       </td>
       <td class="meta">{{ g.created_by }}<br>{{ g.created_at.strftime('%Y-%m-%d') }}</td>
