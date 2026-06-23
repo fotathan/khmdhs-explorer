@@ -10,7 +10,7 @@
 
   {% if char_count %}
   <textarea class="tt-fulltext-area" id="tt-ft-extracted" readonly style="min-height:220px;">{{ text }}</textarea>
-  <div style="margin-top:10px; display:flex; gap:.8rem; align-items:center;">
+  <div style="margin-top:10px; display:flex; gap:.8rem; align-items:center; flex-wrap:wrap;">
     <button type="button" class="tt-btn" onclick="ttFtUseText()">
       ↑ Χρήση αυτού του κειμένου
     </button>
@@ -18,9 +18,34 @@
   </div>
   {% else %}
   <p class="tt-truncated">
-    Δεν εξήχθη κείμενο από τα επιλεγμένα αρχεία. Αν είναι σαρωμένα PDF/εικόνες,
-    χρησιμοποιήστε το OCR στο εργαλείο πινάκων ή ελέγξτε άλλο αρχείο.
+    Δεν εξήχθη κείμενο από τα επιλεγμένα αρχεία.
   </p>
+  {% endif %}
+
+  {# Claude fallback: when ordinary extraction gives wrong/garbled Greek (or no
+     text), re-read the page images via Claude. Only offered for the non-OCR
+     pass, and when files were selected. #}
+  {% if not via_ocr and file_ids %}
+  <div class="tt-detail" style="border-top:1px dashed var(--tt-rule, #ddd); margin-top:.8rem; padding-top:.7rem;">
+    <p class="tt-truncated" style="margin:0 0 .5rem; color:var(--tt-muted, #666);">
+      Λάθος ή αλλοιωμένο κείμενο (π.χ. ελληνικοί χαρακτήρες); Δοκιμάστε ανάγνωση μέσω Claude (PDF/εικόνες).
+    </p>
+    {% if ocr_available %}
+    <form hx-post="/tables/fulltext/ocr" hx-target="closest .tt-card" hx-swap="outerHTML"
+          hx-indicator="#tt-ft-ocr-busy">
+      <input type="hidden" name="session_id" value="{{ session_id }}">
+      {% for fid in file_ids %}<input type="hidden" name="file_ids" value="{{ fid }}">{% endfor %}
+      <button type="submit" class="tt-btn tt-secondary" hx-disabled-elt="this">
+        Ανάγνωση μέσω Claude
+      </button>
+      <span class="tt-indicator" id="tt-ft-ocr-busy">αποστολή σελίδων στο Claude API — μπορεί να πάρει λίγο…</span>
+    </form>
+    {% else %}
+    <p class="tt-truncated">Το <code>ANTHROPIC_API_KEY</code> δεν είναι ορισμένο — ανενεργό.</p>
+    {% endif %}
+  </div>
+  {% elif via_ocr %}
+  <p class="tt-truncated" style="margin-top:.6rem; color:var(--tt-muted, #666);">✓ Ανάγνωση μέσω Claude.</p>
   {% endif %}
 </div>
 

@@ -97,6 +97,29 @@
       </div>
 
       <div class="fgroup">
+        <div class="fgroup-h">CPV</div>
+        <div class="cpv-wrap">
+          {# Selected CPV codes as removable chips. Each renders a hidden
+             name="cpv" input so multiple values submit and OR together. #}
+          <div id="cpv-chips" class="cpv-chips">
+            {% for code in request.query_params.getlist('cpv') %}
+            <span class="cpv-chip" data-code="{{ code }}">
+              <code>{{ code }}{% if code|length < 8 %}*{% endif %}</code>
+              <button type="button" class="cpv-chip-x" onclick="removeCpv(this)">✕</button>
+              <input type="hidden" name="cpv" value="{{ code }}">
+            </span>
+            {% endfor %}
+          </div>
+          <input type="text" id="cpv-typeahead" autocomplete="off"
+                 placeholder="προσθήκη CPV, π.χ. 331…"
+                 hx-get="/api/cpv-suggest" hx-trigger="input changed delay:200ms, focus"
+                 hx-target="#cpv-suggest-mount" hx-swap="innerHTML"
+                 hx-vals='js:{term: document.getElementById("cpv-typeahead").value}'>
+          <div id="cpv-suggest-mount"></div>
+        </div>
+      </div>
+
+      <div class="fgroup">
         <div class="fgroup-h">Ημ/νία δημοσίευσης</div>
         <div class="frow-2">
           <input type="date" name="date_from" value="{{ params.date_from or '' }}">
@@ -150,6 +173,48 @@
   document.addEventListener('change', function(e){
     if(e.target.matches('.chip input[type=checkbox]')){
       e.target.closest('.chip').classList.toggle('on', e.target.checked);
+    }
+  });
+
+  // CPV multi-select chips. Picking a suggestion adds a chip (a hidden
+  // name="cpv" input) unless already present; removing deletes it. Either way
+  // we re-run the search via the form's change trigger.
+  function cpvRerun(){
+    var form=document.getElementById('filters');
+    if(form) form.dispatchEvent(new Event('change',{bubbles:true}));
+  }
+  function pickCpv(code){
+    var chips=document.getElementById('cpv-chips');
+    var typeahead=document.getElementById('cpv-typeahead');
+    var mount=document.getElementById('cpv-suggest-mount');
+    if(mount) mount.innerHTML='';
+    if(typeahead) typeahead.value='';
+    if(!chips) return;
+    // skip duplicates
+    var existing=chips.querySelectorAll('.cpv-chip');
+    for(var i=0;i<existing.length;i++){
+      if(existing[i].getAttribute('data-code')===code) return;
+    }
+    var star=(code.length<8)?'*':'';
+    var span=document.createElement('span');
+    span.className='cpv-chip';
+    span.setAttribute('data-code',code);
+    span.innerHTML='<code>'+code+star+'</code>'+
+      '<button type="button" class="cpv-chip-x" onclick="removeCpv(this)">✕</button>'+
+      '<input type="hidden" name="cpv" value="'+code+'">';
+    chips.appendChild(span);
+    cpvRerun();
+  }
+  function removeCpv(btn){
+    var chip=btn.closest('.cpv-chip');
+    if(chip) chip.remove();
+    cpvRerun();
+  }
+  // Hide the suggestion list when clicking away.
+  document.addEventListener('click', function(e){
+    if(!e.target.closest('.cpv-wrap')){
+      var mount=document.getElementById('cpv-suggest-mount');
+      if(mount) mount.innerHTML='';
     }
   });
 </script>

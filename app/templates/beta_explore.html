@@ -83,7 +83,7 @@
       <div class="fgroup">
         <div class="fgroup-h">CPV (πρόθεμα)</div>
         <div class="frow">
-          <input type="text" name="cpv" value="{{ params.cpv or '' }}" placeholder="π.χ. 33 ή 45000000">
+          <input type="text" name="cpv" value="{{ params.cpv|join(' ') if params.cpv else '' }}" placeholder="π.χ. 33 ή 45000000">
         </div>
       </div>
 

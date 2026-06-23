@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Διαχείριση δεδομένων · Πράξεις{% endblock %}
+
+{% block content %}
+<p style="margin:20px 0 0;"><a class="back" href="/admin" hx-boost="false">‹ πίσω στη διαχείριση</a></p>
+
+<div class="detail-h">
+  <div class="kicker">Διαχείριση · Δεδομένα</div>
+  <h1 class="detail-title">Διαχείριση πράξεων</h1>
+  <div class="detail-sub">
+    Όλες οι πράξεις — εισαγόμενες (ΚΗΜΔΗΣ &amp; άλλες πηγές) και χειροκίνητες.
+    Φιλτράρετε, ελέγξτε και επεξεργαστείτε. Οι εισαγόμενες έχουν κλειδωμένα βασικά
+    πεδία (επεξεργασία μέσω σημειώσεων/διορθώσεων)· οι χειροκίνητες είναι πλήρως επεξεργάσιμες.
+  </div>
+</div>
+
+<form method="get" action="/admin/acts"
+      style="margin:24px 0; display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; align-items:end;">
+  <div class="field" style="margin:0; grid-column:span 2;">
+    <label>Αναζήτηση (τίτλος ή ΑΔΑΜ)</label>
+    <input type="search" name="q" value="{{ q }}" placeholder="π.χ. καθαριότητα ή 24PROC…">
+  </div>
+  <div class="field" style="margin:0;">
+    <label>External ID</label>
+    <input type="search" name="external_id" value="{{ external_id }}" placeholder="π.χ. WAL-MAY…">
+  </div>
+  <div class="field" style="margin:0;">
+    <label>Αρ. αναφοράς</label>
+    <input type="search" name="reference" value="{{ reference }}">
+  </div>
+
+  <div class="field" style="margin:0;">
+    <label>Πηγή δεδομένων</label>
+    <select name="data_source">
+      <option value="">— όλες —</option>
+      {% for s in sources %}<option value="{{ s }}" {% if data_source==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field" style="margin:0;">
+    <label>Προέλευση</label>
+    <select name="origin">
+      <option value="">— όλες —</option>
+      <option value="import" {% if origin=='import' %}selected{% endif %}>Εισαγόμενη</option>
+      <option value="authored" {% if origin=='authored' %}selected{% endif %}>Χειροκίνητη</option>
+    </select>
+  </div>
+  <div class="field" style="margin:0;">
+    <label>Τύπος</label>
+    <select name="type">
+      <option value="">— όλοι —</option>
+      {% for code in ['notice','auction','contract','payment','request'] %}
+      <option value="{{ code }}" {% if type==code %}selected{% endif %}>{{ code | type_label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field" style="margin:0;">
+    <label>Κατάσταση πηγής</label>
+    <select name="source_status">
+      <option value="">— όλες —</option>
+      {% for s in statuses %}<option value="{{ s }}" {% if source_status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+    </select>
+  </div>
+
+  <div class="field" style="margin:0;">
+    <label>Συνημμένα</label>
+    <select name="has_attachments">
+      <option value="">— όλα —</option>
+      <option value="1" {% if has_attachments=='1' %}selected{% endif %}>Με συνημμένα</option>
+      <option value="0" {% if has_attachments=='0' %}selected{% endif %}>Χωρίς</option>
+    </select>
+  </div>
+  <div class="field" style="margin:0;">
+    <label>Από (δημοσίευση)</label>
+    <input type="date" name="date_from" value="{{ date_from }}">
+  </div>
+  <div class="field" style="margin:0;">
+    <label>Έως</label>
+    <input type="date" name="date_to" value="{{ date_to }}">
+  </div>
+  <div class="field" style="margin:0;">
+    <label>Ταξινόμηση</label>
+    <select name="sort">
+      <option value="recent" {% if sort=='recent' %}selected{% endif %}>Πρόσφατες</option>
+      <option value="oldest" {% if sort=='oldest' %}selected{% endif %}>Παλαιότερες</option>
+      <option value="title" {% if sort=='title' %}selected{% endif %}>Τίτλος Α–Ω</option>
+      <option value="edited" {% if sort=='edited' %}selected{% endif %}>Πρόσφατη επεξεργασία</option>
+    </select>
+  </div>
+
+  <div style="grid-column:span 4; display:flex; gap:10px; align-items:center;">
+    <button type="submit" style="background:var(--ink); color:var(--paper); border:0; padding:9px 22px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer;">Εύρεση</button>
+    <a class="back" href="/admin/acts" hx-boost="false" style="font-size:12px;">✕ καθαρισμός</a>
+  </div>
+</form>
+
+<div class="results-bar" style="display:flex; justify-content:space-between; align-items:center;">
+  <div class="counters"><span class="lbl">Βρέθηκαν</span><span class="num">{{ "{:,}".format(total).replace(",", "·") }}</span></div>
+  <a href="/admin/acts/new" hx-boost="false"
+     style="background:var(--accent, #2563c4); color:#fff; padding:9px 18px; border-radius:6px; font-size:12px; font-weight:600; text-decoration:none;">
+    + Νέα πράξη (χειροκίνητη)
+  </a>
+</div>
+
+{% if rows %}
+<table class="notices">
+  <thead><tr>
+    <th style="width:150px;">ΑΔΑΜ / External</th>
+    <th>Τίτλος</th>
+    <th style="width:120px;">Πηγή</th>
+    <th style="width:90px;">Προέλευση</th>
+    <th style="width:80px;">Τύπος</th>
+    <th style="width:90px;">Κατάσταση</th>
+    <th style="width:60px;">Συνημ.</th>
+    <th style="width:70px;"></th>
+  </tr></thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td>
+        <span class="adam">{{ r.adam }}</span>
+        {% if r.external_id %}<div class="meta" style="margin-top:3px; letter-spacing:0; text-transform:none;">{{ r.external_id }}</div>{% endif %}
+      </td>
+      <td class="title-cell">
+        <a href="/act/{{ r.adam }}">{{ r.title or '—' }}</a>
+        {% if r.authority_name %}<div class="meta" style="margin-top:2px; letter-spacing:0; text-transform:none; font-family:var(--serif); font-style:italic; font-size:11px; color:var(--ink-3);">{{ r.authority_name }}</div>{% endif %}
+      </td>
+      <td class="meta" style="letter-spacing:0; text-transform:none;">{{ r.data_source or '—' }}</td>
+      <td>
+        {% if r.origin == 'authored' %}
+          <span style="font-size:10px; padding:2px 7px; border-radius:5px; background:#eaf6ef; color:#1a7f47;">χειροκίνητη</span>
+        {% else %}
+          <span style="font-size:10px; padding:2px 7px; border-radius:5px; background:#eef1f5; color:#5a6675;">εισαγωγή</span>
+        {% endif %}
+      </td>
+      <td class="meta" style="letter-spacing:0; text-transform:none;">{{ r.type | type_label }}</td>
+      <td class="meta" style="letter-spacing:0; text-transform:none;">{{ r.source_status or '—' }}</td>
+      <td style="text-align:center;">{% if r.has_attachments %}<span title="έχει συνημμένα">📎</span>{% endif %}</td>
+      <td>
+        {% if r.origin == 'authored' %}
+          <a class="back" href="/admin/acts/{{ r.adam }}/edit" hx-boost="false" style="font-size:11px;">επεξεργασία ›</a>
+        {% else %}
+          <a class="back" href="/act/{{ r.adam }}/edit" hx-boost="false" style="font-size:11px;">σημειώσεις ›</a>
+          <form method="post" action="/admin/acts/{{ r.adam }}/take-ownership" style="margin:4px 0 0;"
+                onsubmit="return confirm('Μετατροπή σε χειροκίνητη πράξη; Τα βασικά πεδία θα γίνουν πλήρως επεξεργάσιμα και οι μελλοντικές εισαγωγές δεν θα την αγγίζουν. Μη αναστρέψιμο.');">
+            <button type="submit" class="back" style="font-size:10px; background:none; border:0; color:var(--ink-3); cursor:pointer; padding:0; text-decoration:underline;">ανάληψη →</button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if total_pages > 1 %}
+{% set qs %}q={{ q|urlencode }}&external_id={{ external_id|urlencode }}&reference={{ reference|urlencode }}&data_source={{ data_source|urlencode }}&origin={{ origin }}&type={{ type }}&source_status={{ source_status|urlencode }}&has_attachments={{ has_attachments }}&date_from={{ date_from }}&date_to={{ date_to }}&sort={{ sort }}{% endset %}
+<div style="display:flex; justify-content:center; align-items:center; gap:12px; margin:22px 0;">
+  {% if page > 1 %}<a class="back" href="/admin/acts?{{ qs }}&page={{ page-1 }}" hx-boost="false">‹ προηγ.</a>{% else %}<span class="meta">‹ προηγ.</span>{% endif %}
+  <span class="meta">σελίδα {{ page }} από {{ total_pages }}</span>
+  {% if page < total_pages %}<a class="back" href="/admin/acts?{{ qs }}&page={{ page+1 }}" hx-boost="false">επόμ. ›</a>{% else %}<span class="meta">επόμ. ›</span>{% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<p style="font-family:var(--serif); font-style:italic; color:var(--ink-3);">Καμία πράξη για αυτά τα φίλτρα.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}{% if mode=='create' %}Νέα πράξη{% else %}Επεξεργασία πράξης{% endif %} · Διαχείριση{% endblock %}
+
+{% block content %}
+<p style="margin:20px 0 0;"><a class="back" href="/admin/acts" hx-boost="false">‹ πίσω στη διαχείριση πράξεων</a></p>
+
+<div class="detail-h">
+  <div class="kicker">Διαχείριση · {% if mode=='create' %}Νέα πράξη{% else %}Επεξεργασία{% endif %}</div>
+  <h1 class="detail-title">
+    {% if mode=='create' %}Δημιουργία πράξης (χειροκίνητη){% else %}{{ act.title or adam }}{% endif %}
+  </h1>
+  <div class="detail-sub">
+    {% if mode=='create' %}
+      Συμπληρώστε τα πεδία και αποθηκεύστε. Η πράξη δημιουργείται ως <strong>χειροκίνητη</strong>
+      (origin = authored) και δεν επηρεάζεται ποτέ από αυτόματες εισαγωγές.
+    {% else %}
+      <span class="adam">{{ adam }}</span> · χειροκίνητη πράξη · πλήρως επεξεργάσιμη.
+      {% if act.last_edited_by %}<br>Τελευταία επεξεργασία: {{ act.last_edited_by }}{% if act.last_edited_at %}, {{ act.last_edited_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}{% endif %}
+    {% endif %}
+  </div>
+</div>
+
+{% if request.query_params.get('saved') %}
+<div style="margin:18px 0; padding:11px 16px; background:#eaf6ef; border:1px solid #b7e0c7; border-radius:8px; color:#1a7f47; font-size:13px;">
+  ✓ Αποθηκεύτηκε.
+</div>
+{% endif %}
+{% if request.query_params.get('owned') %}
+<div style="margin:18px 0; padding:11px 16px; background:#fff7e6; border:1px solid #f0dcb0; border-radius:8px; color:#8a5a1c; font-size:13px;">
+  ✓ Η πράξη έγινε χειροκίνητη. Τα βασικά πεδία είναι πλέον πλήρως επεξεργάσιμα και οι αυτόματες εισαγωγές δεν θα την τροποποιούν.
+</div>
+{% endif %}
+
+<form method="post" action="/admin/acts/save" style="margin-top:8px; padding-bottom:30px;">
+  <input type="hidden" name="_mode" value="{{ mode }}">
+  {% if mode=='edit' %}<input type="hidden" name="_adam" value="{{ adam }}">{% endif %}
+
+  {% if mode=='create' %}
+  <div class="form-section">
+    <div class="form-section-h">Αναγνωριστικό</div>
+    <div class="field">
+      <label>ΑΔΑΜ (προαιρετικό — αφήστε κενό για αυτόματο MANUAL-…)</label>
+      <input type="text" name="adam" value="" placeholder="αφήστε κενό για αυτόματη δημιουργία">
+    </div>
+  </div>
+  {% endif %}
+
+  {% for group, fields in groups.items() %}
+  <div class="form-section">
+    <div class="form-section-h">{{ group }}</div>
+    <div class="form-grid">
+      {% for name, label, kind in fields %}
+      {% set val = act.get(name) %}
+      <div class="field {% if kind in ('textarea',) %}field-wide{% endif %}">
+        {% if kind == 'bool' %}
+          <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; text-transform:none; letter-spacing:0;">
+            <input type="checkbox" name="{{ name }}" value="1" {% if val %}checked{% endif %}>
+            {{ label }}
+          </label>
+        {% else %}
+          <label>{{ label }}</label>
+          {% if kind == 'textarea' %}
+            <textarea name="{{ name }}" rows="2">{{ val or '' }}</textarea>
+          {% elif kind == 'type' %}
+            <select name="{{ name }}">
+              {% for code in ['notice','auction','contract','payment','request'] %}
+              <option value="{{ code }}" {% if val==code %}selected{% endif %}>{{ code | type_label }}</option>
+              {% endfor %}
+            </select>
+          {% elif kind == 'date' %}
+            <input type="date" name="{{ name }}" value="{{ val.strftime('%Y-%m-%d') if val else '' }}">
+          {% elif kind == 'number' %}
+            <input type="text" inputmode="decimal" name="{{ name }}" value="{{ val if val is not none else '' }}">
+          {% elif kind == 'authority' %}
+            <input type="text" name="{{ name }}" value="{{ val or '' }}"
+                   placeholder="ΑΦΜ ή org_id της αρχής">
+            {% if authority_name %}<div class="meta" style="margin-top:4px; letter-spacing:0; text-transform:none;">→ {{ authority_name }}</div>{% endif %}
+          {% else %}
+            <input type="text" name="{{ name }}" value="{{ val or '' }}">
+          {% endif %}
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+  <div style="background:var(--paper); border-top:1px solid var(--rule); padding:16px 0; margin-top:8px; display:flex; gap:12px; align-items:center;">
+    <button type="submit"
+            style="background:var(--ink); color:var(--paper); border:0; padding:11px 28px; font-family:var(--sans); font-size:12px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer;">
+      {% if mode=='create' %}Δημιουργία πράξης{% else %}Αποθήκευση βασικών πεδίων{% endif %}
+    </button>
+    <a class="back" href="/admin/acts" hx-boost="false">Άκυρο</a>
+  </div>
+</form>
+
+{% if mode == 'edit' %}
+{# Full text & tables — the existing tools, embedded inline via HTMX. These have
+   their OWN save endpoints (they persist independently of the scalar-field form
+   above), so they sit outside the main <form>. Tabs lazy-load each panel. #}
+<div class="form-section" style="margin-top:30px;">
+  <div class="form-section-h">Πλήρες κείμενο & πίνακες</div>
+  <div class="edit-tabs" role="tablist" style="margin-bottom:14px;">
+    <button type="button" class="edit-tab on" id="ftab-fulltext"
+            hx-get="/admin/act/{{ adam }}/panel/fulltext"
+            hx-target="#act-content-panel" hx-swap="innerHTML"
+            onclick="actContentTab(this)">Πλήρες κείμενο</button>
+    <button type="button" class="edit-tab" id="ftab-tables"
+            hx-get="/admin/act/{{ adam }}/panel/tables"
+            hx-target="#act-content-panel" hx-swap="innerHTML"
+            onclick="actContentTab(this)">Πίνακες</button>
+  </div>
+  <div id="act-content-panel"
+       hx-get="/admin/act/{{ adam }}/panel/fulltext"
+       hx-trigger="load" hx-swap="innerHTML">
+    <div class="panel-loading" style="color:var(--ink-3); font-style:italic; padding:14px 0;">Φόρτωση…</div>
+  </div>
+</div>
+<script>
+  function actContentTab(btn){
+    document.querySelectorAll('.edit-tabs .edit-tab').forEach(function(b){b.classList.remove('on');});
+    btn.classList.add('on');
+  }
+</script>
+{% else %}
+<div class="form-section" style="margin-top:30px;">
+  <div class="form-section-h">Πλήρες κείμενο & πίνακες</div>
+  <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); font-size:13px;">
+    Διαθέσιμα μετά την αποθήκευση. Δημιουργήστε πρώτα την πράξη, και στη συνέχεια
+    θα μπορείτε να προσθέσετε πλήρες κείμενο και πίνακες από τη φόρμα επεξεργασίας.
+  </p>
+</div>
+{% endif %}
+
+<style>
+  .form-section{margin:22px 0; padding-bottom:6px;}
+  .form-section-h{font-family:var(--mono, monospace); font-size:11px; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--accent, #2563c4); border-bottom:1px solid var(--rule);
+    padding-bottom:7px; margin-bottom:14px;}
+  .form-grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:14px 18px;}
+  .form-grid .field-wide{grid-column:span 3;}
+  .form-grid .field{margin:0;}
+  .form-grid textarea{width:100%; resize:vertical; font-family:inherit;}
+  .edit-tabs { display:flex; gap:4px; border-bottom:1px solid var(--rule); }
+  .edit-tab { appearance:none; background:transparent; border:0;
+    border-bottom:2px solid transparent; padding:8px 14px; cursor:pointer;
+    font-family:var(--sans); font-size:12px; letter-spacing:0.04em;
+    text-transform:uppercase; color:var(--ink-3); }
+  .edit-tab:hover { color:var(--accent); }
+  .edit-tab.on { color:var(--accent); border-bottom-color:var(--accent); }
+</style>
+{% endblock %}

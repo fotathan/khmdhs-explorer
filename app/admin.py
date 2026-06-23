@@ -29,6 +29,7 @@ import os
 import signal
 import subprocess
 import sys
+from urllib.parse import unquote
 from typing import Optional
 
 from fastapi import APIRouter, Form, HTTPException, Query, Request, status
@@ -357,6 +358,297 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         "review":     "Προς έλεγχο",
         "suspicious": "Ύποπτο",
     }
+
+    @router.get("/acts", response_class=HTMLResponse)
+    def acts_manage(request: Request,
+                    q: str = Query(""),
+                    external_id: str = Query(""),
+                    reference: str = Query(""),
+                    data_source: str = Query(""),
+                    origin: str = Query(""),
+                    type: str = Query(""),
+                    source_status: str = Query(""),
+                    has_attachments: str = Query(""),
+                    date_from: str = Query(""),
+                    date_to: str = Query(""),
+                    sort: str = Query("recent"),
+                    page: int = Query(1, ge=1)):
+        """Data-management list: browse/filter ALL acts (imported + authored),
+        with a link to edit each. The entry point for the management tool."""
+        per_page = 50
+        offset = (page - 1) * per_page
+        where = ["TRUE"]
+        args: list = []
+        q = q.strip()
+        if q:
+            where.append("(translate(proc.f_unaccent(lower(a.title)),'ς','σ') "
+                         "LIKE translate(proc.f_unaccent(lower(%s)),'ς','σ') "
+                         "OR a.adam ILIKE %s)")
+            args += [f"%{q}%", f"%{q}%"]
+        if external_id.strip():
+            where.append("a.external_id ILIKE %s")
+            args.append(f"%{external_id.strip()}%")
+        if reference.strip():
+            where.append("(a.reference_number ILIKE %s OR a.authority_reference ILIKE %s)")
+            args += [f"%{reference.strip()}%", f"%{reference.strip()}%"]
+        if data_source.strip():
+            where.append("a.data_source = %s")
+            args.append(data_source.strip())
+        if origin in ("import", "authored"):
+            where.append("a.origin = %s")
+            args.append(origin)
+        if type.strip():
+            where.append("a.type = %s")
+            args.append(type.strip())
+        if source_status.strip():
+            where.append("a.source_status = %s")
+            args.append(source_status.strip())
+        if has_attachments == "1":
+            where.append("a.has_attachments IS TRUE")
+        elif has_attachments == "0":
+            where.append("(a.has_attachments IS NOT TRUE)")
+        if date_from.strip():
+            where.append("a.submission_date >= %s")
+            args.append(date_from.strip())
+        if date_to.strip():
+            where.append("a.submission_date <= %s")
+            args.append(date_to.strip())
+        where_sql = " AND ".join(where)
+
+        order = {"recent": "a.submission_date DESC NULLS LAST",
+                 "oldest": "a.submission_date ASC NULLS LAST",
+                 "title": "a.title ASC",
+                 "edited": "a.last_edited_at DESC NULLS LAST"}.get(
+                     sort, "a.submission_date DESC NULLS LAST")
+
+        with cursor() as c:
+            c.execute(f"SELECT count(*) AS n FROM proc.procurement_act a WHERE {where_sql}", args)
+            total = c.fetchone()["n"]
+            c.execute(f"""
+                SELECT a.adam, a.type, a.title, a.origin, a.data_source,
+                       a.external_id, a.reference_number, a.source_status,
+                       a.submission_date, a.total_cost_with_vat,
+                       a.has_attachments, a.last_edited_by, a.last_edited_at,
+                       auth.name AS authority_name
+                FROM proc.procurement_act a
+                LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
+                WHERE {where_sql}
+                ORDER BY {order}
+                LIMIT %s OFFSET %s
+            """, args + [per_page, offset])
+            rows = c.fetchall()
+            # distinct data sources for the filter dropdown
+            c.execute("""SELECT DISTINCT data_source FROM proc.procurement_act
+                         WHERE data_source IS NOT NULL ORDER BY data_source""")
+            sources = [r["data_source"] for r in c.fetchall()]
+            # distinct source statuses present
+            c.execute("""SELECT DISTINCT source_status FROM proc.procurement_act
+                         WHERE source_status IS NOT NULL AND source_status <> ''
+                         ORDER BY source_status""")
+            statuses = [r["source_status"] for r in c.fetchall()]
+
+        total_pages = max(1, (total + per_page - 1) // per_page)
+        return templates.TemplateResponse(
+            request, "admin_acts.html",
+            {"rows": rows, "total": total, "page": page, "total_pages": total_pages,
+             "q": q, "external_id": external_id, "reference": reference,
+             "data_source": data_source, "origin": origin, "type": type,
+             "source_status": source_status, "has_attachments": has_attachments,
+             "date_from": date_from, "date_to": date_to, "sort": sort,
+             "sources": sources, "statuses": statuses})
+
+    # ----- Authored-act edit / create form ---------------------------------- #
+    # The fields a curator may set on an AUTHORED act, grouped for the form.
+    # (Imported acts are NOT edited here — they keep the overlay-correction
+    # tools. The form/save routes below refuse non-authored acts.)
+    def _act_form_fields():
+        # (name, label, kind) — kind drives the input type in the template.
+        return {
+            "Ταυτότητα & πηγή": [
+                ("title", "Τίτλος", "textarea"),
+                ("short_description", "Σύντομη περιγραφή", "textarea"),
+                ("external_id", "External ID", "text"),
+                ("reference_number", "Αριθμός αναφοράς", "text"),
+                ("authority_reference", "Αναφορά αρχής", "text"),
+                ("data_source", "Πηγή δεδομένων", "text"),
+                ("source_url", "Σύνδεσμος πηγής", "text"),
+                ("source_status", "Κατάσταση πηγής", "text"),
+                ("language", "Γλώσσα", "text"),
+            ],
+            "Κατηγοριοποίηση": [
+                ("type", "Τύπος πράξης", "type"),
+                ("nature_of_contract", "Είδος σύμβασης (πηγής)", "text"),
+                ("type_of_document", "Τύπος εγγράφου", "text"),
+                ("subtype_of_document", "Υποτύπος εγγράφου", "text"),
+                ("procedure_label", "Διαδικασία", "text"),
+                ("regulation_of_procurement", "Κανονισμός", "text"),
+                ("e_auction", "Ηλεκτρονικός πλειστηριασμός", "text"),
+                ("dynamic_purchasing_system", "ΔΣΑ (DPS)", "text"),
+                ("lot_number", "Αριθμός τμήματος", "text"),
+            ],
+            "Ημερομηνίες": [
+                ("signed_date", "Ημ. υπογραφής", "date"),
+                ("submission_date", "Ημ. δημοσίευσης", "date"),
+                ("final_submission_date", "Λήξη υποβολής", "date"),
+                ("start_date", "Έναρξη", "date"),
+                ("end_date", "Λήξη", "date"),
+            ],
+            "Οικονομικά": [
+                ("budget", "Προϋπολογισμός", "number"),
+                ("total_cost_without_vat", "Αξία χωρίς ΦΠΑ", "number"),
+                ("total_cost_with_vat", "Αξία με ΦΠΑ", "number"),
+                ("currency_code", "Νόμισμα", "text"),
+            ],
+            "Γεωγραφία": [
+                ("nuts_code", "Κωδικός NUTS", "text"),
+                ("city", "Πόλη", "text"),
+                ("postal_code", "Τ.Κ.", "text"),
+                ("country", "Χώρα", "text"),
+            ],
+            "Αναθέτουσα αρχή": [
+                ("authority_id", "ΑΦΜ/κωδικός αρχής", "authority"),
+            ],
+            "Επισημάνσεις": [
+                ("cancelled", "Ακυρωμένη", "bool"),
+                ("is_modified", "Ορθή επανάληψη", "bool"),
+                ("has_attachments", "Έχει συνημμένα", "bool"),
+                ("qualified_for_ml", "Κατάλληλη για ML", "bool"),
+            ],
+        }
+
+    # Flat name→kind map and ordered name list, derived from the groups.
+    def _field_kinds():
+        kinds = {}
+        for grp in _act_form_fields().values():
+            for name, _label, kind in grp:
+                kinds[name] = kind
+        return kinds
+
+    @router.get("/acts/new", response_class=HTMLResponse)
+    def act_create_form(request: Request):
+        """Blank form to author a new act from scratch."""
+        return templates.TemplateResponse(
+            request, "admin_act_form.html",
+            {"groups": _act_form_fields(), "act": {}, "mode": "create",
+             "adam": None, "authority_name": None})
+
+    @router.get("/acts/{adam}/edit", response_class=HTMLResponse)
+    def act_edit_form(adam: str, request: Request):
+        """Edit form for an AUTHORED act. Imported acts are redirected to the
+        overlay-correction tools (their core fields are source-owned)."""
+        with cursor() as c:
+            c.execute("SELECT * FROM proc.procurement_act WHERE adam = %s", (adam,))
+            act = c.fetchone()
+            if not act:
+                raise HTTPException(404, "act not found")
+            if act["origin"] != "authored":
+                # Not editable here — send to the existing edit hub.
+                return RedirectResponse(url=f"/act/{adam}/edit", status_code=303)
+            authority_name = None
+            if act.get("authority_id"):
+                c.execute("SELECT name FROM proc.authority WHERE org_id = %s",
+                          (act["authority_id"],))
+                row = c.fetchone()
+                authority_name = row["name"] if row else None
+        return templates.TemplateResponse(
+            request, "admin_act_form.html",
+            {"groups": _act_form_fields(), "act": dict(act), "mode": "edit",
+             "adam": adam, "authority_name": authority_name})
+
+    @router.post("/acts/save")
+    async def act_save(request: Request):
+        """Insert (create) or update (edit) an AUTHORED act. Shared by both
+        forms. Never touches imported acts."""
+        form = await request.form()
+        mode = form.get("_mode", "create")
+        kinds = _field_kinds()
+
+        # Build a {column: value} dict, coercing by field kind.
+        data = {}
+        for name, kind in kinds.items():
+            raw = (form.get(name) or "").strip()
+            if kind == "bool":
+                data[name] = (name in form)  # checkbox present => True
+            elif kind in ("number",):
+                data[name] = None if raw == "" else raw
+            elif kind in ("date",):
+                data[name] = None if raw == "" else raw
+            else:
+                data[name] = None if raw == "" else raw
+
+        curator = unquote(request.cookies.get("curator", "")) or "curator"
+
+        if mode == "edit":
+            adam = (form.get("_adam") or "").strip()
+            if not adam:
+                raise HTTPException(400, "missing adam")
+            with cursor() as c:
+                c.execute("SELECT origin FROM proc.procurement_act WHERE adam = %s",
+                          (adam,))
+                row = c.fetchone()
+                if not row:
+                    raise HTTPException(404, "act not found")
+                if row["origin"] != "authored":
+                    raise HTTPException(403, "imported acts are not editable here")
+                cols = list(data.keys())
+                set_sql = ", ".join(f"{c2} = %s" for c2 in cols)
+                vals = [data[c2] for c2 in cols]
+                c.execute(
+                    f"""UPDATE proc.procurement_act
+                        SET {set_sql}, last_edited_by = %s, last_edited_at = now()
+                        WHERE adam = %s""",
+                    vals + [curator, adam])
+            return RedirectResponse(url=f"/admin/acts/{adam}/edit?saved=1",
+                                    status_code=303)
+        else:
+            # CREATE — generate an adam if none supplied. Authored acts get a
+            # MANUAL-prefixed id unless the curator typed an external/own adam.
+            adam = (form.get("adam") or "").strip()
+            if not adam:
+                import uuid
+                adam = "MANUAL-" + uuid.uuid4().hex[:12].upper()
+            # data_source: keep what the form set, else 'manual'
+            ds = data.get("data_source") or "manual"
+            base_vals = [adam, "authored", ds, curator, curator, dt.datetime.now()]
+            # avoid double-setting data_source (it's in data too)
+            field_cols = [c2 for c2 in data.keys() if c2 != "data_source"]
+            all_cols = ["adam", "origin", "data_source", "authored_by",
+                        "last_edited_by", "last_edited_at"] + field_cols
+            all_vals = base_vals + [data[c2] for c2 in field_cols]
+            placeholders = ", ".join(["%s"] * len(all_cols))
+            with cursor() as c:
+                c.execute("SELECT 1 FROM proc.procurement_act WHERE adam = %s", (adam,))
+                if c.fetchone():
+                    raise HTTPException(409, f"act {adam} already exists")
+                c.execute(
+                    f"""INSERT INTO proc.procurement_act ({", ".join(all_cols)})
+                        VALUES ({placeholders})""",
+                    all_vals)
+            return RedirectResponse(url=f"/admin/acts/{adam}/edit?saved=1",
+                                    status_code=303)
+
+    @router.post("/acts/{adam}/take-ownership")
+    def act_take_ownership(adam: str, request: Request):
+        """Convert an IMPORTED act into an AUTHORED one, so its core fields become
+        fully editable and re-import will never touch it again. One-way action."""
+        curator = unquote(request.cookies.get("curator", "")) or "curator"
+        with cursor() as c:
+            c.execute("SELECT origin FROM proc.procurement_act WHERE adam = %s", (adam,))
+            row = c.fetchone()
+            if not row:
+                raise HTTPException(404, "act not found")
+            if row["origin"] == "authored":
+                # already owned — just go to the edit form
+                return RedirectResponse(url=f"/admin/acts/{adam}/edit", status_code=303)
+            c.execute(
+                """UPDATE proc.procurement_act
+                   SET origin = 'authored',
+                       authored_by = COALESCE(authored_by, %s),
+                       last_edited_by = %s,
+                       last_edited_at = now()
+                   WHERE adam = %s AND origin = 'import'""",
+                (curator, curator, adam))
+        return RedirectResponse(url=f"/admin/acts/{adam}/edit?owned=1", status_code=303)
 
     @router.get("/curate", response_class=HTMLResponse)
     def curate_search(request: Request,

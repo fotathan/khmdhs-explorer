@@ -301,3 +301,79 @@ def ocr_entry(entry: FileEntry, pages: set[int] | None = None) -> FileReport:
                           )
     report = FileReport(entry.source, "ok", detail, tables=tables)
     return report
+
+
+# ---------------------------------------------------------------- text OCR
+# Plain-text transcription via Claude — for the FULL-TEXT use case (not tables).
+# Used when a digital PDF extracts garbled Greek and the curator wants a clean
+# re-read from the rendered page images.
+
+_TEXT_PROMPT = (
+    "Transcribe ALL text from this document page exactly as it appears, "
+    "preserving the reading order, line breaks, and paragraph structure. "
+    "The text is most likely in Greek. Output ONLY the transcribed text — "
+    "no commentary, no JSON, no markdown fences, no explanations. "
+    "Do not translate. Reproduce the original language and characters faithfully."
+)
+
+
+def _call_claude_text(image_jpeg: bytes) -> str:
+    """Send one page image, get back a plain-text transcription (Greek-aware)."""
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        raise OcrError(
+            "ANTHROPIC_API_KEY is not set. Get a key at console.anthropic.com, then "
+            "run:  export ANTHROPIC_API_KEY=sk-ant-...  before starting uvicorn."
+        )
+    body = json.dumps({
+        "model": OCR_MODEL,
+        "max_tokens": 8192,
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "image", "source": {
+                    "type": "base64", "media_type": "image/jpeg",
+                    "data": base64.b64encode(image_jpeg).decode(),
+                }},
+                {"type": "text", "text": _TEXT_PROMPT},
+            ],
+        }],
+    }).encode()
+    req = urllib.request.Request(API_URL, data=body, headers={
+        "content-type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+    })
+    try:
+        resp = json.loads(urllib.request.urlopen(req, timeout=240, context=_SSL_CTX).read())
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode(errors="replace")[:300]
+        if e.code == 401:
+            raise OcrError("The Anthropic API rejected the key (401). "
+                           "Check ANTHROPIC_API_KEY and restart uvicorn.") from e
+        raise OcrError(f"Anthropic API error {e.code}: {detail}") from e
+    except urllib.error.URLError as e:
+        raise OcrError(f"Could not reach the Anthropic API: {e.reason}") from e
+
+    text = "".join(b.get("text", "") for b in resp.get("content", [])
+                   if b.get("type") == "text").strip()
+    return text
+
+
+def ocr_text_from_entry(entry: FileEntry, pages: set[int] | None = None) -> str:
+    """Transcribe a PDF/image to PLAIN TEXT via Claude, page by page.
+
+    For the full-text feature: when ordinary extraction yields distorted Greek,
+    this re-reads the rendered page images. `pages` (PDF only) restricts to those
+    1-based page numbers. Returns the concatenated text (page-separated)."""
+    if entry.ext == ".pdf":
+        images, _n_wanted = render_pdf_pages(entry.data, pages)
+    else:
+        images = [(1, image_to_jpeg(entry.data))]
+    chunks: list[str] = []
+    for page_no, img in images:
+        txt = _call_claude_text(img).strip()
+        if txt:
+            chunks.append(txt)
+    return "\n\n".join(chunks).strip()
+

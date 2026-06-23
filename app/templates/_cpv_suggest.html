@@ -1,0 +1,19 @@
+{# CPV autosuggest results — clickable options that fill the cpv input. #}
+<div class="cpv-suggest">
+  {% if digits %}
+  <button type="button" class="cpv-opt cpv-opt-wild"
+          onclick="pickCpv('{{ digits }}')">
+    <code>{{ digits }}*</code>
+    <span>όλα όσα ξεκινούν με {{ digits }}</span>
+  </button>
+  {% endif %}
+  {% for r in rows %}
+  <button type="button" class="cpv-opt" onclick="pickCpv('{{ r.cpv_code }}')">
+    <code>{{ r.cpv_code }}</code>
+    <span>{{ r.description or '' }}</span>
+  </button>
+  {% endfor %}
+  {% if not rows and not digits %}
+  <div class="cpv-empty">Καμία αντιστοιχία.</div>
+  {% endif %}
+</div>

@@ -354,18 +354,37 @@ def build_where(params: dict) -> tuple[str, list]:
     if q:
         # Auto-detect: if the query looks like an ADAM (e.g. 25SYMV016143474 —
         # 2 digits, uppercase letters, then digits), search the adam column
-        # directly instead of the title. ADAMs are case-insensitive here and
-        # matched as a prefix, so a partial paste still finds it. Otherwise it's
-        # a normal title keyword search.
+        # directly. ADAMs are case-insensitive and matched as a prefix, so a
+        # partial paste still finds it.
         if re.fullmatch(r"\d{2}[A-Za-z]{2,6}\d{0,15}", q):
             where.append("a.adam ILIKE %s")
             args.append(f"{q}%")
         else:
-            # Both sides: unaccent + lower + map final-sigma (ς) to medial (σ),
-            # so 'καθαριότητας' and 'καθαριοτητασ' match the same content.
-            norm = "translate(proc.f_unaccent(lower({col})), 'ς', 'σ')"
-            where.append(f"{norm.format(col='a.title')} LIKE {norm.format(col='%s')}")
-            args.append(f"%{q}%")
+            # Unified keyword search: ONE box matches title + document full text
+            # (combined search_tsv, GIN-indexed) OR the act's published extracted
+            # tables. Greek-stemmed websearch syntax (AND words, "phrases", -excl).
+            # Falls back to a title substring LIKE if the combined tsv column
+            # isn't present yet (pre-migration), so search never breaks.
+            parts, qargs = [], []
+            main_sql, main_args = _text_search_clause(q, "a.search_tsv", "a.title")
+            if main_sql:
+                parts.append(main_sql)
+                qargs.extend(main_args)
+            tbl_sql, tbl_args = _text_search_clause(q, "et.content_tsv", "et.rows::text")
+            if tbl_sql:
+                parts.append(f"""EXISTS (
+                    SELECT 1 FROM proc.extracted_table et
+                    WHERE et.adam = a.adam AND et.is_published AND {tbl_sql}
+                )""")
+                qargs.extend(tbl_args)
+            if parts:
+                where.append("(" + " OR ".join(parts) + ")")
+                args.extend(qargs)
+            else:
+                # Fallback (e.g. tsv column missing): old title substring match.
+                norm = "translate(proc.f_unaccent(lower({col})), 'ς', 'σ')"
+                where.append(f"{norm.format(col='a.title')} LIKE {norm.format(col='%s')}")
+                args.append(f"%{q}%")
 
     auth_ids = _as_list(params.get("authority"))
     if auth_ids:
@@ -405,17 +424,20 @@ def build_where(params: dict) -> tuple[str, list]:
             )""")
             args.extend(tq_args)
 
-    cpv = (params.get("cpv") or "").strip()
-    if cpv:
-        # Notices that have any line item with this CPV (or its prefix).
-        where.append("""EXISTS (
+    # CPV — multi-select, OR'd. An act matches if it has any line item whose
+    # CPV starts with ANY of the selected codes/prefixes (e.g. '331' OR '4524').
+    cpvs = _as_list(params.get("cpv"))
+    if cpvs:
+        # Each selected value is a prefix; build one EXISTS with an ANY(LIKE)
+        # via a prefix-OR. Use a small OR of LIKEs so each acts as a prefix.
+        like_terms = " OR ".join(["oc.cpv_code LIKE %s"] * len(cpvs))
+        where.append(f"""EXISTS (
             SELECT 1 FROM proc.act_object_detail od
             JOIN proc.object_detail_cpv oc ON oc.object_detail_id = od.id
-            WHERE od.adam = a.adam AND oc.cpv_code LIKE %s
+            WHERE od.adam = a.adam AND ({like_terms})
         )""")
-        # 8-digit CPV codes — let the user enter a prefix like '79' to match
-        # everything under "Business services". Always treat as prefix.
-        args.append(f"{cpv}%")
+        for cv in cpvs:
+            args.append(f"{cv}%")
 
     contract_types = _as_list(params.get("contract_type"))
     if contract_types:
@@ -744,6 +766,44 @@ def healthz():
         return c.fetchone()
 
 
+@app.get("/api/cpv-suggest", response_class=HTMLResponse)
+def cpv_suggest(request: Request, term: str = Query("")):
+    """Autosuggest for the CPV filter. As the user types a code prefix (e.g.
+    '331'), returns the most relevant CPV codes: first the prefix wildcard
+    itself ('331*' → everything under 331), then the matching codes with their
+    descriptions. Also matches by Greek description text when the term isn't a
+    number. Returns an HTMX fragment of clickable options."""
+    term = term.strip()
+    if not term:
+        return HTMLResponse("")
+    digits = re.sub(r"\D", "", term)
+    rows = []
+    with cursor() as c:
+        if digits:
+            # Code-prefix matches, shortest (broadest) first.
+            c.execute("""
+                SELECT cpv_code, description
+                FROM proc.cpv_code
+                WHERE cpv_code LIKE %s
+                ORDER BY length(cpv_code), cpv_code
+                LIMIT 12
+            """, (f"{digits}%",))
+            rows = c.fetchall()
+        else:
+            # Description text match (Greek-stemmed) when they typed words.
+            c.execute("""
+                SELECT cpv_code, description
+                FROM proc.cpv_code
+                WHERE description_tsv @@ websearch_to_tsquery('greek', %s)
+                ORDER BY length(cpv_code), cpv_code
+                LIMIT 12
+            """, (term,))
+            rows = c.fetchall()
+    return templates.TemplateResponse(
+        request, "_cpv_suggest.html",
+        {"term": term, "digits": digits, "rows": rows})
+
+
 @app.get("/analytics", response_class=HTMLResponse)
 def analytics(request: Request):
     """Dashboard of deduplicated AWARDED value (contracts only; payments and
@@ -865,10 +925,11 @@ def _params_from(request: Request) -> dict:
     (?type=notice&type=contract) and are read as lists via getlist(). The rest
     stay single-valued strings. build_where handles both shapes.
     """
-    single = ("q", "fulltext", "tables_q", "cpv",
+    single = ("q", "fulltext", "tables_q",
               "date_from", "date_to", "deadline_from", "deadline_to",
               "value_min", "value_max", "status", "sort")
-    multi = ("type", "authority", "contract_type", "procedure_type", "nuts")
+    multi = ("type", "authority", "contract_type", "procedure_type", "nuts",
+             "cpv")
     out = {k: request.query_params.get(k, "") for k in single}
     for k in multi:
         # keep only non-empty values; preserves order, drops blanks
@@ -895,7 +956,7 @@ def explore(request: Request):
                  "nuts", "date_from", "date_to", "deadline_from", "deadline_to",
                  "value_min", "value_max", "authority", "status")
     has_fine = any(_as_list(params.get(k)) if k in ("type", "authority",
-                   "contract_type", "procedure_type", "nuts")
+                   "contract_type", "procedure_type", "nuts", "cpv")
                    else (params.get(k) or "").strip() for k in fine_keys)
     type_sel = _as_list(params.get("type"))
     type_sel = [t for t in type_sel if t in TYPE_LABELS]

@@ -48,6 +48,7 @@ try:
         OcrError,
         api_key_present,
         ocr_entry,
+        ocr_text_from_entry,
         page_count,
         render_full,
         render_thumb,
@@ -59,6 +60,7 @@ except ImportError:
         OcrError,
         api_key_present,
         ocr_entry,
+        ocr_text_from_entry,
         page_count,
         render_full,
         render_thumb,
@@ -824,6 +826,73 @@ def make_router(templates, cursor) -> APIRouter:
                 "text": combined,
                 "skipped": skipped,
                 "char_count": len(combined),
+                "file_ids": list(file_ids),
+                "ocr_available": api_key_present(),
+                "via_ocr": False,
+            },
+        )
+
+    @router.post("/fulltext/ocr", response_class=HTMLResponse)
+    def fulltext_ocr(
+        request: Request,
+        session_id: str = Form(...),
+        file_ids: list[str] = Form(default=[]),
+    ):
+        """Re-read the chosen files as PLAIN TEXT via Claude (for when ordinary
+        extraction produced garbled Greek). Returns the transcribed text into the
+        same editable preview. PDFs/images only — others fall back to skipped."""
+        session = SESSIONS.get(session_id)
+        if session is None:
+            return HTMLResponse(
+                "<div class='tt-flash tt-error'>Η συνεδρία έληξε — ξεκινήστε ξανά.</div>",
+                status_code=410,
+            )
+        if not file_ids:
+            return HTMLResponse(
+                "<div class='tt-flash tt-error'>Δεν επιλέχθηκε κανένα αρχείο.</div>",
+                status_code=400,
+            )
+        if not api_key_present():
+            return HTMLResponse(
+                "<div class='tt-flash tt-error'>Το <code>ANTHROPIC_API_KEY</code> "
+                "δεν είναι ορισμένο — η εξαγωγή μέσω Claude είναι ανενεργή.</div>",
+                status_code=400,
+            )
+        selected = set(file_ids)
+        chunks: list[str] = []
+        skipped: list[str] = []
+        for eid in session["order"]:
+            if eid in selected and eid in session["entries"]:
+                entry = session["entries"][eid]
+                # Only rasterizable files can be re-read by Claude.
+                if entry.ext not in (".pdf", ".png", ".jpg", ".jpeg",
+                                     ".tif", ".tiff", ".webp"):
+                    skipped.append(entry.source)
+                    continue
+                sel = session["page_sel"].get(eid)
+                try:
+                    txt = ocr_text_from_entry(entry, pages=set(sel) if sel else None)
+                except OcrError as exc:
+                    return HTMLResponse(
+                        f"<div class='tt-flash tt-error'>Claude OCR απέτυχε: {exc}</div>",
+                        status_code=502,
+                    )
+                if txt:
+                    chunks.append(f"=== {entry.source} (Claude) ===\n{txt}")
+                else:
+                    skipped.append(entry.source)
+        combined = "\n\n".join(chunks).strip()
+        return templates.TemplateResponse(
+            request, "tables/_fulltext_preview.html",
+            {
+                "session_id": session_id,
+                "adam": session.get("fulltext_adam", ""),
+                "text": combined,
+                "skipped": skipped,
+                "char_count": len(combined),
+                "file_ids": list(file_ids),
+                "ocr_available": api_key_present(),
+                "via_ocr": True,
             },
         )
 

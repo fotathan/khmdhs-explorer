@@ -417,7 +417,8 @@ class Repository:
                   cancelled=EXCLUDED.cancelled, cancellation_date=EXCLUDED.cancellation_date,
                   total_cost_without_vat=EXCLUDED.total_cost_without_vat,
                   total_cost_with_vat=EXCLUDED.total_cost_with_vat,
-                  raw_json=EXCLUDED.raw_json, ingested_at=now()""",
+                  raw_json=EXCLUDED.raw_json, ingested_at=now()
+               WHERE proc.procurement_act.origin = 'import'""",
             {
                 "adam": adam, "type": act_type, "title": act.get("title"),
                 "signed_date": act.get("signedDate"),
@@ -486,7 +487,21 @@ class Repository:
         )
         return adam
 
-    def mark_full_text_attempted_empty(self, adam: str, reason: str) -> None:
+    def is_authored(self, adam: str) -> bool:
+        """True if this ADAM exists as an AUTHORED (manually created/edited) act.
+        The import pipeline uses this to leave such acts — and their child
+        tables — completely untouched on re-import."""
+        row = self.db.execute(
+            "SELECT origin FROM proc.procurement_act WHERE adam = %s", (adam,)
+        ).fetchone()
+        if not row:
+            return False
+        # Tolerate both tuple rows (row[0]) and dict/mapping rows (row['origin']).
+        try:
+            origin = row["origin"]
+        except (TypeError, KeyError, IndexError):
+            origin = row[0]
+        return origin == "authored"
         """Record that we tried to extract text for this act but got none
         (scanned PDF, no attachment, etc.), WITHOUT setting full_text. This lets
         a mass re-run skip acts already known to yield nothing — otherwise every
@@ -807,6 +822,13 @@ def ingest_type(client: KhmdhsClient, repo: Repository, act_type: str,
                 authority_id = repo.upsert_authority(act)
                 unit_id, signer_id = repo.upsert_unit_and_signer(act, authority_id)
                 repo.upsert_act(act_type, act, authority_id, unit_id, signer_id)
+                # GUARD: if this ADAM already exists as an AUTHORED (manually
+                # created/edited) act, the upsert above left its row untouched —
+                # and we must NOT rebuild its child tables (line items, operators,
+                # links) or re-extract text from the import payload either, or the
+                # curator's work would be clobbered. Skip everything downstream.
+                if repo.is_authored(act["referenceNumber"]):
+                    continue
                 if EXTRACT_FULLTEXT:
                     # Fail-soft, fill-only-if-empty; scanned docs skipped.
                     extract_full_text_for_act(
