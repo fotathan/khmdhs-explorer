@@ -512,7 +512,6 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 ("cancelled", "Ακυρωμένη", "bool"),
                 ("is_modified", "Ορθή επανάληψη", "bool"),
                 ("has_attachments", "Έχει συνημμένα", "bool"),
-                ("qualified_for_ml", "Κατάλληλη για ML", "bool"),
             ],
         }
 
