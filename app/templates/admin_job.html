@@ -92,6 +92,65 @@
       </p>
     {% endif %}
 
+    <div class="section-h">Πράξεις αυτής της εκτέλεσης</div>
+    {% if act_log_total %}
+      <p style="font-family:var(--serif); font-size:15px; color:var(--ink); margin:0 0 6px;">
+        <strong>{{ act_log_total }}</strong> πράξεις ·
+        {% if act_actions.new %}<strong style="color:var(--ok);">{{ act_actions.new }}</strong> νέες{% endif %}
+        {% if act_actions.updated %}{% if act_actions.new %} · {% endif %}<strong>{{ act_actions.updated }}</strong> ενημερώσεις{% endif %}
+        {% if act_actions.skipped_authored %} · <strong>{{ act_actions.skipped_authored }}</strong> χειροκίνητες (παράλειψη){% endif %}
+        · <strong>{{ act_ft_yes }}</strong> με εξαγωγή πλήρους κειμένου
+      </p>
+      <p class="meta" style="margin:0 0 12px;">
+        <a href="/admin/jobs/{{ job.id }}/acts.csv" hx-boost="false">↓ Λήψη πλήρους καταλόγου (CSV)</a>
+        {% if act_log_total > act_log_preview %}
+          · εμφανίζονται οι {{ act_log_preview }} πιο πρόσφατες από {{ act_log_total }}
+        {% endif %}
+      </p>
+      <table class="lines">
+        <thead><tr>
+          <th>ΑΔΑΜ</th>
+          <th>Τύπος</th>
+          <th>Τίτλος</th>
+          <th>Ενέργεια</th>
+          <th>Πλήρες κείμενο</th>
+          <th>Ώρα</th>
+        </tr></thead>
+        <tbody>
+          {% for a in act_log %}
+            <tr>
+              <td><a href="/act/{{ a.adam }}" hx-boost="false" style="font-family:var(--mono); font-size:11px;">{{ a.adam }}</a></td>
+              <td class="meta">{{ a.act_type | type_label }}</td>
+              <td style="font-size:12px; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ a.title or '—' }}</td>
+              <td>
+                {% if a.action == 'new' %}<span style="color:var(--ok);">● νέα</span>
+                {% elif a.action == 'updated' %}<span style="color:var(--ink-2);">↻ ενημέρωση</span>
+                {% elif a.action == 'skipped_authored' %}<span style="color:var(--ink-3);">⤫ χειροκίνητη</span>
+                {% else %}{{ a.action }}{% endif %}
+              </td>
+              <td class="meta" style="font-size:11px;">
+                {% if a.full_text_extracted %}<span style="color:var(--ok);">✓</span> {{ a.full_text_chars }} χαρ.
+                {% elif a.full_text_note == 'exists' %}υπήρχε ήδη
+                {% elif a.full_text_note == 'no_attachment' %}χωρίς συνημμένο
+                {% elif a.full_text_note == 'no_text' %}σαρωμένο/χωρίς κείμενο
+                {% elif a.full_text_note == 'libs_missing' %}μη διαθέσιμο
+                {% elif a.full_text_note == 'error' %}σφάλμα
+                {% elif a.full_text_note in ('disabled', 'authored') %}—
+                {% else %}{{ a.full_text_note or '—' }}{% endif %}
+              </td>
+              <td class="meta" style="font-family:var(--mono); font-size:10px;">{{ a.logged_at.strftime('%H:%M:%S') }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); font-size:13px;">
+        Δεν έχει καταγραφεί αναλυτικό μητρώο πράξεων για αυτή την εκτέλεση
+        {% if job.status == 'running' %}ακόμη{% endif %}.
+        (Διαθέσιμο για εκτελέσεις που ξεκινούν από αυτό το πάνελ· παλαιότερες εκτελέσεις δεν το έχουν.)
+      </p>
+    {% endif %}
+
     <div class="section-h">Έξοδος (τέλος αρχείου)</div>
     {% if log_tail %}
       <pre style="font-family:var(--mono); font-size:11px; background:#1a1614; color:#d9d2bf; padding:14px 16px; max-height:340px; overflow:auto; line-height:1.55;">{{ log_tail }}</pre>

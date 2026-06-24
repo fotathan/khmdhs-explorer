@@ -49,6 +49,10 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
 
     ACT_TYPES = ["request", "notice", "auction", "contract", "payment"]
 
+    # How many per-act log rows the job page shows inline; the rest are reachable
+    # via the CSV download. Keeps the page light when a run touched many acts.
+    ACT_LOG_PREVIEW = 200
+
     # ------------------------------------------------------------------ #
     # Helpers
     # ------------------------------------------------------------------ #
@@ -180,6 +184,9 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             job_env["EXTRACT_FULLTEXT"] = "1"
         else:
             job_env.pop("EXTRACT_FULLTEXT", None)
+        # Tell the runner its job id so it writes per-act rows to
+        # proc.ingest_act_log (the job page's transparency log).
+        job_env["INGEST_JOB_ID"] = str(job_id)
 
         log_fh = open(log_path, "w")
         # Record what this run is doing at the top of its own log, so the job
@@ -270,6 +277,11 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                          WHERE id=%s""", (proc.pid, log_path, job_id))
 
         return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
+
+    @router.get("/jobs/{job_id}", response_class=HTMLResponse)
+    def admin_job_detail(job_id: int, request: Request):
+        """Job detail: window progress, raw log tail, and the per-act
+        transparency log (proc.ingest_act_log) for this run."""
         reconcile_stale()
         with cursor() as c:
             c.execute("""SELECT * FROM proc.ingest_job WHERE id=%s""", (job_id,))
@@ -294,6 +306,26 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                       (job["types"], job["date_from"], job["date_to"]))
             counts = {r["status"]: r["count"] for r in c.fetchall()}
 
+            # Per-act transparency log for this run: counts by action, full-text
+            # tally, and the most recent rows (the rest are in the CSV download).
+            c.execute("""SELECT action, count(*) AS n
+                         FROM proc.ingest_act_log WHERE job_id=%s
+                         GROUP BY action""", (job_id,))
+            act_actions = {r["action"]: r["n"] for r in c.fetchall()}
+            c.execute("""SELECT count(*) AS total,
+                                count(*) FILTER (WHERE full_text_extracted) AS ft_yes
+                         FROM proc.ingest_act_log WHERE job_id=%s""", (job_id,))
+            ftrow = c.fetchone()
+            act_log_total = ftrow["total"] if ftrow else 0
+            act_ft_yes = ftrow["ft_yes"] if ftrow else 0
+            c.execute("""SELECT adam, act_type, title, action,
+                                full_text_extracted, full_text_chars,
+                                full_text_note, logged_at
+                         FROM proc.ingest_act_log WHERE job_id=%s
+                         ORDER BY id DESC LIMIT %s""",
+                      (job_id, ACT_LOG_PREVIEW))
+            act_log = c.fetchall()
+
         # Tail the log file (last ~4 KB) without loading the whole thing.
         log_tail = ""
         if job["log_path"] and os.path.exists(job["log_path"]):
@@ -311,8 +343,38 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             {"job": job, "windows": windows, "counts": counts,
              "log_tail": log_tail,
              "alive": pid_alive(job["pid"]),
-             "is_active": job["status"] == "running"},
+             "is_active": job["status"] == "running",
+             "act_log": act_log, "act_actions": act_actions,
+             "act_log_total": act_log_total, "act_ft_yes": act_ft_yes,
+             "act_log_preview": ACT_LOG_PREVIEW},
         )
+
+    @router.get("/jobs/{job_id}/acts.csv")
+    def admin_job_acts_csv(job_id: int):
+        """Download the full per-act log for a run as CSV — for documentation and
+        offline review. Uncapped: streams every row recorded for the job."""
+        import csv as _csv
+        import io as _io
+        with cursor() as c:
+            c.execute("""SELECT logged_at, adam, act_type, action,
+                                full_text_extracted, full_text_chars,
+                                full_text_note, title
+                         FROM proc.ingest_act_log WHERE job_id=%s
+                         ORDER BY id""", (job_id,))
+            rows = c.fetchall()
+        buf = _io.StringIO()
+        w = _csv.writer(buf)
+        w.writerow(["logged_at", "adam", "act_type", "action",
+                    "full_text_extracted", "full_text_chars",
+                    "full_text_note", "title"])
+        for r in rows:
+            w.writerow([r["logged_at"], r["adam"], r["act_type"], r["action"],
+                        r["full_text_extracted"], r["full_text_chars"],
+                        r["full_text_note"], r["title"]])
+        return Response(
+            content=buf.getvalue(), media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition":
+                     f'attachment; filename="job-{job_id}-acts.csv"'})
 
     @router.post("/jobs/{job_id}/cancel")
     def admin_cancel_job(job_id: int):
