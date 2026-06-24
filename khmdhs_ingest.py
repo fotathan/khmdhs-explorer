@@ -114,6 +114,15 @@ EXTRACT_FULLTEXT = _os.environ.get("EXTRACT_FULLTEXT", "0") == "1"
 # Cap one attachment download so a pathological file can't stall a window.
 MAX_ATTACHMENT_BYTES = int(_os.environ.get("FULLTEXT_MAX_MB", "60")) * 1024 * 1024
 
+# Per-act transparency log. When a run is launched from the admin UI it passes
+# its proc.ingest_job id via INGEST_JOB_ID; the ingest loop then records one
+# proc.ingest_act_log row per act (see Repository.log_act). A plain CLI backfill
+# leaves this unset and writes no per-act rows — opt-in, no shell-path overhead.
+try:
+    INGEST_JOB_ID = int(_os.environ["INGEST_JOB_ID"])
+except (KeyError, ValueError):
+    INGEST_JOB_ID = None
+
 
 # --------------------------------------------------------------------------- #
 # Rate limiter: simple token-bucket sized to the documented 350 req/min.
@@ -368,7 +377,7 @@ class Repository:
                    authority_id, unit_id, signer_id):
         adam = act["referenceNumber"]
         self._ensure_nuts(act)
-        self.db.execute(
+        inserted = self.db.execute_returning(
             """INSERT INTO proc.procurement_act
                  (adam, type, title, signed_date, submission_date,
                   last_update_date, published_eu_date, final_submission_date,
@@ -418,7 +427,8 @@ class Repository:
                   total_cost_without_vat=EXCLUDED.total_cost_without_vat,
                   total_cost_with_vat=EXCLUDED.total_cost_with_vat,
                   raw_json=EXCLUDED.raw_json, ingested_at=now()
-               WHERE proc.procurement_act.origin = 'import'""",
+               WHERE proc.procurement_act.origin = 'import'
+               RETURNING (xmax = 0) AS inserted""",
             {
                 "adam": adam, "type": act_type, "title": act.get("title"),
                 "signed_date": act.get("signedDate"),
@@ -485,23 +495,44 @@ class Repository:
                 "raw_json": _as_jsonb(act), "source_endpoint": SEARCH_PATH[act_type],
             },
         )
-        return adam
+        # execute_returning gives back RETURNING (xmax = 0) as a scalar, or None
+        # when no row was affected:
+        #   True  -> fresh INSERT                       -> 'new'
+        #   False -> conflict-update of an import row    -> 'updated'
+        #   None  -> conflict row is AUTHORED, so the DO UPDATE ... WHERE
+        #            origin='import' matched nothing     -> 'skipped_authored'
+        # Best-effort label for the run log; the authored-act guard in the loop
+        # is separate and authoritative.
+        if inserted is None:
+            return "skipped_authored"
+        return "new" if inserted else "updated"
 
     def is_authored(self, adam: str) -> bool:
         """True if this ADAM exists as an AUTHORED (manually created/edited) act.
         The import pipeline uses this to leave such acts — and their child
         tables — completely untouched on re-import."""
-        row = self.db.execute(
-            "SELECT origin FROM proc.procurement_act WHERE adam = %s", (adam,)
-        ).fetchone()
-        if not row:
-            return False
-        # Tolerate both tuple rows (row[0]) and dict/mapping rows (row['origin']).
-        try:
-            origin = row["origin"]
-        except (TypeError, KeyError, IndexError):
-            origin = row[0]
+        # NB: db.execute() returns None (it doesn't hand back the cursor), so we
+        # go through execute_returning, which runs the query and returns the
+        # first column (or None when the act isn't present yet).
+        origin = self.db.execute_returning(
+            "SELECT origin FROM proc.procurement_act WHERE adam = %s", (adam,))
         return origin == "authored"
+
+    def log_act(self, job_id: int, adam: str, act_type: str, title,
+                action: str, ft_extracted: bool, ft_chars, ft_note) -> None:
+        """Append one per-act transparency row for an admin-launched run. Written
+        inside the current window transaction, so it commits/rolls back together
+        with the act rows it describes (a rolled-back window logs nothing)."""
+        self.db.execute(
+            """INSERT INTO proc.ingest_act_log
+                 (job_id, adam, act_type, title, action,
+                  full_text_extracted, full_text_chars, full_text_note)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (job_id, adam, act_type, title, action,
+             ft_extracted, ft_chars, ft_note),
+        )
+
+    def mark_full_text_attempted_empty(self, adam: str, reason: str):
         """Record that we tried to extract text for this act but got none
         (scanned PDF, no attachment, etc.), WITHOUT setting full_text. This lets
         a mass re-run skip acts already known to yield nothing — otherwise every
@@ -531,10 +562,10 @@ class Repository:
                  AND (full_text IS NULL OR full_text = '')""",
             {"text": text, "source": source, "adam": adam},
         )
-        # psycopg exposes rowcount on the cursor; db.execute may or may not
-        # surface it. Treat "no exception" as success; callers don't depend on
-        # the boolean for correctness, only for logging.
-        return True
+        # rowcount reflects whether the fill-only-if-empty WHERE matched: 1 when
+        # we actually wrote, 0 when full_text was already set (left untouched).
+        # Used only for the run log's 'extracted' vs 'exists' note.
+        return self.db.cur.rowcount > 0
     def replace_object_details(self, adam: str, act: dict):
         self.db.execute("DELETE FROM proc.act_object_detail WHERE adam=%s", (adam,))
         # request/notice/payment use 'objectDetails'; auction/contract use
@@ -703,7 +734,7 @@ class Repository:
 # Orchestration
 # --------------------------------------------------------------------------- #
 def extract_full_text_for_act(client: "KhmdhsClient", repo: "Repository",
-                              act_type: str, adam: str) -> None:
+                              act_type: str, adam: str) -> tuple[bool, int | None, str]:
     """Fetch an act's attachment, extract its text, and store it (fill-only-if-
     empty). Entirely fail-soft: any problem is swallowed so a single act can
     never break the ingest window. Scanned/no-text-layer documents yield no
@@ -711,11 +742,19 @@ def extract_full_text_for_act(client: "KhmdhsClient", repo: "Repository",
 
     Imported lazily so the ingester still imports cleanly on a machine that
     doesn't have the extraction libs installed (e.g. one that only reads data).
+
+    Returns (extracted, chars, note) for the run log:
+      (True,  n,    'extracted')      text fetched and stored (n chars)
+      (False, n,    'exists')         text found but full_text already set
+      (False, None, 'no_attachment')  no document to fetch
+      (False, None, 'no_text')        attachment has no text layer (scanned)
+      (False, None, 'libs_missing')   extraction libs not installed
+      (False, None, 'error')          anything threw
     """
     try:
         fetched = client.fetch_attachment(act_type, adam)
         if not fetched:
-            return
+            return (False, None, "no_attachment")
         data, fname = fetched
         try:
             from app.extractors import extract_text_from_upload
@@ -723,13 +762,16 @@ def extract_full_text_for_act(client: "KhmdhsClient", repo: "Repository",
             try:
                 from extractors import extract_text_from_upload
             except ImportError:
-                return  # extraction libs not available — skip silently
+                return (False, None, "libs_missing")
         text = extract_text_from_upload(fname, data)
         if not text:
-            return  # no text layer (scanned/image) — leave for manual OCR
-        repo.set_full_text_if_empty(adam, text, source="auto:import")
+            return (False, None, "no_text")  # scanned/image — leave for manual OCR
+        wrote = repo.set_full_text_if_empty(adam, text, source="auto:import")
+        if wrote:
+            return (True, len(text), "extracted")
+        return (False, len(text), "exists")
     except Exception:  # noqa: BLE001 — never propagate into the ingest loop
-        return
+        return (False, None, "error")
 
 
 def extract_full_text_status(client: "KhmdhsClient", repo: "Repository",
@@ -817,26 +859,36 @@ def ingest_type(client: KhmdhsClient, repo: Repository, act_type: str,
         try:
             body = search_body(w_from, w_to)
             for act in client.search(act_type, body):
-                if not act.get("referenceNumber"):
+                adam = act.get("referenceNumber")
+                if not adam:
                     continue
                 authority_id = repo.upsert_authority(act)
                 unit_id, signer_id = repo.upsert_unit_and_signer(act, authority_id)
-                repo.upsert_act(act_type, act, authority_id, unit_id, signer_id)
+                action = repo.upsert_act(act_type, act, authority_id, unit_id, signer_id)
                 # GUARD: if this ADAM already exists as an AUTHORED (manually
                 # created/edited) act, the upsert above left its row untouched —
                 # and we must NOT rebuild its child tables (line items, operators,
                 # links) or re-extract text from the import payload either, or the
                 # curator's work would be clobbered. Skip everything downstream.
-                if repo.is_authored(act["referenceNumber"]):
+                if repo.is_authored(adam):
+                    if INGEST_JOB_ID:
+                        repo.log_act(INGEST_JOB_ID, adam, act_type, act.get("title"),
+                                     "skipped_authored", False, None, "authored")
                     continue
+                ft_extracted, ft_chars, ft_note = False, None, None
                 if EXTRACT_FULLTEXT:
                     # Fail-soft, fill-only-if-empty; scanned docs skipped.
-                    extract_full_text_for_act(
-                        client, repo, act_type, act["referenceNumber"])
-                repo.replace_object_details(act["referenceNumber"], act)
+                    ft_extracted, ft_chars, ft_note = extract_full_text_for_act(
+                        client, repo, act_type, adam)
+                else:
+                    ft_note = "disabled"
+                repo.replace_object_details(adam, act)
                 repo.record_contractors(act_type, act)
                 repo.record_links(act_type, act)
                 repo.record_diavgeia_links(act)
+                if INGEST_JOB_ID:
+                    repo.log_act(INGEST_JOB_ID, adam, act_type, act.get("title"),
+                                 action, ft_extracted, ft_chars, ft_note)
             # Mark done atomically with the same transaction that wrote the rows.
             db.execute(
                 """UPDATE proc.ingest_window
