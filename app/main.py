@@ -1541,7 +1541,9 @@ def authority_detail(org_id: str, request: Request,
         c.execute("""
             SELECT org_id, name, vat_number, is_greek_vat, aaht,
                    type_code, classification_code, nuts_code,
-                   city, postal_code, country
+                   city, postal_code, country,
+                   identifier, orgdb_id, street_address,
+                   contact_email, contact_phone, contact_fax, contact_url
             FROM proc.authority WHERE org_id = %s
         """, (org_id,))
         auth = c.fetchone()
@@ -1668,7 +1670,10 @@ def contractor_detail(vat: str, request: Request,
     with cursor() as c:
         c.execute("""
             SELECT operator_id, vat_number, name, is_greek_vat, country,
-                   first_seen, last_seen
+                   first_seen, last_seen,
+                   statistical_or_tax_number, contact_person, orgdb_id,
+                   city, postal_code, nuts_code, street_address,
+                   contact_email, contact_phone, contact_fax, contact_url
             FROM proc.economic_operator WHERE vat_number = %s
         """, (vat,))
         op = c.fetchone()

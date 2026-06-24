@@ -21,7 +21,26 @@
       {% for m in merge_info.members %}<code>{{ m.org_id }}</code>{% if not loop.last %} · {% endif %}{% endfor %}
     </div>
     {% endif %}
+    <div style="margin-top:8px;">
+      <a href="/admin/authority/{{ a.org_id }}/edit" hx-boost="false"
+         style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--accent);">επεξεργασία στοιχείων ›</a>
+    </div>
   </div>
+
+  {% if a.identifier or a.orgdb_id or a.street_address or a.contact_email or a.contact_phone or a.contact_fax or a.contact_url %}
+  <div class="panel">
+    <h3 class="panel-h">Στοιχεία επικοινωνίας & ταυτότητας</h3>
+    <dl class="facts">
+      {% if a.identifier %}<dt>Αναγνωριστικό πηγής</dt><dd>{{ a.identifier }}</dd>{% endif %}
+      {% if a.orgdb_id %}<dt>OrgDB ID</dt><dd>{{ a.orgdb_id }}</dd>{% endif %}
+      {% if a.street_address %}<dt>Διεύθυνση</dt><dd>{{ a.street_address }}</dd>{% endif %}
+      {% if a.contact_email %}<dt>Email</dt><dd><a href="mailto:{{ a.contact_email }}" style="color:var(--accent);">{{ a.contact_email }}</a></dd>{% endif %}
+      {% if a.contact_phone %}<dt>Τηλέφωνο</dt><dd>{{ a.contact_phone }}</dd>{% endif %}
+      {% if a.contact_fax %}<dt>Φαξ</dt><dd>{{ a.contact_fax }}</dd>{% endif %}
+      {% if a.contact_url %}<dt>Ιστότοπος</dt><dd><a href="{{ a.contact_url }}" target="_blank" rel="noopener" style="color:var(--accent);">{{ a.contact_url }}</a></dd>{% endif %}
+    </dl>
+  </div>
+  {% endif %}
 
   <div class="stat-row">
     <div class="stat-box">

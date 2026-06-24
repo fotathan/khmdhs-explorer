@@ -785,6 +785,131 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 (curator, curator, adam))
         return RedirectResponse(url=f"/admin/acts/{adam}/edit?owned=1", status_code=303)
 
+    # ------------------------------------------------------------------ #
+    # Party (authority / contractor) edit forms. Parties are harvested, so
+    # there is no "create" — only edit of descriptive / identity / contact
+    # fields. These columns are never written by the import upserts, so a
+    # curator's values survive re-imports. The NAME keeps its own inline editor
+    # on the detail page; the keys (org_id / vat) are not editable here.
+    # ------------------------------------------------------------------ #
+    def _authority_form_fields():
+        return {
+            "Ταυτότητα": [
+                ("identifier", "Αναγνωριστικό πηγής", "text"),
+                ("orgdb_id", "OrgDB ID", "text"),
+            ],
+            "Κατηγοριοποίηση": [
+                ("type_code", "Κωδικός τύπου", "text"),
+                ("classification_code", "Κωδικός κατηγορίας", "text"),
+                ("aaht", "ΑΑΗΤ", "text"),
+            ],
+            "Τοποθεσία": [
+                ("nuts_code", "Κωδικός NUTS", "text"),
+                ("city", "Πόλη", "text"),
+                ("postal_code", "Τ.Κ.", "text"),
+                ("country", "Χώρα", "text"),
+                ("street_address", "Διεύθυνση (οδός)", "text"),
+            ],
+            "Επικοινωνία": [
+                ("contact_email", "Email", "text"),
+                ("contact_phone", "Τηλέφωνο", "text"),
+                ("contact_fax", "Φαξ", "text"),
+                ("contact_url", "Ιστότοπος", "text"),
+            ],
+        }
+
+    def _contractor_form_fields():
+        return {
+            "Ταυτότητα": [
+                ("statistical_or_tax_number", "Στατιστικός/φορολογικός αρ.", "text"),
+                ("contact_person", "Υπεύθυνος επικοινωνίας", "text"),
+                ("orgdb_id", "OrgDB ID", "text"),
+            ],
+            "Στοιχεία": [
+                ("is_greek_vat", "Ελληνικό ΑΦΜ", "bool"),
+                ("country", "Χώρα", "text"),
+            ],
+            "Τοποθεσία": [
+                ("nuts_code", "Κωδικός NUTS", "text"),
+                ("city", "Πόλη", "text"),
+                ("postal_code", "Τ.Κ.", "text"),
+                ("street_address", "Διεύθυνση (οδός)", "text"),
+            ],
+            "Επικοινωνία": [
+                ("contact_email", "Email", "text"),
+                ("contact_phone", "Τηλέφωνο", "text"),
+                ("contact_fax", "Φαξ", "text"),
+                ("contact_url", "Ιστότοπος", "text"),
+            ],
+        }
+
+    def _party_coerce(groups, form):
+        """Build {column: value} from a submitted party form, by field kind."""
+        data = {}
+        for grp in groups.values():
+            for name, _label, kind in grp:
+                if kind == "bool":
+                    data[name] = (name in form)
+                else:
+                    data[name] = (form.get(name) or "").strip() or None
+        return data
+
+    @router.get("/authority/{org_id}/edit", response_class=HTMLResponse)
+    def authority_edit_form(org_id: str, request: Request):
+        with cursor() as c:
+            c.execute("SELECT * FROM proc.authority WHERE org_id=%s", (org_id,))
+            party = c.fetchone()
+        if not party:
+            raise HTTPException(404, "authority not found")
+        return templates.TemplateResponse(
+            request, "admin_party_form.html",
+            {"groups": _authority_form_fields(), "party": dict(party),
+             "kind": "authority", "kind_label": "Αναθέτουσα αρχή", "ident": org_id,
+             "name": party["name"], "back_url": f"/authority/{org_id}",
+             "action_url": f"/admin/authority/{org_id}/save"})
+
+    @router.post("/authority/{org_id}/save")
+    async def authority_save(org_id: str, request: Request):
+        form = await request.form()
+        data = _party_coerce(_authority_form_fields(), form)
+        with cursor() as c:
+            c.execute("SELECT 1 FROM proc.authority WHERE org_id=%s", (org_id,))
+            if not c.fetchone():
+                raise HTTPException(404, "authority not found")
+            cols = list(data.keys())
+            set_sql = ", ".join(f"{col} = %s" for col in cols)
+            c.execute(f"UPDATE proc.authority SET {set_sql} WHERE org_id = %s",
+                      [data[col] for col in cols] + [org_id])
+        return RedirectResponse(url=f"/authority/{org_id}", status_code=303)
+
+    @router.get("/contractor/{vat}/edit", response_class=HTMLResponse)
+    def contractor_edit_form(vat: str, request: Request):
+        with cursor() as c:
+            c.execute("SELECT * FROM proc.economic_operator WHERE vat_number=%s", (vat,))
+            party = c.fetchone()
+        if not party:
+            raise HTTPException(404, "contractor not found")
+        return templates.TemplateResponse(
+            request, "admin_party_form.html",
+            {"groups": _contractor_form_fields(), "party": dict(party),
+             "kind": "contractor", "kind_label": "Ανάδοχος", "ident": vat,
+             "name": party["name"], "back_url": f"/contractor/{vat}",
+             "action_url": f"/admin/contractor/{vat}/save"})
+
+    @router.post("/contractor/{vat}/save")
+    async def contractor_save(vat: str, request: Request):
+        form = await request.form()
+        data = _party_coerce(_contractor_form_fields(), form)
+        with cursor() as c:
+            c.execute("SELECT 1 FROM proc.economic_operator WHERE vat_number=%s", (vat,))
+            if not c.fetchone():
+                raise HTTPException(404, "contractor not found")
+            cols = list(data.keys())
+            set_sql = ", ".join(f"{col} = %s" for col in cols)
+            c.execute(f"UPDATE proc.economic_operator SET {set_sql} WHERE vat_number = %s",
+                      [data[col] for col in cols] + [vat])
+        return RedirectResponse(url=f"/contractor/{vat}", status_code=303)
+
     @router.get("/curate", response_class=HTMLResponse)
     def curate_search(request: Request,
                       q: str = Query(""),

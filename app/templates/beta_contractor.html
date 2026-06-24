@@ -19,7 +19,30 @@
       {% for m in merge_info.members %}<code>{{ m.vat }}</code>{% if not loop.last %} · {% endif %}{% endfor %}
     </div>
     {% endif %}
+    <div style="margin-top:8px;">
+      <a href="/admin/contractor/{{ op.vat_number }}/edit" hx-boost="false"
+         style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--accent);">επεξεργασία στοιχείων ›</a>
+    </div>
   </div>
+
+  {% if op.statistical_or_tax_number or op.contact_person or op.orgdb_id or op.city or op.postal_code or op.nuts_code or op.street_address or op.contact_email or op.contact_phone or op.contact_fax or op.contact_url %}
+  <div class="panel">
+    <h3 class="panel-h">Στοιχεία επικοινωνίας & ταυτότητας</h3>
+    <dl class="facts">
+      {% if op.statistical_or_tax_number %}<dt>Στατιστικός/φορολογικός αρ.</dt><dd>{{ op.statistical_or_tax_number }}</dd>{% endif %}
+      {% if op.contact_person %}<dt>Υπεύθυνος επικοινωνίας</dt><dd>{{ op.contact_person }}</dd>{% endif %}
+      {% if op.orgdb_id %}<dt>OrgDB ID</dt><dd>{{ op.orgdb_id }}</dd>{% endif %}
+      {% if op.nuts_code %}<dt>NUTS</dt><dd>{{ op.nuts_code }}</dd>{% endif %}
+      {% if op.city %}<dt>Πόλη</dt><dd>{{ op.city }}</dd>{% endif %}
+      {% if op.postal_code %}<dt>Τ.Κ.</dt><dd>{{ op.postal_code }}</dd>{% endif %}
+      {% if op.street_address %}<dt>Διεύθυνση</dt><dd>{{ op.street_address }}</dd>{% endif %}
+      {% if op.contact_email %}<dt>Email</dt><dd><a href="mailto:{{ op.contact_email }}" style="color:var(--accent);">{{ op.contact_email }}</a></dd>{% endif %}
+      {% if op.contact_phone %}<dt>Τηλέφωνο</dt><dd>{{ op.contact_phone }}</dd>{% endif %}
+      {% if op.contact_fax %}<dt>Φαξ</dt><dd>{{ op.contact_fax }}</dd>{% endif %}
+      {% if op.contact_url %}<dt>Ιστότοπος</dt><dd><a href="{{ op.contact_url }}" target="_blank" rel="noopener" style="color:var(--accent);">{{ op.contact_url }}</a></dd>{% endif %}
+    </dl>
+  </div>
+  {% endif %}
 
   <div class="stat-row">
     <div class="stat-box">
