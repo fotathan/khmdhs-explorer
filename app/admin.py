@@ -57,8 +57,26 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
     # Helpers
     # ------------------------------------------------------------------ #
     def pid_alive(pid: Optional[int]) -> bool:
+        """Whether a launched backfill PID is still genuinely running.
+
+        Backfills are spawned detached but stay children of this web process,
+        so a finished one becomes a <defunct> zombie until reaped — and
+        os.kill(zombie, 0) SUCCEEDS, which used to make a completed job look
+        like it was still running forever (page kept auto-refreshing, new jobs
+        stayed blocked). So we first try a non-blocking reap: if it has exited
+        we collect it here and report not-alive."""
         if not pid:
             return False
+        try:
+            reaped, _ = os.waitpid(pid, os.WNOHANG)
+            if reaped == pid:
+                return False        # exited just now and reaped → finished
+            if reaped == 0:
+                return True         # still our running child
+        except ChildProcessError:
+            pass                    # not our child (e.g. after a web restart)
+        except OSError:
+            pass
         try:
             os.kill(pid, 0)         # signal 0 = no-op probe
             return True
@@ -68,17 +86,40 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             return True             # process exists but is owned by another user
 
     def reconcile_stale():
-        """If a job is recorded as 'running' but the PID is gone, flip it to
-        'stale'. Called on every admin page load — cheap, single table scan."""
+        """Move jobs out of 'running' once their detached subprocess is gone.
+
+        The runner records its own terminal status on a clean exit; this is the
+        safety net for runs that were killed/crashed before doing so (and for
+        jobs that predate that runner change). We infer the outcome from the
+        per-window rows the runner did write: every window finished ⇒ 'done'
+        (or 'error' if any errored); work still unfinished or no windows ever
+        registered ⇒ 'stale'. Called on every admin page load — cheap."""
         with cursor() as c:
-            c.execute("""SELECT id, pid FROM proc.ingest_job
-                         WHERE status='running'""")
+            c.execute("""SELECT id, pid, types, date_from, date_to
+                         FROM proc.ingest_job WHERE status='running'""")
             rows = c.fetchall()
             for r in rows:
-                if not pid_alive(r["pid"]):
-                    c.execute("""UPDATE proc.ingest_job
-                                 SET status='stale', finished_at=now()
-                                 WHERE id=%s""", (r["id"],))
+                if pid_alive(r["pid"]):
+                    continue
+                c.execute("""SELECT
+                               count(*) AS total,
+                               count(*) FILTER (WHERE status IN ('pending','running')) AS unfinished,
+                               count(*) FILTER (WHERE status='error') AS errored
+                             FROM proc.ingest_window
+                             WHERE act_type = ANY(%s)
+                               AND date_from >= %s AND date_to <= %s""",
+                          (r["types"], r["date_from"], r["date_to"]))
+                w = c.fetchone()
+                if not w["total"] or w["unfinished"]:
+                    new_status = "stale"
+                elif w["errored"]:
+                    new_status = "error"
+                else:
+                    new_status = "done"
+                c.execute("""UPDATE proc.ingest_job
+                             SET status=%s, finished_at=now()
+                             WHERE id=%s AND status='running'""",
+                          (new_status, r["id"]))
 
     def any_running() -> bool:
         with cursor() as c:

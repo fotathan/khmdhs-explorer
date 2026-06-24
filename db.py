@@ -144,6 +144,32 @@ def cmd_init_schema(args):
     print(f"schema applied from {schema_path}")
 
 
+def _finalize_job(db, status: str):
+    """Record a terminal status on proc.ingest_job for an admin-launched run.
+
+    Admin backfills are spawned detached and the web request returns at once,
+    so the runner itself is what moves its job row out of 'running' on the way
+    out. No-op for plain shell runs (no INGEST_JOB_ID). Guarded on
+    status='running' so it never overrides a 'cancelled' the cancel button set.
+    """
+    import khmdhs_ingest as ingest
+    job_id = ingest.INGEST_JOB_ID
+    if job_id is None:
+        return
+    try:
+        db.rollback()  # clear any failed transaction so the UPDATE can run
+    except Exception:
+        pass
+    try:
+        db.execute("""UPDATE proc.ingest_job
+                      SET status=%s, finished_at=now()
+                      WHERE id=%s AND status='running'""",
+                   (status, job_id))
+        db.commit()
+    except Exception:
+        pass
+
+
 def cmd_backfill(args):
     # Import here so `init-schema` works even before deps for the API exist.
     import khmdhs_ingest as ingest
@@ -156,12 +182,19 @@ def cmd_backfill(args):
         client = ingest.KhmdhsClient()
         repo = ingest.Repository(db)
         totals = {"windows": 0, "done": 0, "skipped": 0, "errored": 0}
-        for act_type in types:
-            print(f"\n=== backfilling {act_type}: {start} .. {end}"
-                  f"{' (resume)' if args.resume else ''} ===")
-            s = ingest.ingest_type(client, repo, act_type, start, end,
-                                    resume=args.resume)
-            for k in totals: totals[k] += s[k]
+        final_status = "done"
+        try:
+            for act_type in types:
+                print(f"\n=== backfilling {act_type}: {start} .. {end}"
+                      f"{' (resume)' if args.resume else ''} ===")
+                s = ingest.ingest_type(client, repo, act_type, start, end,
+                                        resume=args.resume)
+                for k in totals: totals[k] += s[k]
+        except BaseException:
+            final_status = "error"
+            raise
+        finally:
+            _finalize_job(db, final_status)
     print(f"\nbackfill complete. windows={totals['windows']} "
           f"done={totals['done']} skipped={totals['skipped']} "
           f"errored={totals['errored']}")
@@ -195,7 +228,9 @@ def cmd_fulltext_backfill(args):
         params.append(dt.date.fromisoformat(args.end))
     where_sql = " AND ".join(where)
 
+    final_status = "done"
     with Database() as db:
+      try:
         # How many are still untried (for a sense of scale)?
         remaining = db.query(
             f"SELECT count(*) FROM proc.procurement_act WHERE {where_sql}", tuple(params)
@@ -225,6 +260,11 @@ def cmd_fulltext_backfill(args):
             if i % 100 == 0 or i == len(rows):
                 print(f"  {i:>6}/{len(rows)}  "
                       f"stored={n['stored']} empty={n['empty']} error={n['error']}")
+      except BaseException:
+        final_status = "error"
+        raise
+      finally:
+        _finalize_job(db, final_status)
 
     print(f"\nfull-text backfill run complete. "
           f"stored={n['stored']} empty={n['empty']} error={n['error']}")
