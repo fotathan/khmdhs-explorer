@@ -150,7 +150,12 @@
         </h3>
         <details>
           <summary style="cursor:pointer;font-size:13px;color:var(--ink-2);">{{ n.full_text | length }} χαρακτήρες{% if n.full_text_extracted_at %} · {{ n.full_text_extracted_at.strftime('%d/%m/%Y') }}{% endif %} — προβολή</summary>
-          <pre class="full-text-pre">{{ n.full_text }}</pre>
+          {% if n.full_text_html %}
+            {# Curator-authored rich text. Sanitised with nh3 at save time. #}
+            <div class="full-text-html">{{ n.full_text_html | safe }}</div>
+          {% else %}
+            <pre class="full-text-pre">{{ n.full_text }}</pre>
+          {% endif %}
         </details>
       </div>
       {% endif %}

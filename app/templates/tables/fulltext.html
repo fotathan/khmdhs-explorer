@@ -35,16 +35,8 @@
     <p class="tt-truncated">Δεν υπάρχει αποθηκευμένο κείμενο ακόμη.</p>
   {% endif %}
 
-  {# Editable form holding whatever is currently stored; extraction fills it. #}
-  <form hx-post="/tables/fulltext/save" hx-target="#tt-save-result" hx-swap="innerHTML">
-    <input type="hidden" name="adam" value="{{ act.adam }}">
-    <textarea class="tt-fulltext-area" name="full_text"
-              placeholder="Το εξαγόμενο κείμενο θα εμφανιστεί εδώ — μπορείτε να το επεξεργαστείτε πριν αποθηκεύσετε.">{{ act.full_text or '' }}</textarea>
-    <div style="margin-top:10px; display:flex; gap:.8rem; align-items:center;">
-      <button type="submit" class="tt-btn">Αποθήκευση κειμένου</button>
-      <span id="tt-save-result"></span>
-    </div>
-  </form>
+  {# Editable rich-text editor (shared with the admin edit-hub panel). #}
+  {% include "tables/_fulltext_editor.html" %}
 
   {# ---- fetch / extract panel ---- #}
   <div class="section-h" style="margin-top:28px;">Εξαγωγή από συνημμένα</div>
@@ -110,14 +102,5 @@
       if (e.dataTransfer.files.length) { input.files = e.dataTransfer.files; refreshList(); }
     });
   })();
-
-  // When the preview partial loads, copy its extracted text into the save textarea.
-  document.body.addEventListener('tt:fulltext-extracted', function (e) {
-    const area = document.querySelector('.tt-fulltext-area');
-    if (area && typeof e.detail === 'string') {
-      area.value = e.detail;
-      area.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  });
 </script>
 {% endblock %}

@@ -1,0 +1,110 @@
+{# tables/_fulltext_editor.html — rich-text editor for an act's full text.
+   Shared by the standalone /tables/fulltext page AND the admin edit-hub
+   "Πλήρες κείμενο" panel so both behave identically (the repo keeps the two
+   full-text UIs in sync). Expects `act` (adam, full_text, full_text_html) in
+   context. Posts to /tables/fulltext/save, which stores plain text (full_text,
+   the search source) and sanitised HTML (full_text_html) together.
+
+   Works both on a normal page load and when injected via an HTMX swap (the
+   admin panel): the loader is async-safe and the init is idempotent, so
+   re-loading the panel (tab switching) re-initialises cleanly. Uses CLASSES,
+   not ids, so it is safe even if ever included twice on one page. #}
+<form class="ft-save-form" hx-post="/tables/fulltext/save"
+      hx-target="#tt-save-result" hx-swap="innerHTML">
+  <input type="hidden" name="adam" value="{{ act.adam }}">
+  <div class="ft-editor"></div>
+  <div style="margin-top:10px; display:flex; gap:.8rem; align-items:center;">
+    <button type="submit" class="tt-btn">Αποθήκευση κειμένου</button>
+    <span id="tt-save-result"></span>
+  </div>
+</form>
+
+{# Initial editor content, kept out of JS string-escaping trouble. full_text_html
+   is already sanitised (nh3) at save time; plain text is the fallback for acts
+   that only have extracted text so far. #}
+<div class="ft-initial-html" hidden>{% if act.full_text_html %}{{ act.full_text_html | safe }}{% endif %}</div>
+<div class="ft-initial-text" hidden>{{ act.full_text or '' }}</div>
+
+<style>
+  .ft-editor{background:#fff;}
+  .ft-editor .ql-editor{min-height:320px;font-size:14px;line-height:1.6;}
+</style>
+
+<script>
+(function () {
+  var CDN_JS  = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js';
+  var CDN_CSS = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css';
+
+  function ensureCss() {
+    if (document.getElementById('ft-quill-css')) return;
+    var l = document.createElement('link');
+    l.id = 'ft-quill-css'; l.rel = 'stylesheet'; l.href = CDN_CSS;
+    document.head.appendChild(l);
+  }
+
+  // "Use extracted text" button (in the preview partial) dispatches this on the
+  // body. Bind once; route the text into whatever editor is on the page.
+  if (!window.__ftExtractBound) {
+    window.__ftExtractBound = true;
+    document.body.addEventListener('tt:fulltext-extracted', function (e) {
+      if (typeof e.detail !== 'string') return;
+      var holder = document.querySelector('.ft-editor');
+      if (holder && holder.__quill) {
+        holder.__quill.setText(e.detail);
+        holder.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+  }
+
+  function initOne(mount) {
+    if (!mount || mount.__quill) return;            // already initialised
+    var quill = new Quill(mount, {
+      theme: 'snow',
+      modules: { toolbar: [
+        [{ header: [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline'],
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        ['blockquote', 'link'],
+        ['clean'],
+      ] },
+    });
+    mount.__quill = quill;
+
+    var form = mount.closest('form');
+    var parent = form ? form.parentNode : document;
+    var htmlSeed = parent.querySelector('.ft-initial-html');
+    var textSeed = parent.querySelector('.ft-initial-text');
+    if (htmlSeed && htmlSeed.innerHTML.trim()) {
+      quill.clipboard.dangerouslyPasteHTML(htmlSeed.innerHTML);
+    } else if (textSeed && textSeed.textContent.trim()) {
+      quill.setText(textSeed.textContent);
+    }
+
+    // Inject BOTH representations into the HTMX request at send time.
+    form.addEventListener('htmx:configRequest', function (evt) {
+      var empty = quill.getText().trim() === '';
+      evt.detail.parameters['full_text'] = empty ? '' : quill.getText();
+      evt.detail.parameters['full_text_html'] = empty ? '' : quill.root.innerHTML;
+    });
+  }
+
+  function initAll() {
+    document.querySelectorAll('.ft-editor').forEach(initOne);
+  }
+
+  ensureCss();
+  if (window.Quill) {
+    initAll();
+  } else if (window.__ftQuillLoading) {
+    var t = setInterval(function () {
+      if (window.Quill) { clearInterval(t); initAll(); }
+    }, 50);
+  } else {
+    window.__ftQuillLoading = true;
+    var s = document.createElement('script');
+    s.src = CDN_JS;
+    s.onload = initAll;
+    document.head.appendChild(s);
+  }
+})();
+</script>

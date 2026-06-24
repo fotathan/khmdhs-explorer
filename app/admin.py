@@ -812,7 +812,8 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         """Minimal act row for the fulltext/tables panels."""
         with cursor() as c:
             c.execute("""SELECT adam, type, title,
-                                full_text, full_text_extracted_at, full_text_source
+                                full_text, full_text_html,
+                                full_text_extracted_at, full_text_source
                          FROM proc.procurement_act WHERE adam=%s""", (adam,))
             act = c.fetchone()
         if not act:

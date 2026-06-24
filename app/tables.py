@@ -67,6 +67,31 @@ except ImportError:
     )
 
 # --------------------------------------------------------------------------- #
+# HTML sanitisation for curator-authored rich full text
+# --------------------------------------------------------------------------- #
+# full_text_html is rendered with |safe on the detail page, so it MUST be
+# sanitised before it is ever stored. We use nh3 (the Rust `ammonia` binding):
+# its default allow-list keeps common formatting tags (p, br, h*, ul/ol/li,
+# b/strong, i/em, u, a, blockquote, code, table…) and strips <script>, inline
+# event handlers, javascript: URLs, etc. Links get rel="noopener noreferrer".
+#
+# If nh3 is not installed we DO NOT store HTML at all (return None) — the plain
+# text in full_text is still saved, so the feature degrades safely rather than
+# persisting unsanitised markup.
+def sanitize_full_text_html(raw: str | None) -> str | None:
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        import nh3
+    except ImportError:
+        return None
+    cleaned = nh3.clean(raw).strip()
+    # Quill serialises an empty editor as "<p><br></p>"; treat that as no HTML.
+    return cleaned or None
+
+
+# --------------------------------------------------------------------------- #
 # Config / caps
 # --------------------------------------------------------------------------- #
 # In-memory sessions: fine for an occasional, single-curator workload. Sessions
@@ -706,7 +731,7 @@ def make_router(templates, cursor) -> APIRouter:
     def _act_for_fulltext(adam: str):
         with cursor() as c:
             c.execute(
-                """SELECT adam, type, title, full_text,
+                """SELECT adam, type, title, full_text, full_text_html,
                           full_text_extracted_at, full_text_source
                    FROM proc.procurement_act WHERE adam=%s""",
                 (adam,),
@@ -901,11 +926,19 @@ def make_router(templates, cursor) -> APIRouter:
         request: Request,
         adam: str = Form(...),
         full_text: str = Form(""),
+        full_text_html: str = Form(""),
     ):
-        """Persist the (possibly hand-edited) text to procurement_act.full_text.
-        Manual save always overwrites — curator intent wins."""
+        """Persist the (possibly hand-edited) text to procurement_act.
+        Manual save always overwrites — curator intent wins.
+
+        Stores TWO things in lock-step: the plain text (full_text, the search
+        source) and the sanitised rich HTML (full_text_html, shown on the detail
+        page). Emptiness is driven by the plain text: an empty editor clears both
+        columns. The HTML is sanitised server-side regardless of what the client
+        sent."""
         adam = adam.strip()
         text = (full_text or "").strip()
+        html = sanitize_full_text_html(full_text_html) if text else None
         with cursor() as c:
             c.execute("SELECT 1 FROM proc.procurement_act WHERE adam=%s", (adam,))
             if not c.fetchone():
@@ -916,10 +949,12 @@ def make_router(templates, cursor) -> APIRouter:
             c.execute(
                 """UPDATE proc.procurement_act
                    SET full_text = %s,
+                       full_text_html = %s,
                        full_text_extracted_at = now(),
                        full_text_source = %s
                    WHERE adam = %s""",
                 (text or None,
+                 html,
                  f"manual:{adam}" if text else "manual:cleared",
                  adam),
             )

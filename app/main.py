@@ -1123,7 +1123,8 @@ def act_detail(adam: str, request: Request):
                    -- payment-specific
                    a.is_credit, a.payment_commitment_code, a.contract_value,
                    a.raw_json,
-                   a.full_text, a.full_text_extracted_at, a.full_text_source,
+                   a.full_text, a.full_text_html,
+                   a.full_text_extracted_at, a.full_text_source,
                    nuts.label AS nuts_label
             FROM proc.procurement_act a
             LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
