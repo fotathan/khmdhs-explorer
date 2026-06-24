@@ -118,8 +118,6 @@ ALTER TABLE proc.procurement_act
 ALTER TABLE proc.procurement_act
     ADD COLUMN IF NOT EXISTS has_attachments boolean;    -- "Has Attachments" / Files column
 ALTER TABLE proc.procurement_act
-    ADD COLUMN IF NOT EXISTS qualified_for_ml boolean DEFAULT false;  -- "Qualified for ML-training"
-ALTER TABLE proc.procurement_act
     ADD COLUMN IF NOT EXISTS send_with_next_sre boolean DEFAULT false; -- "Send with next SRE"
 
 -- --- indexes for the data-management list filters ---------------------------
