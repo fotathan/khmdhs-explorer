@@ -90,6 +90,42 @@
         </dl>
       </div>
 
+      {# Extended multi-source fields (authored / non-KHMDHS acts). The whole
+         panel is hidden unless at least one is set, and every row is guarded so
+         empty fields show no label — same rule as the panel above. #}
+      {% if has_extended_fields %}
+      <div class="panel">
+        <h3 class="panel-h">Πρόσθετα στοιχεία</h3>
+        <dl class="facts">
+          {% if n.divided_into_lots is not none %}<dt>Διαίρεση σε τμήματα</dt><dd>{{ 'ναι' if n.divided_into_lots else 'όχι' }}</dd>{% endif %}
+          {% if n.is_framework_agreement is not none %}<dt>Συμφωνία-πλαίσιο</dt><dd>{{ 'ναι' if n.is_framework_agreement else 'όχι' }}</dd>{% endif %}
+          {% if n.type_of_bid_required %}<dt>Τύπος απαιτούμενης προσφοράς</dt><dd>{{ n.type_of_bid_required }}</dd>{% endif %}
+          {% if n.alternative_offers_allowed is not none %}<dt>Εναλλακτικές προσφορές</dt><dd>{{ 'ναι' if n.alternative_offers_allowed else 'όχι' }}</dd>{% endif %}
+          {% if n.number_of_offers is not none %}<dt>Αριθμός προσφορών</dt><dd>{{ n.number_of_offers }}</dd>{% endif %}
+          {% if n.prolongation_option is not none %}<dt>Δικαίωμα παράτασης</dt><dd>{{ 'ναι' if n.prolongation_option else 'όχι' }}</dd>{% endif %}
+          {% if n.prolongation_in_months is not none %}<dt>Παράταση (μήνες)</dt><dd>{{ n.prolongation_in_months }}</dd>{% endif %}
+          {% if n.vat_rate is not none %}<dt>Συντελεστής ΦΠΑ</dt><dd>{{ n.vat_rate }}%</dd>{% endif %}
+          {% if n.vat_included is not none %}<dt>Περιλαμβάνεται ΦΠΑ</dt><dd>{{ 'ναι' if n.vat_included else 'όχι' }}</dd>{% endif %}
+          {% if n.value_eur is not none %}<dt>Αξία (EUR)</dt><dd>€ {{ "{:,.2f}".format(n.value_eur).replace(",", ".") }}</dd>{% endif %}
+          {% if n.value_usd is not none %}<dt>Αξία (USD)</dt><dd>$ {{ "{:,.2f}".format(n.value_usd) }}</dd>{% endif %}
+          {% if n.estimated_price_min is not none %}<dt>Εκτιμώμενη τιμή (ελάχ.)</dt><dd>€ {{ "{:,.2f}".format(n.estimated_price_min).replace(",", ".") }}</dd>{% endif %}
+          {% if n.estimated_price_max is not none %}<dt>Εκτιμώμενη τιμή (μέγ.)</dt><dd>€ {{ "{:,.2f}".format(n.estimated_price_max).replace(",", ".") }}</dd>{% endif %}
+          {% if n.yearly_budget is not none %}<dt>Ετήσιος προϋπολογισμός</dt><dd>€ {{ "{:,.2f}".format(n.yearly_budget).replace(",", ".") }}</dd>{% endif %}
+          {% if n.bid_bond_amount is not none %}<dt>Εγγύηση συμμετοχής</dt><dd>€ {{ "{:,.2f}".format(n.bid_bond_amount).replace(",", ".") }}</dd>{% endif %}
+          {% if n.price_weighting is not none %}<dt>Βαρύτητα τιμής</dt><dd>{{ n.price_weighting }}%</dd>{% endif %}
+          {% if n.eligibility_criteria %}<dt>Κριτήρια καταλληλότητας</dt><dd>{{ n.eligibility_criteria }}</dd>{% endif %}
+          {% if n.eligibility_category %}<dt>Κατηγορία καταλληλότητας</dt><dd>{{ n.eligibility_category }}</dd>{% endif %}
+          {% if n.journal_number %}<dt>Αριθμός δημοσίευσης (Journal)</dt><dd>{{ n.journal_number }}</dd>{% endif %}
+          {% if n.eprocurement_portal %}<dt>Πλατφόρμα ηλ. προμηθειών</dt><dd>{{ n.eprocurement_portal }}</dd>{% endif %}
+          {% if n.contact_email %}<dt>Email</dt><dd><a href="mailto:{{ n.contact_email }}" style="color:var(--accent);">{{ n.contact_email }}</a></dd>{% endif %}
+          {% if n.contact_phone %}<dt>Τηλέφωνο</dt><dd>{{ n.contact_phone }}</dd>{% endif %}
+          {% if n.contact_fax %}<dt>Φαξ</dt><dd>{{ n.contact_fax }}</dd>{% endif %}
+          {% if n.street_address %}<dt>Διεύθυνση</dt><dd>{{ n.street_address }}</dd>{% endif %}
+          {% if n.contact_url %}<dt>Ιστότοπος</dt><dd><a href="{{ n.contact_url }}" target="_blank" rel="noopener" style="color:var(--accent);">{{ n.contact_url }}</a></dd>{% endif %}
+        </dl>
+      </div>
+      {% endif %}
+
       {% if operators %}
       <div class="panel">
         <h3 class="panel-h">{% if t == 'payment' %}Προμηθευτής{% else %}Ανάδοχος / Συμμετέχοντες{% endif %}</h3>

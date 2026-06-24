@@ -263,6 +263,19 @@ SELECT_COLS = """
     auth.name        AS authority_name
 """
 
+# Extended multi-source act fields (authored / non-KHMDHS). Used by the detail
+# page to decide whether to show the "additional details" panel at all — plain
+# KHMDHS acts never have any of these, so the panel stays hidden for them.
+EXTENDED_ACT_FIELDS = (
+    "divided_into_lots", "is_framework_agreement", "type_of_bid_required",
+    "alternative_offers_allowed", "number_of_offers", "prolongation_option",
+    "prolongation_in_months", "vat_rate", "vat_included", "value_eur", "value_usd",
+    "estimated_price_min", "estimated_price_max", "yearly_budget", "bid_bond_amount",
+    "price_weighting", "eligibility_criteria", "eligibility_category",
+    "journal_number", "eprocurement_portal", "contact_email", "contact_phone",
+    "contact_fax", "street_address", "contact_url",
+)
+
 
 # Greek text-search clause builder shared by the full-text and tables filters.
 #
@@ -1125,6 +1138,17 @@ def act_detail(adam: str, request: Request):
                    a.raw_json,
                    a.full_text, a.full_text_html,
                    a.full_text_extracted_at, a.full_text_source,
+                   -- extended multi-source fields (authored / non-KHMDHS acts)
+                   a.divided_into_lots, a.is_framework_agreement,
+                   a.type_of_bid_required, a.alternative_offers_allowed,
+                   a.number_of_offers, a.prolongation_option, a.prolongation_in_months,
+                   a.vat_rate, a.vat_included, a.value_eur, a.value_usd,
+                   a.estimated_price_min, a.estimated_price_max,
+                   a.yearly_budget, a.bid_bond_amount, a.price_weighting,
+                   a.eligibility_criteria, a.eligibility_category,
+                   a.journal_number, a.eprocurement_portal,
+                   a.contact_email, a.contact_phone, a.contact_fax,
+                   a.street_address, a.contact_url,
                    nuts.label AS nuts_label
             FROM proc.procurement_act a
             LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
@@ -1282,6 +1306,8 @@ def act_detail(adam: str, request: Request):
          "incoming": incoming,
          "annotation": annotation,
          "excluded_reason": excluded_reason,
+         "has_extended_fields": any(
+             notice.get(f) is not None for f in EXTENDED_ACT_FIELDS),
          "nav_active": "search"},
     )
 
