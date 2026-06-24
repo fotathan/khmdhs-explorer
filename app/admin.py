@@ -824,6 +824,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 ("statistical_or_tax_number", "Στατιστικός/φορολογικός αρ.", "text"),
                 ("contact_person", "Υπεύθυνος επικοινωνίας", "text"),
                 ("orgdb_id", "OrgDB ID", "text"),
+                ("ar_gemi", "Αρ. ΓΕΜΗ", "text"),
             ],
             "Στοιχεία": [
                 ("is_greek_vat", "Ελληνικό ΑΦΜ", "bool"),

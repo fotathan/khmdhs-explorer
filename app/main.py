@@ -1671,7 +1671,7 @@ def contractor_detail(vat: str, request: Request,
         c.execute("""
             SELECT operator_id, vat_number, name, is_greek_vat, country,
                    first_seen, last_seen,
-                   statistical_or_tax_number, contact_person, orgdb_id,
+                   statistical_or_tax_number, contact_person, orgdb_id, ar_gemi,
                    city, postal_code, nuts_code, street_address,
                    contact_email, contact_phone, contact_fax, contact_url
             FROM proc.economic_operator WHERE vat_number = %s

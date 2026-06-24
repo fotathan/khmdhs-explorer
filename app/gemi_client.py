@@ -195,10 +195,30 @@ ON CONFLICT (afm) DO UPDATE SET
 """
 
 
+# Seed the editable contractor working-copy fields from a successful ΓΕΜΗ pull.
+# FILL-ONLY-IF-EMPTY: COALESCE(NULLIF(col,''), new) keeps any value already
+# there (a curator's edit in the contractor form, or an earlier fill), so a
+# later re-pull never clobbers hand-entered data. Matches on the 9-digit AFM
+# (vat_number is the natural, indexed key on economic_operator).
+_FILL_OPERATOR = """
+UPDATE proc.economic_operator SET
+    ar_gemi        = COALESCE(NULLIF(ar_gemi, ''),        %(ar_gemi)s),
+    city           = COALESCE(NULLIF(city, ''),           %(city)s),
+    postal_code    = COALESCE(NULLIF(postal_code, ''),    %(zip_code)s),
+    street_address = COALESCE(NULLIF(street_address, ''), %(street_address)s),
+    contact_phone  = COALESCE(NULLIF(contact_phone, ''),  %(phone)s),
+    contact_fax    = COALESCE(NULLIF(contact_fax, ''),    %(fax)s),
+    contact_email  = COALESCE(NULLIF(contact_email, ''),  %(email)s),
+    contact_url    = COALESCE(NULLIF(contact_url, ''),    %(url)s)
+WHERE vat_number = %(afm)s OR vat_number = %(afm_alt)s
+"""
+
+
 def upsert(cur, afm: str, status: str, rec: dict | None, total_count: int):
     """Write one enrichment row. cur is a live DB cursor (caller owns the
     transaction). Always records the status, even for not_found/error, so the
-    attempt is visible."""
+    attempt is visible. On a successful pull, also seeds the editable contractor
+    fields fill-only-if-empty (so the data shows on the contractor edit page)."""
     row = {"afm": afm, "raw": None, "match_count": total_count,
            "fetch_status": status}
     if rec is not None:
@@ -214,6 +234,22 @@ def upsert(cur, afm: str, status: str, rec: dict | None, total_count: int):
             row.setdefault(k, None)
         row["activities_active"] = Json([])
     cur.execute(_UPSERT, row)
+
+    if rec is not None:
+        st = (row.get("street") or "").strip()
+        sn = (row.get("street_number") or "").strip()
+        cur.execute(_FILL_OPERATOR, {
+            "afm": afm,
+            "afm_alt": afm.lstrip("0") or afm,   # also match an un-padded vat
+            "ar_gemi": row.get("ar_gemi"),
+            "city": row.get("city"),
+            "zip_code": row.get("zip_code"),
+            "street_address": (st + " " + sn).strip() or None,
+            "phone": row.get("phone"),
+            "fax": row.get("fax"),
+            "email": row.get("email"),
+            "url": row.get("url"),
+        })
 
 
 def enrich_one(cur, afm_raw: str) -> tuple[str, str | None]:

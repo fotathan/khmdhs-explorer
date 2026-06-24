@@ -47,6 +47,13 @@
     </div>
     {% endif %}
 
+    {% if gemi.incorporation_date %}
+    <div>
+      <div class="gemi-lbl">Ημ. σύστασης</div>
+      <div>{{ gemi.incorporation_date.strftime('%d/%m/%Y') }}</div>
+    </div>
+    {% endif %}
+
     {% if gemi.ar_gemi %}
     <div>
       <div class="gemi-lbl">Αρ. ΓΕΜΗ</div>

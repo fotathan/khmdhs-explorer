@@ -25,13 +25,14 @@
     </div>
   </div>
 
-  {% if op.statistical_or_tax_number or op.contact_person or op.orgdb_id or op.city or op.postal_code or op.nuts_code or op.street_address or op.contact_email or op.contact_phone or op.contact_fax or op.contact_url %}
+  {% if op.statistical_or_tax_number or op.contact_person or op.orgdb_id or op.ar_gemi or op.city or op.postal_code or op.nuts_code or op.street_address or op.contact_email or op.contact_phone or op.contact_fax or op.contact_url %}
   <div class="panel">
     <h3 class="panel-h">Στοιχεία επικοινωνίας & ταυτότητας</h3>
     <dl class="facts">
       {% if op.statistical_or_tax_number %}<dt>Στατιστικός/φορολογικός αρ.</dt><dd>{{ op.statistical_or_tax_number }}</dd>{% endif %}
       {% if op.contact_person %}<dt>Υπεύθυνος επικοινωνίας</dt><dd>{{ op.contact_person }}</dd>{% endif %}
       {% if op.orgdb_id %}<dt>OrgDB ID</dt><dd>{{ op.orgdb_id }}</dd>{% endif %}
+      {% if op.ar_gemi %}<dt>Αρ. ΓΕΜΗ</dt><dd>{{ op.ar_gemi }}</dd>{% endif %}
       {% if op.nuts_code %}<dt>NUTS</dt><dd>{{ op.nuts_code }}</dd>{% endif %}
       {% if op.city %}<dt>Πόλη</dt><dd>{{ op.city }}</dd>{% endif %}
       {% if op.postal_code %}<dt>Τ.Κ.</dt><dd>{{ op.postal_code }}</dd>{% endif %}
