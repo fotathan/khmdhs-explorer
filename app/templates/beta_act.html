@@ -84,7 +84,7 @@
           {% if n.contract_type_code %}<dt>Είδος σύμβασης</dt><dd>{{ n.contract_type_code | contract_type_label }}</dd>{% endif %}
           {% if n.procedure_type_code %}<dt>Διαδικασία</dt><dd>{{ n.procedure_type_code | procedure_type_label }}</dd>{% endif %}
           {% if n.criteria_code %}<dt>Κριτήριο</dt><dd>{{ n.criteria_code | assign_criteria_label }}</dd>{% endif %}
-          <dt>Τόπος εκτέλεσης</dt><dd>{% if n.nuts_code %}{{ n.nuts_label or '' }} <code>{{ n.nuts_code }}</code>{% else %}—{% endif %}</dd>
+          {% if n.nuts_code %}<dt>Τόπος εκτέλεσης</dt><dd>{{ n.nuts_label or '' }} <code>{{ n.nuts_code }}</code></dd>{% endif %}
           {% if n.bidding_website %}<dt>Πλατφόρμα</dt><dd><a href="{{ n.bidding_website }}" target="_blank" rel="noopener" style="color:var(--accent);">{{ n.bidding_website }}</a></dd>{% endif %}
           {% if n.cancellation_reason %}<dt>Αιτία ακύρωσης</dt><dd>{{ n.cancellation_reason }}</dd>{% endif %}
         </dl>
