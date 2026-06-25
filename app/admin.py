@@ -723,6 +723,19 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             else:
                 data[name] = None if raw == "" else raw
 
+        # Act-level CPV codes — multi-value, outside the scalar field map.
+        cpv_codes = []
+        for code in form.getlist("cpv_code"):
+            code = (code or "").strip()
+            if code and code not in cpv_codes:
+                cpv_codes.append(code)
+
+        def _save_cpv(c, adam):
+            c.execute("DELETE FROM proc.act_cpv WHERE adam=%s", (adam,))
+            for i, code in enumerate(cpv_codes):
+                c.execute("INSERT INTO proc.act_cpv (adam, cpv_code, ord) "
+                          "VALUES (%s,%s,%s)", (adam, code, i))
+
         curator = unquote(request.cookies.get("curator", "")) or "curator"
 
         if mode == "edit":
@@ -745,6 +758,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                         SET {set_sql}, last_edited_by = %s, last_edited_at = now()
                         WHERE adam = %s""",
                     vals + [curator, adam])
+                _save_cpv(c, adam)
             return RedirectResponse(url=f"/admin/act/{adam}/edit?tab=fields&saved=1",
                                     status_code=303)
         else:
@@ -771,6 +785,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                     f"""INSERT INTO proc.procurement_act ({", ".join(all_cols)})
                         VALUES ({placeholders})""",
                     all_vals)
+                _save_cpv(c, adam)
             return RedirectResponse(url=f"/admin/act/{adam}/edit?tab=fields&saved=1",
                                     status_code=303)
 
@@ -1133,10 +1148,16 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                           (act["authority_id"],))
                 row = c.fetchone()
                 authority_name = row["name"] if row else None
+            c.execute("""SELECT ac.cpv_code, cc.description
+                         FROM proc.act_cpv ac
+                         LEFT JOIN proc.cpv_code cc ON cc.cpv_code = ac.cpv_code
+                         WHERE ac.adam=%s ORDER BY ac.ord, ac.cpv_code""", (adam,))
+            cpvs = c.fetchall()
         return templates.TemplateResponse(
             request, "_panel_fields.html",
             {"groups": _act_form_fields(), "act": dict(act), "adam": adam,
-             "authority_name": authority_name, "origin": act["origin"]})
+             "authority_name": authority_name, "origin": act["origin"],
+             "cpvs": cpvs})
 
     @router.get("/act/{adam}/panel/annotate", response_class=HTMLResponse)
     def panel_annotate(adam: str, request: Request):

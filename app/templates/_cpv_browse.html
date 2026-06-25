@@ -1,0 +1,36 @@
+{# CPV hierarchy browser (modal body). Children + breadcrumb come from
+   /api/cpv-browse. Drill with cpvBrowse(code); select with pickCpv(code, desc).
+   Both JS functions are defined by the host page (_panel_fields.html). #}
+<div class="cpvb-crumbs">
+  <a href="#" onclick="cpvBrowse(''); return false;">Όλες οι κατηγορίες</a>
+  {% for cr in crumbs %}
+    <span class="cpvb-sep">›</span>
+    {% if loop.last %}
+      <code title="{{ cr.description }}">{{ cr.cpv_code }}</code>
+    {% else %}
+      <a href="#" onclick="cpvBrowse('{{ cr.cpv_code }}'); return false;" title="{{ cr.description }}"><code>{{ cr.cpv_code }}</code></a>
+    {% endif %}
+  {% endfor %}
+</div>
+
+<table class="cpvb-table">
+  <tbody>
+    {% for c in children %}
+    <tr>
+      <td class="cpvb-code">
+        <a href="#" onclick="pickCpv({{ c.cpv_code|tojson }}, {{ (c.description or '')|tojson }}); return false;"
+           title="Προσθήκη κωδικού"><code>{{ c.cpv_code }}</code></a>
+      </td>
+      <td class="cpvb-desc">{{ c.description or '—' }}</td>
+      <td class="cpvb-drill">
+        {% if c.has_children %}
+        <a href="#" onclick="cpvBrowse('{{ c.cpv_code }}'); return false;">Υποκατηγορία ›</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    {% if not children %}
+    <tr><td colspan="3" class="cpvb-empty">Καμία υποκατηγορία.</td></tr>
+    {% endif %}
+  </tbody>
+</table>

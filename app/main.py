@@ -780,12 +780,15 @@ def healthz():
 
 
 @app.get("/api/cpv-suggest", response_class=HTMLResponse)
-def cpv_suggest(request: Request, term: str = Query("")):
+def cpv_suggest(request: Request, term: str = Query(""), wild: int = Query(1)):
     """Autosuggest for the CPV filter. As the user types a code prefix (e.g.
     '331'), returns the most relevant CPV codes: first the prefix wildcard
     itself ('331*' → everything under 331), then the matching codes with their
     descriptions. Also matches by Greek description text when the term isn't a
-    number. Returns an HTMX fragment of clickable options."""
+    number. Returns an HTMX fragment of clickable options.
+
+    wild=0 suppresses the prefix-wildcard option — used by the act-edit CPV
+    picker, which must select real codes, not a search prefix."""
     term = term.strip()
     if not term:
         return HTMLResponse("")
@@ -814,7 +817,63 @@ def cpv_suggest(request: Request, term: str = Query("")):
             rows = c.fetchall()
     return templates.TemplateResponse(
         request, "_cpv_suggest.html",
-        {"term": term, "digits": digits, "rows": rows})
+        {"term": term, "digits": digits, "rows": rows, "wild": bool(wild)})
+
+
+def _cpv_level_sig(code: str) -> tuple[int, str]:
+    """A CPV code's hierarchy level and significant digit-prefix. CPV is
+    positional: division = first 2 digits (even when digit 2 is '0', e.g. '30'),
+    then group/class/… up to 8 digits. level = greatest(2, last-non-zero-pos)."""
+    d = re.sub(r"\D", "", code)[:8]
+    if not d:
+        return 0, ""
+    lvl = max(2, len(d.rstrip("0")))
+    return lvl, d[:lvl]
+
+
+@app.get("/api/cpv-browse", response_class=HTMLResponse)
+def cpv_browse(request: Request, parent: str = Query("")):
+    """Hierarchy browser for the CPV picker dialog. Given a `parent` code (empty
+    = root), returns its direct children (the next existing level down) plus a
+    breadcrumb, built purely from the code prefixes in proc.cpv_code."""
+    parent = parent.strip()
+    lp, sig = _cpv_level_sig(parent) if parent else (0, "")
+    like = (sig + "%") if sig else "%"
+    with cursor() as c:
+        c.execute("""
+            WITH k AS (
+              SELECT cpv_code, description,
+                     left(cpv_code, greatest(2,length(rtrim(left(cpv_code,8),'0')))) AS sig,
+                     greatest(2,length(rtrim(left(cpv_code,8),'0'))) AS lvl
+              FROM proc.cpv_code
+              WHERE cpv_code LIKE %s
+                AND greatest(2,length(rtrim(left(cpv_code,8),'0'))) > %s
+            )
+            SELECT k.cpv_code, k.description,
+                   EXISTS (SELECT 1 FROM proc.cpv_code d
+                           WHERE d.cpv_code LIKE k.sig || '%%'
+                             AND greatest(2,length(rtrim(left(d.cpv_code,8),'0'))) > k.lvl
+                          ) AS has_children
+            FROM k
+            WHERE k.lvl = (SELECT min(lvl) FROM k)
+            ORDER BY k.cpv_code
+        """, (like, lp))
+        children = c.fetchall()
+        crumbs = []
+        if parent:
+            c.execute("""
+                SELECT cpv_code, description,
+                       greatest(2,length(rtrim(left(cpv_code,8),'0'))) AS lvl
+                FROM proc.cpv_code
+                WHERE greatest(2,length(rtrim(left(cpv_code,8),'0'))) <= %s
+                  AND left(%s, greatest(2,length(rtrim(left(cpv_code,8),'0'))))
+                      = left(cpv_code, greatest(2,length(rtrim(left(cpv_code,8),'0'))))
+                ORDER BY lvl
+            """, (lp, sig))
+            crumbs = c.fetchall()
+    return templates.TemplateResponse(
+        request, "_cpv_browse.html",
+        {"children": children, "crumbs": crumbs, "parent": parent})
 
 
 @app.get("/analytics", response_class=HTMLResponse)
@@ -1228,6 +1287,13 @@ def act_detail(adam: str, request: Request):
         """, (adam,))
         operators = c.fetchall()
 
+        # Act-level (curator-set) CPV codes.
+        c.execute("""SELECT ac.cpv_code, cc.description
+                     FROM proc.act_cpv ac
+                     LEFT JOIN proc.cpv_code cc ON cc.cpv_code = ac.cpv_code
+                     WHERE ac.adam = %s ORDER BY ac.ord, ac.cpv_code""", (adam,))
+        act_cpvs = c.fetchall()
+
         # Downstream chain — root-anchored recursion.
         # PERF: the old version queried proc.v_act_chain, a view whose recursion
         # starts from EVERY act_link row; Postgres built the whole 22.6M-row
@@ -1302,6 +1368,7 @@ def act_detail(adam: str, request: Request):
         {"n": notice,
          "line_items": line_items,
          "operators": operators,
+         "act_cpvs": act_cpvs,
          "downstream": downstream,
          "incoming": incoming,
          "annotation": annotation,

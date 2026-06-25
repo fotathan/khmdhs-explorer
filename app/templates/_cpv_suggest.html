@@ -1,6 +1,8 @@
-{# CPV autosuggest results — clickable options that fill the cpv input. #}
+{# CPV autosuggest results — clickable options that call pickCpv(code, desc).
+   `wild` (default true) adds the prefix-wildcard option for the search filter;
+   the act-edit picker passes wild=0 so only real codes are offered. #}
 <div class="cpv-suggest">
-  {% if digits %}
+  {% if digits and wild|default(true) %}
   <button type="button" class="cpv-opt cpv-opt-wild"
           onclick="pickCpv('{{ digits }}')">
     <code>{{ digits }}*</code>
@@ -8,7 +10,7 @@
   </button>
   {% endif %}
   {% for r in rows %}
-  <button type="button" class="cpv-opt" onclick="pickCpv('{{ r.cpv_code }}')">
+  <button type="button" class="cpv-opt" onclick="pickCpv({{ r.cpv_code|tojson }}, {{ (r.description or '')|tojson }})">
     <code>{{ r.cpv_code }}</code>
     <span>{{ r.description or '' }}</span>
   </button>
