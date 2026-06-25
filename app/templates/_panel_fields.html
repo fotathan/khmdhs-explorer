@@ -62,31 +62,7 @@
   </div>
   {% endfor %}
 
-  {# ---- Act-level CPV codes (multi-value picker) ---- #}
-  <div class="form-section">
-    <div class="form-section-h">Κωδικοί CPV</div>
-    <div class="cpv-chips" id="act-cpv-chips">
-      {% for c in cpvs %}
-      <span class="cpv-chip" data-code="{{ c.cpv_code }}">
-        <code>{{ c.cpv_code }}</code> <span class="cpv-chip-d">{{ c.description or '' }}</span>
-        <input type="hidden" name="cpv_code" value="{{ c.cpv_code }}">
-        <button type="button" class="cpv-chip-x" onclick="actCpvRemove(this)">✕</button>
-      </span>
-      {% endfor %}
-    </div>
-    <div class="cpv-input-row">
-      <div class="cpv-ta-wrap">
-        <input type="text" id="act-cpv-search" autocomplete="off"
-               placeholder="Αναζήτηση με κωδικό ή λέξεις…"
-               hx-get="/api/cpv-suggest?wild=0"
-               hx-trigger="input changed delay:200ms, focus"
-               hx-target="#act-cpv-suggest" hx-swap="innerHTML"
-               hx-vals='js:{term: document.getElementById("act-cpv-search").value}'>
-        <div id="act-cpv-suggest"></div>
-      </div>
-      <button type="button" class="cpv-browse-btn" onclick="actCpvOpenDialog()">Επιλογή κωδικών CPV</button>
-    </div>
-  </div>
+  {% include "_cpv_field.html" %}
 
   <div style="border-top:1px solid var(--rule); padding-top:16px; margin-top:8px;">
     <button type="submit"
@@ -95,69 +71,6 @@
     </button>
   </div>
 </form>
-
-{# ---- CPV browse dialog (search + group/subgroup drill-down) ---- #}
-<div id="cpv-modal" class="cpv-modal" aria-hidden="true">
-  <div class="cpv-modal-card">
-    <div class="cpv-modal-h">
-      <strong>Κωδικοί CPV — επιλογή</strong>
-      <button type="button" class="cpv-modal-x" onclick="actCpvCloseDialog()">Κλείσιμο παραθύρου ✕</button>
-    </div>
-    <div class="cpv-ta-wrap" style="margin:0 0 12px;">
-      <input type="text" id="cpv-modal-search" autocomplete="off"
-             placeholder="Αναζήτηση κωδικού ή περιγραφής…"
-             hx-get="/api/cpv-suggest?wild=0"
-             hx-trigger="input changed delay:200ms, focus"
-             hx-target="#cpv-modal-suggest" hx-swap="innerHTML"
-             hx-vals='js:{term: document.getElementById("cpv-modal-search").value}'>
-      <div id="cpv-modal-suggest"></div>
-    </div>
-    <div id="cpv-browse-body" class="cpv-modal-body"><div class="meta">Φόρτωση…</div></div>
-  </div>
-</div>
-
-<script>
-  // Add a CPV code as a chip in the act form. Called by the autosuggest options
-  // (_cpv_suggest.html) and the browse dialog (_cpv_browse.html).
-  function pickCpv(code, desc){
-    desc = desc || '';
-    var chips = document.getElementById('act-cpv-chips');
-    if(!chips){ return; }
-    if(chips.querySelector('.cpv-chip[data-code="'+code+'"]')){ _cpvClearSuggest(); return; }
-    var span=document.createElement('span');
-    span.className='cpv-chip'; span.setAttribute('data-code', code);
-    span.innerHTML='<code></code> <span class="cpv-chip-d"></span>'+
-      '<input type="hidden" name="cpv_code" value="'+code+'">'+
-      '<button type="button" class="cpv-chip-x" onclick="actCpvRemove(this)">✕</button>';
-    span.querySelector('code').textContent = code;
-    span.querySelector('.cpv-chip-d').textContent = desc;
-    chips.appendChild(span);
-    _cpvClearSuggest();
-  }
-  function _cpvClearSuggest(){
-    ['act-cpv-suggest','cpv-modal-suggest'].forEach(function(id){
-      var m=document.getElementById(id); if(m) m.innerHTML='';
-    });
-    var s=document.getElementById('act-cpv-search'); if(s) s.value='';
-  }
-  function actCpvRemove(btn){ var ch=btn.closest('.cpv-chip'); if(ch) ch.remove(); }
-  function actCpvOpenDialog(){
-    document.getElementById('cpv-modal').style.display='flex';
-    cpvBrowse('');
-  }
-  function actCpvCloseDialog(){ document.getElementById('cpv-modal').style.display='none'; }
-  function cpvBrowse(parent){
-    fetch('/api/cpv-browse?parent='+encodeURIComponent(parent))
-      .then(function(r){ return r.text(); })
-      .then(function(html){ document.getElementById('cpv-browse-body').innerHTML=html; });
-  }
-  // Close the inline suggest list when clicking away from it.
-  document.addEventListener('click', function(e){
-    if(!e.target.closest('.cpv-ta-wrap')){
-      var m=document.getElementById('act-cpv-suggest'); if(m) m.innerHTML='';
-    }
-  });
-</script>
 
 <style>
   #edit-panel .form-section{margin:0 0 22px; padding-bottom:6px;}
@@ -168,50 +81,5 @@
   #edit-panel .form-grid .field-wide{grid-column:span 3;}
   #edit-panel .form-grid .field{margin:0;}
   #edit-panel .form-grid textarea{width:100%; resize:vertical; font-family:inherit;}
-
-  /* CPV picker */
-  .cpv-chips{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;}
-  .cpv-chip{display:inline-flex; align-items:center; gap:6px; background:var(--paper-2);
-    border:1px solid var(--rule); border-radius:14px; padding:3px 6px 3px 10px; font-size:12px;}
-  .cpv-chip code{font-family:var(--mono); color:var(--ink);}
-  .cpv-chip-d{color:var(--ink-2); max-width:34ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .cpv-chip-x{border:0; background:transparent; cursor:pointer; color:var(--ink-3); font-size:13px; line-height:1; padding:2px 4px;}
-  .cpv-chip-x:hover{color:var(--accent);}
-  .cpv-input-row{display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap;}
-  .cpv-ta-wrap{position:relative; flex:1; min-width:240px;}
-  .cpv-ta-wrap input{width:100%;}
-  .cpv-browse-btn{background:transparent; border:1px solid var(--accent); color:var(--accent);
-    padding:8px 14px; font-family:var(--sans); font-size:12px; border-radius:6px; cursor:pointer; white-space:nowrap;}
-  .cpv-browse-btn:hover{background:var(--accent); color:#fff;}
-  .cpv-suggest{position:absolute; z-index:40; left:0; right:0; top:calc(100% + 2px);
-    background:var(--paper); border:1px solid var(--rule); border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.12);
-    max-height:300px; overflow:auto;}
-  .cpv-opt{display:flex; gap:10px; width:100%; text-align:left; border:0; background:transparent;
-    padding:8px 12px; cursor:pointer; font-size:12.5px; align-items:baseline; border-bottom:1px solid var(--rule);}
-  .cpv-opt:hover{background:var(--paper-2);}
-  .cpv-opt code{font-family:var(--mono); color:var(--accent); flex:none;}
-  .cpv-opt span{color:var(--ink-2);}
-  .cpv-empty{padding:8px 12px; color:var(--ink-3); font-size:12px;}
-
-  /* CPV modal */
-  .cpv-modal{display:none; position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.4);
-    align-items:flex-start; justify-content:center; padding:40px 16px;}
-  .cpv-modal-card{background:var(--paper); border-radius:10px; width:min(760px,100%); max-height:84vh;
-    display:flex; flex-direction:column; padding:18px 20px; box-shadow:0 20px 60px rgba(0,0,0,.3);}
-  .cpv-modal-h{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
-  .cpv-modal-x{border:1px solid var(--rule); background:var(--paper-2); border-radius:6px; padding:6px 12px;
-    font-family:var(--sans); font-size:11px; cursor:pointer;}
-  .cpv-modal-body{overflow:auto; border-top:1px solid var(--rule); padding-top:10px;}
-  .cpvb-crumbs{font-size:12px; color:var(--ink-2); margin:0 0 10px;}
-  .cpvb-crumbs a{color:var(--accent); text-decoration:none;}
-  .cpvb-crumbs .cpvb-sep{color:var(--ink-3); margin:0 4px;}
-  .cpvb-table{width:100%; border-collapse:collapse; font-size:13px;}
-  .cpvb-table td{padding:6px 8px; border-bottom:1px solid var(--rule); vertical-align:top;}
-  .cpvb-code a{text-decoration:none;} .cpvb-code code{font-family:var(--mono); color:var(--accent);}
-  .cpvb-desc{color:var(--ink-1);}
-  .cpvb-drill{text-align:right; white-space:nowrap;}
-  .cpvb-drill a{color:var(--ink-2); font-size:12px; text-decoration:none;}
-  .cpvb-drill a:hover{color:var(--accent);}
-  .cpvb-empty{color:var(--ink-3); font-style:italic;}
 </style>
 {% endif %}

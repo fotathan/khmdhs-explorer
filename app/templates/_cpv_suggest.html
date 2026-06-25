@@ -10,7 +10,7 @@
   </button>
   {% endif %}
   {% for r in rows %}
-  <button type="button" class="cpv-opt" onclick="pickCpv({{ r.cpv_code|tojson }}, {{ (r.description or '')|tojson }})">
+  <button type="button" class="cpv-opt" onclick="pickCpv({{ r.cpv_code|tojson|forceescape }}, {{ (r.description or '')|tojson|forceescape }})">
     <code>{{ r.cpv_code }}</code>
     <span>{{ r.description or '' }}</span>
   </button>

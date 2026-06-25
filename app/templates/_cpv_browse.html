@@ -18,7 +18,7 @@
     {% for c in children %}
     <tr>
       <td class="cpvb-code">
-        <a href="#" onclick="pickCpv({{ c.cpv_code|tojson }}, {{ (c.description or '')|tojson }}); return false;"
+        <a href="#" onclick="pickCpv({{ c.cpv_code|tojson|forceescape }}, {{ (c.description or '')|tojson|forceescape }}); return false;"
            title="Προσθήκη κωδικού"><code>{{ c.cpv_code }}</code></a>
       </td>
       <td class="cpvb-desc">{{ c.description or '—' }}</td>
