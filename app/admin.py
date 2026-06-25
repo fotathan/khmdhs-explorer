@@ -53,6 +53,15 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
     # via the CSV download. Keeps the page light when a run touched many acts.
     ACT_LOG_PREVIEW = 200
 
+    # Full-text filter for the job page's per-act list (garbled stores text, so
+    # full_text_extracted is true for it — hence the explicit garbled split).
+    _FT_FILTERS = {
+        "all": "",
+        "with": "AND full_text_extracted AND full_text_note IS DISTINCT FROM 'garbled'",
+        "without": "AND NOT full_text_extracted",
+        "garbled": "AND full_text_note = 'garbled'",
+    }
+
     # ------------------------------------------------------------------ #
     # Helpers
     # ------------------------------------------------------------------ #
@@ -327,9 +336,13 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
 
     @router.get("/jobs/{job_id}", response_class=HTMLResponse)
-    def admin_job_detail(job_id: int, request: Request):
+    def admin_job_detail(job_id: int, request: Request,
+                         ftf: str = Query("all")):
         """Job detail: window progress, raw log tail, and the per-act
-        transparency log (proc.ingest_act_log) for this run."""
+        transparency log (proc.ingest_act_log) for this run. `ftf` filters the
+        per-act list by full-text outcome: all | with | without | garbled."""
+        if ftf not in _FT_FILTERS:
+            ftf = "all"
         reconcile_stale()
         with cursor() as c:
             c.execute("""SELECT * FROM proc.ingest_job WHERE id=%s""", (job_id,))
@@ -368,10 +381,11 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             act_log_total = ftrow["total"] if ftrow else 0
             act_ft_yes = ftrow["ft_yes"] if ftrow else 0
             act_ft_garbled = ftrow["ft_garbled"] if ftrow else 0
-            c.execute("""SELECT adam, act_type, title, action,
+            c.execute(f"""SELECT adam, act_type, title, action,
                                 full_text_extracted, full_text_chars,
                                 full_text_note, logged_at
-                         FROM proc.ingest_act_log WHERE job_id=%s
+                         FROM proc.ingest_act_log
+                         WHERE job_id=%s {_FT_FILTERS[ftf]}
                          ORDER BY id DESC LIMIT %s""",
                       (job_id, ACT_LOG_PREVIEW))
             act_log = c.fetchall()
@@ -396,21 +410,25 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
              "is_active": job["status"] == "running",
              "act_log": act_log, "act_actions": act_actions,
              "act_log_total": act_log_total, "act_ft_yes": act_ft_yes,
-             "act_ft_garbled": act_ft_garbled,
+             "act_ft_garbled": act_ft_garbled, "ftf": ftf,
              "act_log_preview": ACT_LOG_PREVIEW},
         )
 
     @router.get("/jobs/{job_id}/acts.csv")
-    def admin_job_acts_csv(job_id: int):
-        """Download the full per-act log for a run as CSV — for documentation and
-        offline review. Uncapped: streams every row recorded for the job."""
+    def admin_job_acts_csv(job_id: int, ftf: str = Query("all")):
+        """Download the per-act log for a run as CSV — for documentation and
+        offline review. Uncapped; honours the same full-text filter (ftf) as the
+        page so a filtered view exports the matching rows."""
+        if ftf not in _FT_FILTERS:
+            ftf = "all"
         import csv as _csv
         import io as _io
         with cursor() as c:
-            c.execute("""SELECT logged_at, adam, act_type, action,
+            c.execute(f"""SELECT logged_at, adam, act_type, action,
                                 full_text_extracted, full_text_chars,
                                 full_text_note, title
-                         FROM proc.ingest_act_log WHERE job_id=%s
+                         FROM proc.ingest_act_log
+                         WHERE job_id=%s {_FT_FILTERS[ftf]}
                          ORDER BY id""", (job_id,))
             rows = c.fetchall()
         buf = _io.StringIO()

@@ -94,6 +94,10 @@
 
     <div class="section-h">Πράξεις αυτής της εκτέλεσης</div>
     {% if act_log_total %}
+      {# garbled rows have full_text_extracted = true, so split it out of "with" #}
+      {% set ft_with = act_ft_yes - act_ft_garbled %}
+      {% set ft_without = act_log_total - act_ft_yes %}
+      {% set ft_counts = {'all': act_log_total, 'with': ft_with, 'without': ft_without, 'garbled': act_ft_garbled} %}
       <p style="font-family:var(--serif); font-size:15px; color:var(--ink); margin:0 0 6px;">
         <strong>{{ act_log_total }}</strong> πράξεις ·
         {% if act_actions.new %}<strong style="color:var(--ok);">{{ act_actions.new }}</strong> νέες{% endif %}
@@ -101,11 +105,28 @@
         {% if act_actions.skipped_authored %} · <strong>{{ act_actions.skipped_authored }}</strong> χειροκίνητες (παράλειψη){% endif %}
         · <strong>{{ act_ft_yes }}</strong> με εξαγωγή πλήρους κειμένου{% if act_ft_garbled %} · <strong style="color:var(--accent);">{{ act_ft_garbled }}</strong> αλλοιωμένα ⚠{% endif %}
       </p>
+      {# Full-text filter — offered once the run is no longer live. #}
+      {% if not is_active %}
+      <div class="ft-filter">
+        {% for key, lbl in [('all','Όλα'),('with','Με πλήρες κείμενο'),('without','Χωρίς πλήρες κείμενο'),('garbled','Με αλλοιωμένο κείμενο')] %}
+        <a href="/admin/jobs/{{ job.id }}?ftf={{ key }}" hx-boost="false"
+           class="ft-pill {% if ftf==key %}on{% endif %}">{{ lbl }} ({{ ft_counts[key] }})</a>
+        {% endfor %}
+      </div>
+      <style>
+        .ft-filter{display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 12px;}
+        .ft-filter .ft-pill{font-size:11.5px; font-family:var(--sans); padding:4px 11px;
+          border:1px solid var(--rule); border-radius:14px; color:var(--ink-2); text-decoration:none;}
+        .ft-filter .ft-pill:hover{border-color:var(--accent); color:var(--accent);}
+        .ft-filter .ft-pill.on{background:var(--accent); border-color:var(--accent); color:#fff;}
+      </style>
+      {% endif %}
       <p class="meta" style="margin:0 0 12px;">
-        <a href="/admin/jobs/{{ job.id }}/acts.csv" hx-boost="false">↓ Λήψη πλήρους καταλόγου (CSV)</a>
-        {% if act_log_total > act_log_preview %}
-          · εμφανίζονται οι {{ act_log_preview }} πιο πρόσφατες από {{ act_log_total }}
+        <a href="/admin/jobs/{{ job.id }}/acts.csv{% if ftf != 'all' %}?ftf={{ ftf }}{% endif %}" hx-boost="false">↓ Λήψη {{ 'φιλτραρισμένου' if ftf != 'all' else 'πλήρους' }} καταλόγου (CSV)</a>
+        {% if ft_counts[ftf] > act_log_preview %}
+          · εμφανίζονται οι {{ act_log_preview }} πιο πρόσφατες από {{ ft_counts[ftf] }}
         {% endif %}
+        {% if ftf != 'all' and ft_counts[ftf] == 0 %} · καμία πράξη σε αυτό το φίλτρο{% endif %}
       </p>
       <table class="lines">
         <thead><tr>
