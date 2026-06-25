@@ -125,6 +125,12 @@ try:
 except (KeyError, ValueError):
     INGEST_JOB_ID = None
 
+# How often to flush in-progress work mid-window so the admin job page shows
+# live progress (acts handled so far) instead of nothing until the whole
+# 180-day window commits. Commits are cheap and the upserts are idempotent, so
+# a window that errors after a flush just gets re-processed on resume.
+PROGRESS_COMMIT_SECONDS = float(_os.environ.get("INGEST_PROGRESS_COMMIT_SECONDS", "3"))
+
 
 # --------------------------------------------------------------------------- #
 # Rate limiter: simple token-bucket sized to the documented 350 req/min.
@@ -908,7 +914,15 @@ def ingest_type(client: KhmdhsClient, repo: Repository, act_type: str,
 
         try:
             body = search_body(w_from, w_to)
+            last_commit = time.monotonic()
             for act in client.search(act_type, body):
+                # Flush accumulated work every few seconds so the job page shows
+                # acts handled so far DURING the run (the page reads on its own
+                # connection and only sees committed rows). Idempotent upserts +
+                # per-window resume make a mid-window flush safe.
+                if time.monotonic() - last_commit >= PROGRESS_COMMIT_SECONDS:
+                    db.commit()
+                    last_commit = time.monotonic()
                 adam = act.get("referenceNumber")
                 if not adam:
                     continue
@@ -939,7 +953,10 @@ def ingest_type(client: KhmdhsClient, repo: Repository, act_type: str,
                 if INGEST_JOB_ID:
                     repo.log_act(INGEST_JOB_ID, adam, act_type, act.get("title"),
                                  action, ft_extracted, ft_chars, ft_note)
-            # Mark done atomically with the same transaction that wrote the rows.
+            # Mark done + commit the final batch. (Earlier batches in this window
+            # were already flushed for live progress; the window is only marked
+            # 'done' once every act in it succeeded, so a crash before this leaves
+            # it 'running' and resume reprocesses it — idempotently.)
             db.execute(
                 """UPDATE proc.ingest_window
                    SET status='done', finished_at=now()
@@ -949,8 +966,10 @@ def ingest_type(client: KhmdhsClient, repo: Repository, act_type: str,
             summary["done"] += 1
             print(f"[{act_type}] window {w_from}..{w_to} done")
         except Exception as e:  # noqa: BLE001 — record and continue
-            # Roll back any partial inserts from this window so the next window
-            # starts clean, then record the error in a separate transaction.
+            # Roll back the unflushed tail (work since the last progress commit),
+            # then record the error in a separate transaction. Already-flushed
+            # acts persist; the window is marked 'error' and reprocessed on the
+            # next resume, where the idempotent upserts make re-running it safe.
             try:
                 db.rollback()
             except Exception:
