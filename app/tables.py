@@ -66,6 +66,20 @@ except ImportError:
         render_thumb,
     )
 
+# Crash/hang-isolated wrappers around the native-PDFium render/OCR functions
+# above (see render_safe.py). A malformed PDF that aborts PDFium must not take
+# down the web worker, so the endpoints below call these instead of ocr.* direct.
+try:
+    from app.render_safe import (
+        RenderUnavailable, safe_ocr_entry, safe_ocr_text_from_entry,
+        safe_page_count, safe_render_full, safe_render_thumb,
+    )
+except ImportError:
+    from render_safe import (
+        RenderUnavailable, safe_ocr_entry, safe_ocr_text_from_entry,
+        safe_page_count, safe_render_full, safe_render_thumb,
+    )
+
 # --------------------------------------------------------------------------- #
 # HTML sanitisation for curator-authored rich full text
 # --------------------------------------------------------------------------- #
@@ -384,7 +398,7 @@ def make_router(templates, cursor) -> APIRouter:
         if entry is None:
             return Response(status_code=404)
         try:
-            jpeg = render_thumb(entry, page)
+            jpeg = safe_render_thumb(entry, page)
         except Exception:  # noqa: BLE001
             return Response(status_code=404)
         return Response(content=jpeg, media_type="image/jpeg",
@@ -397,7 +411,7 @@ def make_router(templates, cursor) -> APIRouter:
         if entry is None:
             return Response(status_code=404)
         try:
-            jpeg = render_full(entry, page)
+            jpeg = safe_render_full(entry, page)
         except Exception:  # noqa: BLE001
             return Response(status_code=404)
         return Response(content=jpeg, media_type="image/jpeg",
@@ -433,7 +447,7 @@ def make_router(templates, cursor) -> APIRouter:
                 status_code=404,
             )
         try:
-            n = page_count(entry.data)
+            n = safe_page_count(entry.data)
         except Exception:  # noqa: BLE001
             return HTMLResponse(
                 "<div class='tt-flash tt-error'>Αδυναμία ανάγνωσης PDF.</div>",
@@ -460,7 +474,13 @@ def make_router(templates, cursor) -> APIRouter:
                 "<div class='tt-flash tt-error'>Η συνεδρία έληξε.</div>",
                 status_code=410,
             )
-        n = page_count(entry.data)
+        try:
+            n = safe_page_count(entry.data)
+        except RenderUnavailable:
+            return HTMLResponse(
+                "<div class='tt-flash tt-error'>Αδυναμία ανάγνωσης PDF.</div>",
+                status_code=422,
+            )
         chosen = sorted({p for p in pages if 1 <= p <= n})
         if chosen and len(chosen) < n:
             session["page_sel"][entry_id] = chosen
@@ -502,7 +522,7 @@ def make_router(templates, cursor) -> APIRouter:
         retry_status = "scanned" if entry.ext == ".pdf" else "image"
         sel = session["page_sel"].get(entry_id)
         try:
-            report = ocr_entry(entry, pages=set(sel) if sel else None)
+            report = safe_ocr_entry(entry, pages=set(sel) if sel else None)
         except OcrError as exc:
             report = FileReport(entry.source, retry_status, f"OCR failed: {exc}")
         except Exception as exc:  # noqa: BLE001
@@ -896,8 +916,8 @@ def make_router(templates, cursor) -> APIRouter:
                     continue
                 sel = session["page_sel"].get(eid)
                 try:
-                    txt = ocr_text_from_entry(entry, pages=set(sel) if sel else None)
-                except OcrError as exc:
+                    txt = safe_ocr_text_from_entry(entry, pages=set(sel) if sel else None)
+                except (OcrError, RenderUnavailable) as exc:
                     return HTMLResponse(
                         f"<div class='tt-flash tt-error'>Claude OCR απέτυχε: {exc}</div>",
                         status_code=502,
