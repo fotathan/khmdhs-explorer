@@ -354,11 +354,13 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                          GROUP BY action""", (job_id,))
             act_actions = {r["action"]: r["n"] for r in c.fetchall()}
             c.execute("""SELECT count(*) AS total,
-                                count(*) FILTER (WHERE full_text_extracted) AS ft_yes
+                                count(*) FILTER (WHERE full_text_extracted) AS ft_yes,
+                                count(*) FILTER (WHERE full_text_note='garbled') AS ft_garbled
                          FROM proc.ingest_act_log WHERE job_id=%s""", (job_id,))
             ftrow = c.fetchone()
             act_log_total = ftrow["total"] if ftrow else 0
             act_ft_yes = ftrow["ft_yes"] if ftrow else 0
+            act_ft_garbled = ftrow["ft_garbled"] if ftrow else 0
             c.execute("""SELECT adam, act_type, title, action,
                                 full_text_extracted, full_text_chars,
                                 full_text_note, logged_at
@@ -387,6 +389,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
              "is_active": job["status"] == "running",
              "act_log": act_log, "act_actions": act_actions,
              "act_log_total": act_log_total, "act_ft_yes": act_ft_yes,
+             "act_ft_garbled": act_ft_garbled,
              "act_log_preview": ACT_LOG_PREVIEW},
         )
 

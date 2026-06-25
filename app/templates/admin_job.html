@@ -99,7 +99,7 @@
         {% if act_actions.new %}<strong style="color:var(--ok);">{{ act_actions.new }}</strong> νέες{% endif %}
         {% if act_actions.updated %}{% if act_actions.new %} · {% endif %}<strong>{{ act_actions.updated }}</strong> ενημερώσεις{% endif %}
         {% if act_actions.skipped_authored %} · <strong>{{ act_actions.skipped_authored }}</strong> χειροκίνητες (παράλειψη){% endif %}
-        · <strong>{{ act_ft_yes }}</strong> με εξαγωγή πλήρους κειμένου
+        · <strong>{{ act_ft_yes }}</strong> με εξαγωγή πλήρους κειμένου{% if act_ft_garbled %} · <strong style="color:var(--accent);">{{ act_ft_garbled }}</strong> αλλοιωμένα ⚠{% endif %}
       </p>
       <p class="meta" style="margin:0 0 12px;">
         <a href="/admin/jobs/{{ job.id }}/acts.csv" hx-boost="false">↓ Λήψη πλήρους καταλόγου (CSV)</a>
@@ -129,7 +129,8 @@
                 {% else %}{{ a.action }}{% endif %}
               </td>
               <td class="meta" style="font-size:11px;">
-                {% if a.full_text_extracted %}<span style="color:var(--ok);">✓</span> {{ a.full_text_chars }} χαρ.
+                {% if a.full_text_note == 'garbled' %}<span style="color:var(--accent);" title="Το κείμενο φαίνεται αλλοιωμένο — χρειάζεται OCR">⚠ αλλοιωμένο</span> · {{ a.full_text_chars }} χαρ.
+                {% elif a.full_text_extracted %}<span style="color:var(--ok);">✓</span> {{ a.full_text_chars }} χαρ.
                 {% elif a.full_text_note == 'exists' %}υπήρχε ήδη
                 {% elif a.full_text_note == 'no_attachment' %}χωρίς συνημμένο
                 {% elif a.full_text_note == 'no_text' %}σαρωμένο/χωρίς κείμενο

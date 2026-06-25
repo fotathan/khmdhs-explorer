@@ -24,6 +24,8 @@ from dataclasses import dataclass, field
 from typing import Iterable, Iterator
 
 import json
+import re
+import unicodedata
 import requests
 
 # Adapt a Python dict to a jsonb bind parameter. psycopg2/psycopg3 both need the
@@ -733,6 +735,46 @@ class Repository:
 # --------------------------------------------------------------------------- #
 # Orchestration
 # --------------------------------------------------------------------------- #
+# Heuristic detection of garbled / mojibake extraction (a PDF whose font has no
+# ToUnicode map, so pdfminer emits "(cid:N)" tokens; U+FFFD replacement chars;
+# or Greek that decoded into Latin/symbol soup). Cheap character-class checks
+# only — no language model. Thresholds are conservative (require a minimum count
+# AND a ratio) to avoid false positives on short or code-heavy text. Used to
+# FLAG, never to reject — the text is still stored, just marked for manual OCR.
+_GREEK_RE = re.compile(r"[Ͱ-Ͽἀ-῿]")
+_LATIN_RE = re.compile(r"[A-Za-z]")
+_CID_RE = re.compile(r"\(cid:\d+\)")
+
+
+def looks_garbled(text: str | None) -> bool:
+    """True if extracted text looks garbled rather than real document text."""
+    if not text:
+        return False
+    s = text[:20000]                       # cap work on huge documents
+    n = len(s)
+    # 1) Unmapped-glyph "(cid:N)" tokens — the strongest signal.
+    cid = len(_CID_RE.findall(s))
+    if cid >= 5 and cid * 40 > n:
+        return True
+    # 2) Unicode replacement characters.
+    repl = s.count("�")
+    if repl >= 5 and repl * 50 > n:
+        return True
+    # 3) Mojibake: plenty of letters but almost no Greek (Greek docs are ~always
+    #    mostly Greek; a near-zero Greek ratio over substantial text is suspect).
+    greek = len(_GREEK_RE.findall(s))
+    latin = len(_LATIN_RE.findall(s))
+    letters = greek + latin
+    if letters >= 300 and greek * 100 < letters * 12:    # < 12% Greek
+        return True
+    # 4) Control / non-printable noise (excluding ordinary whitespace).
+    ctrl = sum(1 for ch in s
+               if ch not in "\t\n\r\f\v" and unicodedata.category(ch)[0] == "C")
+    if ctrl >= 20 and ctrl * 100 > n:                    # > 1% control chars
+        return True
+    return False
+
+
 def extract_full_text_for_act(client: "KhmdhsClient", repo: "Repository",
                               act_type: str, adam: str) -> tuple[bool, int | None, str]:
     """Fetch an act's attachment, extract its text, and store it (fill-only-if-
@@ -745,6 +787,7 @@ def extract_full_text_for_act(client: "KhmdhsClient", repo: "Repository",
 
     Returns (extracted, chars, note) for the run log:
       (True,  n,    'extracted')      text fetched and stored (n chars)
+      (True,  n,    'garbled')        text stored but looks garbled (needs OCR)
       (False, n,    'exists')         text found but full_text already set
       (False, None, 'no_attachment')  no document to fetch
       (False, None, 'no_text')        attachment has no text layer (scanned)
@@ -766,9 +809,13 @@ def extract_full_text_for_act(client: "KhmdhsClient", repo: "Repository",
         text = extract_text_from_upload(fname, data)
         if not text:
             return (False, None, "no_text")  # scanned/image — leave for manual OCR
-        wrote = repo.set_full_text_if_empty(adam, text, source="auto:import")
+        # Flag (don't reject) garbled output: store it but mark the source so it
+        # surfaces for manual OCR; the curator's OCR re-save will overwrite it.
+        garbled = looks_garbled(text)
+        wrote = repo.set_full_text_if_empty(
+            adam, text, source="auto:garbled?" if garbled else "auto:import")
         if wrote:
-            return (True, len(text), "extracted")
+            return (True, len(text), "garbled" if garbled else "extracted")
         return (False, len(text), "exists")
     except Exception:  # noqa: BLE001 — never propagate into the ingest loop
         return (False, None, "error")
@@ -779,9 +826,10 @@ def extract_full_text_status(client: "KhmdhsClient", repo: "Repository",
     """Like extract_full_text_for_act, but for the MASS backfill: returns a
     status and records 'tried but empty' so a resumed run can skip acts that
     will never yield text. Returns one of:
-        'stored' — text extracted and saved
-        'empty'  — no attachment / no text layer (marked, won't be retried)
-        'error'  — a fetch/parse error (left unmarked so it CAN be retried)
+        'stored'  — text extracted and saved
+        'garbled' — text saved but looks garbled (flagged for manual OCR)
+        'empty'   — no attachment / no text layer (marked, won't be retried)
+        'error'   — a fetch/parse error (left unmarked so it CAN be retried)
     Fail-soft: never raises.
     """
     try:
@@ -801,8 +849,10 @@ def extract_full_text_status(client: "KhmdhsClient", repo: "Repository",
         if not text:
             repo.mark_full_text_attempted_empty(adam, "auto:no-text")
             return "empty"
-        repo.set_full_text_if_empty(adam, text, source="auto:mass")
-        return "stored"
+        garbled = looks_garbled(text)
+        repo.set_full_text_if_empty(
+            adam, text, source="auto:garbled?" if garbled else "auto:mass")
+        return "garbled" if garbled else "stored"
     except Exception:  # noqa: BLE001
         return "error"
 

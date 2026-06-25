@@ -252,14 +252,18 @@ def cmd_fulltext_backfill(args):
 
         client = ingest.KhmdhsClient()
         repo = ingest.Repository(db)
-        n = {"stored": 0, "empty": 0, "error": 0}
+        n = {"stored": 0, "garbled": 0, "empty": 0, "error": 0}
         for i, (adam, act_type) in enumerate(rows, start=1):
             status = ingest.extract_full_text_status(client, repo, str(act_type), adam)
             n[status] += 1
+            if status == "garbled":
+                # Surface garbled extractions in the log, one line each, so they
+                # can be found and re-done via the manual OCR path.
+                print(f"  ! garbled extraction (flagged for OCR): {adam}")
             db.commit()  # commit each act → resumable
             if i % 100 == 0 or i == len(rows):
-                print(f"  {i:>6}/{len(rows)}  "
-                      f"stored={n['stored']} empty={n['empty']} error={n['error']}")
+                print(f"  {i:>6}/{len(rows)}  stored={n['stored']} "
+                      f"garbled={n['garbled']} empty={n['empty']} error={n['error']}")
       except BaseException:
         final_status = "error"
         raise
@@ -267,10 +271,14 @@ def cmd_fulltext_backfill(args):
         _finalize_job(db, final_status)
 
     print(f"\nfull-text backfill run complete. "
-          f"stored={n['stored']} empty={n['empty']} error={n['error']}")
-    still = remaining - n["stored"] - n["empty"]
+          f"stored={n['stored']} garbled={n['garbled']} "
+          f"empty={n['empty']} error={n['error']}")
+    if n["garbled"]:
+        print(f"  {n['garbled']} act(s) extracted GARBLED text (source "
+              f"'auto:garbled?') — re-extract via manual OCR on the act page.")
+    still = remaining - n["stored"] - n["garbled"] - n["empty"]
     print(f"  approx still-untried after this run: {max(still, 0):,} "
-          f"(re-run to continue; 'error' acts will be retried, 'empty' won't)")
+          f"(re-run to continue; 'error' acts will be retried, 'empty'/'garbled' won't)")
 
 
 def _watermark(db, act_type: str):
