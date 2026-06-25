@@ -68,7 +68,7 @@
         {% elif r.flag == 'suspicious' %}<span class="pill cancel">Ύποπτο</span>
         {% else %}<span class="meta">—</span>{% endif %}
       </td>
-      <td><a href="/admin/act/{{ r.adam }}/annotate" style="color:var(--accent); font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.06em;">επιμέλεια ›</a></td>
+      <td><a href="/admin/act/{{ r.adam }}/edit?tab=annotate" style="color:var(--accent); font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.06em;">επιμέλεια ›</a></td>
     </tr>
     {% endfor %}
   </tbody>

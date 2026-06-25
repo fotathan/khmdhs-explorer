@@ -182,7 +182,7 @@
       {% if n.full_text %}
       <div class="panel">
         <h3 class="panel-h">Πλήρες κείμενο
-          <a href="/tables/fulltext/{{ n.adam }}" style="font-weight:400;font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;float:right;">επεξεργασία ›</a>
+          <a href="/admin/act/{{ n.adam }}/edit?tab=fulltext" style="font-weight:400;font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;float:right;">επεξεργασία ›</a>
         </h3>
         <details>
           <summary style="cursor:pointer;font-size:13px;color:var(--ink-2);">{{ n.full_text | length }} χαρακτήρες{% if n.full_text_extracted_at %} · {{ n.full_text_extracted_at.strftime('%d/%m/%Y') }}{% endif %} — προβολή</summary>
@@ -209,7 +209,7 @@
         </a>
         {% endif %}
         {% if tables_enabled %}
-        <a class="action-link" href="/tables?adam={{ n.adam }}">
+        <a class="action-link" href="/admin/act/{{ n.adam }}/edit?tab=tables">
           <span class="ico">▦</span>
           <span><span class="at">Εξαγωγή πινάκων</span><span class="ad">Πίνακες από τα συνημμένα σε Excel</span></span>
         </a>
@@ -218,7 +218,7 @@
 
       <div class="sidecard">
         <div class="sidecard-h">Σημειώσεις ομάδας
-          <a href="/admin/act/{{ n.adam }}/edit">επεξεργασία ›</a>
+          <a href="/admin/act/{{ n.adam }}/edit?tab=annotate">επεξεργασία ›</a>
         </div>
         {% if annotation and (annotation.note or annotation.tags or annotation.flag) %}
           {% if annotation.flag %}

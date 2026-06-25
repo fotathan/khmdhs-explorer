@@ -35,25 +35,35 @@
   </div>
 </div>
 
+{% if request.query_params.get('saved') or request.query_params.get('owned') %}
+<div style="margin:14px 0 0; padding:10px 16px; background:#eaf6ef; border:1px solid #b7e0c7; border-radius:8px; color:#1a7f47; font-size:13px;">
+  {% if request.query_params.get('owned') %}✓ Η πράξη έγινε χειροκίνητη — τα βασικά πεδία είναι πλέον επεξεργάσιμα.{% else %}✓ Αποθηκεύτηκε.{% endif %}
+</div>
+{% endif %}
+
 <div class="edit-tabs" role="tablist">
-  <button class="edit-tab on" id="tab-annotate" role="tab"
+  <button class="edit-tab {% if tab=='fields' %}on{% endif %}" id="tab-fields" role="tab"
+          hx-get="/admin/act/{{ act.adam }}/panel/fields"
+          hx-target="#edit-panel" hx-swap="innerHTML"
+          onclick="ttEditTab(this)">Βασικά πεδία</button>
+  <button class="edit-tab {% if tab=='annotate' %}on{% endif %}" id="tab-annotate" role="tab"
           hx-get="/admin/act/{{ act.adam }}/panel/annotate"
           hx-target="#edit-panel" hx-swap="innerHTML"
           onclick="ttEditTab(this)">Σημειώσεις</button>
-  <button class="edit-tab" id="tab-fulltext" role="tab"
+  <button class="edit-tab {% if tab=='fulltext' %}on{% endif %}" id="tab-fulltext" role="tab"
           hx-get="/admin/act/{{ act.adam }}/panel/fulltext"
           hx-target="#edit-panel" hx-swap="innerHTML"
           onclick="ttEditTab(this)">Πλήρες κείμενο</button>
-  <button class="edit-tab" id="tab-tables" role="tab"
+  <button class="edit-tab {% if tab=='tables' %}on{% endif %}" id="tab-tables" role="tab"
           hx-get="/admin/act/{{ act.adam }}/panel/tables"
           hx-target="#edit-panel" hx-swap="innerHTML"
           onclick="ttEditTab(this)">Πίνακες</button>
 </div>
 
-{# The first panel (annotation) is loaded on page open via hx-trigger=load, so
-   the initial view is immediate; the others lazy-load on first tab click. #}
+{# The requested tab's panel loads on page open via hx-trigger=load; the others
+   lazy-load on first click. #}
 <div id="edit-panel"
-     hx-get="/admin/act/{{ act.adam }}/panel/annotate"
+     hx-get="/admin/act/{{ act.adam }}/panel/{{ tab }}"
      hx-trigger="load" hx-swap="innerHTML">
   <div class="panel-loading">Φόρτωση…</div>
 </div>

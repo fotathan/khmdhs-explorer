@@ -33,7 +33,7 @@ import uuid
 from urllib.parse import quote
 
 from fastapi import APIRouter, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from psycopg.types.json import Json
 
 # Sibling extraction modules. These are kept byte-identical with the standalone
@@ -272,10 +272,15 @@ def make_router(templates, cursor) -> APIRouter:
     # ---- entry: landing page (upload + ΑΔΑΜ box) ----
     @router.get("", response_class=HTMLResponse)
     def tables_home(request: Request, adam: str = ""):
-        # `adam` prefilled when arriving from an act detail page's button.
+        # Per-act table work now lives in the act-edit hub's "Πίνακες" tab — send
+        # any act-specific entry there. With no ΑΔΑΜ this stays the general,
+        # standalone extraction tool (arbitrary upload / any ΑΔΑΜ).
+        if adam.strip():
+            return RedirectResponse(
+                url=f"/admin/act/{adam.strip()}/edit?tab=tables", status_code=303)
         return templates.TemplateResponse(
             request, "tables/index.html",
-            {"prefill_adam": adam, "ocr_available": api_key_present()},
+            {"prefill_adam": "", "ocr_available": api_key_present()},
         )
 
     # ---- ΑΔΑΜ-fetch: pull the official document server-side, then scan ----
@@ -758,19 +763,13 @@ def make_router(templates, cursor) -> APIRouter:
             )
             return c.fetchone()
 
-    @router.get("/fulltext/{adam}", response_class=HTMLResponse)
-    def fulltext_form(request: Request, adam: str):
-        """Edit page: shows current full_text and a fetch-and-extract panel."""
-        act = _act_for_fulltext(adam)
-        if act is None:
-            return HTMLResponse(
-                "<div class='tt-flash tt-error'>Άγνωστη πράξη.</div>",
-                status_code=404,
-            )
-        return templates.TemplateResponse(
-            request, "tables/fulltext.html",
-            {"act": act, "ocr_available": api_key_present()},
-        )
+    @router.get("/fulltext/{adam}")
+    def fulltext_form(adam: str):
+        """Full-text editing now lives in the act-edit hub's "Πλήρες κείμενο"
+        tab; redirect this standalone URL there (the POST extract/save endpoints
+        below stay — the hub panel uses them)."""
+        return RedirectResponse(
+            url=f"/admin/act/{adam}/edit?tab=fulltext", status_code=303)
 
     @router.post("/fulltext/fetch", response_class=HTMLResponse)
     def fulltext_fetch(request: Request, adam: str = Form(...)):

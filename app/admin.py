@@ -670,28 +670,12 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             {"groups": _act_form_fields(), "act": {}, "mode": "create",
              "adam": None, "authority_name": None})
 
-    @router.get("/acts/{adam}/edit", response_class=HTMLResponse)
-    def act_edit_form(adam: str, request: Request):
-        """Edit form for an AUTHORED act. Imported acts are redirected to the
-        overlay-correction tools (their core fields are source-owned)."""
-        with cursor() as c:
-            c.execute("SELECT * FROM proc.procurement_act WHERE adam = %s", (adam,))
-            act = c.fetchone()
-            if not act:
-                raise HTTPException(404, "act not found")
-            if act["origin"] != "authored":
-                # Not editable here — send to the existing edit hub.
-                return RedirectResponse(url=f"/act/{adam}/edit", status_code=303)
-            authority_name = None
-            if act.get("authority_id"):
-                c.execute("SELECT name FROM proc.authority WHERE org_id = %s",
-                          (act["authority_id"],))
-                row = c.fetchone()
-                authority_name = row["name"] if row else None
-        return templates.TemplateResponse(
-            request, "admin_act_form.html",
-            {"groups": _act_form_fields(), "act": dict(act), "mode": "edit",
-             "adam": adam, "authority_name": authority_name})
+    @router.get("/acts/{adam}/edit")
+    def act_edit_form(adam: str):
+        """Editing an existing act now lives in the unified act-edit hub
+        (Βασικά πεδία tab); redirect there so there's one edit page per act."""
+        return RedirectResponse(url=f"/admin/act/{adam}/edit?tab=fields",
+                                status_code=303)
 
     @router.post("/acts/save")
     async def act_save(request: Request):
@@ -736,7 +720,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                         SET {set_sql}, last_edited_by = %s, last_edited_at = now()
                         WHERE adam = %s""",
                     vals + [curator, adam])
-            return RedirectResponse(url=f"/admin/acts/{adam}/edit?saved=1",
+            return RedirectResponse(url=f"/admin/act/{adam}/edit?tab=fields&saved=1",
                                     status_code=303)
         else:
             # CREATE — generate an adam if none supplied. Authored acts get a
@@ -762,7 +746,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                     f"""INSERT INTO proc.procurement_act ({", ".join(all_cols)})
                         VALUES ({placeholders})""",
                     all_vals)
-            return RedirectResponse(url=f"/admin/acts/{adam}/edit?saved=1",
+            return RedirectResponse(url=f"/admin/act/{adam}/edit?tab=fields&saved=1",
                                     status_code=303)
 
     @router.post("/acts/{adam}/take-ownership")
@@ -776,8 +760,9 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             if not row:
                 raise HTTPException(404, "act not found")
             if row["origin"] == "authored":
-                # already owned — just go to the edit form
-                return RedirectResponse(url=f"/admin/acts/{adam}/edit", status_code=303)
+                # already owned — just go to the edit hub's fields tab
+                return RedirectResponse(url=f"/admin/act/{adam}/edit?tab=fields",
+                                        status_code=303)
             c.execute(
                 """UPDATE proc.procurement_act
                    SET origin = 'authored',
@@ -786,7 +771,8 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                        last_edited_at = now()
                    WHERE adam = %s AND origin = 'import'""",
                 (curator, curator, adam))
-        return RedirectResponse(url=f"/admin/acts/{adam}/edit?owned=1", status_code=303)
+        return RedirectResponse(url=f"/admin/act/{adam}/edit?tab=fields&owned=1",
+                                status_code=303)
 
     # ------------------------------------------------------------------ #
     # Party (authority / contractor) edit forms. Parties are harvested, so
@@ -968,10 +954,13 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
              "total": total, "page": page, "total_pages": total_pages,
              "flag_labels": FLAG_LABELS})
 
-    @router.get("/act/{adam}/annotate", response_class=HTMLResponse)
-    def annotate_form(adam: str, request: Request):
-        return templates.TemplateResponse(
-            request, "admin_annotate.html", _annotate_context(adam, request))
+    @router.get("/act/{adam}/annotate")
+    def annotate_form(adam: str):
+        """The annotation editor now lives in the act-edit hub's "Σημειώσεις"
+        tab; redirect this standalone URL there (the POST below stays — the hub
+        panel posts to it and gets the refreshed panel back)."""
+        return RedirectResponse(url=f"/admin/act/{adam}/edit?tab=annotate",
+                                status_code=303)
 
     @router.post("/act/{adam}/annotate")
     def annotate_save(adam: str,
@@ -1035,7 +1024,8 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                             max_age=60 * 60 * 24 * 365, samesite="lax")
             return resp
 
-        resp = RedirectResponse(url=f"/admin/act/{adam}/annotate", status_code=303)
+        resp = RedirectResponse(url=f"/admin/act/{adam}/edit?tab=annotate",
+                                status_code=303)
         # Remember the curator's name for next time (attribution, not auth).
         # Cookies are latin-1 only, so URL-encode to allow Greek names; the form
         # route unquotes it when prefilling. quote() with no safe-set handles
@@ -1085,15 +1075,43 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             raise HTTPException(404, f"act {adam} not found")
         return act
 
+    _EDIT_TABS = ("fields", "annotate", "fulltext", "tables")
+
     @router.get("/act/{adam}/edit", response_class=HTMLResponse)
-    def act_edit_hub(adam: str, request: Request):
+    def act_edit_hub(adam: str, request: Request, tab: str = "annotate"):
+        """The single edit page per act: Βασικά πεδία / Σημειώσεις / Πλήρες
+        κείμενο / Πίνακες as tabs. `tab` deep-links a starting tab (used by the
+        detail-page links and the redirects from the old standalone URLs)."""
+        if tab not in _EDIT_TABS:
+            tab = "annotate"
         with cursor() as c:
-            c.execute("""SELECT adam, type, title FROM proc.procurement_act
+            c.execute("""SELECT adam, type, title, origin FROM proc.procurement_act
                          WHERE adam=%s""", (adam,))
             act = c.fetchone()
             if not act:
                 raise HTTPException(404, f"act {adam} not found")
-        return templates.TemplateResponse(request, "act_edit.html", {"act": act})
+        return templates.TemplateResponse(request, "act_edit.html",
+                                          {"act": act, "tab": tab})
+
+    @router.get("/act/{adam}/panel/fields", response_class=HTMLResponse)
+    def panel_fields(adam: str, request: Request):
+        """Core scalar fields. Editable for AUTHORED acts; an imported act shows
+        a take-ownership prompt instead (its core fields are source-owned)."""
+        with cursor() as c:
+            c.execute("SELECT * FROM proc.procurement_act WHERE adam=%s", (adam,))
+            act = c.fetchone()
+            if not act:
+                raise HTTPException(404, f"act {adam} not found")
+            authority_name = None
+            if act.get("authority_id"):
+                c.execute("SELECT name FROM proc.authority WHERE org_id=%s",
+                          (act["authority_id"],))
+                row = c.fetchone()
+                authority_name = row["name"] if row else None
+        return templates.TemplateResponse(
+            request, "_panel_fields.html",
+            {"groups": _act_form_fields(), "act": dict(act), "adam": adam,
+             "authority_name": authority_name, "origin": act["origin"]})
 
     @router.get("/act/{adam}/panel/annotate", response_class=HTMLResponse)
     def panel_annotate(adam: str, request: Request):

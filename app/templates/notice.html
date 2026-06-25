@@ -167,7 +167,7 @@
     {% if n.full_text %}
       <div class="section-h">
         Πλήρες κείμενο
-        <a href="/tables/fulltext/{{ n.adam }}" style="float:right; color:var(--accent); font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; font-weight:400;">επεξεργασία ›</a>
+        <a href="/admin/act/{{ n.adam }}/edit?tab=fulltext" style="float:right; color:var(--accent); font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; font-weight:400;">επεξεργασία ›</a>
       </div>
       <details>
         <summary style="cursor:pointer; font-family:var(--sans); font-size:13px; color:var(--ink-2); margin-bottom:8px;">
@@ -211,7 +211,7 @@
 
     {% if tables_enabled %}
     <p style="margin:0 0 24px;">
-      <a href="/tables?adam={{ n.adam }}"
+      <a href="/admin/act/{{ n.adam }}/edit?tab=tables"
          style="display:inline-flex; align-items:center; gap:7px; font-weight:600; text-decoration:none;">
         <span style="font-size:15px;">▦</span> Εξαγωγή πινάκων από τα συνημμένα
       </a>

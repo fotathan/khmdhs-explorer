@@ -1,0 +1,83 @@
+{# _panel_fields.html — "Βασικά πεδία" tab of the act-edit hub. Editable scalar
+   fields for AUTHORED acts (posts to /admin/acts/save, which redirects back to
+   this tab); an imported act gets a take-ownership prompt instead, since its
+   core fields are owned by the source. #}
+{% if origin != 'authored' %}
+  <p style="font-family:var(--serif); font-size:14px; color:var(--ink-2); line-height:1.6; margin:0 0 16px; max-width:60ch;">
+    Εισαγόμενη πράξη — τα βασικά πεδία ανήκουν στην πηγή και ενημερώνονται από τις
+    αυτόματες εισαγωγές. Για διορθώσεις χωρίς αλλοίωση της πηγής, χρησιμοποιήστε την
+    καρτέλα «Σημειώσεις». Για να επεξεργαστείτε απευθείας τα βασικά πεδία, αναλάβετε
+    την κυριότητα της πράξης — μονόδρομη ενέργεια· έπειτα οι αυτόματες εισαγωγές δεν
+    θα την τροποποιούν.
+  </p>
+  <form method="post" action="/admin/acts/{{ adam }}/take-ownership">
+    <button type="submit"
+            onclick="return confirm('Ανάληψη κυριότητας της πράξης {{ adam }}; Δεν αναιρείται.');"
+            style="background:var(--ink); color:var(--paper); border:0; padding:11px 24px; font-family:var(--sans); font-size:12px; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer;">
+      Ανάληψη κυριότητας &amp; επεξεργασία
+    </button>
+  </form>
+{% else %}
+<form method="post" action="/admin/acts/save" style="padding-bottom:20px;">
+  <input type="hidden" name="_mode" value="edit">
+  <input type="hidden" name="_adam" value="{{ adam }}">
+
+  {% for group, fields in groups.items() %}
+  <div class="form-section">
+    <div class="form-section-h">{{ group }}</div>
+    <div class="form-grid">
+      {% for name, label, kind in fields %}
+      {% set val = act.get(name) %}
+      <div class="field {% if kind in ('textarea',) %}field-wide{% endif %}">
+        {% if kind == 'bool' %}
+          <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; text-transform:none; letter-spacing:0;">
+            <input type="checkbox" name="{{ name }}" value="1" {% if val %}checked{% endif %}>
+            {{ label }}
+          </label>
+        {% else %}
+          <label>{{ label }}</label>
+          {% if kind == 'textarea' %}
+            <textarea name="{{ name }}" rows="2">{{ val or '' }}</textarea>
+          {% elif kind == 'type' %}
+            <select name="{{ name }}">
+              {% for code in ['notice','auction','contract','payment','request'] %}
+              <option value="{{ code }}" {% if val==code %}selected{% endif %}>{{ code | type_label }}</option>
+              {% endfor %}
+            </select>
+          {% elif kind == 'date' %}
+            <input type="date" name="{{ name }}" value="{{ val.strftime('%Y-%m-%d') if val else '' }}">
+          {% elif kind == 'number' %}
+            <input type="text" inputmode="decimal" name="{{ name }}" value="{{ val if val is not none else '' }}">
+          {% elif kind == 'authority' %}
+            <input type="text" name="{{ name }}" value="{{ val or '' }}"
+                   placeholder="ΑΦΜ ή org_id της αρχής">
+            {% if authority_name %}<div class="meta" style="margin-top:4px; letter-spacing:0; text-transform:none;">→ {{ authority_name }}</div>{% endif %}
+          {% else %}
+            <input type="text" name="{{ name }}" value="{{ val or '' }}">
+          {% endif %}
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+  <div style="border-top:1px solid var(--rule); padding-top:16px; margin-top:8px;">
+    <button type="submit"
+            style="background:var(--ink); color:var(--paper); border:0; padding:11px 28px; font-family:var(--sans); font-size:12px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer;">
+      Αποθήκευση βασικών πεδίων
+    </button>
+  </div>
+</form>
+
+<style>
+  #edit-panel .form-section{margin:0 0 22px; padding-bottom:6px;}
+  #edit-panel .form-section-h{font-family:var(--mono, monospace); font-size:11px; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--accent, #2563c4); border-bottom:1px solid var(--rule);
+    padding-bottom:7px; margin-bottom:14px;}
+  #edit-panel .form-grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:14px 18px;}
+  #edit-panel .form-grid .field-wide{grid-column:span 3;}
+  #edit-panel .form-grid .field{margin:0;}
+  #edit-panel .form-grid textarea{width:100%; resize:vertical; font-family:inherit;}
+</style>
+{% endif %}
