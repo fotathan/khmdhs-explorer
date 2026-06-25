@@ -2,11 +2,8 @@
 {% block title %}Ενοποίηση οντοτήτων · {{ label }}{% endblock %}
 
 {% block content %}
-<p style="margin:20px 0 0;">
-  <a class="back" href="/admin" hx-boost="false">‹ διαχείριση</a> &nbsp;·&nbsp;
-  <a class="back" href="/admin/merge/contractor" hx-boost="false">Ανάδοχοι</a> &nbsp;·&nbsp;
-  <a class="back" href="/admin/merge/authority" hx-boost="false">Αρχές</a>
-</p>
+
+{% include "_admin_tabs.html" %}
 
 <div class="detail-h">
   <div class="kicker">Διαχείριση · Ενοποίηση</div>

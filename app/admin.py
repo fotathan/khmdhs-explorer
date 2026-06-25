@@ -138,8 +138,14 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
     # ------------------------------------------------------------------ #
     # Routes
     # ------------------------------------------------------------------ #
-    @router.get("", response_class=HTMLResponse)
-    def admin_home(request: Request):
+    @router.get("")
+    def admin_home():
+        # The admin landing defaults to the acts-management tab.
+        return RedirectResponse(url="/admin/acts", status_code=303)
+
+    @router.get("/collection", response_class=HTMLResponse)
+    def admin_collection(request: Request):
+        """Συλλογή Δεδομένων tab — backfill launcher + job history."""
         reconcile_stale()
         with cursor() as c:
             c.execute("""SELECT id, status, types, date_from, date_to, resume,
@@ -163,7 +169,8 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
              "running_now": any_running(),
              "act_types": ACT_TYPES,
              "today": dt.date.today().isoformat(),
-             "default_start": (dt.date.today() - dt.timedelta(days=180)).isoformat()},
+             "default_start": (dt.date.today() - dt.timedelta(days=180)).isoformat(),
+             "admin_tab": "collection"},
         )
 
     @router.post("/jobs")
@@ -561,7 +568,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
              "data_source": data_source, "origin": origin, "type": type,
              "source_status": source_status, "has_attachments": has_attachments,
              "date_from": date_from, "date_to": date_to, "sort": sort,
-             "sources": sources, "statuses": statuses})
+             "sources": sources, "statuses": statuses, "admin_tab": "acts"})
 
     # ----- Authored-act edit / create form ---------------------------------- #
     # The fields a curator may set on an AUTHORED act, grouped for the form.
@@ -952,7 +959,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             request, "admin_curate.html",
             {"rows": rows, "q": q, "flag": flag, "annotated": annotated,
              "total": total, "page": page, "total_pages": total_pages,
-             "flag_labels": FLAG_LABELS})
+             "flag_labels": FLAG_LABELS, "admin_tab": "curate"})
 
     @router.get("/act/{adam}/annotate")
     def annotate_form(adam: str):
@@ -1313,7 +1320,8 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             {"kind": kind, "label": cfg["label"], "q": q, "focus": focus,
              "candidates": candidates, "groups": groups, "gname": gname,
              "sort": sort, "page": page, "per_page": per_page,
-             "total": total, "total_pages": total_pages, "browse": not q})
+             "total": total, "total_pages": total_pages, "browse": not q,
+             "admin_tab": f"merge-{kind}"})
 
     @router.post("/merge/{kind}/create")
     def merge_create(kind: str,

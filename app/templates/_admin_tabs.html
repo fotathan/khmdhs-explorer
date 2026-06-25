@@ -1,0 +1,17 @@
+{# _admin_tabs.html — top navigation across the admin sections. The including
+   page passes `admin_tab` to mark the active one:
+   collection | acts | curate | merge-contractor | merge-authority #}
+<div class="admin-tabs">
+  <a href="/admin/collection" class="admin-tab {% if admin_tab=='collection' %}on{% endif %}">Συλλογή Δεδομένων</a>
+  <a href="/admin/acts" class="admin-tab {% if admin_tab=='acts' %}on{% endif %}">Διαχείριση Πράξεων</a>
+  <a href="/admin/curate" class="admin-tab {% if admin_tab=='curate' %}on{% endif %}">Επιμέλεια Σημειώσεων</a>
+  <a href="/admin/merge/contractor" class="admin-tab {% if admin_tab=='merge-contractor' %}on{% endif %}">Ενοποίηση Αναδόχων</a>
+  <a href="/admin/merge/authority" class="admin-tab {% if admin_tab=='merge-authority' %}on{% endif %}">Ενοποίηση Αρχών</a>
+</div>
+<style>
+  .admin-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--rule);margin:20px 0 24px;}
+  .admin-tabs .admin-tab{text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px;
+    padding:10px 16px;font-family:var(--sans);font-size:13px;font-weight:600;color:var(--ink-2);letter-spacing:.01em;}
+  .admin-tabs .admin-tab:hover{color:var(--accent);}
+  .admin-tabs .admin-tab.on{color:var(--accent);border-bottom-color:var(--accent);}
+</style>
