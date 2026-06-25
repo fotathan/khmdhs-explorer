@@ -1257,6 +1257,16 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                  "name_desc": f"t.{name} DESC",
                  "activity": "n_acts DESC NULLS LAST"}.get(sort, f"t.{name} ASC")
         offset = (page - 1) * per_page
+        # Once entities are merged, the non-canonical members are represented by
+        # their group's canonical entity, so they must not appear as their own
+        # rows in the candidate list (the canonical and all ungrouped entities
+        # stay). The bottom "Υπάρχουσες ενοποιήσεις" section still lists every
+        # member under its group.
+        member_filter = f"""NOT EXISTS (
+                    SELECT 1 FROM proc.entity_member em
+                    JOIN proc.entity_group eg ON eg.id = em.group_id
+                    WHERE em.kind = %s AND em.member_key = t.{key}
+                      AND eg.canonical_key <> em.member_key)"""
         with cursor() as c:
             if q:
                 # SEARCH MODE — matching records, ranked by activity, capped.
@@ -1268,18 +1278,20 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                               WHERE m.kind=%s AND m.member_key=t.{key}) AS group_id
                     FROM {cfg['table']} t
                     LEFT JOIN {join_tbl}
-                    WHERE translate(proc.f_unaccent(lower(t.{name})),'ς','σ')
-                          LIKE translate(proc.f_unaccent(lower(%s)),'ς','σ')
-                       OR t.{key} ILIKE %s
+                    WHERE (translate(proc.f_unaccent(lower(t.{name})),'ς','σ')
+                           LIKE translate(proc.f_unaccent(lower(%s)),'ς','σ')
+                        OR t.{key} ILIKE %s)
+                      AND {member_filter}
                     GROUP BY t.{key}, t.{name}
                     ORDER BY {order}
                     LIMIT 100
-                """, (kind, f"%{q}%", f"%{q}%"))
+                """, (kind, f"%{q}%", f"%{q}%", kind))
                 candidates = c.fetchall()
             else:
-                # BROWSE MODE — the full entity list, paginated and sortable, so
-                # duplicates can be discovered without knowing what to search.
-                c.execute(f"SELECT count(*) AS n FROM {cfg['table']}")
+                # BROWSE MODE — the full entity list (minus merged-away members),
+                # paginated and sortable, so duplicates can be discovered.
+                c.execute(f"""SELECT count(*) AS n FROM {cfg['table']} t
+                              WHERE {member_filter}""", (kind,))
                 total = c.fetchone()["n"]
                 c.execute(f"""
                     SELECT t.{key} AS key, t.{name} AS name,
@@ -1289,10 +1301,11 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                               WHERE m.kind=%s AND m.member_key=t.{key}) AS group_id
                     FROM {cfg['table']} t
                     LEFT JOIN {join_tbl}
+                    WHERE {member_filter}
                     GROUP BY t.{key}, t.{name}
                     ORDER BY {order}
                     LIMIT %s OFFSET %s
-                """, (kind, per_page, offset))
+                """, (kind, kind, per_page, offset))
                 candidates = c.fetchall()
             # Existing groups for this kind.
             c.execute("""

@@ -52,7 +52,6 @@
       <tr {% if focus and c.key==focus %}style="background:var(--paper-2);"{% endif %}>
         <td style="text-align:center;">
           <input type="checkbox" name="keys" value="{{ c.key }}"
-                 {% if c.group_id %}checked{% endif %}
                  {% if focus and c.key==focus %}checked{% endif %}>
         </td>
         <td style="text-align:center;">
