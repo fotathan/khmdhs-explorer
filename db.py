@@ -35,6 +35,7 @@ import argparse
 import datetime as dt
 import os
 import sys
+import time
 
 # --- driver shim: prefer psycopg3, fall back to psycopg2 -------------------- #
 _DRIVER = None
@@ -281,6 +282,135 @@ def cmd_fulltext_backfill(args):
           f"(re-run to continue; 'error' acts will be retried, 'empty'/'garbled' won't)")
 
 
+# --------------------------------------------------------------------------- #
+# Mass table extraction (report-only, Phase 1). Runs the table extractor over a
+# job's targeted ΑΔΑΜ list and records, per act, what was found. Modelled on the
+# full-text backfill; self-contained job lifecycle in proc.table_extract_*.
+# --------------------------------------------------------------------------- #
+def _table_outcome(adam: str, act_type: str):
+    """Report-only classification for one act. Returns (outcome, n_tables,
+    n_files, note). Never saves tables, never calls OCR (scanned docs are just
+    flagged 'needs_ocr'). Fail-soft: never raises."""
+    try:
+        from app.tables import _fetch_act_document
+        from app.extractors import collect_files, extract_entry
+    except ImportError:
+        from tables import _fetch_act_document
+        from extractors import collect_files, extract_entry
+    import khmdhs_ingest
+    import os as _o
+    api_key = bool(_o.environ.get("ANTHROPIC_API_KEY"))
+
+    try:
+        data, fname = _fetch_act_document(act_type, adam)
+    except ValueError:
+        return ("no_attachment", 0, 0, "χωρίς συνημμένο")
+    except Exception as e:  # noqa: BLE001
+        return ("error", 0, 0, f"fetch: {type(e).__name__}")
+    try:
+        entries, _errs = collect_files(fname, data)
+    except Exception as e:  # noqa: BLE001
+        return ("error", 0, 0, f"collect: {type(e).__name__}")
+
+    n_files = 0
+    total_tables = 0
+    statuses = set()
+    cells = []
+    for entry in entries:
+        n_files += 1
+        try:
+            rep = extract_entry(entry)
+        except Exception:  # noqa: BLE001
+            statuses.add("error")
+            continue
+        statuses.add(rep.status)
+        if rep.status == "ok" and rep.tables:
+            total_tables += len(rep.tables)
+            for t in rep.tables:
+                for row in (t.get("rows") or [])[:25]:
+                    cells.append(" ".join(str(c) for c in row))
+
+    if total_tables > 0:
+        if khmdhs_ingest.looks_garbled("\n".join(cells)):
+            return ("garbled", total_tables, n_files, "αλλοιωμένο περιεχόμενο πινάκων")
+        return ("extracted", total_tables, n_files, None)
+    if statuses & {"scanned", "image"}:
+        note = "σαρωμένο — χρειάζεται OCR" + ("" if api_key else " (χωρίς ANTHROPIC_API_KEY)")
+        return ("needs_ocr", 0, n_files, note)
+    if "no_tables" in statuses:
+        return ("no_tables", 0, n_files, None)
+    if statuses & {"unsupported", "error"}:
+        return ("error", 0, n_files, "; ".join(sorted(statuses)))
+    return ("no_tables", 0, n_files, None)
+
+
+def _finalize_table_job(db, job_id, status):
+    """Record the terminal status of a table-extract job (guard on 'running' so
+    it never overrides a 'cancelled')."""
+    if job_id is None:
+        return
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    try:
+        db.execute("""UPDATE proc.table_extract_job
+                      SET status=%s, finished_at=now()
+                      WHERE id=%s AND status='running'""", (status, job_id))
+        db.commit()
+    except Exception:
+        pass
+
+
+def cmd_extract_tables(args):
+    """Process a table-extract job's targeted acts (report-only). Resumable: only
+    targets not yet marked done are processed."""
+    job_id = int(args.job)
+    with Database() as db:
+        n = {"extracted": 0, "garbled": 0, "needs_ocr": 0,
+             "no_tables": 0, "no_attachment": 0, "error": 0}
+        final_status = "done"
+        try:
+            db.cur.execute("""SELECT t.adam, a.type, a.title
+                              FROM proc.table_extract_target t
+                              JOIN proc.procurement_act a ON a.adam = t.adam
+                              WHERE t.job_id=%s AND NOT t.done
+                              ORDER BY t.ord""", (job_id,))
+            targets = db.cur.fetchall()
+            total = len(targets)
+            print(f"table extraction job {job_id}: {total} act(s) to process\n")
+            last_commit = time.time()
+            for i, row in enumerate(targets, start=1):
+                adam = row[0] if not hasattr(row, "keys") else row["adam"]
+                act_type = row[1] if not hasattr(row, "keys") else row["type"]
+                title = row[2] if not hasattr(row, "keys") else row["title"]
+                outcome, n_tables, n_files, note = _table_outcome(adam, act_type)
+                n[outcome] = n.get(outcome, 0) + 1
+                db.execute("""INSERT INTO proc.table_extract_log
+                                (job_id, adam, act_type, title, outcome,
+                                 n_tables, n_files, note)
+                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+                           (job_id, adam, act_type, title, outcome,
+                            n_tables, n_files, note))
+                db.execute("""UPDATE proc.table_extract_target SET done=true
+                              WHERE job_id=%s AND adam=%s""", (job_id, adam))
+                if time.time() - last_commit >= 3:
+                    db.commit()
+                    last_commit = time.time()
+                if i % 50 == 0 or i == total:
+                    print(f"  {i:>6}/{total}  extracted={n['extracted']} "
+                          f"garbled={n['garbled']} needs_ocr={n['needs_ocr']} "
+                          f"no_tables={n['no_tables']} no_attach={n['no_attachment']} "
+                          f"error={n['error']}")
+            db.commit()
+        except BaseException:
+            final_status = "error"
+            raise
+        finally:
+            _finalize_table_job(db, job_id, final_status)
+    print(f"\ntable extraction complete. {dict(n)}")
+
+
 def _watermark(db, act_type: str):
     """The latest end-date of a successfully-completed window for this type,
     or None if the type has never been backfilled. This is our 'last caught
@@ -443,6 +573,11 @@ def main():
     p_cu.add_argument("--start", help="YYYY-MM-DD; used only for types that have "
                       "never been backfilled (no watermark)")
     p_cu.set_defaults(func=cmd_catchup)
+
+    p_et = sub.add_parser("extract-tables",
+                          help="report-only table extraction over a job's acts")
+    p_et.add_argument("--job", required=True, help="proc.table_extract_job id")
+    p_et.set_defaults(func=cmd_extract_tables)
 
     p_st = sub.add_parser("stats", help="print row counts")
     p_st.set_defaults(func=cmd_stats)

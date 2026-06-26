@@ -490,6 +490,51 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         "suspicious": "Ύποπτο",
     }
 
+    def _acts_filter(q="", external_id="", reference="", data_source="",
+                     origin="", type="", source_status="", has_attachments="",
+                     date_from="", date_to=""):
+        """Build the WHERE for the acts-management list from the filter params.
+        Returns (where_sql, args, human_description). Shared by the list page and
+        the mass table-extraction launcher so both target the same set."""
+        where = ["TRUE"]
+        args: list = []
+        desc: list = []
+        q = q.strip()
+        if q:
+            where.append("(translate(proc.f_unaccent(lower(a.title)),'ς','σ') "
+                         "LIKE translate(proc.f_unaccent(lower(%s)),'ς','σ') "
+                         "OR a.adam ILIKE %s)")
+            args += [f"%{q}%", f"%{q}%"]; desc.append(f"αναζήτηση «{q}»")
+        if external_id.strip():
+            where.append("a.external_id ILIKE %s")
+            args.append(f"%{external_id.strip()}%"); desc.append("external id")
+        if reference.strip():
+            where.append("(a.reference_number ILIKE %s OR a.authority_reference ILIKE %s)")
+            args += [f"%{reference.strip()}%", f"%{reference.strip()}%"]; desc.append("αναφορά")
+        if data_source.strip():
+            where.append("a.data_source = %s")
+            args.append(data_source.strip()); desc.append(f"πηγή={data_source.strip()}")
+        if origin in ("import", "authored"):
+            where.append("a.origin = %s")
+            args.append(origin); desc.append(origin)
+        if type.strip():
+            where.append("a.type = %s")
+            args.append(type.strip()); desc.append(f"τύπος={type.strip()}")
+        if source_status.strip():
+            where.append("a.source_status = %s")
+            args.append(source_status.strip()); desc.append(f"κατάσταση={source_status.strip()}")
+        if has_attachments == "1":
+            where.append("a.has_attachments IS TRUE"); desc.append("με συνημμένα")
+        elif has_attachments == "0":
+            where.append("(a.has_attachments IS NOT TRUE)"); desc.append("χωρίς συνημμένα")
+        if date_from.strip():
+            where.append("a.submission_date >= %s")
+            args.append(date_from.strip()); desc.append(f"από {date_from.strip()}")
+        if date_to.strip():
+            where.append("a.submission_date <= %s")
+            args.append(date_to.strip()); desc.append(f"έως {date_to.strip()}")
+        return " AND ".join(where), args, " · ".join(desc) or "όλες οι πράξεις"
+
     @router.get("/acts", response_class=HTMLResponse)
     def acts_manage(request: Request,
                     q: str = Query(""),
@@ -508,43 +553,10 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         with a link to edit each. The entry point for the management tool."""
         per_page = 50
         offset = (page - 1) * per_page
-        where = ["TRUE"]
-        args: list = []
-        q = q.strip()
-        if q:
-            where.append("(translate(proc.f_unaccent(lower(a.title)),'ς','σ') "
-                         "LIKE translate(proc.f_unaccent(lower(%s)),'ς','σ') "
-                         "OR a.adam ILIKE %s)")
-            args += [f"%{q}%", f"%{q}%"]
-        if external_id.strip():
-            where.append("a.external_id ILIKE %s")
-            args.append(f"%{external_id.strip()}%")
-        if reference.strip():
-            where.append("(a.reference_number ILIKE %s OR a.authority_reference ILIKE %s)")
-            args += [f"%{reference.strip()}%", f"%{reference.strip()}%"]
-        if data_source.strip():
-            where.append("a.data_source = %s")
-            args.append(data_source.strip())
-        if origin in ("import", "authored"):
-            where.append("a.origin = %s")
-            args.append(origin)
-        if type.strip():
-            where.append("a.type = %s")
-            args.append(type.strip())
-        if source_status.strip():
-            where.append("a.source_status = %s")
-            args.append(source_status.strip())
-        if has_attachments == "1":
-            where.append("a.has_attachments IS TRUE")
-        elif has_attachments == "0":
-            where.append("(a.has_attachments IS NOT TRUE)")
-        if date_from.strip():
-            where.append("a.submission_date >= %s")
-            args.append(date_from.strip())
-        if date_to.strip():
-            where.append("a.submission_date <= %s")
-            args.append(date_to.strip())
-        where_sql = " AND ".join(where)
+        _reconcile_table_jobs()
+        where_sql, args, _ = _acts_filter(
+            q, external_id, reference, data_source, origin, type,
+            source_status, has_attachments, date_from, date_to)
 
         order = {"recent": "a.submission_date DESC NULLS LAST",
                  "oldest": "a.submission_date ASC NULLS LAST",
@@ -577,6 +589,11 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                          WHERE source_status IS NOT NULL AND source_status <> ''
                          ORDER BY source_status""")
             statuses = [r["source_status"] for r in c.fetchall()]
+            # Recent mass table-extraction jobs (Phase 1).
+            c.execute("""SELECT id, status, filter_desc, total_acts,
+                                started_at, finished_at
+                         FROM proc.table_extract_job ORDER BY id DESC LIMIT 8""")
+            table_jobs = c.fetchall()
 
         total_pages = max(1, (total + per_page - 1) // per_page)
         return templates.TemplateResponse(
@@ -586,7 +603,176 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
              "data_source": data_source, "origin": origin, "type": type,
              "source_status": source_status, "has_attachments": has_attachments,
              "date_from": date_from, "date_to": date_to, "sort": sort,
-             "sources": sources, "statuses": statuses, "admin_tab": "acts"})
+             "sources": sources, "statuses": statuses, "admin_tab": "acts",
+             "table_jobs": table_jobs})
+
+    # ------------------------------------------------------------------ #
+    # Mass table extraction over a filtered act set (Phase 1: report-only).
+    # Self-contained job system in proc.table_extract_*; mirrors the backfill
+    # job pattern (detached subprocess, per-act log, lifecycle).
+    # ------------------------------------------------------------------ #
+    MAX_TABLE_EXTRACT = int(os.environ.get("MAX_TABLE_EXTRACT", "5000"))
+    _TABLE_OUTCOMES = ("extracted", "garbled", "needs_ocr",
+                       "no_tables", "no_attachment", "error")
+    _TOF = {
+        "all": "",
+        "extracted": "AND outcome='extracted'",
+        "garbled": "AND outcome='garbled'",
+        "needs_ocr": "AND outcome='needs_ocr'",
+        "no_tables": "AND outcome='no_tables'",
+        "failed": "AND outcome IN ('no_attachment','error')",
+    }
+
+    def _reconcile_table_jobs():
+        with cursor() as c:
+            c.execute("SELECT id, pid FROM proc.table_extract_job WHERE status='running'")
+            rows = c.fetchall()
+            for r in rows:
+                if pid_alive(r["pid"]):
+                    continue
+                c.execute("""SELECT count(*) FILTER (WHERE NOT done) AS pending,
+                                    count(*) AS total
+                             FROM proc.table_extract_target WHERE job_id=%s""", (r["id"],))
+                t = c.fetchone()
+                new = "done" if (t["total"] and not t["pending"]) else "stale"
+                c.execute("""UPDATE proc.table_extract_job SET status=%s, finished_at=now()
+                             WHERE id=%s AND status='running'""", (new, r["id"]))
+
+    @router.post("/extract-tables")
+    def extract_tables_launch(request: Request,
+                              q: str = Form(""), external_id: str = Form(""),
+                              reference: str = Form(""), data_source: str = Form(""),
+                              origin: str = Form(""), type: str = Form(""),
+                              source_status: str = Form(""), has_attachments: str = Form(""),
+                              date_from: str = Form(""), date_to: str = Form("")):
+        where_sql, args, desc = _acts_filter(
+            q, external_id, reference, data_source, origin, type,
+            source_status, has_attachments, date_from, date_to)
+        _reconcile_table_jobs()
+        with cursor() as c:
+            c.execute("SELECT id, pid FROM proc.table_extract_job WHERE status='running'")
+            for r in c.fetchall():
+                if pid_alive(r["pid"]):
+                    raise HTTPException(409, "Εκτελείται ήδη μαζική εξαγωγή πινάκων· "
+                                             "περιμένετε ή ακυρώστε την.")
+            c.execute(f"SELECT count(*) AS n FROM proc.procurement_act a WHERE {where_sql}", args)
+            total = c.fetchone()["n"]
+            if total == 0:
+                raise HTTPException(400, "Καμία πράξη δεν ταιριάζει στο φίλτρο.")
+            if total > MAX_TABLE_EXTRACT:
+                raise HTTPException(400, f"Το φίλτρο επιστρέφει {total} πράξεις "
+                    f"(όριο {MAX_TABLE_EXTRACT}). Περιορίστε το φίλτρο.")
+            c.execute("""INSERT INTO proc.table_extract_job (status, filter_desc, total_acts)
+                         VALUES ('running', %s, %s) RETURNING id""", (desc, total))
+            job_id = c.fetchone()["id"]
+            c.execute(f"""INSERT INTO proc.table_extract_target (job_id, adam, ord)
+                          SELECT %s, a.adam,
+                                 (row_number() OVER (ORDER BY a.submission_date DESC NULLS LAST))::int - 1
+                          FROM proc.procurement_act a WHERE {where_sql}""",
+                      [job_id] + args)
+
+        root = project_root()
+        log_path = os.path.join(LOG_DIR, f"table-job-{job_id}.log")
+        cmd = [sys.executable, os.path.join(root, "db.py"),
+               "extract-tables", "--job", str(job_id)]
+        log_fh = open(log_path, "w")
+        log_fh.write(f"# table extraction job {job_id}: {desc} ({total} acts)\n\n")
+        log_fh.flush()
+        try:
+            proc = subprocess.Popen(
+                cmd, stdout=log_fh, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                start_new_session=True, cwd=root, env={**os.environ})
+        except Exception as e:
+            with cursor() as c:
+                c.execute("""UPDATE proc.table_extract_job SET status='error',
+                             last_error=%s, finished_at=now() WHERE id=%s""",
+                          (f"spawn failed: {e!r}", job_id))
+            log_fh.close()
+            raise HTTPException(500, f"failed to launch subprocess: {e!r}")
+        with cursor() as c:
+            c.execute("UPDATE proc.table_extract_job SET pid=%s, log_path=%s WHERE id=%s",
+                      (proc.pid, log_path, job_id))
+        return RedirectResponse(url=f"/admin/table-jobs/{job_id}", status_code=303)
+
+    @router.get("/table-jobs/{job_id}", response_class=HTMLResponse)
+    def table_job_detail(job_id: int, request: Request, tof: str = Query("all")):
+        if tof not in _TOF:
+            tof = "all"
+        _reconcile_table_jobs()
+        with cursor() as c:
+            c.execute("SELECT * FROM proc.table_extract_job WHERE id=%s", (job_id,))
+            job = c.fetchone()
+            if not job:
+                raise HTTPException(404, f"table job {job_id} not found")
+            c.execute("""SELECT outcome, count(*) AS n, coalesce(sum(n_tables),0) AS tabs
+                         FROM proc.table_extract_log WHERE job_id=%s GROUP BY outcome""",
+                      (job_id,))
+            by = {r["outcome"]: r for r in c.fetchall()}
+            counts = {o: (by[o]["n"] if o in by else 0) for o in _TABLE_OUTCOMES}
+            total_logged = sum(counts.values())
+            total_tables = sum(by[o]["tabs"] for o in by)
+            c.execute(f"""SELECT adam, act_type, title, outcome, n_tables, n_files,
+                                 note, logged_at
+                          FROM proc.table_extract_log
+                          WHERE job_id=%s {_TOF[tof]}
+                          ORDER BY id DESC LIMIT %s""", (job_id, ACT_LOG_PREVIEW))
+            log = c.fetchall()
+        log_tail = ""
+        if job["log_path"] and os.path.exists(job["log_path"]):
+            try:
+                with open(job["log_path"], "rb") as f:
+                    f.seek(0, 2); size = f.tell(); f.seek(max(0, size - 4096))
+                    log_tail = f.read().decode("utf-8", "replace")
+            except Exception:
+                pass
+        return templates.TemplateResponse(
+            request, "admin_table_job.html",
+            {"job": job, "counts": counts, "total_logged": total_logged,
+             "total_tables": total_tables, "log": log, "tof": tof,
+             "alive": pid_alive(job["pid"]), "is_active": job["status"] == "running",
+             "act_log_preview": ACT_LOG_PREVIEW, "log_tail": log_tail,
+             "outcomes": _TABLE_OUTCOMES, "admin_tab": "acts"})
+
+    @router.get("/table-jobs/{job_id}/acts.csv")
+    def table_job_csv(job_id: int, tof: str = Query("all")):
+        if tof not in _TOF:
+            tof = "all"
+        import csv as _csv
+        import io as _io
+        with cursor() as c:
+            c.execute(f"""SELECT logged_at, adam, act_type, outcome, n_tables,
+                                 n_files, note, title
+                          FROM proc.table_extract_log
+                          WHERE job_id=%s {_TOF[tof]} ORDER BY id""", (job_id,))
+            rows = c.fetchall()
+        buf = _io.StringIO(); w = _csv.writer(buf)
+        w.writerow(["logged_at", "adam", "act_type", "outcome", "n_tables",
+                    "n_files", "note", "title"])
+        for r in rows:
+            w.writerow([r["logged_at"], r["adam"], r["act_type"], r["outcome"],
+                        r["n_tables"], r["n_files"], r["note"], r["title"]])
+        return Response(content=buf.getvalue(), media_type="text/csv; charset=utf-8",
+                        headers={"Content-Disposition":
+                                 f'attachment; filename="table-job-{job_id}.csv"'})
+
+    @router.post("/table-jobs/{job_id}/cancel")
+    def table_job_cancel(job_id: int):
+        with cursor() as c:
+            c.execute("SELECT pid, status FROM proc.table_extract_job WHERE id=%s", (job_id,))
+            job = c.fetchone()
+            if not job:
+                raise HTTPException(404, f"table job {job_id} not found")
+            if job["status"] == "running":
+                pid = job["pid"]
+                if pid and pid_alive(pid):
+                    try:
+                        os.killpg(os.getpgid(pid), signal.SIGTERM)
+                    except Exception:
+                        pass
+                c.execute("""UPDATE proc.table_extract_job
+                             SET status='cancelled', finished_at=now()
+                             WHERE id=%s""", (job_id,))
+        return RedirectResponse(url=f"/admin/table-jobs/{job_id}", status_code=303)
 
     # ----- Authored-act edit / create form ---------------------------------- #
     # The fields a curator may set on an AUTHORED act, grouped for the form.

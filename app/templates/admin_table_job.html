@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Εξαγωγή πινάκων · εκτέλεση #{{ job.id }}{% endblock %}
+{% block content %}
+
+{% if is_active and alive %}<meta http-equiv="refresh" content="6">{% endif %}
+
+{% include "_admin_tabs.html" %}
+
+<p style="margin:6px 0 0;"><a class="back" href="/admin/acts" hx-boost="false">‹ πίσω στη Διαχείριση Πράξεων</a></p>
+
+<div class="detail-h">
+  <div class="kicker">Μαζική εξαγωγή πινάκων · #{{ job.id }} · μόνο αναφορά (χωρίς αποθήκευση)</div>
+  <h1 class="detail-title">{{ job.total_acts }} πράξεις</h1>
+  <div class="detail-sub">{{ job.filter_desc }}</div>
+  <div style="margin-top:12px;">
+    {% if job.status == 'running' %}
+      {% if alive %}
+        <span class="pill" style="color:var(--ok);">σε εξέλιξη — PID {{ job.pid }}</span>
+        <form method="post" action="/admin/table-jobs/{{ job.id }}/cancel" style="display:inline-block; margin-left:10px;">
+          <button type="submit" style="background:transparent; color:var(--accent); border:1px solid var(--accent); padding:4px 12px; font-family:var(--sans); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer;"
+                  onclick="return confirm('Ακύρωση εκτέλεσης #{{ job.id }};');">Ακύρωση</button>
+        </form>
+      {% else %}<span class="pill amend">η διαδικασία χάθηκε</span>{% endif %}
+    {% elif job.status == 'done' %}<span class="pill" style="color:var(--ok);">ολοκληρώθηκε</span>
+    {% elif job.status == 'cancelled' %}<span class="pill cancel">ακυρωμένη</span>
+    {% elif job.status == 'error' %}<span class="pill cancel">σφάλμα</span>
+    {% elif job.status == 'stale' %}<span class="pill amend">χάθηκε χωρίς εξήγηση</span>{% endif %}
+    {% if job.started_at %}<span class="meta" style="margin-left:10px;">{{ job.started_at.strftime('%d/%m/%Y %H:%M') }}{% if job.finished_at %} → {{ job.finished_at.strftime('%H:%M:%S') }}{% endif %}</span>{% endif %}
+  </div>
+</div>
+
+<div class="section-h">Αποτελέσματα ανά πράξη</div>
+{% if total_logged %}
+  <p style="font-family:var(--serif); font-size:15px; color:var(--ink); margin:0 0 6px;">
+    <strong>{{ total_logged }}</strong>/{{ job.total_acts }} επεξεργασμένες ·
+    <strong style="color:var(--ok);">{{ counts.extracted }}</strong> με πίνακες
+    ({{ total_tables }} πίνακες){% if counts.garbled %} · <strong style="color:var(--accent);">{{ counts.garbled }}</strong> αλλοιωμένα ⚠{% endif %}
+    {% if counts.needs_ocr %} · <strong>{{ counts.needs_ocr }}</strong> χρειάζονται OCR{% endif %}
+    {% if counts.no_tables %} · <strong>{{ counts.no_tables }}</strong> χωρίς πίνακες{% endif %}
+    {% set failed = counts.no_attachment + counts.error %}
+    {% if failed %} · <strong style="color:var(--accent);">{{ failed }}</strong> απέτυχαν{% endif %}
+  </p>
+
+  {% if not is_active %}
+  <div class="ft-filter">
+    {% set failed = counts.no_attachment + counts.error %}
+    {% for key, lbl, n in [('all','Όλα',total_logged),('extracted','Με πίνακες',counts.extracted),('garbled','Αλλοιωμένα',counts.garbled),('needs_ocr','Χρειάζονται OCR',counts.needs_ocr),('no_tables','Χωρίς πίνακες',counts.no_tables),('failed','Απέτυχαν',failed)] %}
+    <a href="/admin/table-jobs/{{ job.id }}?tof={{ key }}" hx-boost="false" class="ft-pill {% if tof==key %}on{% endif %}">{{ lbl }} ({{ n }})</a>
+    {% endfor %}
+  </div>
+  <style>
+    .ft-filter{display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 12px;}
+    .ft-filter .ft-pill{font-size:11.5px; font-family:var(--sans); padding:4px 11px; border:1px solid var(--rule); border-radius:14px; color:var(--ink-2); text-decoration:none;}
+    .ft-filter .ft-pill:hover{border-color:var(--accent); color:var(--accent);}
+    .ft-filter .ft-pill.on{background:var(--accent); border-color:var(--accent); color:#fff;}
+  </style>
+  {% endif %}
+
+  <p class="meta" style="margin:0 0 12px;">
+    <a href="/admin/table-jobs/{{ job.id }}/acts.csv{% if tof != 'all' %}?tof={{ tof }}{% endif %}" hx-boost="false">↓ Λήψη {{ 'φιλτραρισμένου' if tof != 'all' else 'πλήρους' }} καταλόγου (CSV)</a>
+  </p>
+
+  <table class="lines">
+    <thead><tr>
+      <th>ΑΔΑΜ</th><th>Τύπος</th><th>Τίτλος</th><th>Αποτέλεσμα</th>
+      <th class="val">Πίνακες</th><th>Ώρα</th>
+    </tr></thead>
+    <tbody>
+      {% for a in log %}
+      <tr>
+        <td><a href="/act/{{ a.adam }}" hx-boost="false" style="font-family:var(--mono); font-size:11px;">{{ a.adam }}</a></td>
+        <td class="meta">{{ a.act_type | type_label }}</td>
+        <td style="font-size:12px; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ a.title or '—' }}</td>
+        <td style="font-size:11.5px;">
+          {% if a.outcome == 'extracted' %}<span style="color:var(--ok);">✓ εξήχθησαν</span>
+          {% elif a.outcome == 'garbled' %}<span style="color:var(--accent);" title="{{ a.note }}">⚠ αλλοιωμένα</span>
+          {% elif a.outcome == 'needs_ocr' %}<span style="color:var(--warn);" title="{{ a.note }}">OCR</span>
+          {% elif a.outcome == 'no_tables' %}<span style="color:var(--ink-3);">χωρίς πίνακες</span>
+          {% elif a.outcome == 'no_attachment' %}<span style="color:var(--ink-3);">χωρίς συνημμένο</span>
+          {% elif a.outcome == 'error' %}<span style="color:var(--accent);" title="{{ a.note }}">σφάλμα</span>
+          {% else %}{{ a.outcome }}{% endif %}
+        </td>
+        <td class="val">{{ a.n_tables if a.n_tables else '' }}</td>
+        <td class="meta" style="font-family:var(--mono); font-size:10px;">{{ a.logged_at.strftime('%H:%M:%S') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if total_logged > act_log_preview %}<p class="meta" style="margin-top:6px;">εμφανίζονται οι {{ act_log_preview }} πιο πρόσφατες — πλήρης κατάλογος στο CSV</p>{% endif %}
+{% else %}
+  <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); font-size:14px;">
+    {% if is_active %}Η επεξεργασία ξεκίνησε — τα αποτελέσματα εμφανίζονται καθώς προχωρά (ανανέωση κάθε 6 δλ).{% else %}Δεν καταγράφηκαν αποτελέσματα.{% endif %}
+  </p>
+{% endif %}
+
+{% if log_tail %}
+<div class="section-h" style="margin-top:26px;">Έξοδος (τέλος αρχείου)</div>
+<pre style="font-family:var(--mono); font-size:11px; background:#1a1614; color:#d9d2bf; padding:14px 16px; max-height:300px; overflow:auto; line-height:1.55;">{{ log_tail }}</pre>
+{% endif %}
+{% endblock %}
