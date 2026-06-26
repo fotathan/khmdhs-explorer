@@ -63,12 +63,13 @@
 
   <table class="lines">
     <thead><tr>
-      <th>ΑΔΑΜ</th><th>Τύπος</th><th>Τίτλος</th><th>Αποτέλεσμα</th>
+      <th></th><th>ΑΔΑΜ</th><th>Τύπος</th><th>Τίτλος</th><th>Αποτέλεσμα</th>
       <th class="val">Πίνακες</th>{% if job.save_tables %}<th class="val">Αποθηκ.</th>{% endif %}<th>Ώρα</th>
     </tr></thead>
     <tbody>
       {% for a in log %}
       <tr>
+        <td><a href="/admin/act/{{ a.adam }}/edit" target="_blank" rel="noopener" hx-boost="false" title="Άνοιγμα στην επεξεργασία πράξης (νέα καρτέλα)" style="display:inline-block; text-decoration:none; border:1px solid var(--rule); border-radius:5px; padding:2px 8px; font-size:12px; color:var(--accent);">✎</a></td>
         <td><a href="/act/{{ a.adam }}" hx-boost="false" style="font-family:var(--mono); font-size:11px;">{{ a.adam }}</a></td>
         <td class="meta">{{ a.act_type | type_label }}</td>
         <td style="font-size:12px; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ a.title or '—' }}</td>
