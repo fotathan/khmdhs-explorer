@@ -99,10 +99,16 @@
   <div style="display:flex; gap:10px; align-items:center;">
     {% if total %}
     <form method="post" action="/admin/extract-tables"
-          onsubmit="return confirm('Έναρξη μαζικής εξαγωγής πινάκων για τις {{ total }} φιλτραρισμένες πράξεις;\n\n(Μόνο αναφορά — δεν αποθηκεύονται πίνακες. Μπορεί να διαρκέσει.)');">
+          onsubmit="return confirm((this.save_tables.checked
+              ? 'Έναρξη μαζικής εξαγωγής & ΑΠΟΘΗΚΕΥΣΗΣ πινάκων για τις {{ total }} φιλτραρισμένες πράξεις;\n\n(Οι καθαροί πίνακες αποθηκεύονται ΜΗ δημοσιευμένοι· πράξεις που έχουν ήδη πίνακες παραλείπονται. Μπορεί να διαρκέσει.)'
+              : 'Έναρξη μαζικής εξαγωγής πινάκων για τις {{ total }} φιλτραρισμένες πράξεις;\n\n(Μόνο αναφορά — δεν αποθηκεύονται πίνακες. Μπορεί να διαρκέσει.)'));">
       {% for k in ['q','external_id','reference','data_source','origin','type','source_status','has_attachments','date_from','date_to'] %}
       <input type="hidden" name="{{ k }}" value="{{ {'q':q,'external_id':external_id,'reference':reference,'data_source':data_source,'origin':origin,'type':type,'source_status':source_status,'has_attachments':has_attachments,'date_from':date_from,'date_to':date_to}[k] }}">
       {% endfor %}
+      <label title="Αποθήκευση των καθαρών πινάκων στις πράξεις (μη δημοσιευμένοι)"
+             style="display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--ink-2); cursor:pointer; margin-right:8px; letter-spacing:0;">
+        <input type="checkbox" name="save_tables" value="1"> αποθήκευση
+      </label>
       <button type="submit" title="Έλεγχος & εξαγωγή πινάκων για το φιλτραρισμένο σύνολο"
               style="background:transparent; color:var(--accent); border:1px solid var(--accent); padding:9px 16px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">
         ▦ Εξαγωγή πινάκων ({{ total }})

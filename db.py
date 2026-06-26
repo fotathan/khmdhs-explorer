@@ -287,10 +287,13 @@ def cmd_fulltext_backfill(args):
 # job's targeted ΑΔΑΜ list and records, per act, what was found. Modelled on the
 # full-text backfill; self-contained job lifecycle in proc.table_extract_*.
 # --------------------------------------------------------------------------- #
-def _table_outcome(adam: str, act_type: str):
-    """Report-only classification for one act. Returns (outcome, n_tables,
-    n_files, note). Never saves tables, never calls OCR (scanned docs are just
-    flagged 'needs_ocr'). Fail-soft: never raises."""
+def _table_outcome(adam: str, act_type: str, want_tables: bool = False):
+    """Classify one act's attachments for table content. Returns a 5-tuple
+    (outcome, n_tables, n_files, note, tables): `tables` is the list of clean
+    extracted table dicts (source/locator/rows/n_rows/n_cols) when
+    want_tables and outcome=='extracted', else None — the caller persists them
+    in save mode. Never calls OCR (scanned docs are just flagged 'needs_ocr').
+    Fail-soft: never raises."""
     try:
         from app.tables import _fetch_act_document
         from app.extractors import collect_files, extract_entry
@@ -304,18 +307,19 @@ def _table_outcome(adam: str, act_type: str):
     try:
         data, fname = _fetch_act_document(act_type, adam)
     except ValueError:
-        return ("no_attachment", 0, 0, "χωρίς συνημμένο")
+        return ("no_attachment", 0, 0, "χωρίς συνημμένο", None)
     except Exception as e:  # noqa: BLE001
-        return ("error", 0, 0, f"fetch: {type(e).__name__}")
+        return ("error", 0, 0, f"fetch: {type(e).__name__}", None)
     try:
         entries, _errs = collect_files(fname, data)
     except Exception as e:  # noqa: BLE001
-        return ("error", 0, 0, f"collect: {type(e).__name__}")
+        return ("error", 0, 0, f"collect: {type(e).__name__}", None)
 
     n_files = 0
     total_tables = 0
     statuses = set()
     cells = []
+    kept = []
     for entry in entries:
         n_files += 1
         try:
@@ -329,19 +333,21 @@ def _table_outcome(adam: str, act_type: str):
             for t in rep.tables:
                 for row in (t.get("rows") or [])[:25]:
                     cells.append(" ".join(str(c) for c in row))
+            if want_tables:
+                kept.extend(rep.tables)
 
     if total_tables > 0:
         if khmdhs_ingest.looks_garbled("\n".join(cells)):
-            return ("garbled", total_tables, n_files, "αλλοιωμένο περιεχόμενο πινάκων")
-        return ("extracted", total_tables, n_files, None)
+            return ("garbled", total_tables, n_files, "αλλοιωμένο περιεχόμενο πινάκων", None)
+        return ("extracted", total_tables, n_files, None, kept if want_tables else None)
     if statuses & {"scanned", "image"}:
         note = "σαρωμένο — χρειάζεται OCR" + ("" if api_key else " (χωρίς ANTHROPIC_API_KEY)")
-        return ("needs_ocr", 0, n_files, note)
+        return ("needs_ocr", 0, n_files, note, None)
     if "no_tables" in statuses:
-        return ("no_tables", 0, n_files, None)
+        return ("no_tables", 0, n_files, None, None)
     if statuses & {"unsupported", "error"}:
-        return ("error", 0, n_files, "; ".join(sorted(statuses)))
-    return ("no_tables", 0, n_files, None)
+        return ("error", 0, n_files, "; ".join(sorted(statuses)), None)
+    return ("no_tables", 0, n_files, None, None)
 
 
 def _finalize_table_job(db, job_id, status):
@@ -362,15 +368,44 @@ def _finalize_table_job(db, job_id, status):
         pass
 
 
+def _save_act_tables(db, adam, tables):
+    """Persist clean extracted tables for one act into proc.extracted_table
+    (UNPUBLISHED). Non-destructive & idempotent: skips an act that already has
+    any extracted_table rows, so a re-run never duplicates and curator-edited
+    tables are never clobbered. Returns the number of rows written."""
+    import khmdhs_ingest
+    db.cur.execute("SELECT 1 FROM proc.extracted_table WHERE adam=%s LIMIT 1", (adam,))
+    if db.cur.fetchone():
+        return 0
+    saved = 0
+    for t in tables:
+        db.execute(
+            """INSERT INTO proc.extracted_table
+                 (adam, source, locator, rows, n_rows, n_cols)
+               VALUES (%s,%s,%s,%s,%s,%s)""",
+            (adam, t["source"], t["locator"],
+             khmdhs_ingest._as_jsonb(t["rows"]),
+             int(t["n_rows"]), int(t["n_cols"])))
+        saved += 1
+    return saved
+
+
 def cmd_extract_tables(args):
-    """Process a table-extract job's targeted acts (report-only). Resumable: only
-    targets not yet marked done are processed."""
+    """Process a table-extract job's targeted acts. In save mode (job.save_tables)
+    clean extracted tables are persisted to proc.extracted_table (unpublished);
+    otherwise the run is report-only. Resumable: only targets not yet marked
+    done are processed."""
     job_id = int(args.job)
     with Database() as db:
         n = {"extracted": 0, "garbled": 0, "needs_ocr": 0,
              "no_tables": 0, "no_attachment": 0, "error": 0}
+        saved_total = 0
         final_status = "done"
         try:
+            db.cur.execute("SELECT save_tables FROM proc.table_extract_job WHERE id=%s",
+                           (job_id,))
+            srow = db.cur.fetchone()
+            save_mode = bool(srow[0] if not hasattr(srow, "keys") else srow["save_tables"])
             db.cur.execute("""SELECT t.adam, a.type, a.title
                               FROM proc.table_extract_target t
                               JOIN proc.procurement_act a ON a.adam = t.adam
@@ -378,20 +413,28 @@ def cmd_extract_tables(args):
                               ORDER BY t.ord""", (job_id,))
             targets = db.cur.fetchall()
             total = len(targets)
-            print(f"table extraction job {job_id}: {total} act(s) to process\n")
+            print(f"table extraction job {job_id}: {total} act(s) to process"
+                  f"{' · save mode' if save_mode else ' · report only'}\n")
             last_commit = time.time()
             for i, row in enumerate(targets, start=1):
                 adam = row[0] if not hasattr(row, "keys") else row["adam"]
                 act_type = row[1] if not hasattr(row, "keys") else row["type"]
                 title = row[2] if not hasattr(row, "keys") else row["title"]
-                outcome, n_tables, n_files, note = _table_outcome(adam, act_type)
+                outcome, n_tables, n_files, note, tables = _table_outcome(
+                    adam, act_type, want_tables=save_mode)
                 n[outcome] = n.get(outcome, 0) + 1
+                n_saved = 0
+                if save_mode and outcome == "extracted" and tables:
+                    n_saved = _save_act_tables(db, adam, tables)
+                    saved_total += n_saved
+                    if n_saved == 0:
+                        note = "πίνακες ήδη αποθηκευμένοι — παράλειψη"
                 db.execute("""INSERT INTO proc.table_extract_log
                                 (job_id, adam, act_type, title, outcome,
-                                 n_tables, n_files, note)
-                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+                                 n_tables, n_files, note, n_saved)
+                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                            (job_id, adam, act_type, title, outcome,
-                            n_tables, n_files, note))
+                            n_tables, n_files, note, n_saved))
                 db.execute("""UPDATE proc.table_extract_target SET done=true
                               WHERE job_id=%s AND adam=%s""", (job_id, adam))
                 if time.time() - last_commit >= 3:
@@ -401,14 +444,14 @@ def cmd_extract_tables(args):
                     print(f"  {i:>6}/{total}  extracted={n['extracted']} "
                           f"garbled={n['garbled']} needs_ocr={n['needs_ocr']} "
                           f"no_tables={n['no_tables']} no_attach={n['no_attachment']} "
-                          f"error={n['error']}")
+                          f"error={n['error']} saved={saved_total}")
             db.commit()
         except BaseException:
             final_status = "error"
             raise
         finally:
             _finalize_table_job(db, job_id, final_status)
-    print(f"\ntable extraction complete. {dict(n)}")
+    print(f"\ntable extraction complete. {dict(n)} saved={saved_total}")
 
 
 def _watermark(db, act_type: str):

@@ -51,4 +51,11 @@ CREATE TABLE IF NOT EXISTS proc.table_extract_log (
 CREATE INDEX IF NOT EXISTS ix_tel_job ON proc.table_extract_log (job_id, id DESC);
 CREATE INDEX IF NOT EXISTS ix_tet_job ON proc.table_extract_target (job_id, ord);
 
+-- Phase 2: in save mode the runner persists clean extracted tables into
+-- proc.extracted_table (unpublished). n_saved records how many it wrote for
+-- this act (0 when reporting only, or when the act already had tables and was
+-- skipped to avoid clobbering curator work / duplicating on re-run).
+ALTER TABLE proc.table_extract_log
+    ADD COLUMN IF NOT EXISTS n_saved integer NOT NULL DEFAULT 0;
+
 ANALYZE proc.table_extract_job;

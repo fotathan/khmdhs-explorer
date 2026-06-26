@@ -9,7 +9,7 @@
 <p style="margin:6px 0 0;"><a class="back" href="/admin/acts" hx-boost="false">‹ πίσω στη Διαχείριση Πράξεων</a></p>
 
 <div class="detail-h">
-  <div class="kicker">Μαζική εξαγωγή πινάκων · #{{ job.id }} · μόνο αναφορά (χωρίς αποθήκευση)</div>
+  <div class="kicker">Μαζική εξαγωγή πινάκων · #{{ job.id }} · {% if job.save_tables %}αποθήκευση (μη δημοσιευμένοι){% else %}μόνο αναφορά (χωρίς αποθήκευση){% endif %}</div>
   <h1 class="detail-title">{{ job.total_acts }} πράξεις</h1>
   <div class="detail-sub">{{ job.filter_desc }}</div>
   <div style="margin-top:12px;">
@@ -39,6 +39,7 @@
     {% if counts.no_tables %} · <strong>{{ counts.no_tables }}</strong> χωρίς πίνακες{% endif %}
     {% set failed = counts.no_attachment + counts.error %}
     {% if failed %} · <strong style="color:var(--accent);">{{ failed }}</strong> απέτυχαν{% endif %}
+    {% if job.save_tables %} · <strong style="color:var(--ok);">{{ total_saved }}</strong> πίνακες αποθηκεύτηκαν{% endif %}
   </p>
 
   {% if not is_active %}
@@ -63,7 +64,7 @@
   <table class="lines">
     <thead><tr>
       <th>ΑΔΑΜ</th><th>Τύπος</th><th>Τίτλος</th><th>Αποτέλεσμα</th>
-      <th class="val">Πίνακες</th><th>Ώρα</th>
+      <th class="val">Πίνακες</th>{% if job.save_tables %}<th class="val">Αποθηκ.</th>{% endif %}<th>Ώρα</th>
     </tr></thead>
     <tbody>
       {% for a in log %}
@@ -81,6 +82,7 @@
           {% else %}{{ a.outcome }}{% endif %}
         </td>
         <td class="val">{{ a.n_tables if a.n_tables else '' }}</td>
+        {% if job.save_tables %}<td class="val">{% if a.n_saved %}<span style="color:var(--ok);">{{ a.n_saved }}</span>{% elif a.outcome == 'extracted' %}<span class="meta" title="{{ a.note }}">—</span>{% endif %}</td>{% endif %}
         <td class="meta" style="font-family:var(--mono); font-size:10px;">{{ a.logged_at.strftime('%H:%M:%S') }}</td>
       </tr>
       {% endfor %}

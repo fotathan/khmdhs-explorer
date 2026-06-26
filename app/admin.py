@@ -644,10 +644,14 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                               reference: str = Form(""), data_source: str = Form(""),
                               origin: str = Form(""), type: str = Form(""),
                               source_status: str = Form(""), has_attachments: str = Form(""),
-                              date_from: str = Form(""), date_to: str = Form("")):
+                              date_from: str = Form(""), date_to: str = Form(""),
+                              save_tables: str = Form("")):
         where_sql, args, desc = _acts_filter(
             q, external_id, reference, data_source, origin, type,
             source_status, has_attachments, date_from, date_to)
+        save = save_tables == "1"
+        if save:
+            desc += " · +αποθήκευση πινάκων"
         _reconcile_table_jobs()
         with cursor() as c:
             c.execute("SELECT id, pid FROM proc.table_extract_job WHERE status='running'")
@@ -662,8 +666,10 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             if total > MAX_TABLE_EXTRACT:
                 raise HTTPException(400, f"Το φίλτρο επιστρέφει {total} πράξεις "
                     f"(όριο {MAX_TABLE_EXTRACT}). Περιορίστε το φίλτρο.")
-            c.execute("""INSERT INTO proc.table_extract_job (status, filter_desc, total_acts)
-                         VALUES ('running', %s, %s) RETURNING id""", (desc, total))
+            c.execute("""INSERT INTO proc.table_extract_job
+                           (status, filter_desc, total_acts, save_tables)
+                         VALUES ('running', %s, %s, %s) RETURNING id""",
+                      (desc, total, save))
             job_id = c.fetchone()["id"]
             c.execute(f"""INSERT INTO proc.table_extract_target (job_id, adam, ord)
                           SELECT %s, a.adam,
@@ -704,15 +710,18 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             job = c.fetchone()
             if not job:
                 raise HTTPException(404, f"table job {job_id} not found")
-            c.execute("""SELECT outcome, count(*) AS n, coalesce(sum(n_tables),0) AS tabs
+            c.execute("""SELECT outcome, count(*) AS n,
+                                coalesce(sum(n_tables),0) AS tabs,
+                                coalesce(sum(n_saved),0) AS saved
                          FROM proc.table_extract_log WHERE job_id=%s GROUP BY outcome""",
                       (job_id,))
             by = {r["outcome"]: r for r in c.fetchall()}
             counts = {o: (by[o]["n"] if o in by else 0) for o in _TABLE_OUTCOMES}
             total_logged = sum(counts.values())
             total_tables = sum(by[o]["tabs"] for o in by)
-            c.execute(f"""SELECT adam, act_type, title, outcome, n_tables, n_files,
-                                 note, logged_at
+            total_saved = sum(by[o]["saved"] for o in by)
+            c.execute(f"""SELECT adam, act_type, title, outcome, n_tables, n_saved,
+                                 n_files, note, logged_at
                           FROM proc.table_extract_log
                           WHERE job_id=%s {_TOF[tof]}
                           ORDER BY id DESC LIMIT %s""", (job_id, ACT_LOG_PREVIEW))
@@ -728,7 +737,8 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         return templates.TemplateResponse(
             request, "admin_table_job.html",
             {"job": job, "counts": counts, "total_logged": total_logged,
-             "total_tables": total_tables, "log": log, "tof": tof,
+             "total_tables": total_tables, "total_saved": total_saved,
+             "log": log, "tof": tof,
              "alive": pid_alive(job["pid"]), "is_active": job["status"] == "running",
              "act_log_preview": ACT_LOG_PREVIEW, "log_tail": log_tail,
              "outcomes": _TABLE_OUTCOMES, "admin_tab": "acts"})
@@ -741,16 +751,16 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         import io as _io
         with cursor() as c:
             c.execute(f"""SELECT logged_at, adam, act_type, outcome, n_tables,
-                                 n_files, note, title
+                                 n_saved, n_files, note, title
                           FROM proc.table_extract_log
                           WHERE job_id=%s {_TOF[tof]} ORDER BY id""", (job_id,))
             rows = c.fetchall()
         buf = _io.StringIO(); w = _csv.writer(buf)
         w.writerow(["logged_at", "adam", "act_type", "outcome", "n_tables",
-                    "n_files", "note", "title"])
+                    "n_saved", "n_files", "note", "title"])
         for r in rows:
             w.writerow([r["logged_at"], r["adam"], r["act_type"], r["outcome"],
-                        r["n_tables"], r["n_files"], r["note"], r["title"]])
+                        r["n_tables"], r["n_saved"], r["n_files"], r["note"], r["title"]])
         return Response(content=buf.getvalue(), media_type="text/csv; charset=utf-8",
                         headers={"Content-Disposition":
                                  f'attachment; filename="table-job-{job_id}.csv"'})
