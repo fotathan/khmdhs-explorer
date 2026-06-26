@@ -103,9 +103,7 @@
   <div style="display:flex; gap:10px; align-items:center;">
     {% if total %}
     <form method="post" action="/admin/extract-tables"
-          onsubmit="return confirm((this.save_tables.checked
-              ? 'Έναρξη μαζικής εξαγωγής & ΑΠΟΘΗΚΕΥΣΗΣ πινάκων για τις {{ total }} φιλτραρισμένες πράξεις;\n\n(Οι καθαροί πίνακες αποθηκεύονται ΜΗ δημοσιευμένοι· πράξεις που έχουν ήδη πίνακες παραλείπονται. Μπορεί να διαρκέσει.)'
-              : 'Έναρξη μαζικής εξαγωγής πινάκων για τις {{ total }} φιλτραρισμένες πράξεις;\n\n(Μόνο αναφορά — δεν αποθηκεύονται πίνακες. Μπορεί να διαρκέσει.)'));">
+          onsubmit="return ttExtractGuard(this, {{ total }}, {{ max_table_extract }}, {{ max_table_extract_save }});">
       {% for k in ['q','external_id','reference','data_source','origin','type','source_status','has_attachments','date_from','date_to','cpv'] %}
       <input type="hidden" name="{{ k }}" value="{{ {'q':q,'external_id':external_id,'reference':reference,'data_source':data_source,'origin':origin,'type':type,'source_status':source_status,'has_attachments':has_attachments,'date_from':date_from,'date_to':date_to,'cpv':cpv}[k] }}">
       {% endfor %}
@@ -114,7 +112,8 @@
         <input type="checkbox" name="save_tables" value="1"> αποθήκευση
       </label>
       <button type="submit" title="Έλεγχος & εξαγωγή πινάκων για το φιλτραρισμένο σύνολο"
-              style="background:transparent; color:var(--accent); border:1px solid var(--accent); padding:9px 16px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">
+              {% if total > max_table_extract %}disabled style="background:transparent; color:var(--ink-3); border:1px solid var(--rule); padding:9px 16px; border-radius:6px; font-size:12px; font-weight:600; cursor:not-allowed;"
+              {% else %}style="background:transparent; color:var(--accent); border:1px solid var(--accent); padding:9px 16px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;"{% endif %}>
         ▦ Εξαγωγή πινάκων ({{ total }})
       </button>
     </form>
@@ -125,6 +124,34 @@
     </a>
   </div>
 </div>
+
+{% if total %}
+<div style="margin:-8px 0 14px; font-size:11.5px; color:var(--ink-3); text-align:right;">
+  {% if total > max_table_extract %}
+    <span style="color:var(--accent);">Το σύνολο ({{ total }}) υπερβαίνει το όριο των {{ max_table_extract }} πράξεων — περιορίστε το φίλτρο για να ξεκινήσετε εξαγωγή.</span>
+  {% else %}
+    Όρια ανά εργασία: έως {{ max_table_extract }} πράξεις (αναφορά){% if total > max_table_extract_save %} · <span style="color:var(--accent);">η αποθήκευση απαιτεί ≤ {{ max_table_extract_save }} (τώρα {{ total }})</span>{% else %} · έως {{ max_table_extract_save }} με αποθήκευση{% endif %}.
+  {% endif %}
+</div>
+<script>
+  // Block launch before it reaches the server when the filtered set exceeds the
+  // per-job cap (500 report-only, 100 with save), then confirm. The server
+  // enforces the same caps; this is just a friendlier, earlier stop.
+  function ttExtractGuard(form, total, capReport, capSave){
+    var saving = form.save_tables.checked;
+    var cap = saving ? capSave : capReport;
+    if(total > cap){
+      alert('Δεν επιτρέπεται η έναρξη: ' + total + ' πράξεις υπερβαίνουν το όριο των '
+            + cap + (saving ? ' με αποθήκευση' : ' (μόνο αναφορά)')
+            + '.\n\nΠεριορίστε το φίλτρο' + (saving ? ' ή ξετικάρετε την «αποθήκευση».' : '.'));
+      return false;
+    }
+    return confirm(saving
+      ? 'Έναρξη μαζικής εξαγωγής & ΑΠΟΘΗΚΕΥΣΗΣ πινάκων για τις ' + total + ' φιλτραρισμένες πράξεις;\n\n(Οι καθαροί πίνακες αποθηκεύονται ΜΗ δημοσιευμένοι· πράξεις που έχουν ήδη πίνακες παραλείπονται. Μπορεί να διαρκέσει.)'
+      : 'Έναρξη μαζικής εξαγωγής πινάκων για τις ' + total + ' φιλτραρισμένες πράξεις;\n\n(Μόνο αναφορά — δεν αποθηκεύονται πίνακες. Μπορεί να διαρκέσει.)');
+  }
+</script>
+{% endif %}
 
 {% if table_jobs %}
 <div style="margin:6px 0 14px; font-size:12px; color:var(--ink-2);">

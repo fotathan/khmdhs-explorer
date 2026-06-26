@@ -619,14 +619,19 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
              "source_status": source_status, "has_attachments": has_attachments,
              "date_from": date_from, "date_to": date_to, "cpv": cpv, "sort": sort,
              "sources": sources, "statuses": statuses, "admin_tab": "acts",
-             "table_jobs": table_jobs})
+             "table_jobs": table_jobs,
+             "max_table_extract": MAX_TABLE_EXTRACT,
+             "max_table_extract_save": MAX_TABLE_EXTRACT_SAVE})
 
     # ------------------------------------------------------------------ #
     # Mass table extraction over a filtered act set (Phase 1: report-only).
     # Self-contained job system in proc.table_extract_*; mirrors the backfill
     # job pattern (detached subprocess, per-act log, lifecycle).
     # ------------------------------------------------------------------ #
-    MAX_TABLE_EXTRACT = int(os.environ.get("MAX_TABLE_EXTRACT", "5000"))
+    # Per-job caps. Saving tables hits the doc server AND writes rows, so it is
+    # capped tighter than a report-only run. Both overridable via env.
+    MAX_TABLE_EXTRACT = int(os.environ.get("MAX_TABLE_EXTRACT", "500"))
+    MAX_TABLE_EXTRACT_SAVE = int(os.environ.get("MAX_TABLE_EXTRACT_SAVE", "100"))
     _TABLE_OUTCOMES = ("extracted", "garbled", "needs_ocr",
                        "no_tables", "no_attachment", "error")
     _TOF = {
@@ -678,9 +683,11 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             total = c.fetchone()["n"]
             if total == 0:
                 raise HTTPException(400, "Καμία πράξη δεν ταιριάζει στο φίλτρο.")
-            if total > MAX_TABLE_EXTRACT:
+            cap = MAX_TABLE_EXTRACT_SAVE if save else MAX_TABLE_EXTRACT
+            if total > cap:
                 raise HTTPException(400, f"Το φίλτρο επιστρέφει {total} πράξεις "
-                    f"(όριο {MAX_TABLE_EXTRACT}). Περιορίστε το φίλτρο.")
+                    f"(όριο {cap}{' με αποθήκευση' if save else ''}). "
+                    f"Περιορίστε το φίλτρο{' ή τρέξτε χωρίς αποθήκευση' if save else ''}.")
             c.execute("""INSERT INTO proc.table_extract_job
                            (status, filter_desc, total_acts, save_tables)
                          VALUES ('running', %s, %s, %s) RETURNING id""",
