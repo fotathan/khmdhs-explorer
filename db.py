@@ -294,6 +294,16 @@ def _table_outcome(adam: str, act_type: str, want_tables: bool = False):
     want_tables and outcome=='extracted', else None — the caller persists them
     in save mode. Never calls OCR (scanned docs are just flagged 'needs_ocr').
     Fail-soft: never raises."""
+    import os as _o
+    import sys as _sys
+    # The extraction modules (extractors/exporter/ocr) are kept byte-identical
+    # with a standalone flat-layout tool and import each other with BARE names
+    # (`from extractors import ...`). The web app makes that work by putting the
+    # app/ dir on sys.path (main.py); this CLI subprocess must do the same, or
+    # `app.ocr`'s bare imports fail. Mirror main.py exactly.
+    _app_dir = _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), "app")
+    if _app_dir not in _sys.path:
+        _sys.path.insert(0, _app_dir)
     try:
         from app.tables import _fetch_act_document
         from app.extractors import collect_files, extract_entry
@@ -301,7 +311,6 @@ def _table_outcome(adam: str, act_type: str, want_tables: bool = False):
         from tables import _fetch_act_document
         from extractors import collect_files, extract_entry
     import khmdhs_ingest
-    import os as _o
     api_key = bool(_o.environ.get("ANTHROPIC_API_KEY"))
 
     try:
