@@ -492,7 +492,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
 
     def _acts_filter(q="", external_id="", reference="", data_source="",
                      origin="", type="", source_status="", has_attachments="",
-                     date_from="", date_to=""):
+                     date_from="", date_to="", cpv=""):
         """Build the WHERE for the acts-management list from the filter params.
         Returns (where_sql, args, human_description). Shared by the list page and
         the mass table-extraction launcher so both target the same set."""
@@ -533,6 +533,20 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         if date_to.strip():
             where.append("a.submission_date <= %s")
             args.append(date_to.strip()); desc.append(f"έως {date_to.strip()}")
+        # CPV — space-separated prefixes, OR'd; an act matches if any of its line
+        # items has a CPV starting with any prefix. Mirrors the public search
+        # filter (main.py) so both pages target the same set.
+        cpvs = cpv.split()
+        if cpvs:
+            like_terms = " OR ".join(["oc.cpv_code LIKE %s"] * len(cpvs))
+            where.append(f"""EXISTS (
+                SELECT 1 FROM proc.act_object_detail od
+                JOIN proc.object_detail_cpv oc ON oc.object_detail_id = od.id
+                WHERE od.adam = a.adam AND ({like_terms})
+            )""")
+            for cv in cpvs:
+                args.append(f"{cv}%")
+            desc.append("CPV " + " ".join(cpvs))
         return " AND ".join(where), args, " · ".join(desc) or "όλες οι πράξεις"
 
     @router.get("/acts", response_class=HTMLResponse)
@@ -547,6 +561,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                     has_attachments: str = Query(""),
                     date_from: str = Query(""),
                     date_to: str = Query(""),
+                    cpv: str = Query(""),
                     sort: str = Query("recent"),
                     page: int = Query(1, ge=1)):
         """Data-management list: browse/filter ALL acts (imported + authored),
@@ -556,7 +571,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         _reconcile_table_jobs()
         where_sql, args, _ = _acts_filter(
             q, external_id, reference, data_source, origin, type,
-            source_status, has_attachments, date_from, date_to)
+            source_status, has_attachments, date_from, date_to, cpv)
 
         order = {"recent": "a.submission_date DESC NULLS LAST",
                  "oldest": "a.submission_date ASC NULLS LAST",
@@ -602,7 +617,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
              "q": q, "external_id": external_id, "reference": reference,
              "data_source": data_source, "origin": origin, "type": type,
              "source_status": source_status, "has_attachments": has_attachments,
-             "date_from": date_from, "date_to": date_to, "sort": sort,
+             "date_from": date_from, "date_to": date_to, "cpv": cpv, "sort": sort,
              "sources": sources, "statuses": statuses, "admin_tab": "acts",
              "table_jobs": table_jobs})
 
@@ -645,10 +660,10 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                               origin: str = Form(""), type: str = Form(""),
                               source_status: str = Form(""), has_attachments: str = Form(""),
                               date_from: str = Form(""), date_to: str = Form(""),
-                              save_tables: str = Form("")):
+                              cpv: str = Form(""), save_tables: str = Form("")):
         where_sql, args, desc = _acts_filter(
             q, external_id, reference, data_source, origin, type,
-            source_status, has_attachments, date_from, date_to)
+            source_status, has_attachments, date_from, date_to, cpv)
         save = save_tables == "1"
         if save:
             desc += " · +αποθήκευση πινάκων"
