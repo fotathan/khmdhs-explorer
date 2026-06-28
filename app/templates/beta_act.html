@@ -188,6 +188,28 @@
       </div>
       {% endif %}
 
+      {% if act_categories %}
+      <div class="panel">
+        <h3 class="panel-h">Κατηγορίες</h3>
+        {# Derived from this act's CPVs (see tender_category_migration.sql).
+           Each links into the acts search with the matching category/sub filter. #}
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          {% for cat in act_categories %}
+          <div style="font-size:13px; line-height:1.5;">
+            <a href="/?cat=c:{{ cat.id }}" title="Αναζήτηση πράξεων αυτής της κατηγορίας"
+               style="font-weight:600;">{{ cat.name }}</a>
+            <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
+              {% for s in cat.subs %}
+              <a href="/?cat=s:{{ s.id }}" title="Αναζήτηση πράξεων αυτής της υποκατηγορίας"
+                 style="font-size:12px; color:var(--ink-2); background:var(--rule); padding:2px 8px; border-radius:10px; text-decoration:none;">{{ s.name }}</a>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
       {# lazy-loaded published extracted tables — collapses to nothing if none #}
       {% if tables_enabled %}
       <div id="tt-pub-tables-mount" hx-get="/tables/public/{{ n.adam }}" hx-trigger="load" hx-swap="outerHTML"></div>

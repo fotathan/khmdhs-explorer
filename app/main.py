@@ -1336,6 +1336,31 @@ def act_detail(adam: str, request: Request):
                      WHERE ac.adam = %s ORDER BY ac.ord, ac.cpv_code""", (adam,))
         act_cpvs = c.fetchall()
 
+        # Matching categories/subcategories — DERIVED from this act's line-item
+        # CPVs via cpv_category_map (see tender_category_migration.sql). Grouped
+        # into {category, subs[]} so the template can link each to the search
+        # filter (?cat=c:<id> / ?cat=s:<id>).
+        c.execute("""
+            SELECT DISTINCT cat.id AS category_id, cat.name AS category_name,
+                   sub.id AS subcategory_id, sub.name AS subcategory_name
+            FROM proc.act_object_detail od
+            JOIN proc.object_detail_cpv oc ON oc.object_detail_id = od.id
+            JOIN proc.cpv_category_map m ON m.cpv_code = oc.cpv_code
+            JOIN proc.tender_category cat ON cat.id = m.category_id
+            JOIN proc.tender_subcategory sub ON sub.id = m.subcategory_id
+            WHERE od.adam = %s
+            ORDER BY cat.name, sub.name
+        """, (adam,))
+        act_categories: list[dict] = []
+        _cat_idx: dict = {}
+        for r in c.fetchall():
+            cat = _cat_idx.get(r["category_id"])
+            if cat is None:
+                cat = {"id": r["category_id"], "name": r["category_name"], "subs": []}
+                _cat_idx[r["category_id"]] = cat
+                act_categories.append(cat)
+            cat["subs"].append({"id": r["subcategory_id"], "name": r["subcategory_name"]})
+
         # Downstream chain — root-anchored recursion.
         # PERF: the old version queried proc.v_act_chain, a view whose recursion
         # starts from EVERY act_link row; Postgres built the whole 22.6M-row
@@ -1411,6 +1436,7 @@ def act_detail(adam: str, request: Request):
          "line_items": line_items,
          "operators": operators,
          "act_cpvs": act_cpvs,
+         "act_categories": act_categories,
          "downstream": downstream,
          "incoming": incoming,
          "annotation": annotation,
