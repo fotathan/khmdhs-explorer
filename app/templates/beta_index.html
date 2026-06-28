@@ -96,6 +96,26 @@
         </div>
       </div>
 
+      {% set sel_cat = request.query_params.getlist('cat') %}
+      <div class="fgroup">
+        <div class="fgroup-h">Κατηγορία / Υποκατηγορία</div>
+        {# Two-level taxonomy over CPV (derived). One grouped multi-select:
+           each optgroup is a category whose first option selects the WHOLE
+           category (value c:<id>); the rest are its subcategories (s:<id>).
+           Ctrl/⌘-click to pick several — they OR together. #}
+        <select name="cat" multiple size="12" class="cat-sel"
+                style="width:100%; font-size:12px; padding:4px;">
+          {% for cat in lk.categories %}
+          <optgroup label="{{ cat.name }}">
+            <option value="c:{{ cat.id }}" {% if ('c:' ~ cat.id) in sel_cat %}selected{% endif %}>▸ όλη η κατηγορία</option>
+            {% for s in cat.subs %}
+            <option value="s:{{ s.id }}" {% if ('s:' ~ s.id) in sel_cat %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+          </optgroup>
+          {% endfor %}
+        </select>
+      </div>
+
       <div class="fgroup">
         <div class="fgroup-h">CPV</div>
         <div class="cpv-wrap">

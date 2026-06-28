@@ -82,6 +82,21 @@
     <label>CPV (πρόθεμα)</label>
     <input type="search" name="cpv" value="{{ cpv }}" placeholder="π.χ. 33 ή 45000000">
   </div>
+  <div class="field" style="margin:0; grid-column:span 2;">
+    <label>Κατηγορία / Υποκατηγορία (Ctrl/⌘-click για πολλαπλά)</label>
+    {# Two-level taxonomy over CPV (derived). optgroup=κατηγορία; πρώτη επιλογή
+       = όλη η κατηγορία (c:<id>), οι υπόλοιπες = υποκατηγορίες (s:<id>). #}
+    <select name="cat" multiple size="6" style="width:100%;">
+      {% for c in categories %}
+      <optgroup label="{{ c.name }}">
+        <option value="c:{{ c.id }}" {% if ('c:' ~ c.id) in cat %}selected{% endif %}>▸ όλη η κατηγορία</option>
+        {% for s in c.subs %}
+        <option value="s:{{ s.id }}" {% if ('s:' ~ s.id) in cat %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </optgroup>
+      {% endfor %}
+    </select>
+  </div>
   <div class="field" style="margin:0;">
     <label>Ταξινόμηση</label>
     <select name="sort">
@@ -107,6 +122,8 @@
       {% for k in ['q','external_id','reference','data_source','origin','type','source_status','has_attachments','date_from','date_to','cpv'] %}
       <input type="hidden" name="{{ k }}" value="{{ {'q':q,'external_id':external_id,'reference':reference,'data_source':data_source,'origin':origin,'type':type,'source_status':source_status,'has_attachments':has_attachments,'date_from':date_from,'date_to':date_to,'cpv':cpv}[k] }}">
       {% endfor %}
+      {# cat is multi-valued — one hidden input per selected category/subcategory #}
+      {% for v in cat %}<input type="hidden" name="cat" value="{{ v }}">{% endfor %}
       <label title="Αποθήκευση των καθαρών πινάκων στις πράξεις (μη δημοσιευμένοι)"
              style="display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--ink-2); cursor:pointer; margin-right:8px; letter-spacing:0;">
         <input type="checkbox" name="save_tables" value="1"> αποθήκευση
@@ -211,7 +228,7 @@
 </table>
 
 {% if total_pages > 1 %}
-{% set qs %}q={{ q|urlencode }}&external_id={{ external_id|urlencode }}&reference={{ reference|urlencode }}&data_source={{ data_source|urlencode }}&origin={{ origin }}&type={{ type }}&source_status={{ source_status|urlencode }}&has_attachments={{ has_attachments }}&date_from={{ date_from }}&date_to={{ date_to }}&cpv={{ cpv|urlencode }}&sort={{ sort }}{% endset %}
+{% set qs %}q={{ q|urlencode }}&external_id={{ external_id|urlencode }}&reference={{ reference|urlencode }}&data_source={{ data_source|urlencode }}&origin={{ origin }}&type={{ type }}&source_status={{ source_status|urlencode }}&has_attachments={{ has_attachments }}&date_from={{ date_from }}&date_to={{ date_to }}&cpv={{ cpv|urlencode }}{% for v in cat %}&cat={{ v|urlencode }}{% endfor %}&sort={{ sort }}{% endset %}
 <div style="display:flex; justify-content:center; align-items:center; gap:12px; margin:22px 0;">
   {% if page > 1 %}<a class="back" href="/admin/acts?{{ qs }}&page={{ page-1 }}" hx-boost="false">‹ προηγ.</a>{% else %}<span class="meta">‹ προηγ.</span>{% endif %}
   <span class="meta">σελίδα {{ page }} από {{ total_pages }}</span>

@@ -452,6 +452,34 @@ def build_where(params: dict) -> tuple[str, list]:
         for cv in cpvs:
             args.append(f"{cv}%")
 
+    # Category / subcategory — our custom taxonomy over CPV codes (see
+    # tender_category_migration.sql). It is DERIVED: an act matches if any of
+    # its line-item CPVs maps to a selected category or subcategory. Values
+    # arrive under one `cat` param, prefixed "c:<id>" (whole category) or
+    # "s:<id>" (subcategory), so a single grouped multi-select can offer both
+    # levels. Selections OR together (like CPV); the group as a whole ANDs with
+    # the other filters.
+    cat_vals = _as_list(params.get("cat"))
+    if cat_vals:
+        cat_ids = [int(v[2:]) for v in cat_vals if v.startswith("c:") and v[2:].isdigit()]
+        sub_ids = [int(v[2:]) for v in cat_vals if v.startswith("s:") and v[2:].isdigit()]
+        conds = []
+        if cat_ids:
+            conds.append("m.category_id = ANY(%s)")
+        if sub_ids:
+            conds.append("m.subcategory_id = ANY(%s)")
+        if conds:
+            where.append(f"""EXISTS (
+                SELECT 1 FROM proc.act_object_detail od
+                JOIN proc.object_detail_cpv oc ON oc.object_detail_id = od.id
+                JOIN proc.cpv_category_map m ON m.cpv_code = oc.cpv_code
+                WHERE od.adam = a.adam AND ({" OR ".join(conds)})
+            )""")
+            if cat_ids:
+                args.append(cat_ids)
+            if sub_ids:
+                args.append(sub_ids)
+
     contract_types = _as_list(params.get("contract_type"))
     if contract_types:
         where.append("a.contract_type_code = ANY(%s)")
@@ -688,6 +716,20 @@ def lookups() -> dict:
             ORDER BY code
         """)
         _lookup_cache["nuts"] = c.fetchall()
+        # Custom category taxonomy for the two-level filter (see
+        # tender_category_migration.sql). Returned as categories each carrying
+        # their subcategories, so the template can render one grouped
+        # multi-select with optgroups. Ordered alphabetically (Greek collation).
+        c.execute("SELECT id, name FROM proc.tender_category ORDER BY name")
+        cats = [{"id": r["id"], "name": r["name"], "subs": []} for r in c.fetchall()]
+        by_id = {cat["id"]: cat for cat in cats}
+        c.execute("""SELECT id, name, parent_category_id
+                     FROM proc.tender_subcategory ORDER BY name""")
+        for r in c.fetchall():
+            parent = by_id.get(r["parent_category_id"])
+            if parent is not None:
+                parent["subs"].append({"id": r["id"], "name": r["name"]})
+        _lookup_cache["categories"] = cats
     return _lookup_cache
 
 
@@ -1001,7 +1043,7 @@ def _params_from(request: Request) -> dict:
               "date_from", "date_to", "deadline_from", "deadline_to",
               "value_min", "value_max", "status", "sort")
     multi = ("type", "authority", "contract_type", "procedure_type", "nuts",
-             "cpv")
+             "cpv", "cat")
     out = {k: request.query_params.get(k, "") for k in single}
     for k in multi:
         # keep only non-empty values; preserves order, drops blanks

@@ -492,7 +492,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
 
     def _acts_filter(q="", external_id="", reference="", data_source="",
                      origin="", type="", source_status="", has_attachments="",
-                     date_from="", date_to="", cpv=""):
+                     date_from="", date_to="", cpv="", cat=None):
         """Build the WHERE for the acts-management list from the filter params.
         Returns (where_sql, args, human_description). Shared by the list page and
         the mass table-extraction launcher so both target the same set."""
@@ -547,6 +547,31 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             for cv in cpvs:
                 args.append(f"{cv}%")
             desc.append("CPV " + " ".join(cpvs))
+        # Category / subcategory — derived from CPV via cpv_category_map. Values
+        # are "c:<id>" (whole category) or "s:<id>" (subcategory); they OR
+        # together. Mirrors the public search filter (main.py) so both pages
+        # target the same set.
+        cat_vals = cat or []
+        if cat_vals:
+            cat_ids = [int(v[2:]) for v in cat_vals if v.startswith("c:") and v[2:].isdigit()]
+            sub_ids = [int(v[2:]) for v in cat_vals if v.startswith("s:") and v[2:].isdigit()]
+            conds = []
+            if cat_ids:
+                conds.append("m.category_id = ANY(%s)")
+            if sub_ids:
+                conds.append("m.subcategory_id = ANY(%s)")
+            if conds:
+                where.append(f"""EXISTS (
+                    SELECT 1 FROM proc.act_object_detail od
+                    JOIN proc.object_detail_cpv oc ON oc.object_detail_id = od.id
+                    JOIN proc.cpv_category_map m ON m.cpv_code = oc.cpv_code
+                    WHERE od.adam = a.adam AND ({" OR ".join(conds)})
+                )""")
+                if cat_ids:
+                    args.append(cat_ids)
+                if sub_ids:
+                    args.append(sub_ids)
+                desc.append("κατηγορία")
         return " AND ".join(where), args, " · ".join(desc) or "όλες οι πράξεις"
 
     @router.get("/acts", response_class=HTMLResponse)
@@ -562,6 +587,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                     date_from: str = Query(""),
                     date_to: str = Query(""),
                     cpv: str = Query(""),
+                    cat: list[str] = Query(default=[]),
                     sort: str = Query("recent"),
                     page: int = Query(1, ge=1)):
         """Data-management list: browse/filter ALL acts (imported + authored),
@@ -571,7 +597,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         _reconcile_table_jobs()
         where_sql, args, _ = _acts_filter(
             q, external_id, reference, data_source, origin, type,
-            source_status, has_attachments, date_from, date_to, cpv)
+            source_status, has_attachments, date_from, date_to, cpv, cat)
 
         order = {"recent": "a.submission_date DESC NULLS LAST",
                  "oldest": "a.submission_date ASC NULLS LAST",
@@ -604,6 +630,19 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                          WHERE source_status IS NOT NULL AND source_status <> ''
                          ORDER BY source_status""")
             statuses = [r["source_status"] for r in c.fetchall()]
+            # Category taxonomy for the two-level filter dropdown (derived from
+            # CPV via cpv_category_map). Categories carry their subcategories so
+            # the template renders one grouped multi-select with optgroups.
+            c.execute("SELECT id, name FROM proc.tender_category ORDER BY name")
+            categories = [{"id": r["id"], "name": r["name"], "subs": []}
+                          for r in c.fetchall()]
+            cat_by_id = {ct["id"]: ct for ct in categories}
+            c.execute("""SELECT id, name, parent_category_id
+                         FROM proc.tender_subcategory ORDER BY name""")
+            for r in c.fetchall():
+                parent = cat_by_id.get(r["parent_category_id"])
+                if parent is not None:
+                    parent["subs"].append({"id": r["id"], "name": r["name"]})
             # Recent mass table-extraction jobs (Phase 1).
             c.execute("""SELECT id, status, filter_desc, total_acts,
                                 started_at, finished_at
@@ -618,6 +657,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
              "data_source": data_source, "origin": origin, "type": type,
              "source_status": source_status, "has_attachments": has_attachments,
              "date_from": date_from, "date_to": date_to, "cpv": cpv, "sort": sort,
+             "cat": cat, "categories": categories,
              "sources": sources, "statuses": statuses, "admin_tab": "acts",
              "table_jobs": table_jobs,
              "max_table_extract": MAX_TABLE_EXTRACT,
@@ -665,10 +705,11 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                               origin: str = Form(""), type: str = Form(""),
                               source_status: str = Form(""), has_attachments: str = Form(""),
                               date_from: str = Form(""), date_to: str = Form(""),
-                              cpv: str = Form(""), save_tables: str = Form("")):
+                              cpv: str = Form(""), cat: list[str] = Form(default=[]),
+                              save_tables: str = Form("")):
         where_sql, args, desc = _acts_filter(
             q, external_id, reference, data_source, origin, type,
-            source_status, has_attachments, date_from, date_to, cpv)
+            source_status, has_attachments, date_from, date_to, cpv, cat)
         save = save_tables == "1"
         if save:
             desc += " · +αποθήκευση πινάκων"
