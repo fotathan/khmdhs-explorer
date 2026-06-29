@@ -1392,13 +1392,14 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         return templates.TemplateResponse(request, "act_edit.html",
                                           {"act": act, "tab": tab})
 
-    def _fields_panel_context(adam: str, cpv_saved: bool = False) -> dict:
-        """Context for the Βασικά-πεδία panel. Act-level CPV codes (proc.act_cpv)
-        are a curator overlay editable for ANY act. Imports populate line-item
-        CPVs (object_detail_cpv) but never act_cpv, so for an imported act with
-        no act_cpv yet we SEED the picker from its distinct line-item CPVs — the
-        ones the curator already sees on the act detail page — so they can curate
-        them as act-level codes without touching the imported source."""
+    def _fields_panel_context(adam: str) -> dict:
+        """Context for the Βασικά-πεδία panel. The CPV picker lives inside the
+        authored edit form (shown after take-ownership). Act-level CPV codes
+        (proc.act_cpv) are a curator overlay; imports populate line-item CPVs
+        (object_detail_cpv) but never act_cpv. So when act_cpv is empty we SEED
+        the picker from the act's distinct line-item CPVs — the ones already
+        shown on the act detail page — so that after taking ownership the form
+        is pre-filled with the existing codes, ready to edit/save."""
         with cursor() as c:
             c.execute("SELECT * FROM proc.procurement_act WHERE adam=%s", (adam,))
             act = c.fetchone()
@@ -1416,7 +1417,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                          WHERE ac.adam=%s ORDER BY ac.ord, ac.cpv_code""", (adam,))
             cpvs = c.fetchall()
             cpv_seeded = False
-            if not cpvs and act["origin"] != "authored":
+            if not cpvs:
                 c.execute("""SELECT DISTINCT oc.cpv_code, cc.description
                              FROM proc.act_object_detail od
                              JOIN proc.object_detail_cpv oc ON oc.object_detail_id = od.id
@@ -1426,37 +1427,16 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 cpv_seeded = bool(cpvs)
         return {"groups": _act_form_fields(), "act": dict(act), "adam": adam,
                 "authority_name": authority_name, "origin": act["origin"],
-                "cpvs": cpvs, "cpv_seeded": cpv_seeded, "cpv_saved": cpv_saved}
+                "cpvs": cpvs, "cpv_seeded": cpv_seeded}
 
     @router.get("/act/{adam}/panel/fields", response_class=HTMLResponse)
     def panel_fields(adam: str, request: Request):
-        """Core scalar fields. Editable for AUTHORED acts; an imported act shows
-        a take-ownership prompt instead (its core fields are source-owned) plus a
-        standalone CPV-codes editor (act_cpv overlay; no ownership needed)."""
+        """Core scalar fields. Editable for AUTHORED acts (the CPV picker is part
+        of that form, pre-seeded from line-item CPVs when act_cpv is empty); an
+        imported act shows a take-ownership prompt instead, since its core fields
+        are source-owned."""
         return templates.TemplateResponse(
             request, "_panel_fields.html", _fields_panel_context(adam))
-
-    @router.post("/act/{adam}/cpv", response_class=HTMLResponse)
-    async def act_save_cpv(adam: str, request: Request):
-        """Save the act-level CPV codes (proc.act_cpv) for ANY act — a curator
-        overlay that never touches imported source data, so it does NOT require
-        taking ownership. Re-renders the fields panel via HTMX."""
-        form = await request.form()
-        codes: list[str] = []
-        for code in form.getlist("cpv_code"):
-            code = (code or "").strip()
-            if code and code not in codes:
-                codes.append(code)
-        with cursor() as c:
-            c.execute("SELECT 1 FROM proc.procurement_act WHERE adam=%s", (adam,))
-            if not c.fetchone():
-                raise HTTPException(404, f"act {adam} not found")
-            c.execute("DELETE FROM proc.act_cpv WHERE adam=%s", (adam,))
-            for i, code in enumerate(codes):
-                c.execute("INSERT INTO proc.act_cpv (adam, cpv_code, ord) "
-                          "VALUES (%s,%s,%s)", (adam, code, i))
-        return templates.TemplateResponse(
-            request, "_panel_fields.html", _fields_panel_context(adam, cpv_saved=True))
 
     @router.get("/act/{adam}/panel/annotate", response_class=HTMLResponse)
     def panel_annotate(adam: str, request: Request):

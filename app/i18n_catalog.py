@@ -1029,9 +1029,8 @@ _NUTS_REGIONS = {
 
 # Act-level CPV editor on imported acts (_panel_fields.html)
 _CPV_EDIT = {
-    "Αποθήκευση κωδικών CPV": "Save CPV codes",
-    "Οι κωδικοί προέρχονται από τα είδη της εισαγόμενης πράξης. Επεξεργαστείτε και αποθηκεύστε τους ως κωδικούς CPV επιπέδου πράξης (δεν αλλοιώνεται η πηγή).":
-        "These codes come from the imported act's line items. Edit and save them as act-level CPV codes (the source is not altered).",
+    "Οι κωδικοί προέρχονται από τα είδη της εισαγόμενης πράξης. Επεξεργαστείτε και αποθηκεύστε τους ως κωδικούς CPV επιπέδου πράξης.":
+        "These codes come from the imported act's line items. Edit and save them as act-level CPV codes.",
 }
 
 # Merge into one flat catalog. Later groups override earlier ones on key clash

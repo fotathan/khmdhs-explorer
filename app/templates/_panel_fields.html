@@ -13,26 +13,6 @@
       {{ t("Ανάληψη κυριότητας & επεξεργασία") }}
     </button>
   </form>
-
-  {# Act-level CPV codes are a curator overlay (proc.act_cpv) that never touches
-     the imported source — so they're editable WITHOUT taking ownership. For a
-     fresh import act_cpv is empty, so the picker is seeded from the act's
-     line-item CPVs (what shows on the detail page). Saves via HTMX. #}
-  <div style="margin-top:30px; border-top:1px solid var(--rule); padding-top:18px;">
-    <form hx-post="/admin/act/{{ adam }}/cpv" hx-target="#edit-panel" hx-swap="innerHTML">
-      {% include "_cpv_field.html" %}
-      {% if cpv_seeded %}
-      <p class="meta" style="margin:-6px 0 12px; letter-spacing:0; text-transform:none; font-style:italic; color:var(--ink-3);">
-        {{ t("Οι κωδικοί προέρχονται από τα είδη της εισαγόμενης πράξης. Επεξεργαστείτε και αποθηκεύστε τους ως κωδικούς CPV επιπέδου πράξης (δεν αλλοιώνεται η πηγή).") }}
-      </p>
-      {% endif %}
-      <button type="submit"
-              style="background:var(--accent); color:#fff; border:0; padding:10px 22px; font-family:var(--sans); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer;">
-        {{ t("Αποθήκευση κωδικών CPV") }}
-      </button>
-      {% if cpv_saved %}<span class="meta" style="margin-left:12px; color:var(--ok); letter-spacing:0; text-transform:none;">{{ t("✓ αποθηκεύτηκε") }}</span>{% endif %}
-    </form>
-  </div>
 {% else %}
 <form method="post" action="/admin/acts/save" style="padding-bottom:20px;">
   <input type="hidden" name="_mode" value="edit">
@@ -79,6 +59,11 @@
   {% endfor %}
 
   {% include "_cpv_field.html" %}
+  {% if cpv_seeded %}
+  <p class="meta" style="margin:-6px 0 14px; letter-spacing:0; text-transform:none; font-style:italic; color:var(--ink-3);">
+    {{ t("Οι κωδικοί προέρχονται από τα είδη της εισαγόμενης πράξης. Επεξεργαστείτε και αποθηκεύστε τους ως κωδικούς CPV επιπέδου πράξης.") }}
+  </p>
+  {% endif %}
 
   <div style="border-top:1px solid var(--rule); padding-top:16px; margin-top:8px;">
     <button type="submit"
