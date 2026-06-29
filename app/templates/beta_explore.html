@@ -1,5 +1,5 @@
 {% extends "beta_base.html" %}
-{% block title %}Σύνοψη · Εξερευνητής{% endblock %}
+{% block title %}{{ t("Σύνοψη · Εξερευνητής") }}{% endblock %}
 {% block content %}
 <form id="filters" hx-get="/explore" hx-target="#explore-results" hx-trigger="change, submit"
       hx-push-url="true" hx-indicator="#ex-busy">
@@ -7,18 +7,18 @@
 <div class="hero">
   <div class="hero-in">
     <div class="page-head" style="margin-bottom:14px;">
-      <h1>Σύνοψη αναθέσεων</h1>
-      <div class="sub">Συγκεντρωτική εικόνα: ποιες αρχές και ανάδοχοι κυριαρχούν στο τρέχον φίλτρο. Αξία αναθέσεων, ενοποιημένες οντότητες, εξαιρούνται ακυρωμένες/ύποπτες.</div>
+      <h1>{{ t("Σύνοψη αναθέσεων") }}</h1>
+      <div class="sub">{{ t("Συγκεντρωτική εικόνα: ποιες αρχές και ανάδοχοι κυριαρχούν στο τρέχον φίλτρο. Αξία αναθέσεων, ενοποιημένες οντότητες, εξαιρούνται ακυρωμένες/ύποπτες.") }}</div>
     </div>
     <div class="searchbar" style="max-width:640px;">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-      <input type="text" name="q" value="{{ params.q or '' }}" placeholder="λέξη-κλειδί σε τίτλο/αναθέτουσα/ανάδοχο…">
-      <button class="go" type="submit">Σύνοψη</button>
+      <input type="text" name="q" value="{{ params.q or '' }}" placeholder="{{ t('λέξη-κλειδί σε τίτλο/αναθέτουσα/ανάδοχο…') }}">
+      <button class="go" type="submit">{{ t("Σύνοψη") }}</button>
     </div>
     <div class="hero-meta">
-      <span><b id="ex-count">{{ "{:,}".format(grand.n).replace(",", ".") }}</b> πράξεις στο φίλτρο</span>
-      <span>συνολική αξία <b id="ex-value">{% if grand.value %}€ {{ "{:,.0f}".format(grand.value).replace(",", ".") }}{% else %}—{% endif %}</b></span>
-      <span id="ex-busy" class="htmx-indicator">υπολογισμός…</span>
+      <span><b id="ex-count">{{ "{:,}".format(grand.n).replace(",", ".") }}</b> {{ t("πράξεις στο φίλτρο") }}</span>
+      <span>{{ t("συνολική αξία") }} <b id="ex-value">{% if grand.value %}€ {{ "{:,.0f}".format(grand.value).replace(",", ".") }}{% else %}—{% endif %}</b></span>
+      <span id="ex-busy" class="htmx-indicator">{{ t("υπολογισμός…") }}</span>
     </div>
   </div>
 </div>
@@ -27,26 +27,26 @@
   <div class="layout">
     <aside class="filters">
       <div class="filters-head">
-        <h2>Φίλτρα</h2>
-        <a href="/explore">καθαρισμός</a>
+        <h2>{{ t("Φίλτρα") }}</h2>
+        <a href="/explore">{{ t("καθαρισμός") }}</a>
       </div>
 
       {% set sel_types = request.query_params.getlist('type') %}
       <div class="fgroup">
-        <div class="fgroup-h">Τύπος πράξης</div>
+        <div class="fgroup-h">{{ t("Τύπος πράξης") }}</div>
         <div class="chips">
           {% for code in TYPE_FILTER_ORDER %}
           <label class="chip {% if code in sel_types %}on{% endif %}">
-            <input type="checkbox" name="type" value="{{ code }}" {% if code in sel_types %}checked{% endif %}>{{ TYPE_LABELS[code] }}
+            <input type="checkbox" name="type" value="{{ code }}" {% if code in sel_types %}checked{% endif %}>{{ code | type_label }}
           </label>
           {% endfor %}
         </div>
-        <p style="font-size:11px;color:var(--ink-3);margin:8px 0 0;">Χωρίς φίλτρο ή μόνο με τύπο: στιγμιαία (προϋπολογισμένα). Τα υπόλοιπα φίλτρα κάνουν ζωντανό υπολογισμό.</p>
+        <p style="font-size:11px;color:var(--ink-3);margin:8px 0 0;">{{ t("Χωρίς φίλτρο ή μόνο με τύπο: στιγμιαία (προϋπολογισμένα). Τα υπόλοιπα φίλτρα κάνουν ζωντανό υπολογισμό.") }}</p>
       </div>
 
       {% set sel_ct = request.query_params.getlist('contract_type') %}
       <div class="fgroup">
-        <div class="fgroup-h">Είδος σύμβασης</div>
+        <div class="fgroup-h">{{ t("Είδος σύμβασης") }}</div>
         <div class="chips">
           {% for c in lk.contract_types %}
           <label class="chip {% if c.code in sel_ct %}on{% endif %}">
@@ -58,7 +58,7 @@
 
       {% set sel_pt = request.query_params.getlist('procedure_type') %}
       <div class="fgroup">
-        <div class="fgroup-h">Τύπος διαδικασίας</div>
+        <div class="fgroup-h">{{ t("Τύπος διαδικασίας") }}</div>
         <div class="chips">
           {% for p in lk.procedure_types %}
           <label class="chip {% if p.code in sel_pt %}on{% endif %}">
@@ -70,7 +70,7 @@
 
       {% set sel_nuts = request.query_params.getlist('nuts') %}
       <div class="fgroup">
-        <div class="fgroup-h">Γεωγραφία — Περιφέρεια</div>
+        <div class="fgroup-h">{{ t("Γεωγραφία — Περιφέρεια") }}</div>
         <div class="chips">
           {% for r in nuts_regions %}
           <label class="chip {% if r.code in sel_nuts %}on{% endif %}" title="{{ r.code }}">
@@ -81,14 +81,14 @@
       </div>
 
       <div class="fgroup">
-        <div class="fgroup-h">CPV (πρόθεμα)</div>
+        <div class="fgroup-h">{{ t("CPV (πρόθεμα)") }}</div>
         <div class="frow">
           <input type="text" name="cpv" value="{{ params.cpv|join(' ') if params.cpv else '' }}" placeholder="π.χ. 33 ή 45000000">
         </div>
       </div>
 
       <div class="fgroup">
-        <div class="fgroup-h">Ημ/νία δημοσίευσης</div>
+        <div class="fgroup-h">{{ t("Ημ/νία δημοσίευσης") }}</div>
         <div class="frow-2">
           <input type="date" name="date_from" value="{{ params.date_from or '' }}">
           <input type="date" name="date_to" value="{{ params.date_to or '' }}">
@@ -96,7 +96,7 @@
       </div>
 
       <div class="fgroup">
-        <a href="/?{{ request.url.query }}" class="back-link" hx-boost="false">→ προβολή ως λίστα πράξεων</a>
+        <a href="/?{{ request.url.query }}" class="back-link" hx-boost="false">{{ t("→ προβολή ως λίστα πράξεων") }}</a>
       </div>
     </aside>
 

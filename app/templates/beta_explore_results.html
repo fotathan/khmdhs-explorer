@@ -10,10 +10,10 @@
 
 <div class="act-grid" style="grid-template-columns:1fr 1fr;">
   <div class="panel" style="margin-bottom:0;">
-    <h3 class="panel-h">Ανά αναθέτουσα αρχή</h3>
+    <h3 class="panel-h">{{ t("Ανά αναθέτουσα αρχή") }}</h3>
     {% if by_authority %}
     <table class="dtable">
-      <thead><tr><th>Αρχή</th><th class="val">Πράξεις</th><th class="val">Αξία</th></tr></thead>
+      <thead><tr><th>{{ t("Αρχή") }}</th><th class="val">{{ t("Πράξεις") }}</th><th class="val">{{ t("Αξία") }}</th></tr></thead>
       <tbody>
         {% for a in by_authority %}
         <tr>
@@ -24,20 +24,20 @@
         {% endfor %}
       </tbody>
     </table>
-    {% else %}<div class="empty">Καμία αρχή για αυτά τα φίλτρα.</div>{% endif %}
+    {% else %}<div class="empty">{{ t("Καμία αρχή για αυτά τα φίλτρα.") }}</div>{% endif %}
   </div>
 
   <div class="panel" style="margin-bottom:0;">
-    <h3 class="panel-h">Ανά ανάδοχο</h3>
+    <h3 class="panel-h">{{ t("Ανά ανάδοχο") }}</h3>
     {% if by_contractor %}
     <table class="dtable">
-      <thead><tr><th>Ανάδοχος</th><th class="val">Συμβ.</th><th class="val">Αξία</th></tr></thead>
+      <thead><tr><th>{{ t("Ανάδοχος") }}</th><th class="val">{{ t("Συμβ.") }}</th><th class="val">{{ t("Αξία") }}</th></tr></thead>
       <tbody>
         {% for c in by_contractor %}
         <tr>
           <td>
             <a href="/contractor/{{ c.key }}">{{ c.name or c.key }}</a>
-            {% if c.is_merged %}<span class="merge-badge">συγχ.</span>{% endif %}
+            {% if c.is_merged %}<span class="merge-badge">{{ t("συγχ.") }}</span>{% endif %}
           </td>
           <td class="val">{{ "{:,}".format(c.n).replace(",",".") }}</td>
           <td class="val">{% if c.value %}€ {{ "{:,.0f}".format(c.value).replace(",",".") }}{% else %}—{% endif %}</td>
@@ -45,10 +45,10 @@
         {% endfor %}
       </tbody>
     </table>
-    {% else %}<div class="empty">Κανένας ανάδοχος για αυτά τα φίλτρα (η ανάλυση αφορά συμβάσεις με νικητή).</div>{% endif %}
+    {% else %}<div class="empty">{{ t("Κανένας ανάδοχος για αυτά τα φίλτρα (η ανάλυση αφορά συμβάσεις με νικητή).") }}</div>{% endif %}
   </div>
 </div>
 
 <p style="font-size:11.5px;color:var(--ink-3);margin-top:14px;">
-  Κορυφαίοι 100 ανά κατηγορία. Οι αξίες αναδόχων χρησιμοποιούν το ποσό ανάθεσης ανά οικονομικό φορέα όπου υπάρχει.
+  {{ t("Κορυφαίοι 100 ανά κατηγορία. Οι αξίες αναδόχων χρησιμοποιούν το ποσό ανάθεσης ανά οικονομικό φορέα όπου υπάρχει.") }}
 </p>

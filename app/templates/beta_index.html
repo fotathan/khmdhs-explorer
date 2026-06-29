@@ -33,7 +33,7 @@
         <div class="chips">
           {% for code in TYPE_FILTER_ORDER %}
           <label class="chip {% if code in sel_types %}on{% endif %}">
-            <input type="checkbox" name="type" value="{{ code }}" {% if code in sel_types %}checked{% endif %}>{{ TYPE_LABELS[code] }}
+            <input type="checkbox" name="type" value="{{ code }}" {% if code in sel_types %}checked{% endif %}>{{ code | type_label }}
           </label>
           {% endfor %}
         </div>

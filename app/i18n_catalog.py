@@ -296,8 +296,56 @@ _PARTIALS = {
         "No stored GEMI data for this Tax ID.",
 }
 
+# Explore (summary) + analytics pages
+_EXPLORE_ANALYTICS = {
+    "Σύνοψη · Εξερευνητής": "Summary · Explorer",
+    "Σύνοψη αναθέσεων": "Awards summary",
+    "Συγκεντρωτική εικόνα: ποιες αρχές και ανάδοχοι κυριαρχούν στο τρέχον φίλτρο. Αξία αναθέσεων, ενοποιημένες οντότητες, εξαιρούνται ακυρωμένες/ύποπτες.":
+        "Aggregate view: which authorities and contractors dominate the current filter. Award value, merged entities; cancelled/suspicious excluded.",
+    "λέξη-κλειδί σε τίτλο/αναθέτουσα/ανάδοχο…": "keyword in title/authority/contractor…",
+    "πράξεις στο φίλτρο": "acts in filter",
+    "συνολική αξία": "total value",
+    "υπολογισμός…": "calculating…",
+    "Χωρίς φίλτρο ή μόνο με τύπο: στιγμιαία (προϋπολογισμένα). Τα υπόλοιπα φίλτρα κάνουν ζωντανό υπολογισμό.":
+        "No filter or type only: instant (precomputed). Other filters trigger a live computation.",
+    "CPV (πρόθεμα)": "CPV (prefix)",
+    "→ προβολή ως λίστα πράξεων": "→ view as act list",
+    "Ανά αναθέτουσα αρχή": "By contracting authority",
+    "Αρχή": "Authority",
+    "Καμία αρχή για αυτά τα φίλτρα.": "No authority for these filters.",
+    "Ανά ανάδοχο": "By contractor",
+    "Συμβ.": "Contr.",
+    "Κανένας ανάδοχος για αυτά τα φίλτρα (η ανάλυση αφορά συμβάσεις με νικητή).":
+        "No contractor for these filters (analysis covers contracts with a winner).",
+    "Κορυφαίοι 100 ανά κατηγορία. Οι αξίες αναδόχων χρησιμοποιούν το ποσό ανάθεσης ανά οικονομικό φορέα όπου υπάρχει.":
+        "Top 100 per category. Contractor values use the per-operator award amount where available.",
+    "Στατιστικά · Εξερευνητής": "Analytics · Explorer",
+    "Επισκόπηση αναθέσεων": "Awards overview",
+    'Αξία <strong>αναθέσεων</strong> από <em>συμβάσεις</em> μόνο (όχι πληρωμές, όχι ακυρωμένες), με ενοποιημένες τις διπλότυπες οντότητες. Τα ποσά δεν διπλομετρώνται.':
+        'Value of <strong>awards</strong> from <em>contracts</em> only (no payments, no cancelled), with duplicate entities merged. Amounts are not double-counted.',
+    "Τα στατιστικά δεν έχουν δημιουργηθεί ακόμη. Εκτελέστε μία φορά:":
+        "Analytics haven't been built yet. Run once:",
+    "συνολική αξία αναθέσεων": "total award value",
+    "αναθέτουσες αρχές": "contracting authorities",
+    "Κάλυψη:": "Coverage:",
+    "Μηνιαία αξία αναθέσεων": "Monthly award value",
+    "συμβ.": "contr.",
+    "Περάστε τον δείκτη πάνω από κάθε στήλη για το ποσό.": "Hover over each bar for the amount.",
+    "Κορυφαίες αρχές κατά αξία": "Top authorities by value",
+    "Κορυφαίοι ανάδοχοι κατά αξία": "Top contractors by value",
+    "Κατηγορίες αντικειμένου (CPV)": "Object categories (CPV)",
+    'Κατανομή ανά τομέα CPV (διψήφιος κωδικός). Οι αξίες προέρχονται από τις γραμμές ειδών <strong>χωρίς ΦΠΑ</strong>, οπότε δεν αθροίζουν στο συνολικό ποσό· δείχνουν τη σχετική κατανομή. Συμβάσεις και προκηρύξεις χωριστά.':
+        'Distribution by CPV sector (two-digit code). Values come from line items <strong>excl. VAT</strong>, so they do not sum to the total amount; they show the relative distribution. Contracts and notices separately.',
+    "Τομέας": "Sector",
+    "Τομέας ": "Sector ",
+    "Αξία συμβ. (χωρίς ΦΠΑ)": "Contract value (excl. VAT)",
+    "Αξία προκ. (χωρίς ΦΠΑ)": "Notice value (excl. VAT)",
+    "Τα στοιχεία ανανεώνονται μετά από κάθε εισαγωγή με": "Data refreshes after each import with",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
-for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY, _PARTIALS):
+for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
+             _PARTIALS, _EXPLORE_ANALYTICS):
     UI_EN.update(_grp)
