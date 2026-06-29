@@ -1009,10 +1009,29 @@ _PROC_FAMILY = {
     "Συνοπτικός διαγωνισμός": "Simplified tender procedure",
 }
 
+# NUTS-2 region labels for the geography filter (NUTS_REGIONS in main.py — the
+# 13 Greek περιφέρειες). Rendered via {{ r.label | t }} on the filter rails.
+_NUTS_REGIONS = {
+    "Αττική": "Attica",
+    "Αν. Μακεδονία & Θράκη": "Eastern Macedonia & Thrace",
+    "Κεντρική Μακεδονία": "Central Macedonia",
+    "Δυτική Μακεδονία": "Western Macedonia",
+    "Ήπειρος": "Epirus",
+    "Θεσσαλία": "Thessaly",
+    "Ιόνια Νησιά": "Ionian Islands",
+    "Δυτική Ελλάδα": "Western Greece",
+    "Στερεά Ελλάδα": "Central Greece",
+    "Πελοπόννησος": "Peloponnese",
+    "Βόρειο Αιγαίο": "North Aegean",
+    "Νότιο Αιγαίο": "South Aegean",
+    "Κρήτη": "Crete",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
-             _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY):
+             _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
+             _NUTS_REGIONS):
     UI_EN.update(_grp)

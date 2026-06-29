@@ -74,7 +74,7 @@
         <div class="chips">
           {% for r in nuts_regions %}
           <label class="chip {% if r.code in sel_nuts %}on{% endif %}" title="{{ r.code }}">
-            <input type="checkbox" name="nuts" value="{{ r.code }}" {% if r.code in sel_nuts %}checked{% endif %}>{{ r.label }}
+            <input type="checkbox" name="nuts" value="{{ r.code }}" {% if r.code in sel_nuts %}checked{% endif %}>{{ r.label | t }}
           </label>
           {% endfor %}
         </div>
