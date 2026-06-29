@@ -343,9 +343,107 @@ _EXPLORE_ANALYTICS = {
     "Τα στοιχεία ανανεώνονται μετά από κάθε εισαγωγή με": "Data refreshes after each import with",
 }
 
+# Admin: data collection, curation, merge pages
+_ADMIN1 = {
+    "Διαχείριση συλλογής · ΚΗΜΔΗΣ": "Collection management · KHMDHS",
+    "Συλλογή δεδομένων": "Data collection",
+    "Εκκίνηση και παρακολούθηση εκτελέσεων backfill για κάθε τύπο πράξης.":
+        "Start and monitor backfill runs for each act type.",
+    "Νέα συλλογή": "New collection",
+    "Μια εκτέλεση είναι ήδη σε εξέλιξη. Δείτε την παρακάτω ή ακυρώστε την πριν ξεκινήσετε νέα.":
+        "A run is already in progress. View it below or cancel it before starting a new one.",
+    "τύποι πράξεων (επιλέξτε ένα ή περισσότερα — αν τίποτα, όλοι)":
+        "act types (pick one or more — if none, all)",
+    "Συνέχιση": "Resume",
+    "παράλειψη παραθύρων που έχουν ήδη ολοκληρωθεί (συνιστάται)":
+        "skip windows already completed (recommended)",
+    "Εξαγωγή πλήρους κειμένου": "Full-text extraction",
+    "για κάθε νέα πράξη, αντλεί το συνημμένο και αποθηκεύει το κείμενό του.":
+        "for each new act, fetches the attachment and stores its text.",
+    "Πιο αργό & με πολλές λήψεις από το ΚΗΜΔΗΣ. Συμπληρώνει μόνο όσες πράξεις δεν έχουν ήδη κείμενο· τα σαρωμένα PDF παραλείπονται.":
+        "Slower & with many downloads from KHMDHS. Fills only acts that don't already have text; scanned PDFs are skipped.",
+    "Εκκίνηση συλλογής": "Start collection",
+    "Η εκτέλεση γίνεται σε ξεχωριστή διαδικασία και επιβιώνει σε επανεκκίνηση του server. Διαστήματα 180 ημερών γίνονται αυτόματα.":
+        "The run happens in a separate process and survives a server restart. 180-day windows are handled automatically.",
+    "Μαζική εξαγωγή πλήρους κειμένου": "Bulk full-text extraction",
+    'Για πράξεις που <strong>υπάρχουν ήδη</strong> στη βάση αλλά δεν έχουν πλήρες κείμενο. Αντλεί & αποθηκεύει το κείμενο σε παρτίδες (resumable — μπορείτε να το ξανατρέξετε για να συνεχίσει). Τα σαρωμένα PDF παραλείπονται.':
+        'For acts that <strong>already exist</strong> in the database but have no full text. Fetches & stores the text in batches (resumable — you can re-run it to continue). Scanned PDFs are skipped.',
+    'Αφορά την <strong>τοπική</strong> βάση (εκεί που τρέχει ο server). Για την παραγωγή, χρησιμοποιήστε το <code>ingest.sh</code> από το terminal.':
+        'Applies to the <strong>local</strong> database (where the server runs). For production, use <code>ingest.sh</code> from the terminal.',
+    "τύποι πράξεων (αν τίποτα, όλοι)": "act types (if none, all)",
+    "όριο ανά εκτέλεση": "limit per run",
+    "Πόσες πράξεις θα επιχειρηθούν αυτή τη φορά.": "How many acts will be attempted this time.",
+    "Εκκίνηση εξαγωγής κειμένου": "Start text extraction",
+    "Πρόσφατες εκτελέσεις": "Recent runs",
+    "Παράμετροι": "Parameters",
+    "Εκκίνηση": "Started",
+    "Διάρκεια": "Duration",
+    "σε εξέλιξη": "in progress",
+    "ολοκληρώθηκε": "completed",
+    "ακυρώθηκε": "cancelled",
+    "σφάλμα": "error",
+    "χάθηκε": "lost",
+    "τρέχει…": "running…",
+    "Δεν υπάρχουν εκτελέσεις ακόμη.": "No runs yet.",
+    "Κάλυψη ανά τύπο": "Coverage by type",
+    "Παράθυρα": "Windows",
+    "κάλυψη": "coverage",
+    "Καμία συλλογή δεν έχει εκτελεστεί ακόμη.": "No collection has run yet.",
+    # curate
+    "Επιμέλεια πράξεων · Διαχείριση": "Act curation · Administration",
+    "Διαχείριση · Επιμέλεια": "Administration · Curation",
+    "Σημειώσεις & επισημάνσεις": "Notes & flags",
+    "Προσθέστε σημειώσεις, ετικέτες και επισημάνσεις πάνω στις πράξεις. Τα επίσημα δεδομένα δεν τροποποιούνται ποτέ — οι σημειώσεις είναι ξεχωριστό επίπεδο της ομάδας.":
+        "Add notes, tags and flags on acts. The official data is never modified — notes are a separate team layer.",
+    "Αναζήτηση (τίτλος ή ΑΔΑΜ)": "Search (title or ΑΔΑΜ)",
+    "Επισήμανση": "Flag",
+    "— οποιαδήποτε —": "— any —",
+    "μόνο με σημειώσεις": "only annotated",
+    "Βρέθηκαν": "Found",
+    "Σημείωση ομάδας": "Team note",
+    "επιμέλεια ›": "curate ›",
+    "σελίδα": "page",
+    # merge
+    "Ενοποίηση οντοτήτων · ": "Merge entities · ",
+    "Διαχείριση · Ενοποίηση": "Administration · Merge",
+    "Ενοποίηση διπλότυπων — ": "Merge duplicates — ",
+    "Η πηγή μερικές φορές καταχωρεί την ίδια οντότητα με διαφορετικό ΑΦΜ ή ορθογραφία. Ενοποιήστε τα διπλότυπα εδώ. Τα επίσημα δεδομένα δεν αλλάζουν ποτέ — οι μελλοντικές εισαγωγές θα αντιστοιχίζονται αυτόματα στην ενοποιημένη οντότητα.":
+        "The source sometimes records the same entity under a different Tax ID or spelling. Merge duplicates here. The official data never changes — future imports map automatically to the merged entity.",
+    "1 · Επιλογή εγγραφών προς ενοποίηση": "1 · Select records to merge",
+    "όνομα ή ΑΦΜ/κωδικός… (κενό = πλήρης λίστα)": "name or Tax ID/code… (empty = full list)",
+    "✕ καθαρισμός — προβολή όλων": "✕ clear — show all",
+    "Πλήρης λίστα · ": "Full list · ",
+    "Μέλος": "Member",
+    "Κύριο": "Main",
+    "ΑΦΜ / Κωδικός": "Tax ID / Code",
+    "Άνοιγμα καρτέλας σε νέα καρτέλα": "Open record in a new tab",
+    "ήδη ενοποιημένο": "already merged",
+    "ομάδα #": "group #",
+    "2 · Ενοποίηση επιλεγμένων": "2 · Merge selected",
+    'Επιλέξτε ≥2 εγγραφές. <strong>Για να προσθέσετε σε υπάρχουσα ομάδα</strong>, επιλέξτε τη νέα εγγραφή <em>μαζί</em> με τουλάχιστον ένα μέλος της ομάδας (◆). Αν δεν ορίσετε «Κύριο», διατηρείται το υπάρχον (ή επιλέγεται το πιο ενεργό).':
+        'Select ≥2 records. <strong>To add to an existing group</strong>, select the new record <em>together</em> with at least one member of the group (◆). If you don\'t set a «Main», the existing one is kept (or the most active is chosen).',
+    "Σημ.: ολοκληρώστε την ενοποίηση πριν αλλάξετε σελίδα — οι επιλογές δεν διατηρούνται μεταξύ σελίδων.":
+        "Note: complete the merge before changing page — selections are not kept across pages.",
+    "Όνομα εμφάνισης (προαιρετικό — αλλιώς του «Κύριου»)":
+        "Display name (optional — otherwise the Main's)",
+    "Επιμελητής": "Curator",
+    "το όνομά σας": "your name",
+    "Σημείωση (προαιρετικό)": "Note (optional)",
+    "π.χ. λάθος ΑΦΜ στην πηγή": "e.g. wrong Tax ID in source",
+    "Ενοποίηση επιλεγμένων": "Merge selected",
+    "Καμία εγγραφή για": "No record for",
+    "Υπάρχουσες ενοποιήσεις": "Existing merges",
+    "Ενοποιημένη οντότητα": "Merged entity",
+    "Μέλη": "Members",
+    "κύριο:": "main:",
+    "Αναίρεση ενοποίησης;": "Undo merge?",
+    "αναίρεση": "undo",
+    "Καμία ενοποίηση ακόμη.": "No merges yet.",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
-             _PARTIALS, _EXPLORE_ANALYTICS):
+             _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1):
     UI_EN.update(_grp)

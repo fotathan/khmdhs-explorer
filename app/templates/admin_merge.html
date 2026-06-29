@@ -1,37 +1,35 @@
 {% extends "base.html" %}
-{% block title %}Ενοποίηση οντοτήτων · {{ label }}{% endblock %}
+{% block title %}{{ t("Ενοποίηση οντοτήτων · ") }}{{ label }}{% endblock %}
 
 {% block content %}
 
 {% include "_admin_tabs.html" %}
 
 <div class="detail-h">
-  <div class="kicker">Διαχείριση · Ενοποίηση</div>
-  <h1 class="detail-title">Ενοποίηση διπλότυπων — {{ label }}</h1>
+  <div class="kicker">{{ t("Διαχείριση · Ενοποίηση") }}</div>
+  <h1 class="detail-title">{{ t("Ενοποίηση διπλότυπων — ") }}{{ label }}</h1>
   <div class="detail-sub">
-    Η πηγή μερικές φορές καταχωρεί την ίδια οντότητα με διαφορετικό ΑΦΜ ή ορθογραφία.
-    Ενοποιήστε τα διπλότυπα εδώ. Τα επίσημα δεδομένα δεν αλλάζουν ποτέ — οι μελλοντικές
-    εισαγωγές θα αντιστοιχίζονται αυτόματα στην ενοποιημένη οντότητα.
+    {{ t("Η πηγή μερικές φορές καταχωρεί την ίδια οντότητα με διαφορετικό ΑΦΜ ή ορθογραφία. Ενοποιήστε τα διπλότυπα εδώ. Τα επίσημα δεδομένα δεν αλλάζουν ποτέ — οι μελλοντικές εισαγωγές θα αντιστοιχίζονται αυτόματα στην ενοποιημένη οντότητα.") }}
   </div>
 </div>
 
-<div class="section-h">1 · Επιλογή εγγραφών προς ενοποίηση</div>
+<div class="section-h">{{ t("1 · Επιλογή εγγραφών προς ενοποίηση") }}</div>
 <form method="get" action="/admin/merge/{{ kind }}" style="margin-bottom:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-  <input type="search" name="q" value="{{ q }}" placeholder="όνομα ή ΑΦΜ/κωδικός… (κενό = πλήρης λίστα)"
+  <input type="search" name="q" value="{{ q }}" placeholder="{{ t('όνομα ή ΑΦΜ/κωδικός… (κενό = πλήρης λίστα)') }}"
          style="flex:1; max-width:480px;">
-  <button type="submit" style="background:var(--ink); color:var(--paper); border:0; padding:8px 18px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer;">Εύρεση</button>
-  {% if q %}<a class="back" href="/admin/merge/{{ kind }}" hx-boost="false" style="font-size:12px;">✕ καθαρισμός — προβολή όλων</a>{% endif %}
+  <button type="submit" style="background:var(--ink); color:var(--paper); border:0; padding:8px 18px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer;">{{ t("Εύρεση") }}</button>
+  {% if q %}<a class="back" href="/admin/merge/{{ kind }}" hx-boost="false" style="font-size:12px;">{{ t("✕ καθαρισμός — προβολή όλων") }}</a>{% endif %}
 </form>
 
 {% if browse %}
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
-  <div class="meta">Πλήρης λίστα · <strong>{{ "{:,}".format(total).replace(",", ".") }}</strong> εγγραφές</div>
+  <div class="meta">{{ t("Πλήρης λίστα · ") }}<strong>{{ "{:,}".format(total).replace(",", ".") }}</strong> {{ t("εγγραφές") }}</div>
   <form method="get" action="/admin/merge/{{ kind }}" style="display:flex; gap:6px; align-items:center;">
-    <label class="meta" style="margin:0;">ταξινόμηση</label>
+    <label class="meta" style="margin:0;">{{ t("ταξινόμηση") }}</label>
     <select name="sort" onchange="this.form.submit()" style="padding:5px 8px; font-family:var(--sans); font-size:12px;">
-      <option value="name" {% if sort=='name' %}selected{% endif %}>Όνομα Α–Ω</option>
-      <option value="name_desc" {% if sort=='name_desc' %}selected{% endif %}>Όνομα Ω–Α</option>
-      <option value="activity" {% if sort=='activity' %}selected{% endif %}>Δραστηριότητα ↓</option>
+      <option value="name" {% if sort=='name' %}selected{% endif %}>{{ t("Όνομα Α–Ω") }}</option>
+      <option value="name_desc" {% if sort=='name_desc' %}selected{% endif %}>{{ t("Όνομα Ω–Α") }}</option>
+      <option value="activity" {% if sort=='activity' %}selected{% endif %}>{{ t("Δραστηριότητα ↓") }}</option>
     </select>
   </form>
 </div>
@@ -41,11 +39,11 @@
 <form method="post" action="/admin/merge/{{ kind }}/create">
   <table class="notices">
     <thead><tr>
-      <th style="width:50px;">Μέλος</th>
-      <th style="width:60px;">Κύριο</th>
-      <th>Επωνυμία</th>
-      <th style="width:140px;">ΑΦΜ / Κωδικός</th>
-      <th style="width:80px; text-align:right;">Πράξεις</th>
+      <th style="width:50px;">{{ t("Μέλος") }}</th>
+      <th style="width:60px;">{{ t("Κύριο") }}</th>
+      <th>{{ t("Επωνυμία") }}</th>
+      <th style="width:140px;">{{ t("ΑΦΜ / Κωδικός") }}</th>
+      <th style="width:80px; text-align:right;">{{ t("Πράξεις") }}</th>
     </tr></thead>
     <tbody>
       {% for c in candidates %}
@@ -59,8 +57,8 @@
         </td>
         <td class="title-cell">
           <a href="/{{ kind }}/{{ c.key }}" target="_blank" rel="noopener"
-             title="Άνοιγμα καρτέλας σε νέα καρτέλα">{{ c.name or '—' }} ↗</a>
-          {% if c.group_id %}<span class="meta" title="ήδη ενοποιημένο" style="color:var(--accent);">◆ ομάδα #{{ c.group_id }}</span>{% endif %}
+             title="{{ t('Άνοιγμα καρτέλας σε νέα καρτέλα') }}">{{ c.name or '—' }} ↗</a>
+          {% if c.group_id %}<span class="meta" title="{{ t('ήδη ενοποιημένο') }}" style="color:var(--accent);">◆ {{ t("ομάδα #") }}{{ c.group_id }}</span>{% endif %}
         </td>
         <td class="meta"><code class="cpv">{{ c.key }}</code></td>
         <td class="val">{{ c.n_acts }}</td>
@@ -70,29 +68,27 @@
   </table>
 
   <div style="margin:16px 0; padding:14px; border:1px solid var(--rule); background:var(--paper-2);">
-    <div class="section-h" style="margin-top:0;">2 · Ενοποίηση επιλεγμένων</div>
+    <div class="section-h" style="margin-top:0;">{{ t("2 · Ενοποίηση επιλεγμένων") }}</div>
     <p class="meta" style="margin-top:0;">
-      Επιλέξτε ≥2 εγγραφές. <strong>Για να προσθέσετε σε υπάρχουσα ομάδα</strong>,
-      επιλέξτε τη νέα εγγραφή <em>μαζί</em> με τουλάχιστον ένα μέλος της ομάδας (◆).
-      Αν δεν ορίσετε «Κύριο», διατηρείται το υπάρχον (ή επιλέγεται το πιο ενεργό).
-      {% if browse %}<br><em>Σημ.: ολοκληρώστε την ενοποίηση πριν αλλάξετε σελίδα — οι επιλογές δεν διατηρούνται μεταξύ σελίδων.</em>{% endif %}
+      {{ t('Επιλέξτε ≥2 εγγραφές. <strong>Για να προσθέσετε σε υπάρχουσα ομάδα</strong>, επιλέξτε τη νέα εγγραφή <em>μαζί</em> με τουλάχιστον ένα μέλος της ομάδας (◆). Αν δεν ορίσετε «Κύριο», διατηρείται το υπάρχον (ή επιλέγεται το πιο ενεργό).') | safe }}
+      {% if browse %}<br><em>{{ t("Σημ.: ολοκληρώστε την ενοποίηση πριν αλλάξετε σελίδα — οι επιλογές δεν διατηρούνται μεταξύ σελίδων.") }}</em>{% endif %}
     </p>
     <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
       <div class="field" style="margin:0; flex:1; min-width:240px;">
-        <label>Όνομα εμφάνισης (προαιρετικό — αλλιώς του «Κύριου»)</label>
+        <label>{{ t("Όνομα εμφάνισης (προαιρετικό — αλλιώς του «Κύριου»)") }}</label>
         <input name="display_name" placeholder="π.χ. ΠΦΑΪΖΕΡ ΕΛΛΑΣ ΑΒΕΕ">
       </div>
       <div class="field" style="margin:0;">
-        <label>Επιμελητής</label>
-        <input name="author" placeholder="το όνομά σας">
+        <label>{{ t("Επιμελητής") }}</label>
+        <input name="author" placeholder="{{ t('το όνομά σας') }}">
       </div>
     </div>
     <div class="field" style="margin:10px 0 0;">
-      <label>Σημείωση (προαιρετικό)</label>
-      <input name="note" placeholder="π.χ. λάθος ΑΦΜ στην πηγή">
+      <label>{{ t("Σημείωση (προαιρετικό)") }}</label>
+      <input name="note" placeholder="{{ t('π.χ. λάθος ΑΦΜ στην πηγή') }}">
     </div>
     <button type="submit" style="background:var(--accent); color:#fff; border:0; padding:10px 22px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; margin-top:12px;">
-      Ενοποίηση επιλεγμένων
+      {{ t("Ενοποίηση επιλεγμένων") }}
     </button>
   </div>
 </form>
@@ -100,25 +96,25 @@
 {% if browse and total_pages > 1 %}
 <div style="display:flex; justify-content:center; align-items:center; gap:10px; margin:18px 0;">
   {% if page > 1 %}
-    <a class="back" href="/admin/merge/{{ kind }}?sort={{ sort }}&page={{ page-1 }}" hx-boost="false">‹ προηγ.</a>
-  {% else %}<span class="meta">‹ προηγ.</span>{% endif %}
-  <span class="meta">σελίδα {{ page }} από {{ total_pages }}</span>
+    <a class="back" href="/admin/merge/{{ kind }}?sort={{ sort }}&page={{ page-1 }}" hx-boost="false">{{ t("‹ προηγ.") }}</a>
+  {% else %}<span class="meta">{{ t("‹ προηγ.") }}</span>{% endif %}
+  <span class="meta">{{ t("σελίδα") }} {{ page }} {% if lang=='en' %}of{% else %}από{% endif %} {{ total_pages }}</span>
   {% if page < total_pages %}
-    <a class="back" href="/admin/merge/{{ kind }}?sort={{ sort }}&page={{ page+1 }}" hx-boost="false">επόμ. ›</a>
-  {% else %}<span class="meta">επόμ. ›</span>{% endif %}
+    <a class="back" href="/admin/merge/{{ kind }}?sort={{ sort }}&page={{ page+1 }}" hx-boost="false">{{ t("επόμ. ›") }}</a>
+  {% else %}<span class="meta">{{ t("επόμ. ›") }}</span>{% endif %}
 </div>
 {% endif %}
 {% elif q %}
-<p style="font-family:var(--serif); font-style:italic; color:var(--ink-3);">Καμία εγγραφή για «{{ q }}».</p>
+<p style="font-family:var(--serif); font-style:italic; color:var(--ink-3);">{{ t("Καμία εγγραφή για") }} «{{ q }}».</p>
 {% endif %}
 
-<div class="section-h" style="margin-top:32px;">Υπάρχουσες ενοποιήσεις</div>
+<div class="section-h" style="margin-top:32px;">{{ t("Υπάρχουσες ενοποιήσεις") }}</div>
 {% if groups %}
 <table class="notices">
   <thead><tr>
-    <th>Ενοποιημένη οντότητα</th>
-    <th>Μέλη</th>
-    <th style="width:130px;">Επιμελητής</th>
+    <th>{{ t("Ενοποιημένη οντότητα") }}</th>
+    <th>{{ t("Μέλη") }}</th>
+    <th style="width:130px;">{{ t("Επιμελητής") }}</th>
     <th style="width:90px;"></th>
   </tr></thead>
   <tbody>
@@ -126,7 +122,7 @@
     <tr>
       <td class="title-cell">
         {{ g.display_name or gname[g.id].get(g.canonical_key) or g.canonical_key }}
-        <div class="meta">κύριο: <code class="cpv">{{ g.canonical_key }}</code></div>
+        <div class="meta">{{ t("κύριο:") }} <code class="cpv">{{ g.canonical_key }}</code></div>
         {% if g.note %}<div class="meta" style="font-style:italic;">{{ g.note }}</div>{% endif %}
       </td>
       <td class="meta" style="font-size:11px;">
@@ -137,9 +133,9 @@
       <td class="meta">{{ g.created_by }}<br>{{ g.created_at.strftime('%Y-%m-%d') }}</td>
       <td>
         <form method="post" action="/admin/merge/{{ kind }}/unmerge"
-              onsubmit="return confirm('Αναίρεση ενοποίησης;');">
+              onsubmit="return confirm('{{ t('Αναίρεση ενοποίησης;') }}');">
           <input type="hidden" name="group_id" value="{{ g.id }}">
-          <button type="submit" style="background:transparent; color:var(--accent); border:1px solid var(--accent); padding:4px 10px; font-family:var(--sans); font-size:10px; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer;">αναίρεση</button>
+          <button type="submit" style="background:transparent; color:var(--accent); border:1px solid var(--accent); padding:4px 10px; font-family:var(--sans); font-size:10px; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer;">{{ t("αναίρεση") }}</button>
         </form>
       </td>
     </tr>
@@ -147,6 +143,6 @@
   </tbody>
 </table>
 {% else %}
-<p style="font-family:var(--serif); font-style:italic; color:var(--ink-3);">Καμία ενοποίηση ακόμη.</p>
+<p style="font-family:var(--serif); font-style:italic; color:var(--ink-3);">{{ t("Καμία ενοποίηση ακόμη.") }}</p>
 {% endif %}
 {% endblock %}
