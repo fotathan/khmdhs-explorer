@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Εκτέλεση #{{ job.id }} · Διαχείριση{% endblock %}
+{% block title %}{{ t("Εκτέλεση #") }}{{ job.id }} · {{ t("Διαχείριση") }}{% endblock %}
 
 {% block content %}
 
@@ -8,35 +8,35 @@
   <meta http-equiv="refresh" content="6">
 {% endif %}
 
-<p style="margin:20px 0 0;"><a class="back" href="/admin/collection" hx-boost="false">‹ πίσω στη Συλλογή Δεδομένων</a></p>
+<p style="margin:20px 0 0;"><a class="back" href="/admin/collection" hx-boost="false">{{ t("‹ πίσω στη Συλλογή Δεδομένων") }}</a></p>
 
 <div class="detail-h">
-  <div class="kicker">Εκτέλεση συλλογής · #{{ job.id }}</div>
+  <div class="kicker">{{ t("Εκτέλεση συλλογής · #") }}{{ job.id }}</div>
   <h1 class="detail-title">
     {{ job.date_from.strftime('%Y-%m-%d') }} → {{ job.date_to.strftime('%Y-%m-%d') }}
   </h1>
   <div class="detail-sub">
-    {% for t in job.types %}<span style="display:inline-block; font-size:12px; color:var(--ink-2); border:1px solid var(--rule); padding:2px 8px; margin-right:4px;">{{ t | type_label }}</span>{% endfor %}
-    {% if job.resume %} · με συνέχιση{% endif %}
+    {% for t_code in job.types %}<span style="display:inline-block; font-size:12px; color:var(--ink-2); border:1px solid var(--rule); padding:2px 8px; margin-right:4px;">{{ t_code | type_label }}</span>{% endfor %}
+    {% if job.resume %} · {{ t("με συνέχιση") }}{% endif %}
   </div>
   <div style="margin-top:12px;">
     {% if job.status == 'running' %}
       {% if alive %}
-        <span class="pill" style="color:var(--ok);">σε εξέλιξη — PID {{ job.pid }}</span>
+        <span class="pill" style="color:var(--ok);">{{ t("σε εξέλιξη — PID") }} {{ job.pid }}</span>
         <form method="post" action="/admin/jobs/{{ job.id }}/cancel" style="display:inline-block; margin-left:10px;">
           <button type="submit"
                   style="background:transparent; color:var(--accent); border:1px solid var(--accent); padding:4px 12px; font-family:var(--sans); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer;"
-                  onclick="return confirm('Σίγουρα ακύρωση εκτέλεσης #{{ job.id }};');">
-            Ακύρωση
+                  onclick="return confirm('{{ t('Σίγουρα ακύρωση εκτέλεσης #') }}{{ job.id }};');">
+            {{ t("Ακύρωση") }}
           </button>
         </form>
       {% else %}
-        <span class="pill amend">η διαδικασία χάθηκε</span>
+        <span class="pill amend">{{ t("η διαδικασία χάθηκε") }}</span>
       {% endif %}
-    {% elif job.status == 'done' %}<span class="pill" style="color:var(--ok);">ολοκληρώθηκε</span>
-    {% elif job.status == 'cancelled' %}<span class="pill cancel">ακυρωμένη</span>
-    {% elif job.status == 'error' %}<span class="pill cancel">σφάλμα</span>
-    {% elif job.status == 'stale' %}<span class="pill amend">χάθηκε χωρίς εξήγηση</span>
+    {% elif job.status == 'done' %}<span class="pill" style="color:var(--ok);">{{ t("ολοκληρώθηκε") }}</span>
+    {% elif job.status == 'cancelled' %}<span class="pill cancel">{{ t("ακυρωμένη") }}</span>
+    {% elif job.status == 'error' %}<span class="pill cancel">{{ t("σφάλμα") }}</span>
+    {% elif job.status == 'stale' %}<span class="pill amend">{{ t("χάθηκε χωρίς εξήγηση") }}</span>
     {% endif %}
   </div>
   {% if job.last_error %}
@@ -49,23 +49,23 @@
 <div class="detail-grid">
   <div>
 
-    <div class="section-h">Παράθυρα ανά τύπο</div>
+    <div class="section-h">{{ t("Παράθυρα ανά τύπο") }}</div>
     {% if counts %}
       <p style="font-family:var(--serif); font-size:15px; color:var(--ink); margin:0 0 14px;">
-        {% if counts.done %}<strong>{{ counts.done }}</strong> ολοκληρωμένα{% endif %}
-        {% if counts.running %}{% if counts.done %}, {% endif %}<strong style="color:var(--ok);">{{ counts.running }}</strong> σε εξέλιξη{% endif %}
-        {% if counts.pending %}{% if counts.done or counts.running %}, {% endif %}<strong>{{ counts.pending }}</strong> εκκρεμή{% endif %}
-        {% if counts.error %}{% if counts.done or counts.running or counts.pending %}, {% endif %}<strong style="color:var(--accent);">{{ counts.error }}</strong> σφάλματα{% endif %}
+        {% if counts.done %}<strong>{{ counts.done }}</strong> {{ t("ολοκληρωμένα") }}{% endif %}
+        {% if counts.running %}{% if counts.done %}, {% endif %}<strong style="color:var(--ok);">{{ counts.running }}</strong> {{ t("σε εξέλιξη") }}{% endif %}
+        {% if counts.pending %}{% if counts.done or counts.running %}, {% endif %}<strong>{{ counts.pending }}</strong> {{ t("εκκρεμή") }}{% endif %}
+        {% if counts.error %}{% if counts.done or counts.running or counts.pending %}, {% endif %}<strong style="color:var(--accent);">{{ counts.error }}</strong> {{ t("σφάλματα") }}{% endif %}
       </p>
     {% endif %}
 
     {% if windows %}
       <table class="lines">
         <thead><tr>
-          <th>Τύπος</th>
-          <th>Διάστημα</th>
-          <th>Κατάσταση</th>
-          <th>Σφάλμα</th>
+          <th>{{ t("Τύπος") }}</th>
+          <th>{{ t("Διάστημα") }}</th>
+          <th>{{ t("Κατάσταση") }}</th>
+          <th>{{ t("Σφάλμα") }}</th>
         </tr></thead>
         <tbody>
           {% for w in windows %}
@@ -73,10 +73,10 @@
               <td><strong style="font-size:13px;">{{ w.act_type | type_label }}</strong></td>
               <td class="meta">{{ w.date_from }} → {{ w.date_to }}</td>
               <td>
-                {% if w.status == 'done' %}<span style="color:var(--ok);">●</span> ολοκλ.
-                {% elif w.status == 'running' %}<span style="color:var(--accent);">●</span> τρέχει
-                {% elif w.status == 'pending' %}<span style="color:var(--ink-3);">○</span> εκκρεμές
-                {% elif w.status == 'error' %}<span style="color:var(--accent);">✗</span> σφάλμα
+                {% if w.status == 'done' %}<span style="color:var(--ok);">●</span> {{ t("ολοκλ.") }}
+                {% elif w.status == 'running' %}<span style="color:var(--accent);">●</span> {{ t("τρέχει") }}
+                {% elif w.status == 'pending' %}<span style="color:var(--ink-3);">○</span> {{ t("εκκρεμές") }}
+                {% elif w.status == 'error' %}<span style="color:var(--accent);">✗</span> {{ t("σφάλμα") }}
                 {% else %}{{ w.status }}{% endif %}
               </td>
               <td class="meta" style="font-family:var(--mono); font-size:10px;">
@@ -88,27 +88,27 @@
       </table>
     {% else %}
       <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); font-size:14px;">
-        Δεν υπάρχουν παράθυρα για αυτή την εκτέλεση ακόμη.
+        {{ t("Δεν υπάρχουν παράθυρα για αυτή την εκτέλεση ακόμη.") }}
       </p>
     {% endif %}
 
-    <div class="section-h">Πράξεις αυτής της εκτέλεσης</div>
+    <div class="section-h">{{ t("Πράξεις αυτής της εκτέλεσης") }}</div>
     {% if act_log_total %}
       {# garbled rows have full_text_extracted = true, so split it out of "with" #}
       {% set ft_with = act_ft_yes - act_ft_garbled %}
       {% set ft_without = act_log_total - act_ft_yes %}
       {% set ft_counts = {'all': act_log_total, 'with': ft_with, 'without': ft_without, 'garbled': act_ft_garbled} %}
       <p style="font-family:var(--serif); font-size:15px; color:var(--ink); margin:0 0 6px;">
-        <strong>{{ act_log_total }}</strong> πράξεις ·
-        {% if act_actions.new %}<strong style="color:var(--ok);">{{ act_actions.new }}</strong> νέες{% endif %}
-        {% if act_actions.updated %}{% if act_actions.new %} · {% endif %}<strong>{{ act_actions.updated }}</strong> ενημερώσεις{% endif %}
-        {% if act_actions.skipped_authored %} · <strong>{{ act_actions.skipped_authored }}</strong> χειροκίνητες (παράλειψη){% endif %}
-        · <strong>{{ act_ft_yes }}</strong> με εξαγωγή πλήρους κειμένου{% if act_ft_garbled %} · <strong style="color:var(--accent);">{{ act_ft_garbled }}</strong> αλλοιωμένα ⚠{% endif %}
+        <strong>{{ act_log_total }}</strong> {{ t("πράξεις") }} ·
+        {% if act_actions.new %}<strong style="color:var(--ok);">{{ act_actions.new }}</strong> {{ t("νέες") }}{% endif %}
+        {% if act_actions.updated %}{% if act_actions.new %} · {% endif %}<strong>{{ act_actions.updated }}</strong> {{ t("ενημερώσεις") }}{% endif %}
+        {% if act_actions.skipped_authored %} · <strong>{{ act_actions.skipped_authored }}</strong> {{ t("χειροκίνητες (παράλειψη)") }}{% endif %}
+        · <strong>{{ act_ft_yes }}</strong> {{ t("με εξαγωγή πλήρους κειμένου") }}{% if act_ft_garbled %} · <strong style="color:var(--accent);">{{ act_ft_garbled }}</strong> {{ t("αλλοιωμένα") }} ⚠{% endif %}
       </p>
       {# Full-text filter — offered once the run is no longer live. #}
       {% if not is_active %}
       <div class="ft-filter">
-        {% for key, lbl in [('all','Όλα'),('with','Με πλήρες κείμενο'),('without','Χωρίς πλήρες κείμενο'),('garbled','Με αλλοιωμένο κείμενο')] %}
+        {% for key, lbl in [('all', t('Όλα')),('with', t('Με πλήρες κείμενο')),('without', t('Χωρίς πλήρες κείμενο')),('garbled', t('Με αλλοιωμένο κείμενο'))] %}
         <a href="/admin/jobs/{{ job.id }}?ftf={{ key }}" hx-boost="false"
            class="ft-pill {% if ftf==key %}on{% endif %}">{{ lbl }} ({{ ft_counts[key] }})</a>
         {% endfor %}
@@ -122,43 +122,43 @@
       </style>
       {% endif %}
       <p class="meta" style="margin:0 0 12px;">
-        <a href="/admin/jobs/{{ job.id }}/acts.csv{% if ftf != 'all' %}?ftf={{ ftf }}{% endif %}" hx-boost="false">↓ Λήψη {{ 'φιλτραρισμένου' if ftf != 'all' else 'πλήρους' }} καταλόγου (CSV)</a>
+        <a href="/admin/jobs/{{ job.id }}/acts.csv{% if ftf != 'all' %}?ftf={{ ftf }}{% endif %}" hx-boost="false">↓ {{ t("Λήψη") }} {% if lang=='en' %}{{ 'filtered' if ftf != 'all' else 'full' }} list (CSV){% else %}{{ 'φιλτραρισμένου' if ftf != 'all' else 'πλήρους' }} καταλόγου (CSV){% endif %}</a>
         {% if ft_counts[ftf] > act_log_preview %}
-          · εμφανίζονται οι {{ act_log_preview }} πιο πρόσφατες από {{ ft_counts[ftf] }}
+          · {% if lang=='en' %}showing the {{ act_log_preview }} most recent of {{ ft_counts[ftf] }}{% else %}εμφανίζονται οι {{ act_log_preview }} πιο πρόσφατες από {{ ft_counts[ftf] }}{% endif %}
         {% endif %}
-        {% if ftf != 'all' and ft_counts[ftf] == 0 %} · καμία πράξη σε αυτό το φίλτρο{% endif %}
+        {% if ftf != 'all' and ft_counts[ftf] == 0 %} · {{ t("καμία πράξη σε αυτό το φίλτρο") }}{% endif %}
       </p>
       <table class="lines">
         <thead><tr>
           <th></th>
           <th>ΑΔΑΜ</th>
-          <th>Τύπος</th>
-          <th>Τίτλος</th>
-          <th>Ενέργεια</th>
-          <th>Πλήρες κείμενο</th>
-          <th>Ώρα</th>
+          <th>{{ t("Τύπος") }}</th>
+          <th>{{ t("Τίτλος") }}</th>
+          <th>{{ t("Ενέργεια") }}</th>
+          <th>{{ t("Πλήρες κείμενο") }}</th>
+          <th>{{ t("Ώρα") }}</th>
         </tr></thead>
         <tbody>
           {% for a in act_log %}
             <tr>
-              <td><a href="/admin/act/{{ a.adam }}/edit" target="_blank" rel="noopener" hx-boost="false" title="Άνοιγμα στην επεξεργασία πράξης (νέα καρτέλα)" style="display:inline-block; text-decoration:none; border:1px solid var(--rule); border-radius:5px; padding:2px 8px; font-size:12px; color:var(--accent);">✎</a></td>
+              <td><a href="/admin/act/{{ a.adam }}/edit" target="_blank" rel="noopener" hx-boost="false" title="{{ t('Άνοιγμα στην επεξεργασία πράξης (νέα καρτέλα)') }}" style="display:inline-block; text-decoration:none; border:1px solid var(--rule); border-radius:5px; padding:2px 8px; font-size:12px; color:var(--accent);">✎</a></td>
               <td><a href="/act/{{ a.adam }}" hx-boost="false" style="font-family:var(--mono); font-size:11px;">{{ a.adam }}</a></td>
               <td class="meta">{{ a.act_type | type_label }}</td>
               <td style="font-size:12px; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ a.title or '—' }}</td>
               <td>
-                {% if a.action == 'new' %}<span style="color:var(--ok);">● νέα</span>
-                {% elif a.action == 'updated' %}<span style="color:var(--ink-2);">↻ ενημέρωση</span>
-                {% elif a.action == 'skipped_authored' %}<span style="color:var(--ink-3);">⤫ χειροκίνητη</span>
+                {% if a.action == 'new' %}<span style="color:var(--ok);">{{ t("● νέα") }}</span>
+                {% elif a.action == 'updated' %}<span style="color:var(--ink-2);">{{ t("↻ ενημέρωση") }}</span>
+                {% elif a.action == 'skipped_authored' %}<span style="color:var(--ink-3);">{{ t("⤫ χειροκίνητη") }}</span>
                 {% else %}{{ a.action }}{% endif %}
               </td>
               <td class="meta" style="font-size:11px;">
-                {% if a.full_text_note == 'garbled' %}<span style="color:var(--accent);" title="Το κείμενο φαίνεται αλλοιωμένο — χρειάζεται OCR">⚠ αλλοιωμένο</span> · {{ a.full_text_chars }} χαρ.
-                {% elif a.full_text_extracted %}<span style="color:var(--ok);">✓</span> {{ a.full_text_chars }} χαρ.
-                {% elif a.full_text_note == 'exists' %}υπήρχε ήδη
-                {% elif a.full_text_note == 'no_attachment' %}χωρίς συνημμένο
-                {% elif a.full_text_note == 'no_text' %}σαρωμένο/χωρίς κείμενο
-                {% elif a.full_text_note == 'libs_missing' %}μη διαθέσιμο
-                {% elif a.full_text_note == 'error' %}σφάλμα
+                {% if a.full_text_note == 'garbled' %}<span style="color:var(--accent);" title="{{ t('Το κείμενο φαίνεται αλλοιωμένο — χρειάζεται OCR') }}">{{ t("⚠ αλλοιωμένο") }}</span> · {{ a.full_text_chars }} {{ t("χαρ.") }}
+                {% elif a.full_text_extracted %}<span style="color:var(--ok);">✓</span> {{ a.full_text_chars }} {{ t("χαρ.") }}
+                {% elif a.full_text_note == 'exists' %}{{ t("υπήρχε ήδη") }}
+                {% elif a.full_text_note == 'no_attachment' %}{{ t("χωρίς συνημμένο") }}
+                {% elif a.full_text_note == 'no_text' %}{{ t("σαρωμένο/χωρίς κείμενο") }}
+                {% elif a.full_text_note == 'libs_missing' %}{{ t("μη διαθέσιμο") }}
+                {% elif a.full_text_note == 'error' %}{{ t("σφάλμα") }}
                 {% elif a.full_text_note in ('disabled', 'authored') %}—
                 {% else %}{{ a.full_text_note or '—' }}{% endif %}
               </td>
@@ -169,28 +169,28 @@
       </table>
     {% else %}
       <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); font-size:13px;">
-        Δεν έχει καταγραφεί αναλυτικό μητρώο πράξεων για αυτή την εκτέλεση
-        {% if job.status == 'running' %}ακόμη{% endif %}.
-        (Διαθέσιμο για εκτελέσεις που ξεκινούν από αυτό το πάνελ· παλαιότερες εκτελέσεις δεν το έχουν.)
+        {{ t("Δεν έχει καταγραφεί αναλυτικό μητρώο πράξεων για αυτή την εκτέλεση") }}
+        {% if job.status == 'running' %}{{ t("ακόμη") }}{% endif %}.
+        {{ t("(Διαθέσιμο για εκτελέσεις που ξεκινούν από αυτό το πάνελ· παλαιότερες εκτελέσεις δεν το έχουν.)") }}
       </p>
     {% endif %}
 
-    <div class="section-h">Έξοδος (τέλος αρχείου)</div>
+    <div class="section-h">{{ t("Έξοδος (τέλος αρχείου)") }}</div>
     {% if log_tail %}
       <pre style="font-family:var(--mono); font-size:11px; background:#1a1614; color:#d9d2bf; padding:14px 16px; max-height:340px; overflow:auto; line-height:1.55;">{{ log_tail }}</pre>
       {% if job.log_path %}<p class="meta" style="margin-top:4px;">{{ job.log_path }}</p>{% endif %}
     {% else %}
       <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); font-size:13px;">
-        Καμία έξοδος ακόμη — η εκτέλεση μόλις ξεκίνησε ή δεν δημιουργήθηκε αρχείο log.
+        {{ t("Καμία έξοδος ακόμη — η εκτέλεση μόλις ξεκίνησε ή δεν δημιουργήθηκε αρχείο log.") }}
       </p>
     {% endif %}
   </div>
 
   <aside>
-    <div class="section-h">Λεπτομέρειες</div>
+    <div class="section-h">{{ t("Λεπτομέρειες") }}</div>
     <dl class="facts">
-      <dt>Εκκίνηση</dt><dd>{{ job.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
-      {% if job.finished_at %}<dt>Λήξη</dt><dd>{{ job.finished_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>{% endif %}
+      <dt>{{ t("Εκκίνηση") }}</dt><dd>{{ job.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
+      {% if job.finished_at %}<dt>{{ t("Λήξη") }}</dt><dd>{{ job.finished_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>{% endif %}
       <dt>Status</dt><dd>{{ job.status }}</dd>
       {% if job.exit_code is not none %}<dt>Exit code</dt><dd>{{ job.exit_code }}</dd>{% endif %}
       {% if job.pid %}<dt>PID</dt><dd><code style="font-family:var(--mono);">{{ job.pid }}</code></dd>{% endif %}
@@ -198,7 +198,7 @@
 
     {% if is_active and alive %}
       <p class="meta" style="margin-top:14px; color:var(--accent);">
-        Η σελίδα ανανεώνεται αυτόματα κάθε 6 δευτερόλεπτα.
+        {{ t("Η σελίδα ανανεώνεται αυτόματα κάθε 6 δευτερόλεπτα.") }}
       </p>
     {% endif %}
   </aside>

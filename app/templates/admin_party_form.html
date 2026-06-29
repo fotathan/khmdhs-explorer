@@ -1,34 +1,33 @@
 {% extends "base.html" %}
-{% block title %}Επεξεργασία · {{ name or ident }}{% endblock %}
+{% block title %}{{ t("Επεξεργασία · ") }}{{ name or ident }}{% endblock %}
 
 {% block content %}
-<p style="margin:20px 0 0;"><a class="back" href="{{ back_url }}" hx-boost="false">‹ πίσω στην οντότητα</a></p>
+<p style="margin:20px 0 0;"><a class="back" href="{{ back_url }}" hx-boost="false">{{ t("‹ πίσω στην οντότητα") }}</a></p>
 
 <div class="detail-h">
-  <div class="kicker">{{ kind_label }} · {{ ident }}</div>
+  <div class="kicker">{{ kind_label | t }} · {{ ident }}</div>
   <h1 class="detail-title">{{ name or ident }}</h1>
   <div class="detail-sub">
-    Επεξεργασία στοιχείων. Αυτά τα πεδία δεν επικαλύπτονται ποτέ από αυτόματες
-    εισαγωγές. Το όνομα επεξεργάζεται από τη σελίδα της οντότητας.
+    {{ t("Επεξεργασία στοιχείων. Αυτά τα πεδία δεν επικαλύπτονται ποτέ από αυτόματες εισαγωγές. Το όνομα επεξεργάζεται από τη σελίδα της οντότητας.") }}
   </div>
 </div>
 
 <form method="post" action="{{ action_url }}" style="margin-top:8px; padding-bottom:30px;">
   {% for group, fields in groups.items() %}
   <div class="form-section">
-    <div class="form-section-h">{{ group }}</div>
+    <div class="form-section-h">{{ group | t }}</div>
     <div class="form-grid">
-      {% for name, label, kind in fields %}
-      {% set val = party.get(name) %}
+      {% for fname, label, kind in fields %}
+      {% set val = party.get(fname) %}
       <div class="field">
         {% if kind == 'bool' %}
           <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; text-transform:none; letter-spacing:0;">
-            <input type="checkbox" name="{{ name }}" value="1" {% if val %}checked{% endif %}>
-            {{ label }}
+            <input type="checkbox" name="{{ fname }}" value="1" {% if val %}checked{% endif %}>
+            {{ label | t }}
           </label>
         {% else %}
-          <label>{{ label }}</label>
-          <input type="text" name="{{ name }}" value="{{ val or '' }}">
+          <label>{{ label | t }}</label>
+          <input type="text" name="{{ fname }}" value="{{ val or '' }}">
         {% endif %}
       </div>
       {% endfor %}
@@ -39,9 +38,9 @@
   <div style="background:var(--paper); border-top:1px solid var(--rule); padding:16px 0; margin-top:8px; display:flex; gap:12px; align-items:center;">
     <button type="submit"
             style="background:var(--ink); color:var(--paper); border:0; padding:11px 28px; font-family:var(--sans); font-size:12px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer;">
-      Αποθήκευση
+      {{ t("Αποθήκευση") }}
     </button>
-    <a class="back" href="{{ back_url }}" hx-boost="false">Άκυρο</a>
+    <a class="back" href="{{ back_url }}" hx-boost="false">{{ t("Άκυρο") }}</a>
   </div>
 </form>
 

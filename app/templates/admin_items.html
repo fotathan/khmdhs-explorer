@@ -1,18 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Διόρθωση ειδών · {{ act.adam }}{% endblock %}
+{% block title %}{{ t("Διόρθωση ειδών · ") }}{{ act.adam }}{% endblock %}
 
 {% block content %}
 <div class="detail-h">
-  <div class="kicker">Διόρθωση ειδών · {{ act.adam }}</div>
+  <div class="kicker">{{ t("Διόρθωση ειδών · ") }}{{ act.adam }}</div>
   <h1 class="detail-title">{{ act.title or '—' }}</h1>
   <div class="detail-sub">
-    Διόρθωση της αξίας (χωρίς ΦΠΑ) κάθε είδους. Η αρχική τιμή από την πηγή
-    διατηρείται· η διόρθωση χρησιμοποιείται στην εμφάνιση και στα στατιστικά ανά CPV.
-    Άφησε ένα πεδίο κενό για καμία διόρθωση.
+    {{ t("Διόρθωση της αξίας (χωρίς ΦΠΑ) κάθε είδους. Η αρχική τιμή από την πηγή διατηρείται· η διόρθωση χρησιμοποιείται στην εμφάνιση και στα στατιστικά ανά CPV. Άφησε ένα πεδίο κενό για καμία διόρθωση.") }}
   </div>
   <div style="margin-top:10px;">
-    <a href="/admin/act/{{ act.adam }}/edit?tab=annotate" class="back">‹ σημειώσεις & αξία σύμβασης</a>
-    <a href="/act/{{ act.adam }}" class="back" style="margin-left:14px;">προβολή πράξης ›</a>
+    <a href="/admin/act/{{ act.adam }}/edit?tab=annotate" class="back">{{ t("‹ σημειώσεις & αξία σύμβασης") }}</a>
+    <a href="/act/{{ act.adam }}" class="back" style="margin-left:14px;">{{ t("προβολή πράξης ›") }}</a>
   </div>
 </div>
 
@@ -21,9 +19,9 @@
     <thead>
       <tr>
         <th>#</th>
-        <th>Περιγραφή</th>
-        <th style="text-align:right;">Αρχική αξία (χωρίς ΦΠΑ)</th>
-        <th style="text-align:right;">Διορθωμένη αξία</th>
+        <th>{{ t("Περιγραφή") }}</th>
+        <th style="text-align:right;">{{ t("Αρχική αξία (χωρίς ΦΠΑ)") }}</th>
+        <th style="text-align:right;">{{ t("Διορθωμένη αξία") }}</th>
       </tr>
     </thead>
     <tbody>
@@ -42,21 +40,21 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="4" class="meta">Καμία γραμμή ειδών για αυτή την πράξη.</td></tr>
+      <tr><td colspan="4" class="meta">{{ t("Καμία γραμμή ειδών για αυτή την πράξη.") }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
   {% if items %}
   <div class="field" style="margin-top:18px; max-width:320px;">
-    <label>Επιμελητής (για το ιστορικό)</label>
-    <input name="author" value="{{ author_cookie }}" placeholder="το όνομά σας" required
+    <label>{{ t("Επιμελητής (για το ιστορικό)") }}</label>
+    <input name="author" value="{{ author_cookie }}" placeholder="{{ t('το όνομά σας') }}" required
            style="width:100%; padding:8px 10px; border:1px solid var(--rule); border-radius:8px;">
   </div>
   <div style="margin-top:16px;">
     <button type="submit"
             style="padding:9px 18px; background:var(--accent); color:#fff; border:0; border-radius:8px; font-weight:600; cursor:pointer;">
-      Αποθήκευση διορθώσεων
+      {{ t("Αποθήκευση διορθώσεων") }}
     </button>
   </div>
   {% endif %}

@@ -541,9 +541,72 @@ _ADMIN2 = {
     "Έξοδος (τέλος αρχείου)": "Output (end of file)",
 }
 
+# Admin: backfill job log + item correction + party edit form
+_ADMIN3 = {
+    "Εκτέλεση #": "Run #",
+    "‹ πίσω στη Συλλογή Δεδομένων": "‹ back to Data Collection",
+    "Εκτέλεση συλλογής · #": "Collection run · #",
+    "με συνέχιση": "with resume",
+    "Σίγουρα ακύρωση εκτέλεσης #": "Really cancel run #",
+    "Παράθυρα ανά τύπο": "Windows by type",
+    "ολοκληρωμένα": "completed",
+    "εκκρεμή": "pending",
+    "σφάλματα": "errors",
+    "Διάστημα": "Interval",
+    "ολοκλ.": "done",
+    "τρέχει": "running",
+    "εκκρεμές": "pending",
+    "Δεν υπάρχουν παράθυρα για αυτή την εκτέλεση ακόμη.": "No windows for this run yet.",
+    "Πράξεις αυτής της εκτέλεσης": "Acts in this run",
+    "νέες": "new",
+    "ενημερώσεις": "updates",
+    "χειροκίνητες (παράλειψη)": "manual (skipped)",
+    "με εξαγωγή πλήρους κειμένου": "with full text extracted",
+    "Με πλήρες κείμενο": "With full text",
+    "Χωρίς πλήρες κείμενο": "Without full text",
+    "Με αλλοιωμένο κείμενο": "With garbled text",
+    "καμία πράξη σε αυτό το φίλτρο": "no acts in this filter",
+    "Ενέργεια": "Action",
+    "● νέα": "● new",
+    "↻ ενημέρωση": "↻ update",
+    "⤫ χειροκίνητη": "⤫ manual",
+    "Το κείμενο φαίνεται αλλοιωμένο — χρειάζεται OCR": "The text looks garbled — needs OCR",
+    "⚠ αλλοιωμένο": "⚠ garbled",
+    "χαρ.": "chars",
+    "υπήρχε ήδη": "already existed",
+    "σαρωμένο/χωρίς κείμενο": "scanned/no text",
+    "μη διαθέσιμο": "unavailable",
+    "Δεν έχει καταγραφεί αναλυτικό μητρώο πράξεων για αυτή την εκτέλεση":
+        "No detailed act log recorded for this run",
+    "ακόμη": "yet",
+    "(Διαθέσιμο για εκτελέσεις που ξεκινούν από αυτό το πάνελ· παλαιότερες εκτελέσεις δεν το έχουν.)":
+        "(Available for runs started from this panel; older runs don't have it.)",
+    "Καμία έξοδος ακόμη — η εκτέλεση μόλις ξεκίνησε ή δεν δημιουργήθηκε αρχείο log.":
+        "No output yet — the run just started or no log file was created.",
+    "Λεπτομέρειες": "Details",
+    "Η σελίδα ανανεώνεται αυτόματα κάθε 6 δευτερόλεπτα.":
+        "The page refreshes automatically every 6 seconds.",
+    # items
+    "Διόρθωση ειδών · ": "Item correction · ",
+    "Διόρθωση της αξίας (χωρίς ΦΠΑ) κάθε είδους. Η αρχική τιμή από την πηγή διατηρείται· η διόρθωση χρησιμοποιείται στην εμφάνιση και στα στατιστικά ανά CPV. Άφησε ένα πεδίο κενό για καμία διόρθωση.":
+        "Correct the value (excl. VAT) of each item. The original source value is kept; the correction is used in display and in per-CPV analytics. Leave a field empty for no correction.",
+    "‹ σημειώσεις & αξία σύμβασης": "‹ notes & contract value",
+    "προβολή πράξης ›": "view act ›",
+    "Αρχική αξία (χωρίς ΦΠΑ)": "Original value (excl. VAT)",
+    "Διορθωμένη αξία": "Corrected value",
+    "Καμία γραμμή ειδών για αυτή την πράξη.": "No item lines for this act.",
+    "Επιμελητής (για το ιστορικό)": "Curator (for the log)",
+    "Αποθήκευση διορθώσεων": "Save corrections",
+    # party form
+    "Επεξεργασία · ": "Edit · ",
+    "‹ πίσω στην οντότητα": "‹ back to the entity",
+    "Επεξεργασία στοιχείων. Αυτά τα πεδία δεν επικαλύπτονται ποτέ από αυτόματες εισαγωγές. Το όνομα επεξεργάζεται από τη σελίδα της οντότητας.":
+        "Edit details. These fields are never overwritten by automatic imports. The name is edited from the entity's page.",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
-             _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2):
+             _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3):
     UI_EN.update(_grp)
