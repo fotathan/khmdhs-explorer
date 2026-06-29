@@ -106,10 +106,10 @@
         <select name="cat" multiple size="12" class="cat-sel"
                 style="width:100%; font-size:12px; padding:4px;">
           {% for cat in lk.categories %}
-          <optgroup label="{{ cat.name }}">
+          <optgroup label="{{ cat | vname }}">
             <option value="c:{{ cat.id }}" {% if ('c:' ~ cat.id) in sel_cat %}selected{% endif %}>{{ t("▸ όλη η κατηγορία") }}</option>
             {% for s in cat.subs %}
-            <option value="s:{{ s.id }}" {% if ('s:' ~ s.id) in sel_cat %}selected{% endif %}>{{ s.name }}</option>
+            <option value="s:{{ s.id }}" {% if ('s:' ~ s.id) in sel_cat %}selected{% endif %}>{{ s | vname }}</option>
             {% endfor %}
           </optgroup>
           {% endfor %}

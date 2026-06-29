@@ -633,16 +633,16 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             # Category taxonomy for the two-level filter dropdown (derived from
             # CPV via cpv_category_map). Categories carry their subcategories so
             # the template renders one grouped multi-select with optgroups.
-            c.execute("SELECT id, name FROM proc.tender_category ORDER BY name")
-            categories = [{"id": r["id"], "name": r["name"], "subs": []}
+            c.execute("SELECT id, name, name_en FROM proc.tender_category ORDER BY name")
+            categories = [{"id": r["id"], "name": r["name"], "name_en": r["name_en"], "subs": []}
                           for r in c.fetchall()]
             cat_by_id = {ct["id"]: ct for ct in categories}
-            c.execute("""SELECT id, name, parent_category_id
+            c.execute("""SELECT id, name, name_en, parent_category_id
                          FROM proc.tender_subcategory ORDER BY name""")
             for r in c.fetchall():
                 parent = cat_by_id.get(r["parent_category_id"])
                 if parent is not None:
-                    parent["subs"].append({"id": r["id"], "name": r["name"]})
+                    parent["subs"].append({"id": r["id"], "name": r["name"], "name_en": r["name_en"]})
             # Recent mass table-extraction jobs (Phase 1).
             c.execute("""SELECT id, status, filter_desc, total_acts,
                                 started_at, finished_at

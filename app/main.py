@@ -227,6 +227,21 @@ templates.env.filters["procedure_type_label"] = _procedure_type_label
 templates.env.filters["assign_criteria_label"] = _assign_criteria_label
 
 
+# {{ obj | vname }} — a category/subcategory dict's name in the active language
+# (name_en when EN and present, else the Greek name). For the cached filter
+# lookups that carry both columns.
+@_jinja_pass_context
+def _vname(ctx, obj):
+    if ctx.get("lang") == "en":
+        en = obj.get("name_en") if isinstance(obj, dict) else getattr(obj, "name_en", None)
+        if en:
+            return en
+    return obj.get("name") if isinstance(obj, dict) else obj.name
+
+
+templates.env.filters["vname"] = _vname
+
+
 # ---------------------------------------------------------------------------- #
 # DB pool (single long-lived connection, dict rows). For higher load you'd swap
 # in psycopg_pool; one connection is fine for an internal tool.
@@ -710,6 +725,14 @@ def run_search(params: dict, limit: int, offset: int):
     return rows, agg
 
 
+# Controlled-vocabulary description column for the active UI language. The
+# *_en columns (vocab_en_migration.sql) are NULL where the EN source didn't
+# cover a row, so coalesce falls back to Greek. Args are table aliases / column
+# names (never user input) — safe to f-string into a query.
+def _desc_col(lang, alias="c", col="description"):
+    return f"coalesce({alias}.{col}_en, {alias}.{col})" if lang == "en" else f"{alias}.{col}"
+
+
 # ---------------------------------------------------------------------------- #
 # Lookups for filter dropdowns (cached lazily to avoid hammering the DB)
 # ---------------------------------------------------------------------------- #
@@ -766,15 +789,19 @@ def lookups() -> dict:
         # tender_category_migration.sql). Returned as categories each carrying
         # their subcategories, so the template can render one grouped
         # multi-select with optgroups. Ordered alphabetically (Greek collation).
-        c.execute("SELECT id, name FROM proc.tender_category ORDER BY name")
-        cats = [{"id": r["id"], "name": r["name"], "subs": []} for r in c.fetchall()]
+        # Carry both Greek `name` and English `name_en` (vocab_en_migration.sql);
+        # the template picks per the active UI language. name_en is NULL for the
+        # rows the EN file didn't cover — those fall back to Greek in the template.
+        c.execute("SELECT id, name, name_en FROM proc.tender_category ORDER BY name")
+        cats = [{"id": r["id"], "name": r["name"], "name_en": r["name_en"], "subs": []}
+                for r in c.fetchall()]
         by_id = {cat["id"]: cat for cat in cats}
-        c.execute("""SELECT id, name, parent_category_id
+        c.execute("""SELECT id, name, name_en, parent_category_id
                      FROM proc.tender_subcategory ORDER BY name""")
         for r in c.fetchall():
             parent = by_id.get(r["parent_category_id"])
             if parent is not None:
-                parent["subs"].append({"id": r["id"], "name": r["name"]})
+                parent["subs"].append({"id": r["id"], "name": r["name"], "name_en": r["name_en"]})
         _lookup_cache["categories"] = cats
     return _lookup_cache
 
@@ -892,13 +919,15 @@ def cpv_suggest(request: Request, term: str = Query(""), wild: int = Query(1)):
     term = term.strip()
     if not term:
         return HTMLResponse("")
+    lang = _i18n.lang_from_request(request)
+    dc = _desc_col(lang, "cpv_code")  # display in active language; search stays Greek
     digits = re.sub(r"\D", "", term)
     rows = []
     with cursor() as c:
         if digits:
             # Code-prefix matches, shortest (broadest) first.
-            c.execute("""
-                SELECT cpv_code, description
+            c.execute(f"""
+                SELECT cpv_code, {dc} AS description
                 FROM proc.cpv_code
                 WHERE cpv_code LIKE %s
                 ORDER BY length(cpv_code), cpv_code
@@ -907,8 +936,8 @@ def cpv_suggest(request: Request, term: str = Query(""), wild: int = Query(1)):
             rows = c.fetchall()
         else:
             # Description text match (Greek-stemmed) when they typed words.
-            c.execute("""
-                SELECT cpv_code, description
+            c.execute(f"""
+                SELECT cpv_code, {dc} AS description
                 FROM proc.cpv_code
                 WHERE description_tsv @@ websearch_to_tsquery('greek', %s)
                 ORDER BY length(cpv_code), cpv_code
@@ -937,12 +966,14 @@ def cpv_browse(request: Request, parent: str = Query("")):
     = root), returns its direct children (the next existing level down) plus a
     breadcrumb, built purely from the code prefixes in proc.cpv_code."""
     parent = parent.strip()
+    lang = _i18n.lang_from_request(request)
+    dc = _desc_col(lang, "cpv_code")
     lp, sig = _cpv_level_sig(parent) if parent else (0, "")
     like = (sig + "%") if sig else "%"
     with cursor() as c:
-        c.execute("""
+        c.execute(f"""
             WITH k AS (
-              SELECT cpv_code, description,
+              SELECT cpv_code, {dc} AS description,
                      left(cpv_code, greatest(2,length(rtrim(left(cpv_code,8),'0')))) AS sig,
                      greatest(2,length(rtrim(left(cpv_code,8),'0'))) AS lvl
               FROM proc.cpv_code
@@ -961,8 +992,8 @@ def cpv_browse(request: Request, parent: str = Query("")):
         children = c.fetchall()
         crumbs = []
         if parent:
-            c.execute("""
-                SELECT cpv_code, description,
+            c.execute(f"""
+                SELECT cpv_code, {dc} AS description,
                        greatest(2,length(rtrim(left(cpv_code,8),'0'))) AS lvl
                 FROM proc.cpv_code
                 WHERE greatest(2,length(rtrim(left(cpv_code,8),'0'))) <= %s
@@ -981,6 +1012,12 @@ def analytics(request: Request):
     """Dashboard of deduplicated AWARDED value (contracts only; payments and
     cancelled acts excluded; merged entities consolidated). Reads precomputed
     materialized views — refresh them with SELECT proc.refresh_analytics()."""
+    lang = _i18n.lang_from_request(request)
+    # The matview pre-bakes a Greek division label; in EN resolve the division's
+    # English CPV name (root code), falling back to the baked Greek label.
+    cpv_label = ("coalesce((SELECT cc.description_en FROM proc.cpv_code cc "
+                 "WHERE substr(cc.cpv_code,1,2)=m.division AND substr(cc.cpv_code,3,6)='000000' "
+                 "LIMIT 1), m.label)") if lang == "en" else "m.label"
     data: dict = {"available": True}
     try:
         with cursor() as c:
@@ -1016,11 +1053,12 @@ def analytics(request: Request):
             # By-CPV-division — top 15 by contract value. Separate from the
             # awarded-value figures (line-item costs, without VAT).
             try:
-                c.execute("""SELECT division, label, contract_count, contract_value,
-                                    notice_count, notice_value
-                             FROM proc.mv_analytics_cpv
-                             WHERE contract_value > 0 OR notice_value > 0
-                             ORDER BY contract_value DESC, notice_value DESC
+                c.execute(f"""SELECT m.division, {cpv_label} AS label,
+                                    m.contract_count, m.contract_value,
+                                    m.notice_count, m.notice_value
+                             FROM proc.mv_analytics_cpv m
+                             WHERE m.contract_value > 0 OR m.notice_value > 0
+                             ORDER BY m.contract_value DESC, m.notice_value DESC
                              LIMIT 15""")
                 data["cpv"] = c.fetchall()
             except Exception:
@@ -1280,6 +1318,7 @@ def act_detail(adam: str, request: Request):
 
     The template branches on `n.type` to show type-specific fields (contract
     dates and bids for contracts, payment commitment for payments, etc.)."""
+    lang = _i18n.lang_from_request(request)
     with cursor() as c:
         c.execute(f"""
             SELECT {SELECT_COLS},
@@ -1351,7 +1390,7 @@ def act_detail(adam: str, request: Request):
         # Aggregate as parallel arrays of (code, description) so the template
         # can render them inline. unit_code is joined to proc.unit_code to
         # resolve UNECE Rec 20 codes (e.g. LTR -> 'λίτρο').
-        c.execute("""
+        c.execute(f"""
             SELECT od.line_no,
                    od.short_description, od.quantity, od.unit_code,
                    u.name AS unit_name,
@@ -1362,10 +1401,10 @@ def act_detail(adam: str, request: Request):
                    od.vat_rate, od.currency_code,
                    coalesce(
                      array_agg(jsonb_build_object('code', c.cpv_code,
-                                                  'desc', c.description)
+                                                  'desc', {_desc_col(lang, "c")})
                                ORDER BY c.cpv_code)
                      FILTER (WHERE c.cpv_code IS NOT NULL),
-                     '{}') AS cpvs
+                     '{{}}') AS cpvs
             FROM proc.act_object_detail od
             LEFT JOIN proc.object_detail_cpv x ON x.object_detail_id = od.id
             LEFT JOIN proc.cpv_code c ON c.cpv_code = x.cpv_code
@@ -1388,7 +1427,7 @@ def act_detail(adam: str, request: Request):
         operators = c.fetchall()
 
         # Act-level (curator-set) CPV codes.
-        c.execute("""SELECT ac.cpv_code, cc.description
+        c.execute(f"""SELECT ac.cpv_code, {_desc_col(lang, "cc")} AS description
                      FROM proc.act_cpv ac
                      LEFT JOIN proc.cpv_code cc ON cc.cpv_code = ac.cpv_code
                      WHERE ac.adam = %s ORDER BY ac.ord, ac.cpv_code""", (adam,))
@@ -1398,9 +1437,9 @@ def act_detail(adam: str, request: Request):
         # CPVs via cpv_category_map (see tender_category_migration.sql). Grouped
         # into {category, subs[]} so the template can link each to the search
         # filter (?cat=c:<id> / ?cat=s:<id>).
-        c.execute("""
-            SELECT DISTINCT cat.id AS category_id, cat.name AS category_name,
-                   sub.id AS subcategory_id, sub.name AS subcategory_name
+        c.execute(f"""
+            SELECT DISTINCT cat.id AS category_id, {_desc_col(lang, "cat", "name")} AS category_name,
+                   sub.id AS subcategory_id, {_desc_col(lang, "sub", "name")} AS subcategory_name
             FROM proc.act_object_detail od
             JOIN proc.object_detail_cpv oc ON oc.object_detail_id = od.id
             JOIN proc.cpv_category_map m ON m.cpv_code = oc.cpv_code
@@ -1730,6 +1769,7 @@ def authority_detail(org_id: str, request: Request,
                      per_page: int = Query(25, ge=1, le=100),
                      type: str = Query("", description="filter by act type")):
     """All acts issued by one awarding authority, with key aggregates."""
+    lang = _i18n.lang_from_request(request)
     with cursor() as c:
         c.execute("""
             SELECT org_id, name, vat_number, is_greek_vat, aaht,
@@ -1785,7 +1825,7 @@ def authority_detail(org_id: str, request: Request,
         # by taking the shortest CPV that starts with that division prefix —
         # the canonical division-level entry. The catalog uses real EU
         # checksums (e.g. 33000000-0, 45000000-7), so we can't hardcode them.
-        c.execute("""
+        c.execute(f"""
             WITH agg AS (
               SELECT substr(oc.cpv_code, 1, 2) AS division,
                      count(DISTINCT a.adam) AS n_acts,
@@ -1797,7 +1837,7 @@ def authority_detail(org_id: str, request: Request,
               GROUP BY substr(oc.cpv_code, 1, 2)
             )
             SELECT agg.division, agg.n_acts, agg.total_value,
-              (SELECT description FROM proc.cpv_code
+              (SELECT {_desc_col(lang, "cpv_code")} FROM proc.cpv_code
                WHERE substr(cpv_code, 1, 2) = agg.division
                  AND substr(cpv_code, 3, 6) = '000000'
                LIMIT 1) AS label
@@ -1860,6 +1900,7 @@ def contractor_detail(vat: str, request: Request,
                       page: int = Query(1, ge=1),
                       per_page: int = Query(25, ge=1, le=100)):
     """Every act this contractor is recorded on, with totals & top buyers."""
+    lang = _i18n.lang_from_request(request)
     with cursor() as c:
         c.execute("""
             SELECT operator_id, vat_number, name, is_greek_vat, country,
@@ -1940,7 +1981,7 @@ def contractor_detail(vat: str, request: Request,
 
         # Top CPV divisions this contractor has supplied. Contracts only, for
         # the same anti-double-count reason as above.
-        c.execute("""
+        c.execute(f"""
             WITH agg AS (
               SELECT substr(oc.cpv_code, 1, 2) AS division,
                      count(DISTINCT a.adam) AS n_acts,
@@ -1954,7 +1995,7 @@ def contractor_detail(vat: str, request: Request,
               GROUP BY substr(oc.cpv_code, 1, 2)
             )
             SELECT agg.division, agg.n_acts, agg.total_value,
-              (SELECT description FROM proc.cpv_code
+              (SELECT {_desc_col(lang, "cpv_code")} FROM proc.cpv_code
                WHERE substr(cpv_code, 1, 2) = agg.division
                  AND substr(cpv_code, 3, 6) = '000000'
                LIMIT 1) AS label

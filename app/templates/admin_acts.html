@@ -86,10 +86,10 @@
        = όλη η κατηγορία (c:<id>), οι υπόλοιπες = υποκατηγορίες (s:<id>). #}
     <select name="cat" multiple size="6" style="width:100%;">
       {% for c in categories %}
-      <optgroup label="{{ c.name }}">
+      <optgroup label="{{ c | vname }}">
         <option value="c:{{ c.id }}" {% if ('c:' ~ c.id) in cat %}selected{% endif %}>{{ t("▸ όλη η κατηγορία") }}</option>
         {% for s in c.subs %}
-        <option value="s:{{ s.id }}" {% if ('s:' ~ s.id) in cat %}selected{% endif %}>{{ s.name }}</option>
+        <option value="s:{{ s.id }}" {% if ('s:' ~ s.id) in cat %}selected{% endif %}>{{ s | vname }}</option>
         {% endfor %}
       </optgroup>
       {% endfor %}
