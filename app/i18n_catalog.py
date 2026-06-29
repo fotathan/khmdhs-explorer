@@ -1027,11 +1027,18 @@ _NUTS_REGIONS = {
     "Κρήτη": "Crete",
 }
 
+# Act-level CPV editor on imported acts (_panel_fields.html)
+_CPV_EDIT = {
+    "Αποθήκευση κωδικών CPV": "Save CPV codes",
+    "Οι κωδικοί προέρχονται από τα είδη της εισαγόμενης πράξης. Επεξεργαστείτε και αποθηκεύστε τους ως κωδικούς CPV επιπέδου πράξης (δεν αλλοιώνεται η πηγή).":
+        "These codes come from the imported act's line items. Edit and save them as act-level CPV codes (the source is not altered).",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
-             _NUTS_REGIONS):
+             _NUTS_REGIONS, _CPV_EDIT):
     UI_EN.update(_grp)
