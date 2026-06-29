@@ -1446,7 +1446,7 @@ def act_detail(adam: str, request: Request):
             JOIN proc.tender_category cat ON cat.id = m.category_id
             JOIN proc.tender_subcategory sub ON sub.id = m.subcategory_id
             WHERE od.adam = %s
-            ORDER BY cat.name, sub.name
+            ORDER BY category_name, subcategory_name
         """, (adam,))
         act_categories: list[dict] = []
         _cat_idx: dict = {}
