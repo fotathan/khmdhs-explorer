@@ -1,25 +1,25 @@
 <div class="results-bar">
   <div class="counters">
     <span class="num">{{ "{:,}".format(grand.n).replace(",","·") }}</span>
-    <span class="lbl">πράξεις στο φίλτρο</span>
+    <span class="lbl">{{ t("πράξεις στο φίλτρο") }}</span>
     {% if grand.value %}
       · <span class="num">€ {{ "{:,.0f}".format(grand.value).replace(",","·") }}</span>
-      <span class="lbl">συνολική αξία</span>
+      <span class="lbl">{{ t("συνολική αξία") }}</span>
     {% endif %}
   </div>
 </div>
 
 {% if active_filters %}
 <p class="meta" style="margin-bottom:18px;">
-  Ενεργά φίλτρα:
+  {{ t("Ενεργά φίλτρα:") }}
   {% for k, v in active_filters.items() %}<code class="cpv">{{ k }}={{ v }}</code> {% endfor %}
 </p>
 {% endif %}
 
-<div class="section-h">Ανά αναθέτουσα αρχή</div>
+<div class="section-h">{{ t("Ανά αναθέτουσα αρχή") }}</div>
 {% if by_authority %}
 <table class="lines">
-  <thead><tr><th>Αρχή</th><th style="text-align:right;">Πράξεις</th><th style="text-align:right;">Αξία</th></tr></thead>
+  <thead><tr><th>{{ t("Αρχή") }}</th><th style="text-align:right;">{{ t("Πράξεις") }}</th><th style="text-align:right;">{{ t("Αξία") }}</th></tr></thead>
   <tbody>
     {% for a in by_authority %}
     <tr>
@@ -31,13 +31,13 @@
   </tbody>
 </table>
 {% else %}
-<p class="meta">Καμία αρχή για αυτά τα φίλτρα.</p>
+<p class="meta">{{ t("Καμία αρχή για αυτά τα φίλτρα.") }}</p>
 {% endif %}
 
-<div class="section-h" style="margin-top:32px;">Ανά ανάδοχο</div>
+<div class="section-h" style="margin-top:32px;">{{ t("Ανά ανάδοχο") }}</div>
 {% if by_contractor %}
 <table class="lines">
-  <thead><tr><th>Ανάδοχος</th><th style="text-align:right;">Συμβάσεις</th><th style="text-align:right;">Αξία</th></tr></thead>
+  <thead><tr><th>{{ t("Ανάδοχος") }}</th><th style="text-align:right;">{{ t("Συμβάσεις") }}</th><th style="text-align:right;">{{ t("Αξία") }}</th></tr></thead>
   <tbody>
     {% for c in by_contractor %}
     <tr>
@@ -49,10 +49,9 @@
   </tbody>
 </table>
 {% else %}
-<p class="meta">Κανένας ανάδοχος για αυτά τα φίλτρα (η ανάλυση αναδόχων αφορά συμβάσεις με νικητή).</p>
+<p class="meta">{{ t("Κανένας ανάδοχος για αυτά τα φίλτρα (η ανάλυση αναδόχων αφορά συμβάσεις με νικητή).") }}</p>
 {% endif %}
 
 <p class="meta" style="margin-top:24px;">
-  Εμφανίζονται οι 100 κορυφαίοι ανά κατηγορία. Οι αξίες αναδόχων χρησιμοποιούν
-  το ποσό ανάθεσης ανά οικονομικό φορέα όπου υπάρχει.
+  {{ t("Εμφανίζονται οι 100 κορυφαίοι ανά κατηγορία. Οι αξίες αναδόχων χρησιμοποιούν το ποσό ανάθεσης ανά οικονομικό φορέα όπου υπάρχει.") }}
 </p>

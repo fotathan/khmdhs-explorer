@@ -1,13 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Σύνοψη · Δημόσιες Συμβάσεις{% endblock %}
+{% block title %}{{ t("Σύνοψη · Δημόσιες Συμβάσεις") }}{% endblock %}
 
 {% block content %}
 <div class="detail-h">
-  <div class="kicker">Σύνοψη</div>
-  <h1 class="detail-title">Συγκεντρωτικά ανά αρχή & ανάδοχο</h1>
+  <div class="kicker">{{ t("Σύνοψη") }}</div>
+  <h1 class="detail-title">{{ t("Συγκεντρωτικά ανά αρχή & ανάδοχο") }}</h1>
   <div class="detail-sub">
-    Τα ίδια φίλτρα με την αναζήτηση, αλλά τα αποτελέσματα ομαδοποιημένα.
-    Εξαιρούνται ακυρωμένες, ύποπτες και υπερβολικές τιμές, όπως στα στατιστικά.
+    {{ t("Τα ίδια φίλτρα με την αναζήτηση, αλλά τα αποτελέσματα ομαδοποιημένα. Εξαιρούνται ακυρωμένες, ύποπτες και υπερβολικές τιμές, όπως στα στατιστικά.") }}
   </div>
 </div>
 
@@ -18,28 +17,28 @@
           hx-get="/explore" hx-target="#explore-results" hx-push-url="true"
           hx-trigger="change, submit" hx-indicator="#explore-results">
 
-      <div class="filter-h">Τύπος πράξης</div>
+      <div class="filter-h">{{ t("Τύπος πράξης") }}</div>
       <div class="seg-vert">
         <label class="{% if not params.type %}on{% endif %}">
-          <input type="radio" name="type" value="" {% if not params.type %}checked{% endif %}> {{ TYPE_ALL_LABEL }}
+          <input type="radio" name="type" value="" {% if not params.type %}checked{% endif %}> {{ TYPE_ALL_LABEL | t }}
         </label>
         {% for code in TYPE_FILTER_ORDER %}
         <label class="{% if params.type==code %}on{% endif %}">
-          <input type="radio" name="type" value="{{ code }}" {% if params.type==code %}checked{% endif %}> {{ TYPE_LABELS[code] }}
+          <input type="radio" name="type" value="{{ code }}" {% if params.type==code %}checked{% endif %}> {{ code | type_label }}
         </label>
         {% endfor %}
       </div>
 
-      <div class="filter-h">Αναζήτηση</div>
+      <div class="filter-h">{{ t("Αναζήτηση") }}</div>
       <div class="field">
-        <input type="search" name="q" value="{{ params.q }}" placeholder="λέξη-κλειδί…"
+        <input type="search" name="q" value="{{ params.q }}" placeholder="{{ t('λέξη-κλειδί…') }}"
                style="width:100%; padding:8px 10px; border:1px solid var(--rule); border-radius:8px;">
       </div>
 
       <div class="field">
-        <label>Είδος σύμβασης</label>
+        <label>{{ t("Είδος σύμβασης") }}</label>
         <select name="contract_type">
-          <option value="">— οποιοδήποτε —</option>
+          <option value="">{{ t("— οποιοδήποτε —") }}</option>
           {% for c in lk.contract_types %}
             <option value="{{ c.code }}" {% if params.contract_type==c.code %}selected{% endif %}>{{ c.label }}</option>
           {% endfor %}
@@ -47,9 +46,9 @@
       </div>
 
       <div class="field">
-        <label>Τύπος διαδικασίας</label>
+        <label>{{ t("Τύπος διαδικασίας") }}</label>
         <select name="procedure_type">
-          <option value="">— οποιαδήποτε —</option>
+          <option value="">{{ t("— οποιαδήποτε —") }}</option>
           {% for p in lk.procedure_types %}
             <option value="{{ p.code }}" {% if params.procedure_type==p.code %}selected{% endif %}>{{ p.label }}</option>
           {% endfor %}
@@ -57,28 +56,28 @@
       </div>
 
       <div class="field">
-        <label>CPV (πρόθεμα)</label>
+        <label>{{ t("CPV (πρόθεμα)") }}</label>
         <input type="text" name="cpv" value="{{ params.cpv }}" placeholder="π.χ. 33 ή 45000000">
       </div>
 
-      <div class="filter-h">Ημερομηνία δημοσίευσης</div>
+      <div class="filter-h">{{ t("Ημερομηνία δημοσίευσης") }}</div>
       <div class="date-pair">
-        <div class="field"><label>από</label>
+        <div class="field"><label>{{ t("από") }}</label>
           <input type="date" name="date_from" value="{{ params.date_from }}"></div>
-        <div class="field"><label>έως</label>
+        <div class="field"><label>{{ t("έως") }}</label>
           <input type="date" name="date_to" value="{{ params.date_to }}"></div>
       </div>
 
       <div class="field" style="margin-top:16px;">
         <button type="submit" style="width:100%; padding:9px; background:var(--accent); color:#fff; border:0; border-radius:8px; font-weight:600; cursor:pointer;">
-          Σύνοψη
+          {{ t("Σύνοψη") }}
         </button>
       </div>
       <div class="field">
-        <a href="/explore" class="back">↺ καθαρισμός φίλτρων</a>
+        <a href="/explore" class="back">{{ t("↺ καθαρισμός φίλτρων") }}</a>
       </div>
       <div class="field">
-        <a href="/?{{ request.url.query }}" class="back">→ προβολή ως λίστα</a>
+        <a href="/?{{ request.url.query }}" class="back">{{ t("→ προβολή ως λίστα") }}</a>
       </div>
     </form>
   </aside>
@@ -87,7 +86,7 @@
   <div id="explore-results" class="load-region">
     <div class="load-overlay">
       <span class="spinner"></span>
-      <span>Υπολογισμός…</span>
+      <span>{{ t("Υπολογισμός…") }}</span>
     </div>
     {% include "_explore_results.html" %}
   </div>

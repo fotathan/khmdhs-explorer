@@ -2,8 +2,8 @@
 <script>
   // Update the counters in the parent page (out-of-band hack via small script).
   document.getElementById('counters').innerHTML =
-    '<span class="lbl">Βρέθηκαν</span><span class="num">{{ "{:,}".format(total_count).replace(",", "·") }}</span>' +
-    '&nbsp;&nbsp;<span class="lbl">συνολική αξία</span><span class="num">€ {{ "{:,.0f}".format(total_value).replace(",", "·") }}</span>';
+    '<span class="lbl">{{ t("Βρέθηκαν") }}</span><span class="num">{{ "{:,}".format(total_count).replace(",", "·") }}</span>' +
+    '&nbsp;&nbsp;<span class="lbl">{{ t("συνολική αξία") }}</span><span class="num">€ {{ "{:,.0f}".format(total_value).replace(",", "·") }}</span>';
 </script>
 
 {% if rows %}
@@ -11,10 +11,10 @@
   <thead>
     <tr>
       <th style="width:140px;">ΑΔΑΜ</th>
-      <th>Τίτλος / Αναθέτουσα</th>
-      <th style="width:140px;">Δημοσίευση / Λήξη</th>
-      <th style="width:130px; text-align:right;">Αξία (με ΦΠΑ)</th>
-      <th style="width:100px;">Κατάσταση</th>
+      <th>{{ t("Τίτλος / Αναθέτουσα") }}</th>
+      <th style="width:140px;">{{ t("Δημοσίευση / Λήξη") }}</th>
+      <th style="width:130px; text-align:right;">{{ t("Αξία (με ΦΠΑ)") }}</th>
+      <th style="width:100px;">{{ t("Κατάσταση") }}</th>
     </tr>
   </thead>
   <tbody>
@@ -35,23 +35,23 @@
       <td class="meta">
         {{ r.submission_date.strftime('%Y-%m-%d') if r.submission_date else (r.signed_date.strftime('%Y-%m-%d') if r.signed_date else '—') }}<br>
         {% if r.final_submission_date %}
-          <span style="color:var(--accent);">λήξη {{ r.final_submission_date.strftime('%Y-%m-%d') }}</span>
+          <span style="color:var(--accent);">{{ t("λήξη") }} {{ r.final_submission_date.strftime('%Y-%m-%d') }}</span>
         {% else %}<span>—</span>{% endif %}
       </td>
       <td class="val">
         {% if r.resolved_value is not none %}
           {% if r.is_corrected %}
-            <span style="color:var(--ok); font-weight:600;" title="Διορθωμένη τιμή — αρχική από πηγή: € {{ '{:,.2f}'.format(r.total_cost_with_vat).replace(',', '·') if r.total_cost_with_vat is not none else '—' }}">€ {{ "{:,.2f}".format(r.resolved_value).replace(",", "·") }}</span>
+            <span style="color:var(--ok); font-weight:600;" title="{{ t('Διορθωμένη τιμή — αρχική από πηγή: €') }} {{ '{:,.2f}'.format(r.total_cost_with_vat).replace(',', '·') if r.total_cost_with_vat is not none else '—' }}">€ {{ "{:,.2f}".format(r.resolved_value).replace(",", "·") }}</span>
           {% else %}
             € {{ "{:,.2f}".format(r.resolved_value).replace(",", "·") }}
           {% endif %}
         {% else %}—{% endif %}
       </td>
       <td>
-        {% if r.cancelled %}<span class="pill cancel">ακυρωμένη</span>{% endif %}
-        {% if r.is_modified %}<span class="pill amend">ορθή επ.</span>{% endif %}
+        {% if r.cancelled %}<span class="pill cancel">{{ t("ακυρωμένη") }}</span>{% endif %}
+        {% if r.is_modified %}<span class="pill amend">{{ t("ορθή επ.") }}</span>{% endif %}
         {% if r.type == 'contract' and not r.cancelled and r.resolved_value is not none and r.resolved_value > ANALYTICS_VALUE_CEILING %}
-          <span class="pill cancel" title="Ύποπτη τιμή — εξαιρείται από τα στατιστικά">ύποπτη τιμή</span>
+          <span class="pill cancel" title="{{ t('Ύποπτη τιμή — εξαιρείται από τα στατιστικά') }}">{{ t("ύποπτη τιμή") }}</span>
         {% endif %}
         {% if not r.cancelled and not r.is_modified and not (r.type == 'contract' and r.resolved_value is not none and r.resolved_value > ANALYTICS_VALUE_CEILING) %}<span class="meta">—</span>{% endif %}
       </td>
@@ -61,24 +61,24 @@
 </table>
 
 <nav class="pager">
-  <span>σελίδα {{ page }} από {{ total_pages }} · {{ per_page }} ανά σελίδα</span>
+  <span>{{ t("σελίδα") }} {{ page }} {% if lang=='en' %}of{% else %}από{% endif %} {{ total_pages }} · {{ per_page }} {{ t("ανά σελίδα") }}</span>
   <span>
     {% if page > 1 %}
       <a href="#" hx-get="/?{% for k,v in request.query_params.multi_items() if k != 'page' %}{{k}}={{v|urlencode}}&{% endfor %}page={{ page-1 }}"
-         hx-target="#results" hx-include="#filters">‹ προηγ.</a>
-    {% else %}<span class="disabled">‹ προηγ.</span>{% endif %}
+         hx-target="#results" hx-include="#filters">{{ t("‹ προηγ.") }}</a>
+    {% else %}<span class="disabled">{{ t("‹ προηγ.") }}</span>{% endif %}
 
     <span class="current">{{ page }}</span>
 
     {% if page < total_pages %}
       <a href="#" hx-get="/?{% for k,v in request.query_params.multi_items() if k != 'page' %}{{k}}={{v|urlencode}}&{% endfor %}page={{ page+1 }}"
-         hx-target="#results" hx-include="#filters">επόμ. ›</a>
-    {% else %}<span class="disabled">επόμ. ›</span>{% endif %}
+         hx-target="#results" hx-include="#filters">{{ t("επόμ. ›") }}</a>
+    {% else %}<span class="disabled">{{ t("επόμ. ›") }}</span>{% endif %}
   </span>
 </nav>
 
 {% else %}
 <p style="font-family:var(--serif); font-style:italic; color:var(--ink-2); padding:32px 0; font-size:16px;">
-  Καμία διακήρυξη δεν αντιστοιχεί στα φίλτρα. Δοκιμάστε να χαλαρώσετε τα κριτήρια.
+  {{ t("Καμία διακήρυξη δεν αντιστοιχεί στα φίλτρα. Δοκιμάστε να χαλαρώσετε τα κριτήρια.") }}
 </p>
 {% endif %}

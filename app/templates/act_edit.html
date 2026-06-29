@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Επεξεργασία {{ act.adam }} · Διαχείριση{% endblock %}
+{% block title %}{{ t("Επεξεργασία") }} {{ act.adam }} · {{ t("Διαχείριση") }}{% endblock %}
 
 {% block content %}
 
@@ -22,22 +22,22 @@
 </style>
 
 <p style="margin:20px 0 0;">
-  <a class="back" href="/admin/curate" hx-boost="false">‹ πίσω στην επιμέλεια</a>
+  <a class="back" href="/admin/curate" hx-boost="false">{{ t("‹ πίσω στην επιμέλεια") }}</a>
   &nbsp;·&nbsp;
-  <a class="back" href="/act/{{ act.adam }}" hx-boost="false">προβολή πράξης ›</a>
+  <a class="back" href="/act/{{ act.adam }}" hx-boost="false">{{ t("προβολή πράξης ›") }}</a>
 </p>
 
 <div class="detail-h">
-  <div class="kicker">Επεξεργασία · {{ act.type | type_label }} · {{ act.adam }}</div>
+  <div class="kicker">{{ t("Επεξεργασία") }} · {{ act.type | type_label }} · {{ act.adam }}</div>
   <h1 class="detail-title">{{ act.title or '—' }}</h1>
   <div class="detail-sub">
-    Σημειώσεις, πλήρες κείμενο και πίνακες για αυτή την πράξη — όλα σε μία σελίδα.
+    {{ t("Σημειώσεις, πλήρες κείμενο και πίνακες για αυτή την πράξη — όλα σε μία σελίδα.") }}
   </div>
 </div>
 
 {% if request.query_params.get('saved') or request.query_params.get('owned') %}
 <div style="margin:14px 0 0; padding:10px 16px; background:#eaf6ef; border:1px solid #b7e0c7; border-radius:8px; color:#1a7f47; font-size:13px;">
-  {% if request.query_params.get('owned') %}✓ Η πράξη έγινε χειροκίνητη — τα βασικά πεδία είναι πλέον επεξεργάσιμα.{% else %}✓ Αποθηκεύτηκε.{% endif %}
+  {% if request.query_params.get('owned') %}{{ t("✓ Η πράξη έγινε χειροκίνητη — τα βασικά πεδία είναι πλέον επεξεργάσιμα.") }}{% else %}{{ t("✓ Αποθηκεύτηκε.") }}{% endif %}
 </div>
 {% endif %}
 
@@ -45,19 +45,19 @@
   <button class="edit-tab {% if tab=='fields' %}on{% endif %}" id="tab-fields" role="tab"
           hx-get="/admin/act/{{ act.adam }}/panel/fields"
           hx-target="#edit-panel" hx-swap="innerHTML"
-          onclick="ttEditTab(this)">Βασικά πεδία</button>
+          onclick="ttEditTab(this)">{{ t("Βασικά πεδία") }}</button>
   <button class="edit-tab {% if tab=='annotate' %}on{% endif %}" id="tab-annotate" role="tab"
           hx-get="/admin/act/{{ act.adam }}/panel/annotate"
           hx-target="#edit-panel" hx-swap="innerHTML"
-          onclick="ttEditTab(this)">Σημειώσεις</button>
+          onclick="ttEditTab(this)">{{ t("Σημειώσεις") }}</button>
   <button class="edit-tab {% if tab=='fulltext' %}on{% endif %}" id="tab-fulltext" role="tab"
           hx-get="/admin/act/{{ act.adam }}/panel/fulltext"
           hx-target="#edit-panel" hx-swap="innerHTML"
-          onclick="ttEditTab(this)">Πλήρες κείμενο</button>
+          onclick="ttEditTab(this)">{{ t("Πλήρες κείμενο") }}</button>
   <button class="edit-tab {% if tab=='tables' %}on{% endif %}" id="tab-tables" role="tab"
           hx-get="/admin/act/{{ act.adam }}/panel/tables"
           hx-target="#edit-panel" hx-swap="innerHTML"
-          onclick="ttEditTab(this)">Πίνακες</button>
+          onclick="ttEditTab(this)">{{ t("Πίνακες") }}</button>
 </div>
 
 {# The requested tab's panel loads on page open via hx-trigger=load; the others
@@ -65,7 +65,7 @@
 <div id="edit-panel"
      hx-get="/admin/act/{{ act.adam }}/panel/{{ tab }}"
      hx-trigger="load" hx-swap="innerHTML">
-  <div class="panel-loading">Φόρτωση…</div>
+  <div class="panel-loading">{{ t("Φόρτωση…") }}</div>
 </div>
 
 <script>

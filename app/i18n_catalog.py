@@ -745,10 +745,100 @@ _ACTFORM = {
         "Available after saving. Create the act first, then you can add full text and tables from the edit form.",
 }
 
+# Legacy (pre-redesign) templates: act_stub, act_edit, _results, _explore_results,
+# index, explore, notice, authority, contractor, analytics, *_index
+_LEGACY = {
+    "μη διαθέσιμη στη βάση": "not in the database",
+    "‹ πίσω": "‹ back",
+    "Δεν έχει συλλεχθεί στη βάση": "Not collected in the database",
+    "Η πράξη με ΑΔΑΜ": "The act with ΑΔΑΜ",
+    "αναφέρεται από άλλες πράξεις που έχουμε καταγράψει, αλλά η ίδια δεν έχει συλλεχθεί ακόμη — πιθανότατα γιατί η ημερομηνία της πέφτει εκτός των διαστημάτων που έχουν συλλεχθεί.":
+        "is referenced by other acts we've recorded, but it hasn't been collected yet — probably because its date falls outside the collected windows.",
+    "Παραπέμπεται από": "Referenced by",
+    "Συσχετιζόμενες κατάντη": "Related downstream",
+    "Πώς να το συμπληρώσετε": "How to fill it in",
+    "Εκτελέστε εστιασμένη συλλογή για τον τύπο και την ημερομηνία της πράξης. Παράδειγμα για ένα ADAM που ξεκινά με":
+        "Run a focused collection for the act's type and date. Example for an ADAM starting with",
+    "(έτος 2024):": "(year 2024):",
+    "είναι ασφαλές: παραλείπει διαστήματα που έχουν ήδη ολοκληρωθεί. Μετά τη συλλογή, επαναφορτώστε τη σελίδα.":
+        "is safe: it skips windows already completed. After the collection, reload the page.",
+    "Το": "The",
+    # act_edit
+    "Επεξεργασία": "Edit",
+    "‹ πίσω στην επιμέλεια": "‹ back to curation",
+    "Σημειώσεις, πλήρες κείμενο και πίνακες για αυτή την πράξη — όλα σε μία σελίδα.":
+        "Notes, full text and tables for this act — all on one page.",
+    "✓ Η πράξη έγινε χειροκίνητη — τα βασικά πεδία είναι πλέον επεξεργάσιμα.":
+        "✓ The act is now manual — its core fields are now editable.",
+    "Βασικά πεδία": "Core fields",
+    "Σημειώσεις": "Notes",
+    # _explore_results legacy
+    "Ενεργά φίλτρα:": "Active filters:",
+    "Κανένας ανάδοχος για αυτά τα φίλτρα (η ανάλυση αναδόχων αφορά συμβάσεις με νικητή).":
+        "No contractor for these filters (contractor analysis covers contracts with a winner).",
+    "Εμφανίζονται οι 100 κορυφαίοι ανά κατηγορία. Οι αξίες αναδόχων χρησιμοποιούν το ποσό ανάθεσης ανά οικονομικό φορέα όπου υπάρχει.":
+        "Showing the top 100 per category. Contractor values use the per-operator award amount where available.",
+    # _results legacy
+    "Δημοσίευση / Λήξη": "Publication / Closing",
+    "Διορθωμένη τιμή — αρχική από πηγή: €": "Corrected value — original from source: €",
+    "Ύποπτη τιμή — εξαιρείται από τα στατιστικά": "Suspicious value — excluded from analytics",
+    "ύποπτη τιμή": "suspicious value",
+    "ανά σελίδα": "per page",
+    "Καμία διακήρυξη δεν αντιστοιχεί στα φίλτρα. Δοκιμάστε να χαλαρώσετε τα κριτήρια.":
+        "No tender matches the filters. Try relaxing the criteria.",
+}
+
+# Legacy index/explore search pages
+_LEGACY2 = {
+    "όλα": "all",
+    "κανένα": "none",
+    "τίτλος, λέξη-κλειδί ή ΑΔΑΜ…": "title, keyword or ΑΔΑΜ…",
+    "Στο πλήρες κείμενο": "In the full text",
+    "λέξεις στο κείμενο εγγράφων…": "words in the document text…",
+    'Αναζήτηση μέσα στο κείμενο των συνημμένων. Χρησιμοποιήστε <code class="cpv">"εισαγωγικά"</code> για ακριβή φράση, <code class="cpv">OR</code> για εναλλακτικές, <code class="cpv">-λέξη</code> για εξαίρεση, <code class="cpv">λέξη*</code> για αναζήτηση με μέρος λέξης (ηλεκτρολογικ* → βρίσκει ηλεκτρολογικά, ηλεκτρολογικών κ.λπ.).':
+        'Search within the attachment text. Use <code class="cpv">"quotes"</code> for an exact phrase, <code class="cpv">OR</code> for alternatives, <code class="cpv">-word</code> to exclude, <code class="cpv">word*</code> for partial-word search (ηλεκτρολογικ* → finds ηλεκτρολογικά, ηλεκτρολογικών etc.).',
+    "Μέσα στους πίνακες": "Within the tables",
+    "λέξεις στους εξαγμένους πίνακες…": "words in the extracted tables…",
+    'Κρατά μόνο πράξεις με δημοσιευμένο πίνακα που περιέχει τους όρους. Ίδια σύνταξη με το πλήρες κείμενο (<code class="cpv">"φράση"</code>, <code class="cpv">OR</code>, <code class="cpv">-λέξη</code>, <code class="cpv">λέξη*</code> για μέρος λέξης).':
+        'Keeps only acts with a published table containing the terms. Same syntax as the full text (<code class="cpv">"phrase"</code>, <code class="cpv">OR</code>, <code class="cpv">-word</code>, <code class="cpv">word*</code> for partial word).',
+    "Ενεργές": "Active",
+    "Ορθή επ.": "Corrected",
+    "Αναθέτουσα Αρχή": "Contracting Authority",
+    "Αντικείμενο": "Object",
+    "CPV (κωδικός ή πρόθεμα)": "CPV (code or prefix)",
+    "NUTS (πρόθεμα)": "NUTS (prefix)",
+    "Ημερομηνία δημοσίευσης": "Publication date",
+    "Καταληκτική ημ/νία υποβολής": "Submission deadline",
+    "Αξία (€ με ΦΠΑ)": "Value (€ incl. VAT)",
+    "ελάχ.": "min",
+    "Αποτελέσματα": "Results",
+    "φόρτωση…": "loading…",
+    "σχετικότητα (στο κείμενο)": "relevance (in text)",
+    "πιο πρόσφατη δημοσίευση": "most recent publication",
+    "παλαιότερη δημοσίευση": "oldest publication",
+    "πιο πρόσφατη υπογραφή": "most recent signing",
+    "παλαιότερη υπογραφή": "oldest signing",
+    "μεγαλύτερη αξία": "highest value",
+    "μικρότερη αξία": "lowest value",
+    "πλησιέστερη λήξη": "nearest deadline",
+    # explore legacy
+    "Σύνοψη · Δημόσιες Συμβάσεις": "Summary · Public Contracts",
+    "Συγκεντρωτικά ανά αρχή & ανάδοχο": "Aggregated by authority & contractor",
+    "Τα ίδια φίλτρα με την αναζήτηση, αλλά τα αποτελέσματα ομαδοποιημένα. Εξαιρούνται ακυρωμένες, ύποπτες και υπερβολικές τιμές, όπως στα στατιστικά.":
+        "The same filters as search, but the results grouped. Cancelled, suspicious and excessive values are excluded, as in analytics.",
+    "Όλες οι πράξεις": "All acts",
+    "λέξη-κλειδί…": "keyword…",
+    "— οποιοδήποτε —": "— any —",
+    "— οποιαδήποτε —": "— any —",
+    "↺ καθαρισμός φίλτρων": "↺ clear filters",
+    "→ προβολή ως λίστα": "→ view as list",
+    "Υπολογισμός…": "Calculating…",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
-             _PANELS, _ACTFORM):
+             _PANELS, _ACTFORM, _LEGACY, _LEGACY2):
     UI_EN.update(_grp)

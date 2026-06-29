@@ -1,26 +1,24 @@
 {% extends "base.html" %}
-{% block title %}{{ adam }} · μη διαθέσιμη στη βάση{% endblock %}
+{% block title %}{{ adam }} · {{ t("μη διαθέσιμη στη βάση") }}{% endblock %}
 
 {% block content %}
 
-<p style="margin:20px 0 0;"><a class="back" href="javascript:history.back()" hx-boost="false">‹ πίσω</a></p>
+<p style="margin:20px 0 0;"><a class="back" href="javascript:history.back()" hx-boost="false">{{ t("‹ πίσω") }}</a></p>
 
 <div class="detail-h">
   <div class="kicker">
     {% if inferred_type %}{{ inferred_type | type_label }} · {% endif %}{{ adam }}
   </div>
-  <h1 class="detail-title" style="color:var(--ink-2);">Δεν έχει συλλεχθεί στη βάση</h1>
+  <h1 class="detail-title" style="color:var(--ink-2);">{{ t("Δεν έχει συλλεχθεί στη βάση") }}</h1>
   <div class="detail-sub">
-    Η πράξη με ΑΔΑΜ <code style="font-family:var(--mono);">{{ adam }}</code> αναφέρεται από
-    άλλες πράξεις που έχουμε καταγράψει, αλλά η ίδια δεν έχει συλλεχθεί ακόμη — πιθανότατα
-    γιατί η ημερομηνία της πέφτει εκτός των διαστημάτων που έχουν συλλεχθεί.
+    {{ t("Η πράξη με ΑΔΑΜ") }} <code style="font-family:var(--mono);">{{ adam }}</code> {{ t("αναφέρεται από άλλες πράξεις που έχουμε καταγράψει, αλλά η ίδια δεν έχει συλλεχθεί ακόμη — πιθανότατα γιατί η ημερομηνία της πέφτει εκτός των διαστημάτων που έχουν συλλεχθεί.") }}
   </div>
 </div>
 
 <div class="detail-grid">
   <div>
     {% if referrers %}
-      <div class="section-h">Παραπέμπεται από</div>
+      <div class="section-h">{{ t("Παραπέμπεται από") }}</div>
       <ul class="chain">
         {% for r in referrers %}
           <li>
@@ -32,7 +30,7 @@
     {% endif %}
 
     {% if successors %}
-      <div class="section-h">Συσχετιζόμενες κατάντη</div>
+      <div class="section-h">{{ t("Συσχετιζόμενες κατάντη") }}</div>
       <ul class="chain">
         {% for r in successors %}
           <li>
@@ -45,18 +43,16 @@
   </div>
 
   <aside>
-    <div class="section-h">Πώς να το συμπληρώσετε</div>
+    <div class="section-h">{{ t("Πώς να το συμπληρώσετε") }}</div>
     <p style="font-family:var(--serif); font-size:14px; color:var(--ink-2); line-height:1.55;">
-      Εκτελέστε εστιασμένη συλλογή για τον τύπο και την ημερομηνία της πράξης. Παράδειγμα
-      για ένα ADAM που ξεκινά με <code class="cpv">24</code> (έτος 2024):
+      {{ t("Εκτελέστε εστιασμένη συλλογή για τον τύπο και την ημερομηνία της πράξης. Παράδειγμα για ένα ADAM που ξεκινά με") }} <code class="cpv">24</code> {{ t("(έτος 2024):") }}
     </p>
     <pre style="font-family:var(--mono); font-size:12px; background:var(--paper-2); padding:10px 12px; overflow-x:auto; border-left:2px solid var(--accent); margin:8px 0;">python3 db.py backfill \
   --start 2024-01-01 \
   --types {{ inferred_type or 'auction contract payment' }} \
   --resume</pre>
     <p class="meta" style="margin-top:8px;">
-      Το <code>--resume</code> είναι ασφαλές: παραλείπει διαστήματα που έχουν ήδη ολοκληρωθεί.
-      Μετά τη συλλογή, επαναφορτώστε τη σελίδα.
+      {{ t("Το") }} <code>--resume</code> {{ t("είναι ασφαλές: παραλείπει διαστήματα που έχουν ήδη ολοκληρωθεί. Μετά τη συλλογή, επαναφορτώστε τη σελίδα.") }}
     </p>
   </aside>
 </div>

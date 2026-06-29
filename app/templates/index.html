@@ -11,10 +11,10 @@
   <div class="grid">
 
     <aside class="filters">
-      <div class="filter-h" style="margin-top:0;">Τύπος πράξης
+      <div class="filter-h" style="margin-top:0;">{{ t("Τύπος πράξης") }}
         <span class="chk-allnone">
-          <a href="#" onclick="chkAll(this,'type');return false">όλα</a> ·
-          <a href="#" onclick="chkNone(this,'type');return false">κανένα</a>
+          <a href="#" onclick="chkAll(this,'type');return false">{{ t("όλα") }}</a> ·
+          <a href="#" onclick="chkNone(this,'type');return false">{{ t("κανένα") }}</a>
         </span>
       </div>
       <div class="seg-vert chk-group" role="group">
@@ -22,61 +22,53 @@
         {% for code in TYPE_FILTER_ORDER %}
         <label>
           <input type="checkbox" name="type" value="{{ code }}"
-                 {% if code in sel_types %}checked{% endif %}><span>{{ TYPE_LABELS[code] }}</span>
+                 {% if code in sel_types %}checked{% endif %}><span>{{ code | type_label }}</span>
         </label>
         {% endfor %}
       </div>
 
-      <div class="filter-h">Αναζήτηση</div>
+      <div class="filter-h">{{ t("Αναζήτηση") }}</div>
       <div class="search-row">
-        <input type="search" name="q" placeholder="τίτλος, λέξη-κλειδί ή ΑΔΑΜ…"
+        <input type="search" name="q" placeholder="{{ t('τίτλος, λέξη-κλειδί ή ΑΔΑΜ…') }}"
                value="{{ request.query_params.get('q','') }}">
-        <button type="submit">Εύρεση</button>
+        <button type="submit">{{ t("Εύρεση") }}</button>
       </div>
 
-      <div class="filter-h">Στο πλήρες κείμενο</div>
+      <div class="filter-h">{{ t("Στο πλήρες κείμενο") }}</div>
       <div class="search-row">
         <input type="search" name="fulltext"
-               placeholder="λέξεις στο κείμενο εγγράφων…"
+               placeholder="{{ t('λέξεις στο κείμενο εγγράφων…') }}"
                value="{{ request.query_params.get('fulltext','') }}">
-        <button type="submit">Εύρεση</button>
+        <button type="submit">{{ t("Εύρεση") }}</button>
       </div>
       <div class="meta" style="margin-top:5px; line-height:1.4;">
-        Αναζήτηση μέσα στο κείμενο των συνημμένων. Χρησιμοποιήστε
-        <code class="cpv">"εισαγωγικά"</code> για ακριβή φράση,
-        <code class="cpv">OR</code> για εναλλακτικές,
-        <code class="cpv">-λέξη</code> για εξαίρεση,
-        <code class="cpv">λέξη*</code> για αναζήτηση με μέρος λέξης
-        (ηλεκτρολογικ* → βρίσκει ηλεκτρολογικά, ηλεκτρολογικών κ.λπ.).
+        {{ t('Αναζήτηση μέσα στο κείμενο των συνημμένων. Χρησιμοποιήστε <code class="cpv">"εισαγωγικά"</code> για ακριβή φράση, <code class="cpv">OR</code> για εναλλακτικές, <code class="cpv">-λέξη</code> για εξαίρεση, <code class="cpv">λέξη*</code> για αναζήτηση με μέρος λέξης (ηλεκτρολογικ* → βρίσκει ηλεκτρολογικά, ηλεκτρολογικών κ.λπ.).') | safe }}
       </div>
 
-      <div class="filter-h">Μέσα στους πίνακες</div>
+      <div class="filter-h">{{ t("Μέσα στους πίνακες") }}</div>
       <div class="search-row">
         <input type="search" name="tables_q"
-               placeholder="λέξεις στους εξαγμένους πίνακες…"
+               placeholder="{{ t('λέξεις στους εξαγμένους πίνακες…') }}"
                value="{{ request.query_params.get('tables_q','') }}">
-        <button type="submit">Εύρεση</button>
+        <button type="submit">{{ t("Εύρεση") }}</button>
       </div>
       <div class="meta" style="margin-top:5px; line-height:1.4;">
-        Κρατά μόνο πράξεις με δημοσιευμένο πίνακα που περιέχει τους όρους.
-        Ίδια σύνταξη με το πλήρες κείμενο
-        (<code class="cpv">"φράση"</code>, <code class="cpv">OR</code>,
-        <code class="cpv">-λέξη</code>, <code class="cpv">λέξη*</code> για μέρος λέξης).
+        {{ t('Κρατά μόνο πράξεις με δημοσιευμένο πίνακα που περιέχει τους όρους. Ίδια σύνταξη με το πλήρες κείμενο (<code class="cpv">"φράση"</code>, <code class="cpv">OR</code>, <code class="cpv">-λέξη</code>, <code class="cpv">λέξη*</code> για μέρος λέξης).') | safe }}
       </div>
 
-      <div class="filter-h">Κατάσταση</div>
+      <div class="filter-h">{{ t("Κατάσταση") }}</div>
       <div class="seg" role="group">
-        <label><input type="radio" name="status" value=""        {% if not request.query_params.get('status') %}checked{% endif %}><span>Όλες</span></label>
-        <label><input type="radio" name="status" value="active"    {% if request.query_params.get('status')=='active' %}checked{% endif %}><span>Ενεργές</span></label>
-        <label><input type="radio" name="status" value="modified"  {% if request.query_params.get('status')=='modified' %}checked{% endif %}><span>Ορθή επ.</span></label>
-        <label><input type="radio" name="status" value="cancelled" {% if request.query_params.get('status')=='cancelled' %}checked{% endif %}><span>Ακυρωμένες</span></label>
+        <label><input type="radio" name="status" value=""        {% if not request.query_params.get('status') %}checked{% endif %}><span>{{ t("Όλες") }}</span></label>
+        <label><input type="radio" name="status" value="active"    {% if request.query_params.get('status')=='active' %}checked{% endif %}><span>{{ t("Ενεργές") }}</span></label>
+        <label><input type="radio" name="status" value="modified"  {% if request.query_params.get('status')=='modified' %}checked{% endif %}><span>{{ t("Ορθή επ.") }}</span></label>
+        <label><input type="radio" name="status" value="cancelled" {% if request.query_params.get('status')=='cancelled' %}checked{% endif %}><span>{{ t("Ακυρωμένες") }}</span></label>
       </div>
 
-      <div class="filter-h">Αναθέτουσα Αρχή</div>
+      <div class="filter-h">{{ t("Αναθέτουσα Αρχή") }}</div>
       <div class="field">
         {% set sel_auth = request.query_params.getlist('authority') %}
         <select name="authority">
-          <option value="">— όλες —</option>
+          <option value="">{{ t("— όλες —") }}</option>
           {% for a in lk.authorities %}
             <option value="{{ a.id }}"
               {% if a.id in sel_auth %}selected{% endif %}>
@@ -86,17 +78,17 @@
         </select>
       </div>
 
-      <div class="filter-h">Αντικείμενο</div>
+      <div class="filter-h">{{ t("Αντικείμενο") }}</div>
       <div class="field">
-        <label>CPV (κωδικός ή πρόθεμα)</label>
+        <label>{{ t("CPV (κωδικός ή πρόθεμα)") }}</label>
         <input name="cpv" placeholder="π.χ. 33 ή 33100000"
                value="{{ request.query_params.get('cpv','') }}">
       </div>
       <div class="field">
-        <label>Είδος σύμβασης
+        <label>{{ t("Είδος σύμβασης") }}
           <span class="chk-allnone">
-            <a href="#" onclick="chkAll(this,'contract_type');return false">όλα</a> ·
-            <a href="#" onclick="chkNone(this,'contract_type');return false">κανένα</a>
+            <a href="#" onclick="chkAll(this,'contract_type');return false">{{ t("όλα") }}</a> ·
+            <a href="#" onclick="chkNone(this,'contract_type');return false">{{ t("κανένα") }}</a>
           </span>
         </label>
         <div class="chk-group chk-list">
@@ -111,10 +103,10 @@
       </div>
 
       <div class="field">
-        <label>Τύπος διαδικασίας
+        <label>{{ t("Τύπος διαδικασίας") }}
           <span class="chk-allnone">
-            <a href="#" onclick="chkAll(this,'procedure_type');return false">όλα</a> ·
-            <a href="#" onclick="chkNone(this,'procedure_type');return false">κανένα</a>
+            <a href="#" onclick="chkAll(this,'procedure_type');return false">{{ t("όλα") }}</a> ·
+            <a href="#" onclick="chkNone(this,'procedure_type');return false">{{ t("κανένα") }}</a>
           </span>
         </label>
         <div class="chk-group chk-list">
@@ -128,12 +120,12 @@
         </div>
       </div>
 
-      <div class="filter-h">Γεωγραφία</div>
+      <div class="filter-h">{{ t("Γεωγραφία") }}</div>
       <div class="field">
-        <label>NUTS (πρόθεμα)
+        <label>{{ t("NUTS (πρόθεμα)") }}
           <span class="chk-allnone">
-            <a href="#" onclick="chkAll(this,'nuts');return false">όλα</a> ·
-            <a href="#" onclick="chkNone(this,'nuts');return false">κανένα</a>
+            <a href="#" onclick="chkAll(this,'nuts');return false">{{ t("όλα") }}</a> ·
+            <a href="#" onclick="chkNone(this,'nuts');return false">{{ t("κανένα") }}</a>
           </span>
         </label>
         <div class="chk-group chk-list">
@@ -147,34 +139,34 @@
         </div>
       </div>
 
-      <div class="filter-h">Ημερομηνία δημοσίευσης</div>
+      <div class="filter-h">{{ t("Ημερομηνία δημοσίευσης") }}</div>
       <div class="date-pair">
-        <div class="field"><label>από</label>
+        <div class="field"><label>{{ t("από") }}</label>
           <input type="date" name="date_from" value="{{ request.query_params.get('date_from','') }}">
         </div>
-        <div class="field"><label>έως</label>
+        <div class="field"><label>{{ t("έως") }}</label>
           <input type="date" name="date_to"   value="{{ request.query_params.get('date_to','') }}">
         </div>
       </div>
 
-      <div class="filter-h">Καταληκτική ημ/νία υποβολής</div>
+      <div class="filter-h">{{ t("Καταληκτική ημ/νία υποβολής") }}</div>
       <div class="date-pair">
-        <div class="field"><label>από</label>
+        <div class="field"><label>{{ t("από") }}</label>
           <input type="date" name="deadline_from" value="{{ request.query_params.get('deadline_from','') }}">
         </div>
-        <div class="field"><label>έως</label>
+        <div class="field"><label>{{ t("έως") }}</label>
           <input type="date" name="deadline_to"   value="{{ request.query_params.get('deadline_to','') }}">
         </div>
       </div>
 
 
-      <div class="filter-h">Αξία (€ με ΦΠΑ)</div>
+      <div class="filter-h">{{ t("Αξία (€ με ΦΠΑ)") }}</div>
       <div class="row-2">
-        <div class="field"><label>ελάχ.</label>
+        <div class="field"><label>{{ t("ελάχ.") }}</label>
           <input type="number" name="value_min" step="any" min="0"
                  value="{{ request.query_params.get('value_min','') }}">
         </div>
-        <div class="field"><label>μέγ.</label>
+        <div class="field"><label>{{ t("μέγ.") }}</label>
           <input type="number" name="value_max" step="any" min="0"
                  value="{{ request.query_params.get('value_max','') }}">
         </div>
@@ -184,20 +176,20 @@
     <section>
       <div class="results-bar">
         <div class="counters" id="counters">
-          <span class="lbl">Αποτελέσματα</span>
+          <span class="lbl">{{ t("Αποτελέσματα") }}</span>
         </div>
         <div class="sort-row">
-          <span id="busy" class="htmx-indicator">φόρτωση…</span>
-          &nbsp;ταξινόμηση
+          <span id="busy" class="htmx-indicator">{{ t("φόρτωση…") }}</span>
+          &nbsp;{{ t("ταξινόμηση") }}
           <select name="sort">
-            <option value="relevance"            {% if request.query_params.get('sort')=='relevance' %}selected{% endif %}>σχετικότητα (στο κείμενο)</option>
-            <option value="submission_date"      {% if request.query_params.get('sort','submission_date')=='submission_date' %}selected{% endif %}>πιο πρόσφατη δημοσίευση</option>
-            <option value="submission_date_asc"  {% if request.query_params.get('sort')=='submission_date_asc' %}selected{% endif %}>παλαιότερη δημοσίευση</option>
-            <option value="signed_date"          {% if request.query_params.get('sort')=='signed_date' %}selected{% endif %}>πιο πρόσφατη υπογραφή</option>
-            <option value="signed_date_asc"      {% if request.query_params.get('sort')=='signed_date_asc' %}selected{% endif %}>παλαιότερη υπογραφή</option>
-            <option value="value"                {% if request.query_params.get('sort')=='value' %}selected{% endif %}>μεγαλύτερη αξία</option>
-            <option value="value_asc"            {% if request.query_params.get('sort')=='value_asc' %}selected{% endif %}>μικρότερη αξία</option>
-            <option value="deadline"             {% if request.query_params.get('sort')=='deadline' %}selected{% endif %}>πλησιέστερη λήξη</option>
+            <option value="relevance"            {% if request.query_params.get('sort')=='relevance' %}selected{% endif %}>{{ t("σχετικότητα (στο κείμενο)") }}</option>
+            <option value="submission_date"      {% if request.query_params.get('sort','submission_date')=='submission_date' %}selected{% endif %}>{{ t("πιο πρόσφατη δημοσίευση") }}</option>
+            <option value="submission_date_asc"  {% if request.query_params.get('sort')=='submission_date_asc' %}selected{% endif %}>{{ t("παλαιότερη δημοσίευση") }}</option>
+            <option value="signed_date"          {% if request.query_params.get('sort')=='signed_date' %}selected{% endif %}>{{ t("πιο πρόσφατη υπογραφή") }}</option>
+            <option value="signed_date_asc"      {% if request.query_params.get('sort')=='signed_date_asc' %}selected{% endif %}>{{ t("παλαιότερη υπογραφή") }}</option>
+            <option value="value"                {% if request.query_params.get('sort')=='value' %}selected{% endif %}>{{ t("μεγαλύτερη αξία") }}</option>
+            <option value="value_asc"            {% if request.query_params.get('sort')=='value_asc' %}selected{% endif %}>{{ t("μικρότερη αξία") }}</option>
+            <option value="deadline"             {% if request.query_params.get('sort')=='deadline' %}selected{% endif %}>{{ t("πλησιέστερη λήξη") }}</option>
           </select>
         </div>
       </div>
