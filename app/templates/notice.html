@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% set t = n.act_type or 'notice' %}
-{% set type_label_el = t | type_label %}
+{% set atype = n.act_type or 'notice' %}
+{% set type_label_el = atype | type_label %}
 
 {% block title %}{{ n.title or n.adam }} · {{ type_label_el }}{% endblock %}
 
 {% block content %}
 
-<p style="margin:20px 0 0;"><a class="back" href="/" hx-boost="false">‹ πίσω στην αναζήτηση</a></p>
+<p style="margin:20px 0 0;"><a class="back" href="/" hx-boost="false">{{ t("‹ πίσω στην αναζήτηση") }}</a></p>
 
 <div class="detail-h">
   <div class="kicker">{{ type_label_el }} · {{ n.adam }}</div>
@@ -17,12 +17,12 @@
     {% else %}{{ n.authority_name or '—' }}{% endif %}
   </div>
   <div style="margin-top:10px;">
-    {% if n.cancelled %}<span class="pill cancel">ακυρωμένη</span>{% endif %}
-    {% if n.is_modified %}<span class="pill amend">ορθή επανάληψη</span>{% endif %}
+    {% if n.cancelled %}<span class="pill cancel">{{ t("ακυρωμένη") }}</span>{% endif %}
+    {% if n.is_modified %}<span class="pill amend">{{ t("ορθή επανάληψη") }}</span>{% endif %}
     {% if excluded_reason == 'over_threshold' %}
-      <span class="pill cancel" title="Η αξία υπερβαίνει το όριο λογικού ελέγχου (€ {{ '{:,.0f}'.format(ANALYTICS_VALUE_CEILING).replace(',','·') }}) και πιθανότατα είναι σφάλμα στα δεδομένα της πηγής. Εξαιρείται από τα συγκεντρωτικά στοιχεία.">ύποπτη τιμή · εκτός στατιστικών</span>
+      <span class="pill cancel" title="{{ t('Η αξία υπερβαίνει το όριο λογικού ελέγχου (€') }} {{ '{:,.0f}'.format(ANALYTICS_VALUE_CEILING).replace(',','·') }}{{ t(') και πιθανότατα είναι σφάλμα στα δεδομένα της πηγής. Εξαιρείται από τα συγκεντρωτικά στοιχεία.') }}">{{ t("ύποπτη τιμή · εκτός στατιστικών") }}</span>
     {% elif excluded_reason == 'flagged' %}
-      <span class="pill cancel" title="Έχει επισημανθεί ως ύποπτη και εξαιρείται από τα συγκεντρωτικά στοιχεία.">επισημασμένη · εκτός στατιστικών</span>
+      <span class="pill cancel" title="{{ t('Έχει επισημανθεί ως ύποπτη και εξαιρείται από τα συγκεντρωτικά στοιχεία.') }}">{{ t("επισημασμένη · εκτός στατιστικών") }}</span>
     {% endif %}
   </div>
 </div>
@@ -30,74 +30,74 @@
 <div class="detail-grid">
   <div>
 
-    <div class="section-h">Στοιχεία</div>
+    <div class="section-h">{{ t("Στοιχεία") }}</div>
     <dl class="facts">
       <dt>ΑΔΑΜ</dt><dd><code style="font-family:var(--mono); font-size:13px;">{{ n.adam }}</code></dd>
-      <dt>Τύπος πράξης</dt><dd>{{ type_label_el }}</dd>
-      {% if n.submission_date %}<dt>Δημοσίευση</dt><dd>{{ n.submission_date.strftime('%d-%m-%Y %H:%M') }}</dd>{% endif %}
-      <dt>Υπογραφή</dt><dd>{{ n.signed_date.strftime('%d-%m-%Y') if n.signed_date else '—' }}</dd>
+      <dt>{{ t("Τύπος πράξης") }}</dt><dd>{{ type_label_el }}</dd>
+      {% if n.submission_date %}<dt>{{ t("Δημοσίευση") }}</dt><dd>{{ n.submission_date.strftime('%d-%m-%Y %H:%M') }}</dd>{% endif %}
+      <dt>{{ t("Υπογραφή") }}</dt><dd>{{ n.signed_date.strftime('%d-%m-%Y') if n.signed_date else '—' }}</dd>
 
-      {% if t == 'notice' and n.final_submission_date %}
-        <dt>Λήξη υποβολής</dt><dd>{{ n.final_submission_date.strftime('%d-%m-%Y %H:%M') }}</dd>
+      {% if atype == 'notice' and n.final_submission_date %}
+        <dt>{{ t("Λήξη υποβολής") }}</dt><dd>{{ n.final_submission_date.strftime('%d-%m-%Y %H:%M') }}</dd>
       {% endif %}
 
-      {% if t == 'contract' %}
-        {% if n.contract_number %}<dt>Αριθμός σύμβασης</dt><dd>{{ n.contract_number }}</dd>{% endif %}
-        {% if n.contract_signed_date %}<dt>Ημ. σύμβασης</dt><dd>{{ n.contract_signed_date.strftime('%d-%m-%Y') }}</dd>{% endif %}
-        {% if n.start_date %}<dt>Έναρξη</dt><dd>{{ n.start_date.strftime('%d-%m-%Y') }}</dd>{% endif %}
-        {% if n.end_date %}<dt>Λήξη</dt><dd>{{ n.end_date.strftime('%d-%m-%Y') }}</dd>{% elif n.no_end_date %}<dt>Λήξη</dt><dd><em>χωρίς προκαθορισμένη λήξη</em></dd>{% endif %}
+      {% if atype == 'contract' %}
+        {% if n.contract_number %}<dt>{{ t("Αριθμός σύμβασης") }}</dt><dd>{{ n.contract_number }}</dd>{% endif %}
+        {% if n.contract_signed_date %}<dt>{{ t("Ημ. σύμβασης") }}</dt><dd>{{ n.contract_signed_date.strftime('%d-%m-%Y') }}</dd>{% endif %}
+        {% if n.start_date %}<dt>{{ t("Έναρξη") }}</dt><dd>{{ n.start_date.strftime('%d-%m-%Y') }}</dd>{% endif %}
+        {% if n.end_date %}<dt>{{ t("Λήξη") }}</dt><dd>{{ n.end_date.strftime('%d-%m-%Y') }}</dd>{% elif n.no_end_date %}<dt>{{ t("Λήξη") }}</dt><dd><em>{{ t("χωρίς προκαθορισμένη λήξη") }}</em></dd>{% endif %}
         {% if n.bids_submitted is not none %}
-          <dt>Προσφορές</dt><dd>{{ n.bids_submitted }}{% if n.max_bids_submitted %} (μέγ. {{ n.max_bids_submitted }}){% endif %}</dd>
+          <dt>{{ t("Προσφορές") }}</dt><dd>{{ n.bids_submitted }}{% if n.max_bids_submitted %} ({{ t("μέγ.") }} {{ n.max_bids_submitted }}){% endif %}</dd>
         {% endif %}
-        {% if n.assign_criteria_code %}<dt>Κριτήριο ανάθεσης</dt><dd>{{ n.assign_criteria_code | assign_criteria_label }}</dd>{% endif %}
+        {% if n.assign_criteria_code %}<dt>{{ t("Κριτήριο ανάθεσης") }}</dt><dd>{{ n.assign_criteria_code | assign_criteria_label }}</dd>{% endif %}
       {% endif %}
 
-      {% if t == 'payment' %}
-        {% if n.is_credit is not none %}<dt>Πιστωτικό</dt><dd>{{ 'ναι' if n.is_credit else 'όχι' }}</dd>{% endif %}
-        {% if n.payment_commitment_code %}<dt>Κωδικός δέσμευσης</dt><dd><code class="cpv">{{ n.payment_commitment_code }}</code></dd>{% endif %}
-        {% if n.contract_value %}<dt>Αξία σύμβασης</dt><dd>€ {{ "{:,.2f}".format(n.contract_value).replace(",", "·") }}</dd>{% endif %}
+      {% if atype == 'payment' %}
+        {% if n.is_credit is not none %}<dt>{{ t("Πιστωτικό") }}</dt><dd>{{ t('ναι') if n.is_credit else t('όχι') }}</dd>{% endif %}
+        {% if n.payment_commitment_code %}<dt>{{ t("Κωδικός δέσμευσης") }}</dt><dd><code class="cpv">{{ n.payment_commitment_code }}</code></dd>{% endif %}
+        {% if n.contract_value %}<dt>{{ t("Αξία σύμβασης") }}</dt><dd>€ {{ "{:,.2f}".format(n.contract_value).replace(",", "·") }}</dd>{% endif %}
       {% endif %}
 
-      {% if n.budget %}<dt>Προϋπολογισμός</dt><dd>€ {{ "{:,.2f}".format(n.budget).replace(",", "·") }}</dd>{% endif %}
+      {% if n.budget %}<dt>{{ t("Προϋπολογισμός") }}</dt><dd>€ {{ "{:,.2f}".format(n.budget).replace(",", "·") }}</dd>{% endif %}
       {% if n.total_cost_without_vat %}
-        <dt>Αξία (χωρίς ΦΠΑ)</dt>
+        <dt>{{ t("Αξία (χωρίς ΦΠΑ)") }}</dt>
         <dd>
           {% if annotation and annotation.corrected_value_without_vat is not none %}
             <span style="color:var(--ok); font-weight:600;">€ {{ "{:,.2f}".format(annotation.corrected_value_without_vat).replace(",", "·") }}</span>
             <span style="text-decoration:line-through; color:var(--ink-3); margin-left:8px;">€ {{ "{:,.2f}".format(n.total_cost_without_vat).replace(",", "·") }}</span>
-            <div class="meta" style="margin-top:4px;">Διορθωμένη τιμή· η αρχική τιμή από την πηγή ήταν € {{ "{:,.2f}".format(n.total_cost_without_vat).replace(",", "·") }}.</div>
+            <div class="meta" style="margin-top:4px;">{{ t("Διορθωμένη τιμή· η αρχική τιμή από την πηγή ήταν €") }} {{ "{:,.2f}".format(n.total_cost_without_vat).replace(",", "·") }}.</div>
           {% else %}
             € {{ "{:,.2f}".format(n.total_cost_without_vat).replace(",", "·") }}
           {% endif %}
         </dd>
       {% endif %}
       {% if n.total_cost_with_vat %}
-        <dt>Αξία (με ΦΠΑ)</dt>
+        <dt>{{ t("Αξία (με ΦΠΑ)") }}</dt>
         <dd>
           {% if annotation and annotation.corrected_value is not none %}
             <span style="color:var(--ok); font-weight:600;">€ {{ "{:,.2f}".format(annotation.corrected_value).replace(",", "·") }}</span>
             <span style="text-decoration:line-through; color:var(--ink-3); margin-left:8px;">€ {{ "{:,.2f}".format(n.total_cost_with_vat).replace(",", "·") }}</span>
-            <div class="meta" style="margin-top:4px;">Διορθωμένη τιμή· η αρχική τιμή από την πηγή ήταν € {{ "{:,.2f}".format(n.total_cost_with_vat).replace(",", "·") }}.</div>
+            <div class="meta" style="margin-top:4px;">{{ t("Διορθωμένη τιμή· η αρχική τιμή από την πηγή ήταν €") }} {{ "{:,.2f}".format(n.total_cost_with_vat).replace(",", "·") }}.</div>
           {% else %}
             € {{ "{:,.2f}".format(n.total_cost_with_vat).replace(",", "·") }}
           {% endif %}
         </dd>
       {% endif %}
 
-      {% if n.contract_type_code %}<dt>Είδος σύμβασης</dt><dd>{{ n.contract_type_code | contract_type_label }}</dd>{% endif %}
-      {% if n.procedure_type_code %}<dt>Τύπος διαδικασίας</dt><dd>{{ n.procedure_type_code | procedure_type_label }}</dd>{% endif %}
-      {% if n.criteria_code %}<dt>Κριτήριο</dt><dd>{{ n.criteria_code | assign_criteria_label }}</dd>{% endif %}
-      <dt>Τόπος εκτέλεσης</dt><dd>{% if n.nuts_code %}{{ n.nuts_label or '' }}{% if n.nuts_label %} <code class="cpv">{{ n.nuts_code }}</code>{% else %}<code class="cpv">{{ n.nuts_code }}</code>{% endif %}{% else %}—{% endif %}</dd>
-      {% if n.bidding_website %}<dt>Πλατφόρμα</dt><dd><a style="color:var(--accent)" href="{{ n.bidding_website }}" target="_blank" rel="noopener">{{ n.bidding_website }}</a></dd>{% endif %}
-      {% if n.cancellation_reason %}<dt>Αιτία ακύρωσης</dt><dd>{{ n.cancellation_reason }}</dd>{% endif %}
+      {% if n.contract_type_code %}<dt>{{ t("Είδος σύμβασης") }}</dt><dd>{{ n.contract_type_code | contract_type_label }}</dd>{% endif %}
+      {% if n.procedure_type_code %}<dt>{{ t("Τύπος διαδικασίας") }}</dt><dd>{{ n.procedure_type_code | procedure_type_label }}</dd>{% endif %}
+      {% if n.criteria_code %}<dt>{{ t("Κριτήριο") }}</dt><dd>{{ n.criteria_code | assign_criteria_label }}</dd>{% endif %}
+      <dt>{{ t("Τόπος εκτέλεσης") }}</dt><dd>{% if n.nuts_code %}{{ n.nuts_label or '' }}{% if n.nuts_label %} <code class="cpv">{{ n.nuts_code }}</code>{% else %}<code class="cpv">{{ n.nuts_code }}</code>{% endif %}{% else %}—{% endif %}</dd>
+      {% if n.bidding_website %}<dt>{{ t("Πλατφόρμα") }}</dt><dd><a style="color:var(--accent)" href="{{ n.bidding_website }}" target="_blank" rel="noopener">{{ n.bidding_website }}</a></dd>{% endif %}
+      {% if n.cancellation_reason %}<dt>{{ t("Αιτία ακύρωσης") }}</dt><dd>{{ n.cancellation_reason }}</dd>{% endif %}
     </dl>
 
     {% if operators %}
       <div class="section-h">
-        {% if t == 'payment' %}Προμηθευτής{% else %}Ανάδοχος / Συμμετέχοντες{% endif %}
+        {% if atype == 'payment' %}{{ t("Προμηθευτής") }}{% else %}{{ t("Ανάδοχος / Συμμετέχοντες") }}{% endif %}
       </div>
       <table class="lines">
-        <thead><tr><th>Επωνυμία</th><th>ΑΦΜ</th><th>Χώρα</th><th>Ρόλος</th><th style="text-align:right;">Αξία (με ΦΠΑ)</th></tr></thead>
+        <thead><tr><th>{{ t("Επωνυμία") }}</th><th>{{ t("ΑΦΜ") }}</th><th>{{ t("Χώρα") }}</th><th>{{ t("Ρόλος") }}</th><th style="text-align:right;">{{ t("Αξία (με ΦΠΑ)") }}</th></tr></thead>
         <tbody>
           {% for op in operators %}
             <tr>
@@ -117,10 +117,10 @@
       </table>
     {% endif %}
 
-    <div class="section-h">Είδη / Αντικείμενο</div>
+    <div class="section-h">{{ t("Είδη / Αντικείμενο") }}</div>
     {% if line_items %}
       <table class="lines">
-        <thead><tr><th>Περιγραφή</th><th>CPV</th><th style="text-align:right;">Ποσότητα</th><th style="text-align:right;">Αξία (χωρίς ΦΠΑ)</th></tr></thead>
+        <thead><tr><th>{{ t("Περιγραφή") }}</th><th>CPV</th><th style="text-align:right;">{{ t("Ποσότητα") }}</th><th style="text-align:right;">{{ t("Αξία (χωρίς ΦΠΑ)") }}</th></tr></thead>
         <tbody>
           {% for li in line_items %}
             <tr>
@@ -152,11 +152,7 @@
       <p style="font-style:italic; color:var(--ink-3);">—</p>
     {% endif %}
 
-    {# ---- Extracted tables (published only) ----
-       Curator-published tables pulled from this act's attachments, shown as
-       native HTML grids. Lazy-loaded so large tables don't weigh on the main
-       act query; the route returns an empty body when nothing is published,
-       and hx-swap="outerHTML" then collapses this whole block to nothing. #}
+    {# ---- Extracted tables (published only) ---- #}
     {% if tables_enabled %}
     <div id="tt-pub-tables-mount"
          hx-get="/tables/public/{{ n.adam }}"
@@ -166,21 +162,21 @@
 
     {% if n.full_text %}
       <div class="section-h">
-        Πλήρες κείμενο
-        <a href="/admin/act/{{ n.adam }}/edit?tab=fulltext" style="float:right; color:var(--accent); font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; font-weight:400;">επεξεργασία ›</a>
+        {{ t("Πλήρες κείμενο") }}
+        <a href="/admin/act/{{ n.adam }}/edit?tab=fulltext" style="float:right; color:var(--accent); font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; font-weight:400;">{{ t("επεξεργασία ›") }}</a>
       </div>
       <details>
         <summary style="cursor:pointer; font-family:var(--sans); font-size:13px; color:var(--ink-2); margin-bottom:8px;">
-          {{ n.full_text | length }} χαρακτήρες
+          {{ n.full_text | length }} {{ t("χαρακτήρες") }}
           {% if n.full_text_extracted_at %}· {{ n.full_text_extracted_at.strftime('%Y-%m-%d') }}{% endif %}
-          — προβολή κειμένου
+          {{ t("— προβολή κειμένου") }}
         </summary>
         <pre style="font-family:var(--mono); font-size:12px; line-height:1.55; white-space:pre-wrap; word-wrap:break-word; background:var(--paper-2); padding:14px 16px; border-left:2px solid var(--rule); max-height:520px; overflow:auto; margin:8px 0 0;">{{ n.full_text }}</pre>
       </details>
     {% endif %}
 
     {% if incoming %}
-      <div class="section-h">Συσχετιζόμενα προηγούμενα</div>
+      <div class="section-h">{{ t("Συσχετιζόμενα προηγούμενα") }}</div>
       <ul class="chain">
         {% for it in incoming %}
           <li>
@@ -197,14 +193,14 @@
   <aside>
     {% set doc_url = khmdhs_doc_url(n.act_type, n.adam) %}
     {% if doc_url %}
-    <div class="section-h">Επίσημη πηγή</div>
+    <div class="section-h">{{ t("Επίσημη πηγή") }}</div>
     <p style="margin:0 0 24px;">
       <a href="{{ doc_url }}" target="_blank" rel="noopener"
          style="display:inline-flex; align-items:center; gap:7px; font-weight:600; text-decoration:none;">
-        <span style="font-size:15px;">↗</span> Δείτε το έγγραφο στο ΚΗΜΔΗΣ (PDF)
+        <span style="font-size:15px;">↗</span> {{ t("Δείτε το έγγραφο στο ΚΗΜΔΗΣ (PDF)") }}
       </a>
       <span class="meta" style="display:block; margin-top:5px;">
-        Το επίσημο έγγραφο της πράξης, απευθείας από το ΚΗΜΔΗΣ.
+        {{ t("Το επίσημο έγγραφο της πράξης, απευθείας από το ΚΗΜΔΗΣ.") }}
       </span>
     </p>
     {% endif %}
@@ -213,38 +209,38 @@
     <p style="margin:0 0 24px;">
       <a href="/admin/act/{{ n.adam }}/edit?tab=tables"
          style="display:inline-flex; align-items:center; gap:7px; font-weight:600; text-decoration:none;">
-        <span style="font-size:15px;">▦</span> Εξαγωγή πινάκων από τα συνημμένα
+        <span style="font-size:15px;">▦</span> {{ t("Εξαγωγή πινάκων από τα συνημμένα") }}
       </a>
       <span class="meta" style="display:block; margin-top:5px;">
-        Αντλεί το έγγραφο και εξάγει πίνακες (προϋπολογισμού, ειδών) σε Excel.
+        {{ t("Αντλεί το έγγραφο και εξάγει πίνακες (προϋπολογισμού, ειδών) σε Excel.") }}
       </span>
     </p>
     {% endif %}
 
     <div class="section-h">
-      Σημειώσεις ομάδας
-      <a href="/admin/act/{{ n.adam }}/edit" style="float:right; color:var(--accent); font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; font-weight:400;">επεξεργασία ›</a>
+      {{ t("Σημειώσεις ομάδας") }}
+      <a href="/admin/act/{{ n.adam }}/edit" style="float:right; color:var(--accent); font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; font-weight:400;">{{ t("επεξεργασία ›") }}</a>
     </div>
     {% if annotation and (annotation.note or annotation.tags or annotation.flag) %}
       {% if annotation.flag %}
         <div style="margin-bottom:8px;">
-          {% if annotation.flag == 'verified' %}<span class="pill" style="color:var(--ok);">Επαληθευμένο</span>
-          {% elif annotation.flag == 'review' %}<span class="pill amend">Προς έλεγχο</span>
-          {% elif annotation.flag == 'suspicious' %}<span class="pill cancel">Ύποπτο</span>{% endif %}
+          {% if annotation.flag == 'verified' %}<span class="pill" style="color:var(--ok);">{{ t("Επαληθευμένο") }}</span>
+          {% elif annotation.flag == 'review' %}<span class="pill amend">{{ t("Προς έλεγχο") }}</span>
+          {% elif annotation.flag == 'suspicious' %}<span class="pill cancel">{{ t("Ύποπτο") }}</span>{% endif %}
         </div>
       {% endif %}
       {% if annotation.note %}<p style="font-family:var(--serif); font-size:14px; color:var(--ink); margin:0 0 8px;">{{ annotation.note }}</p>{% endif %}
-      {% if annotation.tags %}<div style="margin-bottom:8px;">{% for t in annotation.tags %}<code class="cpv" style="margin-right:3px;">{{ t }}</code>{% endfor %}</div>{% endif %}
+      {% if annotation.tags %}<div style="margin-bottom:8px;">{% for tg in annotation.tags %}<code class="cpv" style="margin-right:3px;">{{ tg }}</code>{% endfor %}</div>{% endif %}
       <div class="chain-meta">— {{ annotation.author }}, {{ annotation.created_at.strftime('%Y-%m-%d') }}</div>
     {% else %}
-      <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); font-size:13px;">Καμία σημείωση.</p>
+      <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); font-size:13px;">{{ t("Καμία σημείωση.") }}</p>
     {% endif %}
 
-    <div class="section-h" style="margin-top:28px;">Κύκλος ζωής διαδικασίας</div>
+    <div class="section-h" style="margin-top:28px;">{{ t("Κύκλος ζωής διαδικασίας") }}</div>
     {% if downstream %}
       <ul class="chain">
         <li>
-          <div class="chain-type">{{ type_label_el }} · <span class="chain-via">αυτή η πράξη</span></div>
+          <div class="chain-type">{{ type_label_el }} · <span class="chain-via">{{ t("αυτή η πράξη") }}</span></div>
           <span class="chain-title" style="font-weight:600;">{{ n.title or n.adam }}</span>
           <div class="chain-meta">{{ n.adam }}</div>
         </li>
@@ -256,14 +252,14 @@
               {{ d.adam }}
               {% if d.signed_date %} · {{ d.signed_date.strftime('%Y-%m-%d') }}{% endif %}
               {% if d.total_cost_with_vat %} · € {{ "{:,.0f}".format(d.total_cost_with_vat).replace(",", "·") }}{% endif %}
-              {% if d.cancelled %} · <span style="color:var(--accent);">ακυρωμένη</span>{% endif %}
+              {% if d.cancelled %} · <span style="color:var(--accent);">{{ t("ακυρωμένη") }}</span>{% endif %}
             </div>
           </li>
         {% endfor %}
       </ul>
     {% else %}
       <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); font-size:14px;">
-        Δεν εντοπίστηκαν κατάντη συνδεδεμένες πράξεις στη βάση.
+        {{ t("Δεν εντοπίστηκαν κατάντη συνδεδεμένες πράξεις στη βάση.") }}
       </p>
     {% endif %}
   </aside>

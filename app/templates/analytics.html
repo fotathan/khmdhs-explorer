@@ -1,21 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Αναλυτικά · Δημόσιες Συμβάσεις{% endblock %}
+{% block title %}{{ t("Αναλυτικά · Δημόσιες Συμβάσεις") }}{% endblock %}
 
 {% block content %}
 <div class="detail-h">
-  <div class="kicker">Αναλυτικά</div>
-  <h1 class="detail-title">Επισκόπηση αναθέσεων</h1>
+  <div class="kicker">{{ t("Αναλυτικά") }}</div>
+  <h1 class="detail-title">{{ t("Επισκόπηση αναθέσεων") }}</h1>
   <div class="detail-sub">
-    Αξία <strong>αναθέσεων</strong> — υπολογισμένη μόνο από <em>συμβάσεις</em>
-    (όχι πληρωμές, όχι ακυρωμένες), με ενοποιημένες τις διπλότυπες οντότητες.
-    Τα ποσά δεν διπλομετρώνται.
+    {{ t('Αξία <strong>αναθέσεων</strong> — υπολογισμένη μόνο από <em>συμβάσεις</em> (όχι πληρωμές, όχι ακυρωμένες), με ενοποιημένες τις διπλότυπες οντότητες. Τα ποσά δεν διπλομετρώνται.') | safe }}
   </div>
 </div>
 
 {% if not available %}
   <div style="margin:24px 0; padding:16px; border-left:3px solid var(--accent); background:var(--paper-2);">
     <p style="margin:0; font-family:var(--serif); font-size:15px;">
-      Τα αναλυτικά δεν έχουν δημιουργηθεί ακόμη. Εκτελέστε μία φορά:
+      {{ t("Τα αναλυτικά δεν έχουν δημιουργηθεί ακόμη. Εκτελέστε μία φορά:") }}
     </p>
     <pre style="margin:10px 0 0; font-family:var(--mono); font-size:12px;">psql "$REMOTE" -f analytics_migration.sql
 psql "$REMOTE" -c "SELECT proc.refresh_analytics();"</pre>
@@ -25,19 +23,19 @@ psql "$REMOTE" -c "SELECT proc.refresh_analytics();"</pre>
 {# ---- Headline figures ---- #}
 <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin:24px 0;">
   <div style="border:1px solid var(--rule); padding:18px;">
-    <div class="meta">Συνολική αξία αναθέσεων</div>
+    <div class="meta">{{ t("Συνολική αξία αναθέσεων") }}</div>
     <div style="font-family:var(--serif); font-size:30px; color:var(--ink); margin-top:4px;">
       € {{ "{:,.0f}".format(totals.awarded_value).replace(",", "·") }}
     </div>
   </div>
   <div style="border:1px solid var(--rule); padding:18px;">
-    <div class="meta">Συμβάσεις</div>
+    <div class="meta">{{ t("Συμβάσεις") }}</div>
     <div style="font-family:var(--serif); font-size:30px; color:var(--ink); margin-top:4px;">
       {{ "{:,}".format(totals.n_contracts).replace(",", "·") }}
     </div>
   </div>
   <div style="border:1px solid var(--rule); padding:18px;">
-    <div class="meta">Αναθέτουσες αρχές</div>
+    <div class="meta">{{ t("Αναθέτουσες αρχές") }}</div>
     <div style="font-family:var(--serif); font-size:30px; color:var(--ink); margin-top:4px;">
       {{ "{:,}".format(totals.n_authorities).replace(",", "·") }}
     </div>
@@ -45,13 +43,13 @@ psql "$REMOTE" -c "SELECT proc.refresh_analytics();"</pre>
 </div>
 {% if totals.earliest %}
 <p class="meta" style="margin-top:-8px;">
-  Κάλυψη: {{ totals.earliest.strftime('%Y-%m-%d') }} → {{ totals.latest.strftime('%Y-%m-%d') }}
+  {{ t("Κάλυψη:") }} {{ totals.earliest.strftime('%Y-%m-%d') }} → {{ totals.latest.strftime('%Y-%m-%d') }}
 </p>
 {% endif %}
 
 {# ---- Monthly trend: inline SVG bar chart ---- #}
 {% if monthly %}
-<div class="section-h" style="margin-top:28px;">Μηνιαία αξία αναθέσεων</div>
+<div class="section-h" style="margin-top:28px;">{{ t("Μηνιαία αξία αναθέσεων") }}</div>
 {% set maxval = (monthly | map(attribute='awarded_value') | max) or 1 %}
 {% set bw = 100.0 / monthly|length %}
 <svg viewBox="0 0 100 38" preserveAspectRatio="none" style="width:100%; height:200px; border-bottom:1px solid var(--rule);">
@@ -60,7 +58,7 @@ psql "$REMOTE" -c "SELECT proc.refresh_analytics();"</pre>
     <rect x="{{ (loop.index0 * bw) + (bw*0.12) }}" y="{{ 36 - h }}"
           width="{{ bw*0.76 }}" height="{{ h }}"
           fill="var(--accent)" opacity="0.85">
-      <title>{{ m.month.strftime('%Y-%m') }}: € {{ "{:,.0f}".format(m.awarded_value).replace(",","·") }} ({{ m.n_contracts }} συμβ.)</title>
+      <title>{{ m.month.strftime('%Y-%m') }}: € {{ "{:,.0f}".format(m.awarded_value).replace(",","·") }} ({{ m.n_contracts }} {{ t("συμβ.") }})</title>
     </rect>
   {% endfor %}
 </svg>
@@ -68,15 +66,15 @@ psql "$REMOTE" -c "SELECT proc.refresh_analytics();"</pre>
   <span>{{ monthly[0].month.strftime('%Y-%m') }}</span>
   <span>{{ monthly[-1].month.strftime('%Y-%m') }}</span>
 </div>
-<p class="meta" style="margin-top:6px;">Περάστε τον δείκτη πάνω από κάθε στήλη για το ποσό.</p>
+<p class="meta" style="margin-top:6px;">{{ t("Περάστε τον δείκτη πάνω από κάθε στήλη για το ποσό.") }}</p>
 {% endif %}
 
 {# ---- Two-column: top authorities + top contractors ---- #}
 <div class="detail-grid" style="margin-top:28px;">
   <div>
-    <div class="section-h">Κορυφαίες αρχές κατά αξία</div>
+    <div class="section-h">{{ t("Κορυφαίες αρχές κατά αξία") }}</div>
     <table class="lines">
-      <thead><tr><th>Αρχή</th><th style="text-align:right;">Συμβ.</th><th style="text-align:right;">Αξία</th></tr></thead>
+      <thead><tr><th>{{ t("Αρχή") }}</th><th style="text-align:right;">{{ t("Συμβ.") }}</th><th style="text-align:right;">{{ t("Αξία") }}</th></tr></thead>
       <tbody>
         {% for a in authorities %}
         <tr>
@@ -89,9 +87,9 @@ psql "$REMOTE" -c "SELECT proc.refresh_analytics();"</pre>
     </table>
   </div>
   <div>
-    <div class="section-h">Κορυφαίοι ανάδοχοι κατά αξία</div>
+    <div class="section-h">{{ t("Κορυφαίοι ανάδοχοι κατά αξία") }}</div>
     <table class="lines">
-      <thead><tr><th>Ανάδοχος</th><th style="text-align:right;">Συμβ.</th><th style="text-align:right;">Αξία</th></tr></thead>
+      <thead><tr><th>{{ t("Ανάδοχος") }}</th><th style="text-align:right;">{{ t("Συμβ.") }}</th><th style="text-align:right;">{{ t("Αξία") }}</th></tr></thead>
       <tbody>
         {% for c in contractors %}
         <tr>
@@ -109,26 +107,23 @@ psql "$REMOTE" -c "SELECT proc.refresh_analytics();"</pre>
 </div>
 
 {% if cpv %}
-<div class="section-h" style="margin-top:32px;">Κατηγορίες αντικειμένου (CPV)</div>
+<div class="section-h" style="margin-top:32px;">{{ t("Κατηγορίες αντικειμένου (CPV)") }}</div>
 <p class="meta" style="margin-top:-6px; margin-bottom:12px;">
-  Κατανομή ανά τομέα CPV (διψήφιος κωδικός). Οι αξίες προέρχονται από τις
-  γραμμές ειδών <strong>χωρίς ΦΠΑ</strong>, οπότε δεν αθροίζουν στο συνολικό
-  ποσό αναθέσεων· δείχνουν τη σχετική κατανομή ανά κατηγορία. Συμβάσεις και
-  προκηρύξεις εμφανίζονται χωριστά.
+  {{ t('Κατανομή ανά τομέα CPV (διψήφιος κωδικός). Οι αξίες προέρχονται από τις γραμμές ειδών <strong>χωρίς ΦΠΑ</strong>, οπότε δεν αθροίζουν στο συνολικό ποσό αναθέσεων· δείχνουν τη σχετική κατανομή ανά κατηγορία. Συμβάσεις και προκηρύξεις εμφανίζονται χωριστά.') | safe }}
 </p>
 <table class="lines">
   <thead><tr>
-    <th>Τομέας</th>
-    <th style="text-align:right;">Συμβάσεις</th>
-    <th style="text-align:right;">Αξία συμβ. (χωρίς ΦΠΑ)</th>
-    <th style="text-align:right;">Προκηρύξεις</th>
-    <th style="text-align:right;">Αξία προκ. (χωρίς ΦΠΑ)</th>
+    <th>{{ t("Τομέας") }}</th>
+    <th style="text-align:right;">{{ t("Συμβάσεις") }}</th>
+    <th style="text-align:right;">{{ t("Αξία συμβ. (χωρίς ΦΠΑ)") }}</th>
+    <th style="text-align:right;">{{ t("Προκηρύξεις") }}</th>
+    <th style="text-align:right;">{{ t("Αξία προκ. (χωρίς ΦΠΑ)") }}</th>
   </tr></thead>
   <tbody>
     {% for d in cpv %}
     <tr>
       <td class="title-cell">
-        <span style="font-weight:500;">{{ d.label or ('Τομέας ' ~ d.division) }}</span>
+        <span style="font-weight:500;">{{ d.label or (t("Τομέας ") ~ d.division) }}</span>
         <code class="cpv" style="margin-left:6px;">{{ d.division }}</code>
       </td>
       <td class="val">{{ d.contract_count }}</td>
@@ -142,7 +137,7 @@ psql "$REMOTE" -c "SELECT proc.refresh_analytics();"</pre>
 {% endif %}
 
 <p class="meta" style="margin-top:24px;">
-  Τα στοιχεία ανανεώνονται μετά από κάθε εισαγωγή με
+  {{ t("Τα στοιχεία ανανεώνονται μετά από κάθε εισαγωγή με") }}
   <code style="font-family:var(--mono);">SELECT proc.refresh_analytics();</code>
 </p>
 {% endif %}

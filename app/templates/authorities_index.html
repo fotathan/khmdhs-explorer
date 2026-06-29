@@ -1,46 +1,46 @@
 {% extends "base.html" %}
-{% block title %}Αναθέτουσες Αρχές · Κατάλογος{% endblock %}
+{% block title %}{{ t("Αναθέτουσες Αρχές · Κατάλογος") }}{% endblock %}
 
 {% block content %}
 <div class="detail-h">
-  <div class="kicker">Κατάλογος</div>
-  <h1 class="detail-title">Αναθέτουσες Αρχές</h1>
-  <div class="detail-sub">Φορείς του δημοσίου που προκηρύσσουν και αναθέτουν συμβάσεις.</div>
+  <div class="kicker">{{ t("Κατάλογος") }}</div>
+  <h1 class="detail-title">{{ t("Αναθέτουσες Αρχές") }}</h1>
+  <div class="detail-sub">{{ t("Φορείς του δημοσίου που προκηρύσσουν και αναθέτουν συμβάσεις.") }}</div>
 </div>
 
 <form method="get" action="/authorities" style="margin:24px 0; display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
   <div class="field" style="flex:1; min-width:260px; margin:0;">
-    <label>Αναζήτηση ονόματος</label>
+    <label>{{ t("Αναζήτηση ονόματος") }}</label>
     <input type="search" name="q" value="{{ q }}" placeholder="π.χ. Δήμος, Υπουργείο, Νοσοκομείο…">
   </div>
   <div class="field" style="margin:0;">
-    <label>Ταξινόμηση</label>
+    <label>{{ t("Ταξινόμηση") }}</label>
     <select name="sort">
-      <option value="activity"  {% if sort=='activity' %}selected{% endif %}>περισσότερες πράξεις</option>
-      <option value="name"      {% if sort=='name' %}selected{% endif %}>όνομα (Α→Ω)</option>
-      <option value="name_desc" {% if sort=='name_desc' %}selected{% endif %}>όνομα (Ω→Α)</option>
+      <option value="activity"  {% if sort=='activity' %}selected{% endif %}>{{ t("περισσότερες πράξεις") }}</option>
+      <option value="name"      {% if sort=='name' %}selected{% endif %}>{{ t("όνομα (Α→Ω)") }}</option>
+      <option value="name_desc" {% if sort=='name_desc' %}selected{% endif %}>{{ t("όνομα (Ω→Α)") }}</option>
     </select>
   </div>
-  <button type="submit" style="background:var(--ink); color:var(--paper); border:0; padding:8px 18px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer;">Εύρεση</button>
+  <button type="submit" style="background:var(--ink); color:var(--paper); border:0; padding:8px 18px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer;">{{ t("Εύρεση") }}</button>
 </form>
 
 <div class="results-bar">
-  <div class="counters"><span class="lbl">Βρέθηκαν</span><span class="num">{{ "{:,}".format(total).replace(",", "·") }}</span><span class="lbl">&nbsp;αρχές</span></div>
+  <div class="counters"><span class="lbl">{{ t("Βρέθηκαν") }}</span><span class="num">{{ "{:,}".format(total).replace(",", "·") }}</span><span class="lbl">&nbsp;{{ t("αρχές") }}</span></div>
 </div>
 
 {% if rows %}
 <table class="notices">
   <thead><tr>
-    <th>Επωνυμία</th>
-    <th style="width:120px;">ΑΦΜ</th>
-    <th style="width:90px; text-align:right;">Πράξεις</th>
-    <th style="width:90px; text-align:right;">Προκηρ.</th>
-    <th style="width:90px; text-align:right;">Συμβάσεις</th>
+    <th>{{ t("Επωνυμία") }}</th>
+    <th style="width:120px;">{{ t("ΑΦΜ") }}</th>
+    <th style="width:90px; text-align:right;">{{ t("Πράξεις") }}</th>
+    <th style="width:90px; text-align:right;">{{ t("Προκηρ.") }}</th>
+    <th style="width:90px; text-align:right;">{{ t("Συμβάσεις") }}</th>
   </tr></thead>
   <tbody>
     {% for r in rows %}
     <tr>
-      <td class="title-cell"><a href="/authority/{{ r.org_id }}">{{ r.name or '—' }}</a>{% if r.is_merged %} <span class="meta" style="color:var(--accent); font-size:10px;">◆ ενοποιημένο</span>{% endif %}</td>
+      <td class="title-cell"><a href="/authority/{{ r.org_id }}">{{ r.name or '—' }}</a>{% if r.is_merged %} <span class="meta" style="color:var(--accent); font-size:10px;">{{ t("◆ ενοποιημένο") }}</span>{% endif %}</td>
       <td class="meta"><code class="cpv">{{ r.vat_number or '—' }}</code></td>
       <td class="val">{{ "{:,}".format(r.n_acts).replace(",", "·") }}</td>
       <td class="val">{{ r.n_notices }}</td>
@@ -51,14 +51,14 @@
 </table>
 
 <nav class="pager">
-  <span>σελίδα {{ page }} από {{ total_pages }} · {{ per_page }} ανά σελίδα</span>
+  <span>{{ t("σελίδα") }} {{ page }} {% if lang=='en' %}of{% else %}από{% endif %} {{ total_pages }} · {{ per_page }} {{ t("ανά σελίδα") }}</span>
   <span>
-    {% if page > 1 %}<a href="/authorities?q={{ q }}&sort={{ sort }}&page={{ page-1 }}">‹ προηγ.</a>{% else %}<span class="disabled">‹ προηγ.</span>{% endif %}
+    {% if page > 1 %}<a href="/authorities?q={{ q }}&sort={{ sort }}&page={{ page-1 }}">{{ t("‹ προηγ.") }}</a>{% else %}<span class="disabled">{{ t("‹ προηγ.") }}</span>{% endif %}
     <span class="current">{{ page }}</span>
-    {% if page < total_pages %}<a href="/authorities?q={{ q }}&sort={{ sort }}&page={{ page+1 }}">επόμ. ›</a>{% else %}<span class="disabled">επόμ. ›</span>{% endif %}
+    {% if page < total_pages %}<a href="/authorities?q={{ q }}&sort={{ sort }}&page={{ page+1 }}">{{ t("επόμ. ›") }}</a>{% else %}<span class="disabled">{{ t("επόμ. ›") }}</span>{% endif %}
   </span>
 </nav>
 {% else %}
-<p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); padding:24px 0;">Καμία αρχή δεν ταιριάζει.</p>
+<p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); padding:24px 0;">{{ t("Καμία αρχή δεν ταιριάζει.") }}</p>
 {% endif %}
 {% endblock %}

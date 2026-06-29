@@ -835,10 +835,86 @@ _LEGACY2 = {
     "Υπολογισμός…": "Calculating…",
 }
 
+# Legacy index lists + detail pages (notice/authority/contractor/analytics)
+_LEGACY3 = {
+    "Κατάλογος": "Directory",
+    "Αναθέτουσες Αρχές · Κατάλογος": "Contracting Authorities · Directory",
+    "Φορείς του δημοσίου που προκηρύσσουν και αναθέτουν συμβάσεις.":
+        "Public bodies that publish and award contracts.",
+    "Αναζήτηση ονόματος": "Search by name",
+    "περισσότερες πράξεις": "most acts",
+    "όνομα (Α→Ω)": "name (A→Z)",
+    "όνομα (Ω→Α)": "name (Z→A)",
+    "αρχές": "authorities",
+    "Προκηρ.": "Notices",
+    "◆ ενοποιημένο": "◆ merged",
+    "Καμία αρχή δεν ταιριάζει.": "No authority matches.",
+    "Ανάδοχοι / Προμηθευτές · Κατάλογος": "Contractors / Suppliers · Directory",
+    "Ανάδοχοι & Προμηθευτές": "Contractors & Suppliers",
+    "Οικονομικοί φορείς που έχουν αναδειχθεί ανάδοχοι ή έχουν πληρωθεί.":
+        "Economic operators awarded contracts or paid.",
+    "Αναζήτηση (επωνυμία ή ΑΦΜ)": "Search (name or Tax ID)",
+    "φορείς": "operators",
+    "Αγοραστές": "Buyers",
+    "Κανένας φορέας δεν ταιριάζει.": "No operator matches.",
+    # detail-page shared
+    "Η αξία υπερβαίνει το όριο λογικού ελέγχου (€": "The value exceeds the sanity-check ceiling (€",
+    ") και πιθανότατα είναι σφάλμα στα δεδομένα της πηγής. Εξαιρείται από τα συγκεντρωτικά στοιχεία.":
+        ") and is most likely a source-data error. Excluded from the aggregate figures.",
+    "Έχει επισημανθεί ως ύποπτη και εξαιρείται από τα συγκεντρωτικά στοιχεία.":
+        "Flagged as suspicious and excluded from the aggregate figures.",
+    "Δημοσίευση": "Publication",
+    "Αριθμός σύμβασης": "Contract number",
+    "Κωδικός δέσμευσης": "Commitment code",
+    "Διορθωμένη τιμή· η αρχική τιμή από την πηγή ήταν €": "Corrected value; the original source value was €",
+    "— προβολή κειμένου": "— view text",
+    "Επίσημη πηγή": "Official source",
+    "Δείτε το έγγραφο στο ΚΗΜΔΗΣ (PDF)": "View the document on KHMDHS (PDF)",
+    "Το επίσημο έγγραφο της πράξης, απευθείας από το ΚΗΜΔΗΣ.":
+        "The official act document, straight from KHMDHS.",
+    "Εξαγωγή πινάκων από τα συνημμένα": "Extract tables from the attachments",
+    "Αντλεί το έγγραφο και εξάγει πίνακες (προϋπολογισμού, ειδών) σε Excel.":
+        "Fetches the document and extracts tables (budget, items) to Excel.",
+    "Δεν εντοπίστηκαν κατάντη συνδεδεμένες πράξεις στη βάση.":
+        "No downstream linked acts found in the database.",
+    # authority
+    "Ενοποιημένη οντότητα.": "Merged entity.",
+    "Συγκεντρώνει": "Combines",
+    "εγγραφές της πηγής:": "source records:",
+    "διαχείριση ›": "manage ›",
+    "Πλήθος": "Count",
+    "Συνολική αξία (με ΦΠΑ)": "Total value (incl. VAT)",
+    "συνολικά": "total",
+    "Διαίρεση": "Division",
+    "Διακηρ.": "Notices",
+    "Συν. αξία": "Total value",
+    "Πρόθεμα 2 ψηφίων CPV (επίπεδο division).": "2-digit CPV prefix (division level).",
+    "Δεν εντοπίστηκαν CPVs στις διακηρύξεις αυτής της αρχής.":
+        "No CPVs found in this authority's notices.",
+    # contractor
+    "Ελληνικός ΑΦΜ": "Greek Tax ID",
+    "Αλλοδαπός": "Foreign",
+    "πρώτη εμφάνιση": "first seen",
+    "εγγραφές της πηγής (πιθανά διπλότυπα ΑΦΜ/ονόματος):":
+        "source records (likely duplicate Tax ID/name):",
+    "Κορυφαίοι αγοραστές": "Top buyers",
+    "Αντικείμενα (CPV)": "Objects (CPV)",
+    # analytics
+    "Αναλυτικά · Δημόσιες Συμβάσεις": "Analytics · Public Contracts",
+    "Αναλυτικά": "Analytics",
+    'Αξία <strong>αναθέσεων</strong> — υπολογισμένη μόνο από <em>συμβάσεις</em> (όχι πληρωμές, όχι ακυρωμένες), με ενοποιημένες τις διπλότυπες οντότητες. Τα ποσά δεν διπλομετρώνται.':
+        'Value of <strong>awards</strong> — computed only from <em>contracts</em> (no payments, no cancelled), with duplicate entities merged. Amounts are not double-counted.',
+    "Τα αναλυτικά δεν έχουν δημιουργηθεί ακόμη. Εκτελέστε μία φορά:":
+        "Analytics haven't been built yet. Run once:",
+    "Συνολική αξία αναθέσεων": "Total award value",
+    'Κατανομή ανά τομέα CPV (διψήφιος κωδικός). Οι αξίες προέρχονται από τις γραμμές ειδών <strong>χωρίς ΦΠΑ</strong>, οπότε δεν αθροίζουν στο συνολικό ποσό αναθέσεων· δείχνουν τη σχετική κατανομή ανά κατηγορία. Συμβάσεις και προκηρύξεις εμφανίζονται χωριστά.':
+        'Distribution by CPV sector (two-digit code). Values come from line items <strong>excl. VAT</strong>, so they do not sum to the total award amount; they show the relative distribution per category. Contracts and notices are shown separately.',
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
-             _PANELS, _ACTFORM, _LEGACY, _LEGACY2):
+             _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3):
     UI_EN.update(_grp)
