@@ -441,9 +441,109 @@ _ADMIN1 = {
     "Καμία ενοποίηση ακόμη.": "No merges yet.",
 }
 
+# Admin: act-management list + table-extraction job log
+_ADMIN2 = {
+    "Διαχείριση δεδομένων · Πράξεις": "Data management · Acts",
+    "Διαχείριση · Δεδομένα": "Administration · Data",
+    "Διαχείριση πράξεων": "Act management",
+    "Όλες οι πράξεις — εισαγόμενες (ΚΗΜΔΗΣ & άλλες πηγές) και χειροκίνητες. Φιλτράρετε, ελέγξτε και επεξεργαστείτε. Οι εισαγόμενες έχουν κλειδωμένα βασικά πεδία (επεξεργασία μέσω σημειώσεων/διορθώσεων)· οι χειροκίνητες είναι πλήρως επεξεργάσιμες.":
+        "All acts — imported (KHMDHS & other sources) and manual. Filter, review and edit. Imported acts have locked core fields (edit via notes/corrections); manual acts are fully editable.",
+    "Αρ. αναφοράς": "Reference no.",
+    "Πηγή δεδομένων": "Data source",
+    "Προέλευση": "Origin",
+    "Εισαγόμενη": "Imported",
+    "Χειροκίνητη": "Manual",
+    "Κατάσταση πηγής": "Source status",
+    "Συνημμένα": "Attachments",
+    "Με συνημμένα": "With attachments",
+    "Χωρίς": "Without",
+    "Από (δημοσίευση)": "From (published)",
+    "Κατηγορία / Υποκατηγορία (Ctrl/⌘-click για πολλαπλά)":
+        "Category / Subcategory (Ctrl/⌘-click for multiple)",
+    "Πρόσφατη επεξεργασία": "Recently edited",
+    "+ Νέα πράξη (χειροκίνητη)": "+ New act (manual)",
+    "Αποθήκευση των καθαρών πινάκων στις πράξεις (μη δημοσιευμένοι)":
+        "Save the clean tables to the acts (unpublished)",
+    "αποθήκευση": "save",
+    "Έλεγχος & εξαγωγή πινάκων για το φιλτραρισμένο σύνολο":
+        "Check & extract tables for the filtered set",
+    "Το σύνολο": "The set",
+    "υπερβαίνει το όριο των": "exceeds the limit of",
+    "πράξεων — περιορίστε το φίλτρο για να ξεκινήσετε εξαγωγή.":
+        "acts — narrow the filter to start an extraction.",
+    "Όρια ανά εργασία: έως": "Per-job limits: up to",
+    "πράξεις (αναφορά)": "acts (report)",
+    "η αποθήκευση απαιτεί ≤": "saving requires ≤",
+    "(τώρα": "(now",
+    "έως": "to",
+    "με αποθήκευση": "with saving",
+    "Πρόσφατες εξαγωγές πινάκων:": "Recent table extractions:",
+    "Πηγή": "Source",
+    "Συνημ.": "Attach.",
+    "χειροκίνητη": "manual",
+    "εισαγωγή": "import",
+    "έχει συνημμένα": "has attachments",
+    "Μετατροπή σε χειροκίνητη πράξη; Τα βασικά πεδία θα γίνουν πλήρως επεξεργάσιμα και οι μελλοντικές εισαγωγές δεν θα την αγγίζουν. Μη αναστρέψιμο.":
+        "Convert to a manual act? Core fields become fully editable and future imports won't touch it. Irreversible.",
+    "ανάληψη →": "take over →",
+    "Καμία πράξη για αυτά τα φίλτρα.": "No acts for these filters.",
+    # JS alert/confirm in the extract guard
+    "Δεν επιτρέπεται η έναρξη:": "Cannot start:",
+    "πράξεις υπερβαίνουν το όριο των": "acts exceed the limit of",
+    " με αποθήκευση": " with saving",
+    " (μόνο αναφορά)": " (report only)",
+    "Περιορίστε το φίλτρο": "Narrow the filter",
+    " ή ξετικάρετε την «αποθήκευση».": " or untick «save».",
+    "Έναρξη μαζικής εξαγωγής & ΑΠΟΘΗΚΕΥΣΗΣ πινάκων για τις":
+        "Start bulk table extraction & SAVING for the",
+    "φιλτραρισμένες πράξεις;\\n\\n(Οι καθαροί πίνακες αποθηκεύονται ΜΗ δημοσιευμένοι· πράξεις που έχουν ήδη πίνακες παραλείπονται. Μπορεί να διαρκέσει.)":
+        "filtered acts?\\n\\n(Clean tables are saved UNPUBLISHED; acts that already have tables are skipped. May take a while.)",
+    "Έναρξη μαζικής εξαγωγής πινάκων για τις":
+        "Start bulk table extraction for the",
+    "φιλτραρισμένες πράξεις;\\n\\n(Μόνο αναφορά — δεν αποθηκεύονται πίνακες. Μπορεί να διαρκέσει.)":
+        "filtered acts?\\n\\n(Report only — no tables are saved. May take a while.)",
+    # table-extraction job log
+    "Εξαγωγή πινάκων · εκτέλεση #": "Table extraction · run #",
+    "‹ πίσω στη Διαχείριση Πράξεων": "‹ back to Act Management",
+    "Μαζική εξαγωγή πινάκων · ": "Bulk table extraction · ",
+    "αποθήκευση (μη δημοσιευμένοι)": "save (unpublished)",
+    "μόνο αναφορά (χωρίς αποθήκευση)": "report only (no saving)",
+    "σε εξέλιξη — PID": "in progress — PID",
+    "Ακύρωση εκτέλεσης #": "Cancel run #",
+    "Ακύρωση": "Cancel",
+    "η διαδικασία χάθηκε": "the process was lost",
+    "χάθηκε χωρίς εξήγηση": "lost without explanation",
+    "Αποτελέσματα ανά πράξη": "Results per act",
+    "επεξεργασμένες": "processed",
+    "με πίνακες": "with tables",
+    "πίνακες": "tables",
+    "αλλοιωμένα": "garbled",
+    "χρειάζονται OCR": "need OCR",
+    "χωρίς πίνακες": "no tables",
+    "απέτυχαν": "failed",
+    "πίνακες αποθηκεύτηκαν": "tables saved",
+    "Με πίνακες": "With tables",
+    "Αλλοιωμένα": "Garbled",
+    "Χρειάζονται OCR": "Need OCR",
+    "Χωρίς πίνακες": "No tables",
+    "Απέτυχαν": "Failed",
+    "φιλτραρισμένου": "filtered",
+    "πλήρους": "full",
+    "Πίνακες": "Tables",
+    "Αποθηκ.": "Saved",
+    "Άνοιγμα στην επεξεργασία πράξης (νέα καρτέλα)": "Open in act editor (new tab)",
+    "✓ εξήχθησαν": "✓ extracted",
+    "⚠ αλλοιωμένα": "⚠ garbled",
+    "χωρίς συνημμένο": "no attachment",
+    "Η επεξεργασία ξεκίνησε — τα αποτελέσματα εμφανίζονται καθώς προχωρά (ανανέωση κάθε 6 δλ).":
+        "Processing started — results appear as it progresses (refreshes every 6s).",
+    "Δεν καταγράφηκαν αποτελέσματα.": "No results recorded.",
+    "Έξοδος (τέλος αρχείου)": "Output (end of file)",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
-             _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1):
+             _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2):
     UI_EN.update(_grp)

@@ -1,24 +1,22 @@
 {% extends "base.html" %}
-{% block title %}Διαχείριση δεδομένων · Πράξεις{% endblock %}
+{% block title %}{{ t("Διαχείριση δεδομένων · Πράξεις") }}{% endblock %}
 
 {% block content %}
 
 {% include "_admin_tabs.html" %}
 
 <div class="detail-h">
-  <div class="kicker">Διαχείριση · Δεδομένα</div>
-  <h1 class="detail-title">Διαχείριση πράξεων</h1>
+  <div class="kicker">{{ t("Διαχείριση · Δεδομένα") }}</div>
+  <h1 class="detail-title">{{ t("Διαχείριση πράξεων") }}</h1>
   <div class="detail-sub">
-    Όλες οι πράξεις — εισαγόμενες (ΚΗΜΔΗΣ &amp; άλλες πηγές) και χειροκίνητες.
-    Φιλτράρετε, ελέγξτε και επεξεργαστείτε. Οι εισαγόμενες έχουν κλειδωμένα βασικά
-    πεδία (επεξεργασία μέσω σημειώσεων/διορθώσεων)· οι χειροκίνητες είναι πλήρως επεξεργάσιμες.
+    {{ t("Όλες οι πράξεις — εισαγόμενες (ΚΗΜΔΗΣ & άλλες πηγές) και χειροκίνητες. Φιλτράρετε, ελέγξτε και επεξεργαστείτε. Οι εισαγόμενες έχουν κλειδωμένα βασικά πεδία (επεξεργασία μέσω σημειώσεων/διορθώσεων)· οι χειροκίνητες είναι πλήρως επεξεργάσιμες.") }}
   </div>
 </div>
 
 <form method="get" action="/admin/acts"
       style="margin:24px 0; display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; align-items:end;">
   <div class="field" style="margin:0; grid-column:span 2;">
-    <label>Αναζήτηση (τίτλος ή ΑΔΑΜ)</label>
+    <label>{{ t("Αναζήτηση (τίτλος ή ΑΔΑΜ)") }}</label>
     <input type="search" name="q" value="{{ q }}" placeholder="π.χ. καθαριότητα ή 24PROC…">
   </div>
   <div class="field" style="margin:0;">
@@ -26,70 +24,70 @@
     <input type="search" name="external_id" value="{{ external_id }}" placeholder="π.χ. WAL-MAY…">
   </div>
   <div class="field" style="margin:0;">
-    <label>Αρ. αναφοράς</label>
+    <label>{{ t("Αρ. αναφοράς") }}</label>
     <input type="search" name="reference" value="{{ reference }}">
   </div>
 
   <div class="field" style="margin:0;">
-    <label>Πηγή δεδομένων</label>
+    <label>{{ t("Πηγή δεδομένων") }}</label>
     <select name="data_source">
-      <option value="">— όλες —</option>
+      <option value="">{{ t("— όλες —") }}</option>
       {% for s in sources %}<option value="{{ s }}" {% if data_source==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
     </select>
   </div>
   <div class="field" style="margin:0;">
-    <label>Προέλευση</label>
+    <label>{{ t("Προέλευση") }}</label>
     <select name="origin">
-      <option value="">— όλες —</option>
-      <option value="import" {% if origin=='import' %}selected{% endif %}>Εισαγόμενη</option>
-      <option value="authored" {% if origin=='authored' %}selected{% endif %}>Χειροκίνητη</option>
+      <option value="">{{ t("— όλες —") }}</option>
+      <option value="import" {% if origin=='import' %}selected{% endif %}>{{ t("Εισαγόμενη") }}</option>
+      <option value="authored" {% if origin=='authored' %}selected{% endif %}>{{ t("Χειροκίνητη") }}</option>
     </select>
   </div>
   <div class="field" style="margin:0;">
-    <label>Τύπος</label>
+    <label>{{ t("Τύπος") }}</label>
     <select name="type">
-      <option value="">— όλοι —</option>
+      <option value="">{{ t("— όλοι —") }}</option>
       {% for code in ['notice','auction','contract','payment','request'] %}
       <option value="{{ code }}" {% if type==code %}selected{% endif %}>{{ code | type_label }}</option>
       {% endfor %}
     </select>
   </div>
   <div class="field" style="margin:0;">
-    <label>Κατάσταση πηγής</label>
+    <label>{{ t("Κατάσταση πηγής") }}</label>
     <select name="source_status">
-      <option value="">— όλες —</option>
+      <option value="">{{ t("— όλες —") }}</option>
       {% for s in statuses %}<option value="{{ s }}" {% if source_status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
     </select>
   </div>
 
   <div class="field" style="margin:0;">
-    <label>Συνημμένα</label>
+    <label>{{ t("Συνημμένα") }}</label>
     <select name="has_attachments">
-      <option value="">— όλα —</option>
-      <option value="1" {% if has_attachments=='1' %}selected{% endif %}>Με συνημμένα</option>
-      <option value="0" {% if has_attachments=='0' %}selected{% endif %}>Χωρίς</option>
+      <option value="">{{ t("— όλα —") }}</option>
+      <option value="1" {% if has_attachments=='1' %}selected{% endif %}>{{ t("Με συνημμένα") }}</option>
+      <option value="0" {% if has_attachments=='0' %}selected{% endif %}>{{ t("Χωρίς") }}</option>
     </select>
   </div>
   <div class="field" style="margin:0;">
-    <label>Από (δημοσίευση)</label>
+    <label>{{ t("Από (δημοσίευση)") }}</label>
     <input type="date" name="date_from" value="{{ date_from }}">
   </div>
   <div class="field" style="margin:0;">
-    <label>Έως</label>
+    <label>{{ t("Έως") }}</label>
     <input type="date" name="date_to" value="{{ date_to }}">
   </div>
   <div class="field" style="margin:0;">
-    <label>CPV (πρόθεμα)</label>
+    <label>{{ t("CPV (πρόθεμα)") }}</label>
     <input type="search" name="cpv" value="{{ cpv }}" placeholder="π.χ. 33 ή 45000000">
   </div>
   <div class="field" style="margin:0; grid-column:span 2;">
-    <label>Κατηγορία / Υποκατηγορία (Ctrl/⌘-click για πολλαπλά)</label>
+    <label>{{ t("Κατηγορία / Υποκατηγορία (Ctrl/⌘-click για πολλαπλά)") }}</label>
     {# Two-level taxonomy over CPV (derived). optgroup=κατηγορία; πρώτη επιλογή
        = όλη η κατηγορία (c:<id>), οι υπόλοιπες = υποκατηγορίες (s:<id>). #}
     <select name="cat" multiple size="6" style="width:100%;">
       {% for c in categories %}
       <optgroup label="{{ c.name }}">
-        <option value="c:{{ c.id }}" {% if ('c:' ~ c.id) in cat %}selected{% endif %}>▸ όλη η κατηγορία</option>
+        <option value="c:{{ c.id }}" {% if ('c:' ~ c.id) in cat %}selected{% endif %}>{{ t("▸ όλη η κατηγορία") }}</option>
         {% for s in c.subs %}
         <option value="s:{{ s.id }}" {% if ('s:' ~ s.id) in cat %}selected{% endif %}>{{ s.name }}</option>
         {% endfor %}
@@ -98,23 +96,23 @@
     </select>
   </div>
   <div class="field" style="margin:0;">
-    <label>Ταξινόμηση</label>
+    <label>{{ t("Ταξινόμηση") }}</label>
     <select name="sort">
-      <option value="recent" {% if sort=='recent' %}selected{% endif %}>Πρόσφατες</option>
-      <option value="oldest" {% if sort=='oldest' %}selected{% endif %}>Παλαιότερες</option>
-      <option value="title" {% if sort=='title' %}selected{% endif %}>Τίτλος Α–Ω</option>
-      <option value="edited" {% if sort=='edited' %}selected{% endif %}>Πρόσφατη επεξεργασία</option>
+      <option value="recent" {% if sort=='recent' %}selected{% endif %}>{{ t("Πρόσφατες") }}</option>
+      <option value="oldest" {% if sort=='oldest' %}selected{% endif %}>{{ t("Παλαιότερες") }}</option>
+      <option value="title" {% if sort=='title' %}selected{% endif %}>{{ t("Τίτλος Α–Ω") }}</option>
+      <option value="edited" {% if sort=='edited' %}selected{% endif %}>{{ t("Πρόσφατη επεξεργασία") }}</option>
     </select>
   </div>
 
   <div style="grid-column:span 4; display:flex; gap:10px; align-items:center;">
-    <button type="submit" style="background:var(--ink); color:var(--paper); border:0; padding:9px 22px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer;">Εύρεση</button>
-    <a class="back" href="/admin/acts" hx-boost="false" style="font-size:12px;">✕ καθαρισμός</a>
+    <button type="submit" style="background:var(--ink); color:var(--paper); border:0; padding:9px 22px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer;">{{ t("Εύρεση") }}</button>
+    <a class="back" href="/admin/acts" hx-boost="false" style="font-size:12px;">{{ t("✕ καθαρισμός") }}</a>
   </div>
 </form>
 
 <div class="results-bar" style="display:flex; justify-content:space-between; align-items:center;">
-  <div class="counters"><span class="lbl">Βρέθηκαν</span><span class="num">{{ "{:,}".format(total).replace(",", "·") }}</span></div>
+  <div class="counters"><span class="lbl">{{ t("Βρέθηκαν") }}</span><span class="num">{{ "{:,}".format(total).replace(",", "·") }}</span></div>
   <div style="display:flex; gap:10px; align-items:center;">
     {% if total %}
     <form method="post" action="/admin/extract-tables"
@@ -124,20 +122,20 @@
       {% endfor %}
       {# cat is multi-valued — one hidden input per selected category/subcategory #}
       {% for v in cat %}<input type="hidden" name="cat" value="{{ v }}">{% endfor %}
-      <label title="Αποθήκευση των καθαρών πινάκων στις πράξεις (μη δημοσιευμένοι)"
+      <label title="{{ t('Αποθήκευση των καθαρών πινάκων στις πράξεις (μη δημοσιευμένοι)') }}"
              style="display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--ink-2); cursor:pointer; margin-right:8px; letter-spacing:0;">
-        <input type="checkbox" name="save_tables" value="1"> αποθήκευση
+        <input type="checkbox" name="save_tables" value="1"> {{ t("αποθήκευση") }}
       </label>
-      <button type="submit" title="Έλεγχος & εξαγωγή πινάκων για το φιλτραρισμένο σύνολο"
+      <button type="submit" title="{{ t('Έλεγχος & εξαγωγή πινάκων για το φιλτραρισμένο σύνολο') }}"
               {% if total > max_table_extract %}disabled style="background:transparent; color:var(--ink-3); border:1px solid var(--rule); padding:9px 16px; border-radius:6px; font-size:12px; font-weight:600; cursor:not-allowed;"
               {% else %}style="background:transparent; color:var(--accent); border:1px solid var(--accent); padding:9px 16px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;"{% endif %}>
-        ▦ Εξαγωγή πινάκων ({{ total }})
+        ▦ {{ t("Εξαγωγή πινάκων") }} ({{ total }})
       </button>
     </form>
     {% endif %}
     <a href="/admin/acts/new" hx-boost="false"
        style="background:var(--accent, #2563c4); color:#fff; padding:9px 18px; border-radius:6px; font-size:12px; font-weight:600; text-decoration:none;">
-      + Νέα πράξη (χειροκίνητη)
+      {{ t("+ Νέα πράξη (χειροκίνητη)") }}
     </a>
   </div>
 </div>
@@ -145,9 +143,9 @@
 {% if total %}
 <div style="margin:-8px 0 14px; font-size:11.5px; color:var(--ink-3); text-align:right;">
   {% if total > max_table_extract %}
-    <span style="color:var(--accent);">Το σύνολο ({{ total }}) υπερβαίνει το όριο των {{ max_table_extract }} πράξεων — περιορίστε το φίλτρο για να ξεκινήσετε εξαγωγή.</span>
+    <span style="color:var(--accent);">{{ t("Το σύνολο") }} ({{ total }}) {{ t("υπερβαίνει το όριο των") }} {{ max_table_extract }} {{ t("πράξεων — περιορίστε το φίλτρο για να ξεκινήσετε εξαγωγή.") }}</span>
   {% else %}
-    Όρια ανά εργασία: έως {{ max_table_extract }} πράξεις (αναφορά){% if total > max_table_extract_save %} · <span style="color:var(--accent);">η αποθήκευση απαιτεί ≤ {{ max_table_extract_save }} (τώρα {{ total }})</span>{% else %} · έως {{ max_table_extract_save }} με αποθήκευση{% endif %}.
+    {{ t("Όρια ανά εργασία: έως") }} {{ max_table_extract }} {{ t("πράξεις (αναφορά)") }}{% if total > max_table_extract_save %} · <span style="color:var(--accent);">{{ t("η αποθήκευση απαιτεί ≤") }} {{ max_table_extract_save }} {{ t("(τώρα") }} {{ total }})</span>{% else %} · {{ t("έως") }} {{ max_table_extract_save }} {{ t("με αποθήκευση") }}{% endif %}.
   {% endif %}
 </div>
 <script>
@@ -158,22 +156,22 @@
     var saving = form.save_tables.checked;
     var cap = saving ? capSave : capReport;
     if(total > cap){
-      alert('Δεν επιτρέπεται η έναρξη: ' + total + ' πράξεις υπερβαίνουν το όριο των '
-            + cap + (saving ? ' με αποθήκευση' : ' (μόνο αναφορά)')
-            + '.\n\nΠεριορίστε το φίλτρο' + (saving ? ' ή ξετικάρετε την «αποθήκευση».' : '.'));
+      alert('{{ t("Δεν επιτρέπεται η έναρξη:") }} ' + total + ' {{ t("πράξεις υπερβαίνουν το όριο των") }} '
+            + cap + (saving ? '{{ t(" με αποθήκευση") }}' : '{{ t(" (μόνο αναφορά)") }}')
+            + '.\n\n{{ t("Περιορίστε το φίλτρο") }}' + (saving ? '{{ t(" ή ξετικάρετε την «αποθήκευση».") }}' : '.'));
       return false;
     }
     return confirm(saving
-      ? 'Έναρξη μαζικής εξαγωγής & ΑΠΟΘΗΚΕΥΣΗΣ πινάκων για τις ' + total + ' φιλτραρισμένες πράξεις;\n\n(Οι καθαροί πίνακες αποθηκεύονται ΜΗ δημοσιευμένοι· πράξεις που έχουν ήδη πίνακες παραλείπονται. Μπορεί να διαρκέσει.)'
-      : 'Έναρξη μαζικής εξαγωγής πινάκων για τις ' + total + ' φιλτραρισμένες πράξεις;\n\n(Μόνο αναφορά — δεν αποθηκεύονται πίνακες. Μπορεί να διαρκέσει.)');
+      ? '{{ t("Έναρξη μαζικής εξαγωγής & ΑΠΟΘΗΚΕΥΣΗΣ πινάκων για τις") }} ' + total + ' {{ t("φιλτραρισμένες πράξεις;\\n\\n(Οι καθαροί πίνακες αποθηκεύονται ΜΗ δημοσιευμένοι· πράξεις που έχουν ήδη πίνακες παραλείπονται. Μπορεί να διαρκέσει.)") }}'
+      : '{{ t("Έναρξη μαζικής εξαγωγής πινάκων για τις") }} ' + total + ' {{ t("φιλτραρισμένες πράξεις;\\n\\n(Μόνο αναφορά — δεν αποθηκεύονται πίνακες. Μπορεί να διαρκέσει.)") }}');
   }
 </script>
 {% endif %}
 
 {% if table_jobs %}
 <div style="margin:6px 0 14px; font-size:12px; color:var(--ink-2);">
-  Πρόσφατες εξαγωγές πινάκων:
-  {% for j in table_jobs %}<a href="/admin/table-jobs/{{ j.id }}" hx-boost="false" style="color:var(--accent); margin-right:10px;">#{{ j.id }} · {{ j.status }} · {{ j.total_acts }} πράξεις</a>{% endfor %}
+  {{ t("Πρόσφατες εξαγωγές πινάκων:") }}
+  {% for j in table_jobs %}<a href="/admin/table-jobs/{{ j.id }}" hx-boost="false" style="color:var(--accent); margin-right:10px;">#{{ j.id }} · {{ j.status }} · {{ j.total_acts }} {{ t("πράξεις") }}</a>{% endfor %}
 </div>
 {% endif %}
 
@@ -181,12 +179,12 @@
 <table class="notices">
   <thead><tr>
     <th style="width:150px;">ΑΔΑΜ / External</th>
-    <th>Τίτλος</th>
-    <th style="width:120px;">Πηγή</th>
-    <th style="width:90px;">Προέλευση</th>
-    <th style="width:80px;">Τύπος</th>
-    <th style="width:90px;">Κατάσταση</th>
-    <th style="width:60px;">Συνημ.</th>
+    <th>{{ t("Τίτλος") }}</th>
+    <th style="width:120px;">{{ t("Πηγή") }}</th>
+    <th style="width:90px;">{{ t("Προέλευση") }}</th>
+    <th style="width:80px;">{{ t("Τύπος") }}</th>
+    <th style="width:90px;">{{ t("Κατάσταση") }}</th>
+    <th style="width:60px;">{{ t("Συνημ.") }}</th>
     <th style="width:70px;"></th>
   </tr></thead>
   <tbody>
@@ -203,22 +201,22 @@
       <td class="meta" style="letter-spacing:0; text-transform:none;">{{ r.data_source or '—' }}</td>
       <td>
         {% if r.origin == 'authored' %}
-          <span style="font-size:10px; padding:2px 7px; border-radius:5px; background:#eaf6ef; color:#1a7f47;">χειροκίνητη</span>
+          <span style="font-size:10px; padding:2px 7px; border-radius:5px; background:#eaf6ef; color:#1a7f47;">{{ t("χειροκίνητη") }}</span>
         {% else %}
-          <span style="font-size:10px; padding:2px 7px; border-radius:5px; background:#eef1f5; color:#5a6675;">εισαγωγή</span>
+          <span style="font-size:10px; padding:2px 7px; border-radius:5px; background:#eef1f5; color:#5a6675;">{{ t("εισαγωγή") }}</span>
         {% endif %}
       </td>
       <td class="meta" style="letter-spacing:0; text-transform:none;">{{ r.type | type_label }}</td>
       <td class="meta" style="letter-spacing:0; text-transform:none;">{{ r.source_status or '—' }}</td>
-      <td style="text-align:center;">{% if r.has_attachments %}<span title="έχει συνημμένα">📎</span>{% endif %}</td>
+      <td style="text-align:center;">{% if r.has_attachments %}<span title="{{ t('έχει συνημμένα') }}">📎</span>{% endif %}</td>
       <td>
         {% if r.origin == 'authored' %}
-          <a class="back" href="/admin/act/{{ r.adam }}/edit?tab=fields" hx-boost="false" style="font-size:11px;">επεξεργασία ›</a>
+          <a class="back" href="/admin/act/{{ r.adam }}/edit?tab=fields" hx-boost="false" style="font-size:11px;">{{ t("επεξεργασία ›") }}</a>
         {% else %}
-          <a class="back" href="/admin/act/{{ r.adam }}/edit" hx-boost="false" style="font-size:11px;">επεξεργασία ›</a>
+          <a class="back" href="/admin/act/{{ r.adam }}/edit" hx-boost="false" style="font-size:11px;">{{ t("επεξεργασία ›") }}</a>
           <form method="post" action="/admin/acts/{{ r.adam }}/take-ownership" style="margin:4px 0 0;"
-                onsubmit="return confirm('Μετατροπή σε χειροκίνητη πράξη; Τα βασικά πεδία θα γίνουν πλήρως επεξεργάσιμα και οι μελλοντικές εισαγωγές δεν θα την αγγίζουν. Μη αναστρέψιμο.');">
-            <button type="submit" class="back" style="font-size:10px; background:none; border:0; color:var(--ink-3); cursor:pointer; padding:0; text-decoration:underline;">ανάληψη →</button>
+                onsubmit="return confirm('{{ t('Μετατροπή σε χειροκίνητη πράξη; Τα βασικά πεδία θα γίνουν πλήρως επεξεργάσιμα και οι μελλοντικές εισαγωγές δεν θα την αγγίζουν. Μη αναστρέψιμο.') }}');">
+            <button type="submit" class="back" style="font-size:10px; background:none; border:0; color:var(--ink-3); cursor:pointer; padding:0; text-decoration:underline;">{{ t("ανάληψη →") }}</button>
           </form>
         {% endif %}
       </td>
@@ -230,13 +228,13 @@
 {% if total_pages > 1 %}
 {% set qs %}q={{ q|urlencode }}&external_id={{ external_id|urlencode }}&reference={{ reference|urlencode }}&data_source={{ data_source|urlencode }}&origin={{ origin }}&type={{ type }}&source_status={{ source_status|urlencode }}&has_attachments={{ has_attachments }}&date_from={{ date_from }}&date_to={{ date_to }}&cpv={{ cpv|urlencode }}{% for v in cat %}&cat={{ v|urlencode }}{% endfor %}&sort={{ sort }}{% endset %}
 <div style="display:flex; justify-content:center; align-items:center; gap:12px; margin:22px 0;">
-  {% if page > 1 %}<a class="back" href="/admin/acts?{{ qs }}&page={{ page-1 }}" hx-boost="false">‹ προηγ.</a>{% else %}<span class="meta">‹ προηγ.</span>{% endif %}
-  <span class="meta">σελίδα {{ page }} από {{ total_pages }}</span>
-  {% if page < total_pages %}<a class="back" href="/admin/acts?{{ qs }}&page={{ page+1 }}" hx-boost="false">επόμ. ›</a>{% else %}<span class="meta">επόμ. ›</span>{% endif %}
+  {% if page > 1 %}<a class="back" href="/admin/acts?{{ qs }}&page={{ page-1 }}" hx-boost="false">{{ t("‹ προηγ.") }}</a>{% else %}<span class="meta">{{ t("‹ προηγ.") }}</span>{% endif %}
+  <span class="meta">{{ t("σελίδα") }} {{ page }} {% if lang=='en' %}of{% else %}από{% endif %} {{ total_pages }}</span>
+  {% if page < total_pages %}<a class="back" href="/admin/acts?{{ qs }}&page={{ page+1 }}" hx-boost="false">{{ t("επόμ. ›") }}</a>{% else %}<span class="meta">{{ t("επόμ. ›") }}</span>{% endif %}
 </div>
 {% endif %}
 
 {% else %}
-<p style="font-family:var(--serif); font-style:italic; color:var(--ink-3);">Καμία πράξη για αυτά τα φίλτρα.</p>
+<p style="font-family:var(--serif); font-style:italic; color:var(--ink-3);">{{ t("Καμία πράξη για αυτά τα φίλτρα.") }}</p>
 {% endif %}
 {% endblock %}
