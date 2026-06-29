@@ -58,7 +58,7 @@
         <div class="chips">
           {% for c in lk.contract_types %}
           <label class="chip {% if c.code in sel_ct %}on{% endif %}">
-            <input type="checkbox" name="contract_type" value="{{ c.code }}" {% if c.code in sel_ct %}checked{% endif %}>{{ c.label }}
+            <input type="checkbox" name="contract_type" value="{{ c.code }}" {% if c.code in sel_ct %}checked{% endif %}>{{ c.code | contract_type_label }}
           </label>
           {% endfor %}
         </div>
@@ -70,7 +70,7 @@
         <div class="chips">
           {% for p in lk.procedure_types %}
           <label class="chip {% if p.code in sel_pt %}on{% endif %}">
-            <input type="checkbox" name="procedure_type" value="{{ p.code }}" {% if p.code in sel_pt %}checked{% endif %}>{{ p.label }}
+            <input type="checkbox" name="procedure_type" value="{{ p.code }}" {% if p.code in sel_pt %}checked{% endif %}>{{ p.label | t }}
           </label>
           {% endfor %}
         </div>

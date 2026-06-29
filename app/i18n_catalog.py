@@ -993,10 +993,26 @@ _TABLES = {
     "Εφαρμογή": "Apply",
 }
 
+# Procedure-family filter chips (proc.procurement_act.procedure_family — a
+# normalised Greek vocabulary, distinct from the typeOfProcedure enum). Rendered
+# via {{ p.label | t }} on the search/summary filter rails. Official EU/TED terms.
+_PROC_FAMILY = {
+    "Άλλο / Άγνωστο": "Other / Unknown",
+    "Ανοιχτή διαδικασία": "Open procedure",
+    "Ανταγωνιστική διαδικασία με διαπραγμάτευση": "Competitive procedure with negotiation",
+    "Ανταγωνιστικός διάλογος": "Competitive dialogue",
+    "Απευθείας ανάθεση": "Direct award",
+    "Διαδικασία άρθρου 128": "Procedure under article 128",
+    "Διαπραγμάτευση με προηγούμενη προκήρυξη": "Negotiated procedure with prior publication",
+    "Διαπραγμάτευση χωρίς προηγούμενη δημοσίευση": "Negotiated procedure without prior publication",
+    "Κλειστή διαδικασία": "Restricted procedure",
+    "Συνοπτικός διαγωνισμός": "Simplified tender procedure",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
-             _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES):
+             _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY):
     UI_EN.update(_grp)

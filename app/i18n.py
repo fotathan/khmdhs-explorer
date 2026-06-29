@@ -62,9 +62,9 @@ PROCEDURE_TYPES_EN = {
     "6":  "Direct award",
     "7":  "Competitive procedure with negotiation",
     "11": "Innovation partnership",
-    "12": "Negotiation without prior publication",
-    "13": "Negotiation with prior call for competition (art. 266)",
-    "18": "Procedure under art. 128 of law 4412/16",
+    "12": "Negotiated procedure without prior publication",
+    "13": "Negotiated procedure with prior call for competition (art. 266)",
+    "18": "Procedure under article 128 of law 4412/16",
 }
 ASSIGN_CRITERIA_EN = {
     "1": "By cost — best price-quality ratio",
