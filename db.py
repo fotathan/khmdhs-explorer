@@ -529,6 +529,116 @@ def cmd_catchup(args):
     return totals
 
 
+def cmd_diavgeia_backfill(args):
+    """Backfill Diavgeia decisions (notice/award/contract) over an issueDate range.
+
+    Parallel to `backfill`, but for the Diavgeia source: ADA-keyed rows in
+    proc.diavgeia_decision (+ children), windowed in proc.diavgeia_ingest_window.
+    """
+    import diavgeia_ingest as di
+
+    start = dt.date.fromisoformat(args.start)
+    end = dt.date.fromisoformat(args.end) if args.end else dt.date.today()
+    names = args.types or di.TYPE_NAMES
+
+    with Database() as db:
+        client = di.DiavgeiaClient()
+        repo = di.DiavgeiaRepository(db, client)
+        totals = {"windows": 0, "done": 0, "skipped": 0, "errored": 0}
+        for name in names:
+            uid = di.NAME_TO_UID[name]
+            print(f"\n=== diavgeia {name} ({uid}): {start} .. {end}"
+                  f"{' (resume)' if args.resume else ''} ===")
+            s = di.ingest_type(client, repo, uid, start, end, resume=args.resume)
+            for k in totals:
+                totals[k] += s[k]
+        # Authority dedup runs as a bounded post-pass (one API call per distinct
+        # organization), decoupled from the per-decision hot path. --skip-resolve
+        # to defer it to a later `diavgeia-resolve`.
+        if not args.skip_resolve:
+            print("\n=== resolving authorities (dedupe by ΑΦΜ) ===")
+            n = repo.resolve_authorities()
+            print(f"  resolved {n} distinct organizations into proc.authority")
+    print(f"\ndiavgeia backfill complete. windows={totals['windows']} "
+          f"done={totals['done']} skipped={totals['skipped']} "
+          f"errored={totals['errored']}")
+    if totals["errored"]:
+        print("  (errored windows recorded with status='error' in "
+              "proc.diavgeia_ingest_window; re-run with --resume to retry them.)")
+    return totals
+
+
+def cmd_diavgeia_resolve(args):
+    """Resolve Diavgeia references decoupled from ingest: authority dedup (by ΑΦΜ)
+    always; signer/unit dictionary labels with --dictionaries (one API call per
+    new uid — can be large). Idempotent and re-runnable."""
+    import diavgeia_ingest as di
+    with Database() as db:
+        repo = di.DiavgeiaRepository(db, di.DiavgeiaClient())
+        n = repo.resolve_authorities()
+        print(f"authorities: resolved {n} distinct organizations.")
+        if args.dictionaries:
+            ns, nu = repo.resolve_dictionaries()
+            print(f"dictionaries: {ns} signers, {nu} units labelled.")
+
+
+def _diavgeia_watermark(db, decision_type: str):
+    import diavgeia_ingest as di
+    return di.watermark(db, decision_type)
+
+
+def cmd_diavgeia_catchup(args):
+    """Incremental Diavgeia fetch since last run, per decision type.
+
+    start = (latest done window end − overlap days), end = today. Types never
+    backfilled have no watermark and need an explicit --start (we refuse to
+    silently fetch all of history)."""
+    import diavgeia_ingest as di
+
+    end = dt.date.today()
+    overlap = dt.timedelta(days=args.overlap_days)
+    names = args.types or di.TYPE_NAMES
+    explicit_start = dt.date.fromisoformat(args.start) if args.start else None
+
+    with Database() as db:
+        client = di.DiavgeiaClient()
+        repo = di.DiavgeiaRepository(db, client)
+        totals = {"windows": 0, "done": 0, "skipped": 0, "errored": 0}
+        any_run = False
+        for name in names:
+            uid = di.NAME_TO_UID[name]
+            wm = di.watermark(db, uid)
+            if wm is not None:
+                start = wm - overlap
+                origin = f"watermark {wm} − {args.overlap_days}d"
+            elif explicit_start is not None:
+                start = explicit_start
+                origin = f"--start (no prior history for {name})"
+            else:
+                print(f"\n=== {name}: SKIPPED — never backfilled and no --start "
+                      f"given. Run diavgeia-backfill first, or pass --start. ===")
+                continue
+            if start > end:
+                start = end
+            print(f"\n=== catching up diavgeia {name} ({uid}): {start} .. {end}"
+                  f"  ({origin}) ===")
+            s = di.ingest_type(client, repo, uid, start, end, resume=False)
+            for k in totals:
+                totals[k] += s[k]
+            any_run = True
+
+        if any_run:
+            print("\nnew watermarks (latest done window end per type):")
+            for name in names:
+                wm = di.watermark(db, di.NAME_TO_UID[name])
+                print(f"  {name:9s} {wm if wm else '—'}")
+
+    print(f"\ndiavgeia catch-up complete. windows={totals['windows']} "
+          f"done={totals['done']} skipped={totals['skipped']} "
+          f"errored={totals['errored']}")
+    return totals
+
+
 def cmd_stats(args):
     with Database() as db:
         rows = db.query("""
@@ -541,6 +651,21 @@ def cmd_stats(args):
                     "act_object_detail", "act_operator"):
             (n,) = db.query(f"SELECT count(*) FROM proc.{tbl}")[0]
             print(f"  {tbl:18s} {n:>12,}")
+
+        # Diavgeia source (skip quietly if the migration hasn't been applied).
+        try:
+            rows = db.query("""SELECT decision_type, count(*) FROM proc.diavgeia_decision
+                               GROUP BY decision_type ORDER BY decision_type""")
+        except Exception:
+            db.rollback()
+            return
+        print("\ndiavgeia_decision by type:")
+        for t, c in rows:
+            print(f"  {t:9s} {c:>12,}")
+        for tbl in ("diavgeia_decision_cpv", "diavgeia_decision_person",
+                    "diavgeia_related"):
+            (n,) = db.query(f"SELECT count(*) FROM proc.{tbl}")[0]
+            print(f"  {tbl:24s} {n:>12,}")
 
 
 def cmd_progress(args):
@@ -625,6 +750,41 @@ def main():
     p_cu.add_argument("--start", help="YYYY-MM-DD; used only for types that have "
                       "never been backfilled (no watermark)")
     p_cu.set_defaults(func=cmd_catchup)
+
+    p_dbf = sub.add_parser("diavgeia-backfill",
+                           help="harvest Diavgeia decisions (notice/award/contract) "
+                                "for an issueDate range")
+    p_dbf.add_argument("--start", required=True, help="YYYY-MM-DD (issue date)")
+    p_dbf.add_argument("--end", help="YYYY-MM-DD (default: today)")
+    p_dbf.add_argument("--types", nargs="+",
+                       choices=["notice", "award", "contract"],
+                       help="subset of decision types (default: all three)")
+    p_dbf.add_argument("--resume", action="store_true",
+                       help="skip windows already marked 'done'; retry running/error/pending")
+    p_dbf.add_argument("--skip-resolve", action="store_true",
+                       help="don't run authority dedup after the backfill "
+                            "(defer it to `diavgeia-resolve`)")
+    p_dbf.set_defaults(func=cmd_diavgeia_backfill)
+
+    p_dr = sub.add_parser("diavgeia-resolve",
+                          help="resolve Diavgeia authorities (dedupe by ΑΦΜ) and, "
+                               "with --dictionaries, signer/unit labels")
+    p_dr.add_argument("--dictionaries", action="store_true",
+                      help="also fetch signer/unit labels (one API call per new "
+                           "uid; can be large)")
+    p_dr.set_defaults(func=cmd_diavgeia_resolve)
+
+    p_dcu = sub.add_parser("diavgeia-catchup",
+                           help="incremental Diavgeia fetch since last run (per type), "
+                                "with an overlap buffer for late records")
+    p_dcu.add_argument("--types", nargs="+",
+                       choices=["notice", "award", "contract"],
+                       help="subset of decision types (default: all three)")
+    p_dcu.add_argument("--overlap-days", type=int, default=7,
+                       help="re-fetch this many days before the watermark (default: 7)")
+    p_dcu.add_argument("--start", help="YYYY-MM-DD; used only for types that have "
+                       "never been backfilled (no watermark)")
+    p_dcu.set_defaults(func=cmd_diavgeia_catchup)
 
     p_et = sub.add_parser("extract-tables",
                           help="report-only table extraction over a job's acts")

@@ -64,16 +64,20 @@ die() { red "✗ $*"; exit 1; }
 usage() {
   cat <<'EOF'
 Usage:
-  ./ingest.sh <local|prod> <backfill|catchup|fulltext-backfill> [db.py flags...] [--fulltext]
+  ./ingest.sh <local|prod> <command> [db.py flags...] [--fulltext]
+
+  KHMDHS commands : backfill | catchup | fulltext-backfill
+  Diavgeia commands: diavgeia-backfill | diavgeia-catchup
+                     (--types notice award contract; windows on issue date)
 
 Examples:
-  ./ingest.sh local backfill --start 2026-06-01 --end 2026-06-19 --types notice
-  ./ingest.sh local backfill --start 2026-06-01 --types notice --fulltext
-  ./ingest.sh prod  catchup  --types notice contract
-  ./ingest.sh prod  backfill --start 2026-06-01 --fulltext
-  ./ingest.sh prod  fulltext-backfill --types notice --limit 5000
+  ./ingest.sh local backfill          --start 2026-06-01 --end 2026-06-19 --types notice
+  ./ingest.sh local backfill          --start 2026-06-01 --types notice --fulltext
+  ./ingest.sh prod  catchup           --types notice contract
+  ./ingest.sh local diavgeia-backfill --start 2026-06-01 --end 2026-06-19 --types notice award contract
+  ./ingest.sh prod  diavgeia-catchup  --types notice award contract
 
-Add --fulltext to also extract attachment text (slower, lots of downloads).
+Add --fulltext to also extract attachment text (KHMDHS only; ignored by Diavgeia).
 The 'fulltext-backfill' command extracts text for already-imported acts that
 have none yet (resumable; use --limit to do it in batches).
 EOF
@@ -92,8 +96,8 @@ case "$TARGET" in
 esac
 
 case "$COMMAND" in
-  backfill|catchup|fulltext-backfill) ;;
-  *) die "second argument must be 'backfill', 'catchup', or 'fulltext-backfill' (got '$COMMAND')";;
+  backfill|catchup|fulltext-backfill|diavgeia-backfill|diavgeia-catchup) ;;
+  *) die "second argument must be one of: backfill, catchup, fulltext-backfill, diavgeia-backfill, diavgeia-catchup (got '$COMMAND')";;
 esac
 
 # ---- pull out our custom --fulltext flag before passing the rest to db.py ---
