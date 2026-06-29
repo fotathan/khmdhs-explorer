@@ -1,46 +1,46 @@
 {% extends "beta_base.html" %}
-{% block title %}{{ op.name }} · Ανάδοχος{% endblock %}
+{% block title %}{{ op.name }} · {{ t("Ανάδοχος") }}{% endblock %}
 {% block content %}
 <main>
-  <a class="back-link" href="/contractors" hx-boost="false">‹ πίσω στους αναδόχους</a>
+  <a class="back-link" href="/contractors" hx-boost="false">{{ t("‹ πίσω στους αναδόχους") }}</a>
 
   <div class="detail-head">
-    <div class="detail-kicker">Ανάδοχος / Προμηθευτής</div>
+    <div class="detail-kicker">{{ t("Ανάδοχος / Προμηθευτής") }}</div>
     {% with kind='contractor', ident=op.vat_number, name=op.name, editing=False, edited=False %}
       {% include "_editable_name.html" %}
     {% endwith %}
     <div class="detail-sub">
-      <span>ΑΦΜ <code>{{ op.vat_number }}</code></span>
+      <span>{{ t("ΑΦΜ") }} <code>{{ op.vat_number }}</code></span>
       {% if not op.is_greek_vat and op.country %}<span>{{ op.country }}</span>{% endif %}
     </div>
     {% if merge_info %}
     <div class="merge-note">
-      Συγχωνευμένη οντότητα — {{ merge_info.n }} ΑΦΜ:
+      {{ t("Συγχωνευμένη οντότητα —") }} {{ merge_info.n }} {{ t("ΑΦΜ") }}:
       {% for m in merge_info.members %}<code>{{ m.vat }}</code>{% if not loop.last %} · {% endif %}{% endfor %}
     </div>
     {% endif %}
     <div style="margin-top:8px;">
       <a href="/admin/contractor/{{ op.vat_number }}/edit" hx-boost="false"
-         style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--accent);">επεξεργασία στοιχείων ›</a>
+         style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--accent);">{{ t("επεξεργασία στοιχείων ›") }}</a>
     </div>
   </div>
 
   {% if op.statistical_or_tax_number or op.contact_person or op.orgdb_id or op.ar_gemi or op.city or op.postal_code or op.nuts_code or op.street_address or op.contact_email or op.contact_phone or op.contact_fax or op.contact_url %}
   <div class="panel">
-    <h3 class="panel-h">Στοιχεία επικοινωνίας & ταυτότητας</h3>
+    <h3 class="panel-h">{{ t("Στοιχεία επικοινωνίας & ταυτότητας") }}</h3>
     <dl class="facts">
-      {% if op.statistical_or_tax_number %}<dt>Στατιστικός/φορολογικός αρ.</dt><dd>{{ op.statistical_or_tax_number }}</dd>{% endif %}
-      {% if op.contact_person %}<dt>Υπεύθυνος επικοινωνίας</dt><dd>{{ op.contact_person }}</dd>{% endif %}
+      {% if op.statistical_or_tax_number %}<dt>{{ t("Στατιστικός/φορολογικός αρ.") }}</dt><dd>{{ op.statistical_or_tax_number }}</dd>{% endif %}
+      {% if op.contact_person %}<dt>{{ t("Υπεύθυνος επικοινωνίας") }}</dt><dd>{{ op.contact_person }}</dd>{% endif %}
       {% if op.orgdb_id %}<dt>OrgDB ID</dt><dd>{{ op.orgdb_id }}</dd>{% endif %}
-      {% if op.ar_gemi %}<dt>Αρ. ΓΕΜΗ</dt><dd>{{ op.ar_gemi }}</dd>{% endif %}
+      {% if op.ar_gemi %}<dt>{{ t("Αρ. ΓΕΜΗ") }}</dt><dd>{{ op.ar_gemi }}</dd>{% endif %}
       {% if op.nuts_code %}<dt>NUTS</dt><dd>{{ op.nuts_code }}</dd>{% endif %}
-      {% if op.city %}<dt>Πόλη</dt><dd>{{ op.city }}</dd>{% endif %}
-      {% if op.postal_code %}<dt>Τ.Κ.</dt><dd>{{ op.postal_code }}</dd>{% endif %}
-      {% if op.street_address %}<dt>Διεύθυνση</dt><dd>{{ op.street_address }}</dd>{% endif %}
+      {% if op.city %}<dt>{{ t("Πόλη") }}</dt><dd>{{ op.city }}</dd>{% endif %}
+      {% if op.postal_code %}<dt>{{ t("Τ.Κ.") }}</dt><dd>{{ op.postal_code }}</dd>{% endif %}
+      {% if op.street_address %}<dt>{{ t("Διεύθυνση") }}</dt><dd>{{ op.street_address }}</dd>{% endif %}
       {% if op.contact_email %}<dt>Email</dt><dd><a href="mailto:{{ op.contact_email }}" style="color:var(--accent);">{{ op.contact_email }}</a></dd>{% endif %}
-      {% if op.contact_phone %}<dt>Τηλέφωνο</dt><dd>{{ op.contact_phone }}</dd>{% endif %}
-      {% if op.contact_fax %}<dt>Φαξ</dt><dd>{{ op.contact_fax }}</dd>{% endif %}
-      {% if op.contact_url %}<dt>Ιστότοπος</dt><dd><a href="{{ op.contact_url }}" target="_blank" rel="noopener" style="color:var(--accent);">{{ op.contact_url }}</a></dd>{% endif %}
+      {% if op.contact_phone %}<dt>{{ t("Τηλέφωνο") }}</dt><dd>{{ op.contact_phone }}</dd>{% endif %}
+      {% if op.contact_fax %}<dt>{{ t("Φαξ") }}</dt><dd>{{ op.contact_fax }}</dd>{% endif %}
+      {% if op.contact_url %}<dt>{{ t("Ιστότοπος") }}</dt><dd><a href="{{ op.contact_url }}" target="_blank" rel="noopener" style="color:var(--accent);">{{ op.contact_url }}</a></dd>{% endif %}
     </dl>
   </div>
   {% endif %}
@@ -48,11 +48,11 @@
   <div class="stat-row">
     <div class="stat-box">
       <div class="num">{{ "{:,}".format(grand_total).replace(",", ".") }}</div>
-      <div class="lbl">σύνολο πράξεων</div>
+      <div class="lbl">{{ t("σύνολο πράξεων") }}</div>
     </div>
     <div class="stat-box">
       <div class="num">€ {{ "{:,.0f}".format(grand_value).replace(",", ".") }}</div>
-      <div class="lbl">αξία συμβάσεων</div>
+      <div class="lbl">{{ t("αξία συμβάσεων") }}</div>
     </div>
   </div>
 
@@ -62,10 +62,10 @@
   </div>
 
   <div class="panel">
-    <h3 class="panel-h">Σύνολα ανά τύπο πράξης</h3>
+    <h3 class="panel-h">{{ t("Σύνολα ανά τύπο πράξης") }}</h3>
     <table class="dtable">
       <thead>
-        <tr><th>Τύπος</th><th class="val">Πράξεις</th><th class="val">Αξία</th></tr>
+        <tr><th>{{ t("Τύπος") }}</th><th class="val">{{ t("Πράξεις") }}</th><th class="val">{{ t("Αξία") }}</th></tr>
       </thead>
       <tbody>
         {% for r in by_type %}
@@ -76,7 +76,7 @@
         </tr>
         {% endfor %}
         <tr class="total-row">
-          <td>Σύνολο</td>
+          <td>{{ t("Σύνολο") }}</td>
           <td class="val">{{ "{:,}".format(grand_total).replace(",", ".") }}</td>
           <td class="val">€ {{ "{:,.0f}".format(grand_value).replace(",", ".") }}</td>
         </tr>
@@ -85,11 +85,11 @@
   </div>
 
   <div class="panel">
-    <h3 class="panel-h">Κορυφαίες αναθέτουσες (πελάτες)</h3>
+    <h3 class="panel-h">{{ t("Κορυφαίες αναθέτουσες (πελάτες)") }}</h3>
     {% if top_buyers %}
     <table class="dtable">
       <thead>
-        <tr><th>Αναθέτουσα</th><th class="val">Συμβάσεις</th><th class="val">Αξία</th></tr>
+        <tr><th>{{ t("Αναθέτουσα") }}</th><th class="val">{{ t("Συμβάσεις") }}</th><th class="val">{{ t("Αξία") }}</th></tr>
       </thead>
       <tbody>
         {% for r in top_buyers %}
@@ -102,16 +102,16 @@
       </tbody>
     </table>
     {% else %}
-    <div class="empty">Δεν υπάρχουν συμβάσεις.</div>
+    <div class="empty">{{ t("Δεν υπάρχουν συμβάσεις.") }}</div>
     {% endif %}
   </div>
 
   <div class="panel">
-    <h3 class="panel-h">Πράξεις</h3>
+    <h3 class="panel-h">{{ t("Πράξεις") }}</h3>
     {% if acts %}
     <table class="dtable">
       <thead>
-        <tr><th>ΑΔΑΜ</th><th>Τίτλος / Αναθέτουσα</th><th>Τύπος</th><th>Ημ/νία</th><th class="val">Αξία</th></tr>
+        <tr><th>ΑΔΑΜ</th><th>{{ t("Τίτλος / Αναθέτουσα") }}</th><th>{{ t("Τύπος") }}</th><th>{{ t("Ημ/νία") }}</th><th class="val">{{ t("Αξία") }}</th></tr>
       </thead>
       <tbody>
         {% for r in acts %}
@@ -120,7 +120,7 @@
           <td>
             <a href="/act/{{ r.adam }}">{{ r.title or '—' }}</a>
             {% if r.authority_name %}<div style="font-size:12px;color:var(--ink-3);margin-top:2px;">{% if r.authority_id %}<a href="/authority/{{ r.authority_id }}" style="color:var(--ink-2);">{{ r.authority_name }}</a>{% else %}{{ r.authority_name }}{% endif %}</div>{% endif %}
-            {% if r.cancelled %}<span class="pill cancel">ακυρωμένη</span>{% endif %}
+            {% if r.cancelled %}<span class="pill cancel">{{ t("ακυρωμένη") }}</span>{% endif %}
           </td>
           <td style="color:var(--ink-3);">{{ r.type | type_label }}</td>
           <td style="color:var(--ink-3);">{{ r.submission_date.strftime('%d/%m/%Y') if r.submission_date else (r.signed_date.strftime('%d/%m/%Y') if r.signed_date else '—') }}</td>
@@ -133,22 +133,22 @@
       </tbody>
     </table>
     <div class="pager">
-      {% if page > 1 %}<a href="/contractor/{{ op.vat_number }}?page={{ page-1 }}">‹ προηγ.</a>{% else %}<span class="disabled">‹ προηγ.</span>{% endif %}
+      {% if page > 1 %}<a href="/contractor/{{ op.vat_number }}?page={{ page-1 }}">{{ t("‹ προηγ.") }}</a>{% else %}<span class="disabled">{{ t("‹ προηγ.") }}</span>{% endif %}
       <span class="cur">{{ page }}</span>
-      <span style="border:0;background:transparent;color:var(--ink-3);">από {{ total_pages }}</span>
-      {% if page < total_pages %}<a href="/contractor/{{ op.vat_number }}?page={{ page+1 }}">επόμ. ›</a>{% else %}<span class="disabled">επόμ. ›</span>{% endif %}
+      <span style="border:0;background:transparent;color:var(--ink-3);">{% if lang=='en' %}of{% else %}από{% endif %} {{ total_pages }}</span>
+      {% if page < total_pages %}<a href="/contractor/{{ op.vat_number }}?page={{ page+1 }}">{{ t("επόμ. ›") }}</a>{% else %}<span class="disabled">{{ t("επόμ. ›") }}</span>{% endif %}
     </div>
     {% else %}
-    <div class="empty">Καμία πράξη.</div>
+    <div class="empty">{{ t("Καμία πράξη.") }}</div>
     {% endif %}
   </div>
 
   <div class="panel">
-    <h3 class="panel-h">Κορυφαία αντικείμενα (CPV)</h3>
+    <h3 class="panel-h">{{ t("Κορυφαία αντικείμενα (CPV)") }}</h3>
     {% if top_cpv %}
     <table class="dtable">
       <thead>
-        <tr><th>Κατηγορία CPV</th><th class="val">Συμβάσεις</th><th class="val">Αξία</th></tr>
+        <tr><th>{{ t("Κατηγορία CPV") }}</th><th class="val">{{ t("Συμβάσεις") }}</th><th class="val">{{ t("Αξία") }}</th></tr>
       </thead>
       <tbody>
         {% for r in top_cpv %}
@@ -163,9 +163,9 @@
         {% endfor %}
       </tbody>
     </table>
-    <p style="font-size:11.5px;color:var(--ink-3);margin-top:10px;">Πρόθεμα 2 ψηφίων CPV (επίπεδο division) · μόνο συμβάσεις.</p>
+    <p style="font-size:11.5px;color:var(--ink-3);margin-top:10px;">{{ t("Πρόθεμα 2 ψηφίων CPV (επίπεδο division) · μόνο συμβάσεις.") }}</p>
     {% else %}
-    <div class="empty">Δεν υπάρχουν δεδομένα CPV.</div>
+    <div class="empty">{{ t("Δεν υπάρχουν δεδομένα CPV.") }}</div>
     {% endif %}
   </div>
 </main>

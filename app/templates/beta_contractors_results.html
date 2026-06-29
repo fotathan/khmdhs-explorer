@@ -10,16 +10,16 @@
     <div class="lc-main">
       <div class="lc-name">
         <a href="/contractor/{{ r.vat_number }}">{{ r.name or '—' }}</a>
-        {% if r.is_merged %}<span class="merge-badge">συγχ.</span>{% endif %}
+        {% if r.is_merged %}<span class="merge-badge">{{ t("συγχ.") }}</span>{% endif %}
       </div>
       <div class="lc-sub">
-        <span class="mono">ΑΦΜ {{ r.vat_number }}</span>
+        <span class="mono">{{ t("ΑΦΜ") }} {{ r.vat_number }}</span>
         {% if not r.is_greek_vat and r.country %}<span>{{ r.country }}</span>{% endif %}
       </div>
     </div>
     <div class="lc-stats">
-      <div class="lc-stat"><div class="num">{{ "{:,}".format(r.n_acts).replace(",", ".") }}</div><div class="lbl">πράξεις</div></div>
-      <div class="lc-stat"><div class="num">{{ "{:,}".format(r.n_buyers).replace(",", ".") }}</div><div class="lbl">αναθέτουσες</div></div>
+      <div class="lc-stat"><div class="num">{{ "{:,}".format(r.n_acts).replace(",", ".") }}</div><div class="lbl">{{ t("πράξεις") }}</div></div>
+      <div class="lc-stat"><div class="num">{{ "{:,}".format(r.n_buyers).replace(",", ".") }}</div><div class="lbl">{{ t("αναθέτουσες") }}</div></div>
     </div>
   </div>
   {% endfor %}
@@ -27,15 +27,15 @@
   <div class="pager">
     {% if page > 1 %}
       <a hx-get="/contractors?{% for k,v in request.query_params.multi_items() if k != 'page' %}{{k}}={{v|urlencode}}&{% endfor %}page={{ page-1 }}"
-         hx-target="#results" hx-include="#filters">‹ προηγ.</a>
-    {% else %}<span class="disabled">‹ προηγ.</span>{% endif %}
+         hx-target="#results" hx-include="#filters">{{ t("‹ προηγ.") }}</a>
+    {% else %}<span class="disabled">{{ t("‹ προηγ.") }}</span>{% endif %}
     <span class="cur">{{ page }}</span>
-    <span style="border:0;background:transparent;color:var(--ink-3);">από {{ total_pages }}</span>
+    <span style="border:0;background:transparent;color:var(--ink-3);">{% if lang=='en' %}of{% else %}από{% endif %} {{ total_pages }}</span>
     {% if page < total_pages %}
       <a hx-get="/contractors?{% for k,v in request.query_params.multi_items() if k != 'page' %}{{k}}={{v|urlencode}}&{% endfor %}page={{ page+1 }}"
-         hx-target="#results" hx-include="#filters">επόμ. ›</a>
-    {% else %}<span class="disabled">επόμ. ›</span>{% endif %}
+         hx-target="#results" hx-include="#filters">{{ t("επόμ. ›") }}</a>
+    {% else %}<span class="disabled">{{ t("επόμ. ›") }}</span>{% endif %}
   </div>
 {% else %}
-  <div class="empty">Κανένας ανάδοχος δεν αντιστοιχεί στην αναζήτηση.</div>
+  <div class="empty">{{ t("Κανένας ανάδοχος δεν αντιστοιχεί στην αναζήτηση.") }}</div>
 {% endif %}

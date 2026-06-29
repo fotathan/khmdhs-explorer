@@ -213,8 +213,91 @@ _ACT = {
     "Συσχετιζόμενα προηγούμενα": "Related upstream",
 }
 
+# Authority / contractor detail + list pages (beta_authority/contractor[_results])
+_PARTY = {
+    "‹ πίσω στις αναθέτουσες": "‹ back to authorities",
+    "‹ πίσω στους αναδόχους": "‹ back to contractors",
+    "Συγχωνευμένη οντότητα —": "Merged entity —",
+    "εγγραφές:": "records:",
+    "ΑΦΜ:": "Tax ID:",
+    "επεξεργασία στοιχείων ›": "edit details ›",
+    "Στοιχεία επικοινωνίας & ταυτότητας": "Contact & identity details",
+    "Αναγνωριστικό πηγής": "Source identifier",
+    "σύνολο πράξεων": "total acts",
+    "αξία συμβάσεων": "contract value",
+    "Σύνολα ανά τύπο πράξης": "Totals by act type",
+    "Πράξεις": "Acts",
+    "Ακυρωμένες": "Cancelled",
+    "Αξία": "Value",
+    "μόνο αυτές ›": "only these ›",
+    "Σύνολο": "Total",
+    "μόνο": "only",
+    "Ημ/νία": "Date",
+    "Διορθωμένη τιμή": "Corrected value",
+    "Καμία πράξη.": "No acts.",
+    "Κορυφαία αντικείμενα (CPV)": "Top objects (CPV)",
+    "Κατηγορία CPV": "CPV category",
+    "Προκηρύξεις": "Notices",
+    "Πρόθεμα 2 ψηφίων CPV (επίπεδο division) · μόνο προκηρύξεις.":
+        "2-digit CPV prefix (division level) · notices only.",
+    "Πρόθεμα 2 ψηφίων CPV (επίπεδο division) · μόνο συμβάσεις.":
+        "2-digit CPV prefix (division level) · contracts only.",
+    "Δεν υπάρχουν δεδομένα CPV.": "No CPV data.",
+    "Ανάδοχος": "Contractor",
+    "Ανάδοχος / Προμηθευτής": "Contractor / Supplier",
+    "Στατιστικός/φορολογικός αρ.": "Statistical/tax no.",
+    "Υπεύθυνος επικοινωνίας": "Contact person",
+    "Αρ. ΓΕΜΗ": "GEMI no.",
+    "Πόλη": "City",
+    "Τ.Κ.": "Postal code",
+    "Κορυφαίες αναθέτουσες (πελάτες)": "Top authorities (clients)",
+    "Αναθέτουσα": "Authority",
+    "Συμβάσεις": "Contracts",
+    "Δεν υπάρχουν συμβάσεις.": "No contracts.",
+    "Τίτλος / Αναθέτουσα": "Title / Authority",
+    "Αναθέτουσες Αρχές · Εξερευνητής": "Contracting Authorities · Explorer",
+    "Αναθέτουσες Αρχές": "Contracting Authorities",
+    "εγγραφές": "records",
+    "Αναζήτηση ονόματος αναθέτουσας…": "Search authority name…",
+    "Δραστηριότητα ↓": "Activity ↓",
+    "Όνομα Α–Ω": "Name A–Z",
+    "Όνομα Ω–Α": "Name Z–A",
+    "συγχ.": "merged",
+    "προκηρύξεις": "notices",
+    "συμβάσεις": "contracts",
+    "Καμία αναθέτουσα δεν αντιστοιχεί στην αναζήτηση.": "No authority matches the search.",
+    "Ανάδοχοι · Εξερευνητής": "Contractors · Explorer",
+    "Ανάδοχοι / Προμηθευτές": "Contractors / Suppliers",
+    "Αναζήτηση ονόματος ή ΑΦΜ…": "Search name or Tax ID…",
+    "αναθέτουσες": "authorities",
+    "Κανένας ανάδοχος δεν αντιστοιχεί στην αναζήτηση.": "No contractor matches the search.",
+}
+
+# Shared partials: inline name edit + ΓΕΜΗ block (_editable_name, _gemi_block)
+_PARTIALS = {
+    "Η διόρθωση αντικαθιστά το όνομα· το αρχικό διατηρείται για ασφάλεια.":
+        "The correction replaces the name; the original is kept for safety.",
+    "Επεξεργασία ονόματος": "Edit name",
+    "αποθηκεύτηκε": "saved",
+    "Στοιχεία μητρώου ΓΕΜΗ": "GEMI registry data",
+    "Ανανέωση από ΓΕΜΗ": "Refresh from GEMI",
+    "Άντληση από ΓΕΜΗ": "Fetch from GEMI",
+    "επικοινωνία με ΓΕΜΗ…": "contacting GEMI…",
+    "Προβολή στοιχείων μητρώου": "View registry data",
+    "Νομική μορφή / Κατάσταση": "Legal form / Status",
+    "Ημ. σύστασης": "Incorporation date",
+    "Επικοινωνία": "Contact",
+    "τηλ.": "tel.",
+    "Κύριος ΚΑΔ": "Primary activity code",
+    "Όλοι οι ενεργοί ΚΑΔ": "All active activity codes",
+    "Πηγή:": "Source:",
+    "ενημ.": "upd.",
+    "Δεν υπάρχουν αποθηκευμένα στοιχεία ΓΕΜΗ για αυτόν τον ΑΦΜ.":
+        "No stored GEMI data for this Tax ID.",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
-for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT):
+for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY, _PARTIALS):
     UI_EN.update(_grp)

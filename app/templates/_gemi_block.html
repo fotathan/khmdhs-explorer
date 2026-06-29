@@ -11,7 +11,7 @@
 {% if gemi or gemi_refresh_url %}
 <div class="gemi-block" style="margin:0 0 22px; padding:14px 16px; border:1px solid var(--rule); border-radius:8px; background:var(--paper-2);">
   <div class="section-h" style="margin-top:0; display:flex; align-items:center; gap:10px;">
-    <span>Στοιχεία μητρώου ΓΕΜΗ</span>
+    <span>{{ t("Στοιχεία μητρώου ΓΕΜΗ") }}</span>
     {% if gemi_refresh_url %}
     <button type="button"
             hx-post="{{ gemi_refresh_url }}"
@@ -19,9 +19,9 @@
             hx-indicator="#gemi-busy"
             hx-disabled-elt="this"
             style="margin-left:auto; font-family:var(--sans); font-size:11px; padding:4px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--paper); cursor:pointer;">
-      {{ "Ανανέωση από ΓΕΜΗ" if gemi else "Άντληση από ΓΕΜΗ" }}
+      {{ t("Ανανέωση από ΓΕΜΗ") if gemi else t("Άντληση από ΓΕΜΗ") }}
     </button>
-    <span id="gemi-busy" class="tt-indicator" style="font-size:11px; color:var(--ink-3);">επικοινωνία με ΓΕΜΗ…</span>
+    <span id="gemi-busy" class="tt-indicator" style="font-size:11px; color:var(--ink-3);">{{ t("επικοινωνία με ΓΕΜΗ…") }}</span>
     {% endif %}
   </div>
 
@@ -36,39 +36,39 @@
      panel. Auto-opens right after a refresh (gemi_flash set) so the freshly
      pulled data is visible without an extra click. #}
   <details class="gemi-details"{% if gemi_flash %} open{% endif %}>
-    <summary class="gemi-summary">Προβολή στοιχείων μητρώου</summary>
+    <summary class="gemi-summary">{{ t("Προβολή στοιχείων μητρώου") }}</summary>
   <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px 24px; font-size:13px; margin-top:10px;">
 
     <div>
-      <div class="gemi-lbl">Επωνυμία</div>
+      <div class="gemi-lbl">{{ t("Επωνυμία") }}</div>
       <div>{{ gemi.legal_name or '—' }}</div>
       {% if gemi.trade_title %}<div style="color:var(--ink-2); font-style:italic;">{{ gemi.trade_title }}</div>{% endif %}
     </div>
 
     {% if gemi.legal_type or gemi.status %}
     <div>
-      <div class="gemi-lbl">Νομική μορφή / Κατάσταση</div>
+      <div class="gemi-lbl">{{ t("Νομική μορφή / Κατάσταση") }}</div>
       <div>{{ gemi.legal_type or '—' }}{% if gemi.status %} · <span style="color:{{ 'var(--ok)' if gemi.status == 'Ενεργή' else 'var(--accent)' }};">{{ gemi.status }}</span>{% endif %}</div>
     </div>
     {% endif %}
 
     {% if gemi.incorporation_date %}
     <div>
-      <div class="gemi-lbl">Ημ. σύστασης</div>
+      <div class="gemi-lbl">{{ t("Ημ. σύστασης") }}</div>
       <div>{{ gemi.incorporation_date.strftime('%d/%m/%Y') }}</div>
     </div>
     {% endif %}
 
     {% if gemi.ar_gemi %}
     <div>
-      <div class="gemi-lbl">Αρ. ΓΕΜΗ</div>
+      <div class="gemi-lbl">{{ t("Αρ. ΓΕΜΗ") }}</div>
       <div style="font-family:var(--mono);">{{ gemi.ar_gemi }}</div>
     </div>
     {% endif %}
 
     {% if gemi.street or gemi.city or gemi.zip_code %}
     <div>
-      <div class="gemi-lbl">Διεύθυνση</div>
+      <div class="gemi-lbl">{{ t("Διεύθυνση") }}</div>
       <div>
         {{ gemi.street or '' }}{% if gemi.street_number %} {{ gemi.street_number }}{% endif %}
         {% if gemi.zip_code or gemi.city %}<br>{{ gemi.zip_code or '' }} {{ gemi.city or '' }}{% endif %}
@@ -79,9 +79,9 @@
 
     {% if gemi.phone or gemi.email or gemi.url %}
     <div>
-      <div class="gemi-lbl">Επικοινωνία</div>
+      <div class="gemi-lbl">{{ t("Επικοινωνία") }}</div>
       <div>
-        {% if gemi.phone %}<div>τηλ. {{ gemi.phone }}</div>{% endif %}
+        {% if gemi.phone %}<div>{{ t("τηλ.") }} {{ gemi.phone }}</div>{% endif %}
         {% if gemi.email %}<div><a href="mailto:{{ gemi.email | lower }}" style="color:var(--accent);">{{ gemi.email | lower }}</a></div>{% endif %}
         {% if gemi.url %}<div><a href="{{ gemi.url if '://' in gemi.url else 'https://' ~ gemi.url }}" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">{{ gemi.url }}</a></div>{% endif %}
       </div>
@@ -90,7 +90,7 @@
 
     {% if gemi.primary_kad %}
     <div>
-      <div class="gemi-lbl">Κύριος ΚΑΔ</div>
+      <div class="gemi-lbl">{{ t("Κύριος ΚΑΔ") }}</div>
       <div><span style="font-family:var(--mono);">{{ gemi.primary_kad }}</span>{% if gemi.primary_kad_descr %} — {{ gemi.primary_kad_descr }}{% endif %}</div>
     </div>
     {% endif %}
@@ -98,7 +98,7 @@
 
   {% if gemi.activities_active and gemi.activities_active|length > 1 %}
   <details style="margin-top:10px; font-size:12px;">
-    <summary style="cursor:pointer; color:var(--ink-2);">Όλοι οι ενεργοί ΚΑΔ ({{ gemi.activities_active|length }})</summary>
+    <summary style="cursor:pointer; color:var(--ink-2);">{{ t("Όλοι οι ενεργοί ΚΑΔ") }} ({{ gemi.activities_active|length }})</summary>
     <ul style="margin:8px 0 0; padding-left:18px;">
       {% for k in gemi.activities_active %}
       <li><span style="font-family:var(--mono);">{{ k.id }}</span> — {{ k.descr }}{% if k.type %} <span style="color:var(--ink-3);">({{ k.type }})</span>{% endif %}</li>
@@ -108,11 +108,11 @@
   {% endif %}
 
   <div style="margin-top:12px; font-size:10px; color:var(--ink-3); font-family:var(--mono); letter-spacing:0.03em;">
-    Πηγή: ΓΕΜΗ Open Data (opendata.businessportal.gr) · ODC-BY-1.0{% if gemi.fetched_at %} · ενημ. {{ gemi.fetched_at.strftime('%Y-%m-%d') }}{% endif %}
+    {{ t("Πηγή:") }} ΓΕΜΗ Open Data (opendata.businessportal.gr) · ODC-BY-1.0{% if gemi.fetched_at %} · {{ t("ενημ.") }} {{ gemi.fetched_at.strftime('%Y-%m-%d') }}{% endif %}
   </div>
   </details>
   {% elif not gemi_flash %}
-  <div style="font-size:12px; color:var(--ink-3);">Δεν υπάρχουν αποθηκευμένα στοιχεία ΓΕΜΗ για αυτόν τον ΑΦΜ.</div>
+  <div style="font-size:12px; color:var(--ink-3);">{{ t("Δεν υπάρχουν αποθηκευμένα στοιχεία ΓΕΜΗ για αυτόν τον ΑΦΜ.") }}</div>
   {% endif %}
 </div>
 <style>
