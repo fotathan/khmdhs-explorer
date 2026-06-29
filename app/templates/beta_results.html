@@ -5,7 +5,7 @@
   // only swaps the cards. Mirrors the technique used by the classic _results.html.
   (function(){
     var c = "{{ '{:,}'.format(total_count).replace(',', '.') }}";
-    var v = "συνολική αξία € {{ '{:,.0f}'.format(total_value).replace(',', '.') }}";
+    var v = "{{ t('συνολική αξία €') }} {{ '{:,.0f}'.format(total_value).replace(',', '.') }}";
     var hc=document.getElementById('hero-count'); if(hc) hc.textContent=c;
     var rc=document.getElementById('rb-count');   if(rc) rc.textContent=c;
     var rv=document.getElementById('rb-value');   if(rv) rv.textContent=v;
@@ -28,26 +28,26 @@
           {# publication date — submission_date, else signed_date #}
           {% set pubdate = r.submission_date or r.signed_date %}
           {% if pubdate %}
-          <span class="dt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg><span class="lbl">δημ.</span> <b>{{ pubdate.strftime('%d/%m/%Y') }}</b></span>
+          <span class="dt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg><span class="lbl">{{ t("δημ.") }}</span> <b>{{ pubdate.strftime('%d/%m/%Y') }}</b></span>
           {% endif %}
 
           {% if r.final_submission_date %}
-          <span class="dt deadline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lbl">λήξη</span> <b>{{ r.final_submission_date.strftime('%d/%m/%Y') }}</b></span>
+          <span class="dt deadline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lbl">{{ t("λήξη") }}</span> <b>{{ r.final_submission_date.strftime('%d/%m/%Y') }}</b></span>
           {% endif %}
 
           <span class="m adam">ΑΔΑΜ {{ r.adam }}</span>
 
-          {% if r.cancelled %}<span class="pill cancel">ακυρωμένη</span>{% endif %}
-          {% if r.is_modified %}<span class="pill amend">ορθή επ.</span>{% endif %}
+          {% if r.cancelled %}<span class="pill cancel">{{ t("ακυρωμένη") }}</span>{% endif %}
+          {% if r.is_modified %}<span class="pill amend">{{ t("ορθή επ.") }}</span>{% endif %}
         </div>
       </div>
       <div class="card-val">
         {% if r.resolved_value is not none %}
           <div class="amt {% if r.is_corrected %}corrected{% endif %}"
-               {% if r.is_corrected and r.total_cost_with_vat is not none %}title="Διορθωμένη τιμή — αρχική: € {{ '{:,.2f}'.format(r.total_cost_with_vat).replace(',', '.') }}"{% endif %}>
+               {% if r.is_corrected and r.total_cost_with_vat is not none %}title="{{ t('Διορθωμένη τιμή — αρχική: €') }} {{ '{:,.2f}'.format(r.total_cost_with_vat).replace(',', '.') }}"{% endif %}>
             € {{ "{:,.0f}".format(r.resolved_value).replace(",", ".") }}
           </div>
-          <div class="amt-l">{{ "αξία σύμβασης" if r.type == 'contract' else "εκτ. προϋπολογισμός" }}</div>
+          <div class="amt-l">{{ t("αξία σύμβασης") if r.type == 'contract' else t("εκτ. προϋπολογισμός") }}</div>
         {% else %}
           <div class="amt" style="color:var(--ink-3);font-weight:500;">—</div>
         {% endif %}
@@ -59,17 +59,17 @@
   <div class="pager">
     {% if page > 1 %}
       <a hx-get="/?{% for k,v in request.query_params.multi_items() if k != 'page' %}{{k}}={{v|urlencode}}&{% endfor %}page={{ page-1 }}"
-         hx-target="#results" hx-include="#filters">‹ προηγ.</a>
-    {% else %}<span class="disabled">‹ προηγ.</span>{% endif %}
+         hx-target="#results" hx-include="#filters">{{ t("‹ προηγ.") }}</a>
+    {% else %}<span class="disabled">{{ t("‹ προηγ.") }}</span>{% endif %}
 
     <span class="cur">{{ page }}</span>
-    <span style="border:0;background:transparent;color:var(--ink-3);">από {{ total_pages }}</span>
+    <span style="border:0;background:transparent;color:var(--ink-3);">{% if lang=='en' %}of{% else %}από{% endif %} {{ total_pages }}</span>
 
     {% if page < total_pages %}
       <a hx-get="/?{% for k,v in request.query_params.multi_items() if k != 'page' %}{{k}}={{v|urlencode}}&{% endfor %}page={{ page+1 }}"
-         hx-target="#results" hx-include="#filters">επόμ. ›</a>
-    {% else %}<span class="disabled">επόμ. ›</span>{% endif %}
+         hx-target="#results" hx-include="#filters">{{ t("επόμ. ›") }}</a>
+    {% else %}<span class="disabled">{{ t("επόμ. ›") }}</span>{% endif %}
   </div>
 {% else %}
-  <div class="empty">Καμία πράξη δεν αντιστοιχεί στα φίλτρα. Δοκιμάστε να χαλαρώσετε τα κριτήρια.</div>
+  <div class="empty">{{ t("Καμία πράξη δεν αντιστοιχεί στα φίλτρα. Δοκιμάστε να χαλαρώσετε τα κριτήρια.") }}</div>
 {% endif %}

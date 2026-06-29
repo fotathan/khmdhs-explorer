@@ -1,5 +1,5 @@
 {% extends "beta_base.html" %}
-{% block title %}KHMDHS · Εξερευνητής{% endblock %}
+{% block title %}{{ t("KHMDHS · Εξερευνητής") }}{% endblock %}
 {% block content %}
 <form id="filters" hx-get="/" hx-target="#results" hx-trigger="change, submit"
       hx-push-url="true" hx-indicator="#busy">
@@ -8,12 +8,12 @@
   <div class="hero-in">
     <div class="searchbar">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-      <input type="text" name="q" value="{{ params.q or '' }}" placeholder="Αναζήτηση σε τίτλους, αναθέτουσες, αναδόχους, ΑΔΑΜ…">
-      <button class="go" type="submit">Αναζήτηση</button>
+      <input type="text" name="q" value="{{ params.q or '' }}" placeholder="{{ t('Αναζήτηση σε τίτλους, αναθέτουσες, αναδόχους, ΑΔΑΜ…') }}">
+      <button class="go" type="submit">{{ t("Αναζήτηση") }}</button>
     </div>
     <div class="hero-meta">
-      <span>βρέθηκαν <b id="hero-count">{{ "{:,}".format(total_count).replace(",", ".") }}</b> πράξεις</span>
-      <span id="busy" class="htmx-indicator">ανανέωση…</span>
+      <span>{{ t("βρέθηκαν") }} <b id="hero-count">{{ "{:,}".format(total_count).replace(",", ".") }}</b> {{ t("πράξεις") }}</span>
+      <span id="busy" class="htmx-indicator">{{ t("ανανέωση…") }}</span>
     </div>
   </div>
 </div>
@@ -23,13 +23,13 @@
 
     <aside class="filters">
       <div class="filters-head">
-        <h2>Φίλτρα</h2>
-        <a href="/">καθαρισμός</a>
+        <h2>{{ t("Φίλτρα") }}</h2>
+        <a href="/">{{ t("καθαρισμός") }}</a>
       </div>
 
       {% set sel_types = request.query_params.getlist('type') %}
       <div class="fgroup">
-        <div class="fgroup-h">Τύπος πράξης</div>
+        <div class="fgroup-h">{{ t("Τύπος πράξης") }}</div>
         <div class="chips">
           {% for code in TYPE_FILTER_ORDER %}
           <label class="chip {% if code in sel_types %}on{% endif %}">
@@ -41,10 +41,10 @@
 
       {% set sel_auth = request.query_params.getlist('authority') %}
       <div class="fgroup">
-        <div class="fgroup-h">Αναθέτουσα αρχή</div>
+        <div class="fgroup-h">{{ t("Αναθέτουσα αρχή") }}</div>
         <div class="auth-picker">
           <select name="authority" class="auth-sel">
-            <option value="">— όλες —</option>
+            <option value="">{{ t("— όλες —") }}</option>
             {% for a in lk.authorities %}
             <option value="{{ a.id }}" {% if a.id in sel_auth %}selected{% endif %}>{{ a.name }} ({{ a.n }})</option>
             {% endfor %}
@@ -54,7 +54,7 @@
 
       {% set sel_ct = request.query_params.getlist('contract_type') %}
       <div class="fgroup">
-        <div class="fgroup-h">Είδος σύμβασης</div>
+        <div class="fgroup-h">{{ t("Είδος σύμβασης") }}</div>
         <div class="chips">
           {% for c in lk.contract_types %}
           <label class="chip {% if c.code in sel_ct %}on{% endif %}">
@@ -66,7 +66,7 @@
 
       {% set sel_pt = request.query_params.getlist('procedure_type') %}
       <div class="fgroup">
-        <div class="fgroup-h">Τύπος διαδικασίας</div>
+        <div class="fgroup-h">{{ t("Τύπος διαδικασίας") }}</div>
         <div class="chips">
           {% for p in lk.procedure_types %}
           <label class="chip {% if p.code in sel_pt %}on{% endif %}">
@@ -78,7 +78,7 @@
 
       {% set sel_nuts = request.query_params.getlist('nuts') %}
       <div class="fgroup">
-        <div class="fgroup-h">Γεωγραφία — Περιφέρεια</div>
+        <div class="fgroup-h">{{ t("Γεωγραφία — Περιφέρεια") }}</div>
         <div class="chips">
           {% for r in nuts_regions %}
           <label class="chip {% if r.code in sel_nuts %}on{% endif %}" title="{{ r.code }}">
@@ -89,16 +89,16 @@
       </div>
 
       <div class="fgroup">
-        <div class="fgroup-h">Εκτιμώμενη αξία / προϋπολογισμός (€)</div>
+        <div class="fgroup-h">{{ t("Εκτιμώμενη αξία / προϋπολογισμός (€)") }}</div>
         <div class="frow-2">
-          <input type="text" name="value_min" value="{{ params.value_min or '' }}" placeholder="από">
-          <input type="text" name="value_max" value="{{ params.value_max or '' }}" placeholder="έως">
+          <input type="text" name="value_min" value="{{ params.value_min or '' }}" placeholder="{{ t('από') }}">
+          <input type="text" name="value_max" value="{{ params.value_max or '' }}" placeholder="{{ t('έως') }}">
         </div>
       </div>
 
       {% set sel_cat = request.query_params.getlist('cat') %}
       <div class="fgroup">
-        <div class="fgroup-h">Κατηγορία / Υποκατηγορία</div>
+        <div class="fgroup-h">{{ t("Κατηγορία / Υποκατηγορία") }}</div>
         {# Two-level taxonomy over CPV (derived). One grouped multi-select:
            each optgroup is a category whose first option selects the WHOLE
            category (value c:<id>); the rest are its subcategories (s:<id>).
@@ -107,7 +107,7 @@
                 style="width:100%; font-size:12px; padding:4px;">
           {% for cat in lk.categories %}
           <optgroup label="{{ cat.name }}">
-            <option value="c:{{ cat.id }}" {% if ('c:' ~ cat.id) in sel_cat %}selected{% endif %}>▸ όλη η κατηγορία</option>
+            <option value="c:{{ cat.id }}" {% if ('c:' ~ cat.id) in sel_cat %}selected{% endif %}>{{ t("▸ όλη η κατηγορία") }}</option>
             {% for s in cat.subs %}
             <option value="s:{{ s.id }}" {% if ('s:' ~ s.id) in sel_cat %}selected{% endif %}>{{ s.name }}</option>
             {% endfor %}
@@ -131,7 +131,7 @@
             {% endfor %}
           </div>
           <input type="text" id="cpv-typeahead" autocomplete="off"
-                 placeholder="προσθήκη CPV, π.χ. 331…"
+                 placeholder="{{ t('προσθήκη CPV, π.χ. 331…') }}"
                  hx-get="/api/cpv-suggest" hx-trigger="input changed delay:200ms, focus"
                  hx-target="#cpv-suggest-mount" hx-swap="innerHTML"
                  hx-vals='js:{term: document.getElementById("cpv-typeahead").value}'>
@@ -140,7 +140,7 @@
       </div>
 
       <div class="fgroup">
-        <div class="fgroup-h">Ημ/νία δημοσίευσης</div>
+        <div class="fgroup-h">{{ t("Ημ/νία δημοσίευσης") }}</div>
         <div class="frow-2">
           <input type="date" name="date_from" value="{{ params.date_from or '' }}">
           <input type="date" name="date_to" value="{{ params.date_to or '' }}">
@@ -148,7 +148,7 @@
       </div>
 
       <div class="fgroup">
-        <div class="fgroup-h">Καταληκτική ημ/νία (λήξη)</div>
+        <div class="fgroup-h">{{ t("Καταληκτική ημ/νία (λήξη)") }}</div>
         <div class="frow-2">
           <input type="date" name="deadline_from" value="{{ params.deadline_from or '' }}">
           <input type="date" name="deadline_to" value="{{ params.deadline_to or '' }}">
@@ -159,20 +159,20 @@
     <section>
       <div class="results-bar">
         <div class="results-count">
-          <b id="rb-count">{{ "{:,}".format(total_count).replace(",", ".") }}</b> πράξεις
-          <span class="val" id="rb-value">συνολική αξία € {{ "{:,.0f}".format(total_value).replace(",", ".") }}</span>
+          <b id="rb-count">{{ "{:,}".format(total_count).replace(",", ".") }}</b> {{ t("πράξεις") }}
+          <span class="val" id="rb-value">{{ t("συνολική αξία €") }} {{ "{:,.0f}".format(total_value).replace(",", ".") }}</span>
         </div>
         <div style="display:flex;gap:18px;align-items:center;">
-          <div class="sort-sel">ανά σελίδα
+          <div class="sort-sel">{{ t("ανά σελίδα") }}
             <select name="per_page" form="filters">
               {% for n in [10,5,20,50] %}<option value="{{ n }}" {% if per_page==n %}selected{% endif %}>{{ n }}</option>{% endfor %}
             </select>
           </div>
-          <div class="sort-sel">ταξινόμηση
+          <div class="sort-sel">{{ t("ταξινόμηση") }}
             <select name="sort">
-              <option value="" {% if not params.sort %}selected{% endif %}>Νεότερες πρώτα</option>
-              <option value="value" {% if params.sort=='value' %}selected{% endif %}>Αξία ↓</option>
-              <option value="relevance" {% if params.sort=='relevance' %}selected{% endif %}>Σχετικότητα</option>
+              <option value="" {% if not params.sort %}selected{% endif %}>{{ t("Νεότερες πρώτα") }}</option>
+              <option value="value" {% if params.sort=='value' %}selected{% endif %}>{{ t("Αξία ↓") }}</option>
+              <option value="relevance" {% if params.sort=='relevance' %}selected{% endif %}>{{ t("Σχετικότητα") }}</option>
             </select>
           </div>
         </div>
