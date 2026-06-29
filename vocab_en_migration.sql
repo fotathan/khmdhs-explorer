@@ -1,8 +1,12 @@
 -- vocab_en_migration.sql
 -- English for controlled vocabularies: CPV descriptions + tender categories/
 -- subcategories. Self-contained (schema + data), keyed by PK (cpv_code / id),
--- idempotent. Source: official EU CPV (EN) + curator category translations.
--- Run on local AND Supabase.  9454 cpv, 65 categories, 454 subcategories.
+-- idempotent. Source: official EU CPV (EN) + curator category translations;
+-- the 7 categories 120-126 hand-translated (not in the source file).
+-- DB coverage after apply: cpv 9454/9454, categories 66/66, subcategories
+-- 238/321 (the rest fall back to Greek). The VALUES lists carry extra rows from
+-- the source file whose ids aren't in the DB — they are harmless no-op matches.
+-- Run on local AND Supabase.
 
 ALTER TABLE proc.cpv_code           ADD COLUMN IF NOT EXISTS description_en text;
 ALTER TABLE proc.tender_category    ADD COLUMN IF NOT EXISTS name_en text;
@@ -69,6 +73,13 @@ FROM (VALUES
   (117, 'Advertising services'),
   (118, 'Unclassified issues'),
   (119, 'Renewable energy (RES)'),
+  (120, 'Public administration and government services'),
+  (121, 'Research and exploitation'),
+  (122, 'Oil and natural gas extraction services'),
+  (123, 'Plastics, rubber and related materials'),
+  (124, 'Recycling and secondary raw materials'),
+  (125, 'Defence and military'),
+  (126, 'Aerospace and space services'),
   (700, 'Measurement, control and scientific instruments'),
   (701, 'Public administration, defence and social security services'),
   (702, 'Repair, maintenance and installation services'),
