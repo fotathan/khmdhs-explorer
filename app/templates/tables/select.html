@@ -7,15 +7,15 @@
 
 <div class="tt-summary">
   {% if source_label %}{{ source_label }} — {% endif %}
-  Βρέθηκαν <b>{{ entries|length }}</b> αρχ{{ "είο" if entries|length == 1 else "εία" }}
+  {% if lang=='en' %}Found <b>{{ entries|length }}</b> file{{ "" if entries|length == 1 else "s" }}{% else %}Βρέθηκαν <b>{{ entries|length }}</b> αρχ{{ "είο" if entries|length == 1 else "εία" }}{% endif %}
   ({{ "%.1f"|format(total_size / 1048576) }} MB).
-  Όλα είναι επιλεγμένα — αφαιρέστε ό,τι δεν θέλετε να σαρωθεί, μετά συνεχίστε.
+  {{ t("Όλα είναι επιλεγμένα — αφαιρέστε ό,τι δεν θέλετε να σαρωθεί, μετά συνεχίστε.") }}
 </div>
 
 {% for err in errors %}
 <div class="tt-card">
   <div class="tt-head">
-    <span class="tt-badge error">σφάλμα</span>
+    <span class="tt-badge error">{{ t("σφάλμα") }}</span>
     <span class="tt-name">{{ err.source }}</span>
   </div>
   <div class="tt-detail">{{ err.detail }}</div>
@@ -34,7 +34,7 @@
                onchange="ttUpdateFileCount()">
         <span class="tt-name">{{ e.source }}</span>
         <span class="tt-badge {{ 'ok' if e.kind == 'tables' else ('image' if e.kind == 'image' else 'no_tables') }}">
-          {{ kind_label[e.kind] }}
+          {{ kind_label[e.kind] | t }}
         </span>
         <span class="tt-dims">{{ e.size_human }}</span>
       </label>
@@ -43,11 +43,11 @@
         <button type="button" class="tt-btn tt-secondary tt-mini"
                 hx-get="/tables/pages?session_id={{ session_id }}&entry_id={{ e.id }}"
                 hx-target="closest .tt-picker-wrap" hx-swap="innerHTML">
-          Προεπισκόπηση / επιλογή σελίδων
+          {{ t("Προεπισκόπηση / επιλογή σελίδων") }}
         </button>
       </div>
       {% elif e.kind == "image" %}
-      <img class="tt-inline-thumb" loading="lazy" alt="προεπισκόπηση" title="κλικ για μεγέθυνση"
+      <img class="tt-inline-thumb" loading="lazy" alt="{{ t('προεπισκόπηση') }}" title="{{ t('κλικ για μεγέθυνση') }}"
            src="/tables/thumb?session_id={{ session_id }}&entry_id={{ e.id }}&page=1"
            onclick="openLightbox(event, '{{ session_id }}', '{{ e.id }}', 1, 1, false)">
       {% endif %}
@@ -56,15 +56,17 @@
   </div>
 
   <div class="tt-exportbar">
-    <button type="button" class="tt-btn tt-secondary" onclick="ttSetAllFiles(true)">Επιλογή όλων</button>
-    <button type="button" class="tt-btn tt-secondary" onclick="ttSetAllFiles(false)">Κανένα</button>
-    <button type="submit" class="tt-btn">Σάρωση επιλεγμένων</button>
-    <span class="tt-indicator" id="tt-scan-busy">σάρωση…</span>
+    <button type="button" class="tt-btn tt-secondary" onclick="ttSetAllFiles(true)">{{ t("Επιλογή όλων") }}</button>
+    <button type="button" class="tt-btn tt-secondary" onclick="ttSetAllFiles(false)">{{ t("Κανένα") }}</button>
+    <button type="submit" class="tt-btn">{{ t("Σάρωση επιλεγμένων") }}</button>
+    <span class="tt-indicator" id="tt-scan-busy">{{ t("σάρωση…") }}</span>
     <span class="tt-count" id="tt-file-count"></span>
   </div>
 </form>
 
 <script>
+  var TT_OF = "{% if lang=='en' %}of{% else %}από{% endif %}";
+  var TT_SEL = "{% if lang=='en' %}selected{% else %}επιλεγμένα{% endif %}";
   function ttFileBoxes() {
     return [...document.querySelectorAll('#tt-select-form input[name="file_ids"]')];
   }
@@ -72,7 +74,7 @@
   function ttUpdateFileCount() {
     const n = ttFileBoxes().filter(b => b.checked).length;
     const el = document.getElementById('tt-file-count');
-    if (el) el.textContent = n + ' από ' + ttFileBoxes().length + ' επιλεγμένα';
+    if (el) el.textContent = n + ' ' + TT_OF + ' ' + ttFileBoxes().length + ' ' + TT_SEL;
   }
   ttUpdateFileCount();
 </script>

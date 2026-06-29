@@ -5,18 +5,14 @@
 <div class="tt-extracted-admin">
   {% if not tables %}
     <p class="tt-truncated" style="padding:14px 0;">
-      Δεν υπάρχουν αποθηκευμένοι πίνακες για αυτή την πράξη.
-      Χρησιμοποιήστε το εργαλείο <a href="/admin/act/{{ adam }}/edit?tab=tables">Πίνακες</a>
-      για εξαγωγή και αποθήκευση.
+      {{ t("Δεν υπάρχουν αποθηκευμένοι πίνακες για αυτή την πράξη. Χρησιμοποιήστε το εργαλείο") }} <a href="/admin/act/{{ adam }}/edit?tab=tables">{{ t("Πίνακες") }}</a> {{ t("για εξαγωγή και αποθήκευση.") }}
     </p>
   {% else %}
     <p class="tt-truncated" style="margin-bottom:10px;">
-      {{ tables|length }} αποθηκευμέν{{ "ος" if tables|length == 1 else "οι" }}
-      πίνακ{{ "ας" if tables|length == 1 else "ες" }}. Δημοσιευμένοι εμφανίζονται
-      στη δημόσια σελίδα της πράξης.
+      {% if lang=='en' %}{{ tables|length }} stored table{{ "" if tables|length == 1 else "s" }}.{% else %}{{ tables|length }} αποθηκευμέν{{ "ος" if tables|length == 1 else "οι" }} πίνακ{{ "ας" if tables|length == 1 else "ες" }}.{% endif %} {{ t("Δημοσιευμένοι εμφανίζονται στη δημόσια σελίδα της πράξης.") }}
     </p>
     <div id="tt-extracted-list">
-      {% for t in tables %}
+      {% for xt in tables %}
         {% include "tables/_extracted_row.html" %}
       {% endfor %}
     </div>

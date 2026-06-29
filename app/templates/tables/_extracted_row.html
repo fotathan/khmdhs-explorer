@@ -1,45 +1,47 @@
 {# _extracted_row.html — one stored table as an admin row.
    Returned standalone by the toggle route so HTMX swaps just this <figure>.
-   rows[0] is the header (matches exporter._write_table styling row 2). #}
-<figure class="tt-extracted-row" id="tt-xt-{{ t.id }}"
+   rows[0] is the header (matches exporter._write_table styling row 2).
+   The table is passed as `xt` (both inline from _panel_extracted and standalone
+   from the toggle route) so it never shadows the i18n `t()` function. #}
+<figure class="tt-extracted-row" id="tt-xt-{{ xt.id }}"
         style="border:1px solid var(--rule,#ddd); border-radius:8px; padding:12px; margin-bottom:12px;">
   <figcaption style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
-    <span class="tt-badge {{ 'ok' if t.is_published else '' }}">
-      {{ "δημοσιευμένος" if t.is_published else "πρόχειρο" }}
+    <span class="tt-badge {{ 'ok' if xt.is_published else '' }}">
+      {{ t("δημοσιευμένος") if xt.is_published else t("πρόχειρο") }}
     </span>
-    <span class="tt-loc"><b>{{ t.locator }}</b></span>
-    <span class="tt-name" style="color:var(--ink-2,#666);">{{ t.source }}</span>
-    <span class="tt-dims">{{ t.n_rows }} × {{ t.n_cols }}</span>
+    <span class="tt-loc"><b>{{ xt.locator }}</b></span>
+    <span class="tt-name" style="color:var(--ink-2,#666);">{{ xt.source }}</span>
+    <span class="tt-dims">{{ xt.n_rows }} × {{ xt.n_cols }}</span>
 
     <span style="margin-left:auto; display:flex; gap:8px;">
-      <button type="button" class="tt-btn {{ 'tt-secondary' if t.is_published else '' }} tt-mini"
-              hx-post="/tables/admin/{{ adam }}/{{ t.id }}/toggle"
-              hx-target="#tt-xt-{{ t.id }}" hx-swap="outerHTML">
-        {{ "Απόσυρση" if t.is_published else "Δημοσίευση" }}
+      <button type="button" class="tt-btn {{ 'tt-secondary' if xt.is_published else '' }} tt-mini"
+              hx-post="/tables/admin/{{ adam }}/{{ xt.id }}/toggle"
+              hx-target="#tt-xt-{{ xt.id }}" hx-swap="outerHTML">
+        {% if lang=='en' %}{{ "Unpublish" if xt.is_published else "Publish" }}{% else %}{{ "Απόσυρση" if xt.is_published else "Δημοσίευση" }}{% endif %}
       </button>
       <a class="tt-btn tt-secondary tt-mini"
-         href="/tables/public/{{ adam }}/{{ t.id }}.xlsx">Excel</a>
+         href="/tables/public/{{ adam }}/{{ xt.id }}.xlsx">Excel</a>
       <button type="button" class="tt-btn tt-secondary tt-mini"
-              hx-delete="/tables/admin/{{ adam }}/{{ t.id }}"
-              hx-target="#tt-xt-{{ t.id }}" hx-swap="outerHTML"
-              hx-confirm="Οριστική διαγραφή αυτού του πίνακα;">
-        Διαγραφή
+              hx-delete="/tables/admin/{{ adam }}/{{ xt.id }}"
+              hx-target="#tt-xt-{{ xt.id }}" hx-swap="outerHTML"
+              hx-confirm="{{ t('Οριστική διαγραφή αυτού του πίνακα;') }}">
+        {{ t("Διαγραφή") }}
       </button>
     </span>
   </figcaption>
 
   <div class="tt-preview">
     <table>
-      {% if t.rows %}
+      {% if xt.rows %}
       <thead>
         <tr>
-          {% for cell in t.rows[0][:PREVIEW_COLS] %}<th>{{ cell }}</th>{% endfor %}
-          {% if t.rows[0]|length > PREVIEW_COLS %}<th>…</th>{% endif %}
+          {% for cell in xt.rows[0][:PREVIEW_COLS] %}<th>{{ cell }}</th>{% endfor %}
+          {% if xt.rows[0]|length > PREVIEW_COLS %}<th>…</th>{% endif %}
         </tr>
       </thead>
       {% endif %}
       <tbody>
-        {% for row in t.rows[1:PREVIEW_ROWS+1] %}
+        {% for row in xt.rows[1:PREVIEW_ROWS+1] %}
         <tr>
           {% for cell in row[:PREVIEW_COLS] %}<td>{{ cell }}</td>{% endfor %}
           {% if row|length > PREVIEW_COLS %}<td>…</td>{% endif %}
@@ -47,8 +49,8 @@
         {% endfor %}
       </tbody>
     </table>
-    {% if t.n_rows > PREVIEW_ROWS + 1 or t.n_cols > PREVIEW_COLS %}
-      <p class="tt-truncated">προεπισκόπηση — πλήρης πίνακας {{ t.n_rows }} γραμμές × {{ t.n_cols }} στήλες</p>
+    {% if xt.n_rows > PREVIEW_ROWS + 1 or xt.n_cols > PREVIEW_COLS %}
+      <p class="tt-truncated">{% if lang=='en' %}preview — full table {{ xt.n_rows }} rows × {{ xt.n_cols }} columns{% else %}προεπισκόπηση — πλήρης πίνακας {{ xt.n_rows }} γραμμές × {{ xt.n_cols }} στήλες{% endif %}</p>
     {% endif %}
   </div>
 </figure>

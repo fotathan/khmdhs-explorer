@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Εξαγωγή πινάκων · Διαχείριση{% endblock %}
+{% block title %}{{ t("Εξαγωγή πινάκων · Διαχείριση") }}{% endblock %}
 
 {% block content %}
 
@@ -7,45 +7,43 @@
 {% include "tables/_tt_assets.html" %}
 
 <div class="detail-h">
-  <div class="kicker">Διαχείριση · Εργαλεία</div>
-  <h1 class="detail-title">Εξαγωγή πινάκων από συνημμένα</h1>
+  <div class="kicker">{{ t("Διαχείριση · Εργαλεία") }}</div>
+  <h1 class="detail-title">{{ t("Εξαγωγή πινάκων από συνημμένα") }}</h1>
   <div class="detail-sub">
-    Αντλήστε το επίσημο έγγραφο μιας πράξης με τον ΑΔΑΜ της, ή ανεβάστε αρχεία,
-    και εξάγετε τους πίνακες (προϋπολογισμού, ειδών κ.λπ.) σε Excel.
-    Υποστηρίζονται PDF, Word, Excel, CSV, zip και εικόνες.
+    {{ t("Αντλήστε το επίσημο έγγραφο μιας πράξης με τον ΑΔΑΜ της, ή ανεβάστε αρχεία, και εξάγετε τους πίνακες (προϋπολογισμού, ειδών κ.λπ.) σε Excel. Υποστηρίζονται PDF, Word, Excel, CSV, zip και εικόνες.") }}
   </div>
 </div>
 
 <div class="tt-wrap">
 
   {# ---- Primary: fetch by ΑΔΑΜ ---- #}
-  <div class="section-h" style="margin-top:8px;">Άντληση με ΑΔΑΜ</div>
+  <div class="section-h" style="margin-top:8px;">{{ t("Άντληση με ΑΔΑΜ") }}</div>
   <form hx-post="/tables/fetch" hx-target="#tt-results" hx-swap="innerHTML"
         hx-indicator="#tt-fetch-busy">
     <div class="tt-adambar">
       <input type="text" name="adam" value="{{ prefill_adam or '' }}"
-             placeholder="π.χ. 24PROC… — ο ΑΔΑΜ της πράξης" autocomplete="off"
+             placeholder="{{ t('π.χ. 24PROC… — ο ΑΔΑΜ της πράξης') }}" autocomplete="off"
              {% if not prefill_adam %}autofocus{% endif %}>
-      <button type="submit" class="tt-btn">Άντληση &amp; σάρωση</button>
-      <span class="tt-indicator" id="tt-fetch-busy">λήψη από ΚΗΜΔΗΣ…</span>
+      <button type="submit" class="tt-btn">{{ t("Άντληση & σάρωση") }}</button>
+      <span class="tt-indicator" id="tt-fetch-busy">{{ t("λήψη από ΚΗΜΔΗΣ…") }}</span>
     </div>
     <p class="tt-truncated" style="margin-top:.5rem;">
-      Το επίσημο έγγραφο αντλείται απευθείας από το ΚΗΜΔΗΣ — δεν χρειάζεται να το κατεβάσετε.
+      {{ t("Το επίσημο έγγραφο αντλείται απευθείας από το ΚΗΜΔΗΣ — δεν χρειάζεται να το κατεβάσετε.") }}
     </p>
   </form>
 
-  <div class="tt-or">ή</div>
+  <div class="tt-or">{{ t("ή") }}</div>
 
   {# ---- Secondary: upload ---- #}
-  <div class="section-h" style="margin-top:0;">Μεταφόρτωση αρχείων</div>
+  <div class="section-h" style="margin-top:0;">{{ t("Μεταφόρτωση αρχείων") }}</div>
   <form id="tt-upload-form"
         hx-post="/tables/upload" hx-target="#tt-results" hx-swap="innerHTML"
         hx-encoding="multipart/form-data" hx-indicator="#tt-busy">
     <div class="tt-dropzone" id="tt-dropzone">
-      <p><strong>Σύρετε εδώ τα συνημμένα</strong> ή</p>
+      <p><strong>{{ t("Σύρετε εδώ τα συνημμένα") }}</strong> {{ t("ή") }}</p>
       <button type="button" class="tt-btn tt-secondary"
               onclick="document.getElementById('tt-file-input').click()">
-        Επιλογή αρχείων
+        {{ t("Επιλογή αρχείων") }}
       </button>
       <p class="tt-formats">.zip · .pdf · .docx · .xlsx · .xls · .csv · εικόνες</p>
       <input type="file" id="tt-file-input" name="files" multiple hidden
@@ -53,15 +51,14 @@
       <div class="tt-filelist" id="tt-filelist"></div>
     </div>
     <p>
-      <button type="submit" class="tt-btn" id="tt-scan-btn" disabled>Σάρωση για πίνακες</button>
-      <span class="tt-indicator" id="tt-busy">επεξεργασία…</span>
+      <button type="submit" class="tt-btn" id="tt-scan-btn" disabled>{{ t("Σάρωση για πίνακες") }}</button>
+      <span class="tt-indicator" id="tt-busy">{{ t("επεξεργασία…") }}</span>
     </p>
   </form>
 
   {% if not ocr_available %}
   <p class="tt-truncated">
-    Το OCR για σαρωμένα PDF/εικόνες είναι ανενεργό — ορίστε <code>ANTHROPIC_API_KEY</code>
-    και επανεκκινήστε για να ενεργοποιηθεί.
+    {{ t('Το OCR για σαρωμένα PDF/εικόνες είναι ανενεργό — ορίστε <code>ANTHROPIC_API_KEY</code> και επανεκκινήστε για να ενεργοποιηθεί.') | safe }}
   </p>
   {% endif %}
 

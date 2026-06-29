@@ -131,16 +131,16 @@
   <div class="tt-lb-backdrop" onclick="ttCloseLightbox()"></div>
   <div class="tt-lb-body">
     <div class="tt-lb-bar">
-      <button type="button" class="tt-btn tt-secondary" id="tt-lb-prev" onclick="ttLbNav(-1)">‹ Προηγ.</button>
+      <button type="button" class="tt-btn tt-secondary" id="tt-lb-prev" onclick="ttLbNav(-1)">{{ t("‹ Προηγ.") }}</button>
       <span id="tt-lb-page" class="tt-lb-count"></span>
-      <button type="button" class="tt-btn tt-secondary" id="tt-lb-next" onclick="ttLbNav(1)">Επόμ. ›</button>
+      <button type="button" class="tt-btn tt-secondary" id="tt-lb-next" onclick="ttLbNav(1)">{{ t("Επόμ. ›") }}</button>
       <label id="tt-lb-include-wrap" class="tt-lb-include">
-        <input type="checkbox" id="tt-lb-include" onchange="ttLbToggleInclude()"> να συμπεριληφθεί
+        <input type="checkbox" id="tt-lb-include" onchange="ttLbToggleInclude()"> {{ t("να συμπεριληφθεί") }}
       </label>
-      <a id="tt-lb-raw" target="_blank" rel="noopener" class="tt-rawlink">πρωτότυπο ↗</a>
-      <button type="button" class="tt-btn tt-secondary" onclick="ttCloseLightbox()">✕ κλείσιμο</button>
+      <a id="tt-lb-raw" target="_blank" rel="noopener" class="tt-rawlink">{{ t("πρωτότυπο ↗") }}</a>
+      <button type="button" class="tt-btn tt-secondary" onclick="ttCloseLightbox()">{{ t("✕ κλείσιμο") }}</button>
     </div>
-    <div class="tt-lb-imgwrap"><img id="tt-lb-img" alt="προεπισκόπηση σελίδας"></div>
+    <div class="tt-lb-imgwrap"><img id="tt-lb-img" alt="{{ t('προεπισκόπηση σελίδας') }}"></div>
   </div>
 </div>
 

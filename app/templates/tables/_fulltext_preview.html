@@ -1,9 +1,9 @@
 <div class="tt-card" style="padding:.9rem;">
   <div class="tt-summary" style="margin-top:0;">
-    Εξήχθησαν <b>{{ char_count }}</b> χαρακτήρες.
+    {% if lang=='en' %}Extracted <b>{{ char_count }}</b> characters.{% else %}Εξήχθησαν <b>{{ char_count }}</b> χαρακτήρες.{% endif %}
     {% if skipped %}
       <span class="tt-truncated" style="display:block; margin-top:4px;">
-        Παραλείφθηκαν (χωρίς κείμενο / σαρωμένα): {{ skipped | join(", ") }}
+        {% if lang=='en' %}Skipped (no text / scanned):{% else %}Παραλείφθηκαν (χωρίς κείμενο / σαρωμένα):{% endif %} {{ skipped | join(", ") }}
       </span>
     {% endif %}
   </div>
@@ -12,23 +12,20 @@
   <textarea class="tt-fulltext-area" id="tt-ft-extracted" readonly style="min-height:220px;">{{ text }}</textarea>
   <div style="margin-top:10px; display:flex; gap:.8rem; align-items:center; flex-wrap:wrap;">
     <button type="button" class="tt-btn" onclick="ttFtUseText()">
-      ↑ Χρήση αυτού του κειμένου
+      {{ t("↑ Χρήση αυτού του κειμένου") }}
     </button>
-    <span class="tt-truncated">Το κείμενο μεταφέρεται στο πεδίο επάνω· πατήστε «Αποθήκευση κειμένου» για να αποθηκευτεί.</span>
+    <span class="tt-truncated">{{ t("Το κείμενο μεταφέρεται στο πεδίο επάνω· πατήστε «Αποθήκευση κειμένου» για να αποθηκευτεί.") }}</span>
   </div>
   {% else %}
   <p class="tt-truncated">
-    Δεν εξήχθη κείμενο από τα επιλεγμένα αρχεία.
+    {{ t("Δεν εξήχθη κείμενο από τα επιλεγμένα αρχεία.") }}
   </p>
   {% endif %}
 
-  {# Claude fallback: when ordinary extraction gives wrong/garbled Greek (or no
-     text), re-read the page images via Claude. Only offered for the non-OCR
-     pass, and when files were selected. #}
   {% if not via_ocr and file_ids %}
   <div class="tt-detail" style="border-top:1px dashed var(--tt-rule, #ddd); margin-top:.8rem; padding-top:.7rem;">
     <p class="tt-truncated" style="margin:0 0 .5rem; color:var(--tt-muted, #666);">
-      Λάθος ή αλλοιωμένο κείμενο (π.χ. ελληνικοί χαρακτήρες); Δοκιμάστε ανάγνωση μέσω Claude (PDF/εικόνες).
+      {{ t("Λάθος ή αλλοιωμένο κείμενο (π.χ. ελληνικοί χαρακτήρες); Δοκιμάστε ανάγνωση μέσω Claude (PDF/εικόνες).") }}
     </p>
     {% if ocr_available %}
     <form hx-post="/tables/fulltext/ocr" hx-target="closest .tt-card" hx-swap="outerHTML"
@@ -36,16 +33,16 @@
       <input type="hidden" name="session_id" value="{{ session_id }}">
       {% for fid in file_ids %}<input type="hidden" name="file_ids" value="{{ fid }}">{% endfor %}
       <button type="submit" class="tt-btn tt-secondary" hx-disabled-elt="this">
-        Ανάγνωση μέσω Claude
+        {{ t("Ανάγνωση μέσω Claude") }}
       </button>
-      <span class="tt-indicator" id="tt-ft-ocr-busy">αποστολή σελίδων στο Claude API — μπορεί να πάρει λίγο…</span>
+      <span class="tt-indicator" id="tt-ft-ocr-busy">{{ t("αποστολή σελίδων στο Claude API — μπορεί να πάρει λίγο…") }}</span>
     </form>
     {% else %}
-    <p class="tt-truncated">Το <code>ANTHROPIC_API_KEY</code> δεν είναι ορισμένο — ανενεργό.</p>
+    <p class="tt-truncated">{{ t('Το <code>ANTHROPIC_API_KEY</code> δεν είναι ορισμένο — ανενεργό.') | safe }}</p>
     {% endif %}
   </div>
   {% elif via_ocr %}
-  <p class="tt-truncated" style="margin-top:.6rem; color:var(--tt-muted, #666);">✓ Ανάγνωση μέσω Claude.</p>
+  <p class="tt-truncated" style="margin-top:.6rem; color:var(--tt-muted, #666);">{{ t("✓ Ανάγνωση μέσω Claude.") }}</p>
   {% endif %}
 </div>
 

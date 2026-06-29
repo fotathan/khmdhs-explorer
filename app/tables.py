@@ -681,7 +681,7 @@ def make_router(templates, cursor) -> APIRouter:
             return HTMLResponse("", status_code=404)
         return templates.TemplateResponse(
             request, "tables/_extracted_row.html",
-            {"adam": adam, "t": row, "PREVIEW_ROWS": 5, "PREVIEW_COLS": 10},
+            {"adam": adam, "xt": row, "PREVIEW_ROWS": 5, "PREVIEW_COLS": 10},
         )
 
     @router.delete("/admin/{adam}/{tid}", response_class=HTMLResponse)

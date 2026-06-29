@@ -1,7 +1,6 @@
 <div class="tt-summary">
-  Βρέθηκαν <b>{{ n_tables }}</b> πίνακ{{ "ας" if n_tables == 1 else "ες" }}
-  σε <b>{{ reports|length }}</b> αρχ{{ "είο" if reports|length == 1 else "εία" }}.
-  {% if n_stitched %}{{ n_stitched }} εκτείνονται σε πολλές σελίδες και ενώθηκαν. {% endif %}{% if n_tables %}Επιλέξτε όσους θέλετε και εξάγετε ή αποθηκεύστε παρακάτω.{% endif %}
+  {% if lang=='en' %}Found <b>{{ n_tables }}</b> table{{ "" if n_tables == 1 else "s" }} in <b>{{ reports|length }}</b> file{{ "" if reports|length == 1 else "s" }}.{% else %}Βρέθηκαν <b>{{ n_tables }}</b> πίνακ{{ "ας" if n_tables == 1 else "ες" }} σε <b>{{ reports|length }}</b> αρχ{{ "είο" if reports|length == 1 else "εία" }}.{% endif %}
+  {% if n_stitched %}{% if lang=='en' %}{{ n_stitched }} span multiple pages and were stitched. {% else %}{{ n_stitched }} εκτείνονται σε πολλές σελίδες και ενώθηκαν. {% endif %}{% endif %}{% if n_tables %}{% if lang=='en' %}Select the ones you want and export or save below.{% else %}Επιλέξτε όσους θέλετε και εξάγετε ή αποθηκεύστε παρακάτω.{% endif %}{% endif %}
 </div>
 
 <form action="/tables/export" method="post" id="tt-export-form">
@@ -12,26 +11,21 @@
   {% endfor %}
 
   <div class="tt-exportbar">
-    <button type="button" class="tt-btn tt-secondary" onclick="ttSetAll(true)">Επιλογή όλων</button>
-    <button type="button" class="tt-btn tt-secondary" onclick="ttSetAll(false)">Κανένα</button>
+    <button type="button" class="tt-btn tt-secondary" onclick="ttSetAll(true)">{{ t("Επιλογή όλων") }}</button>
+    <button type="button" class="tt-btn tt-secondary" onclick="ttSetAll(false)">{{ t("Κανένα") }}</button>
     <select name="mode">
-      <option value="workbook">Ένα βιβλίο, ένα φύλλο ανά πίνακα</option>
-      <option value="separate">Ένα βιβλίο ανά αρχείο (.zip)</option>
+      <option value="workbook">{{ t("Ένα βιβλίο, ένα φύλλο ανά πίνακα") }}</option>
+      <option value="separate">{{ t("Ένα βιβλίο ανά αρχείο (.zip)") }}</option>
     </select>
-    <button type="submit" class="tt-btn">Εξαγωγή σε Excel</button>
+    <button type="submit" class="tt-btn">{{ t("Εξαγωγή σε Excel") }}</button>
 
     {% if adam %}
-    {# Save-to-act: same checkbox selection, different action. Posts to
-       /tables/save with the act's ΑΔΑΜ; HTMX so we stay on the page and
-       show a flash instead of downloading. Only shown when we know the act
-       (ΑΔΑΜ-fetch path); the upload path has no act to attach to.
-       type="button" so it never triggers the form's native Excel submit. #}
     <button type="button" class="tt-btn"
             hx-post="/tables/save"
             hx-include="#tt-export-form"
             hx-vals='{"adam": "{{ adam }}"}'
             hx-target="#tt-save-flash" hx-swap="innerHTML">
-      Αποθήκευση στην πράξη
+      {{ t("Αποθήκευση στην πράξη") }}
     </button>
     {% endif %}
 
@@ -45,6 +39,7 @@
 </form>
 
 <script>
+  var TT_SEL2 = "{% if lang=='en' %}selected{% else %}επιλεγμένοι{% endif %}";
   function ttBoxes() {
     return [...document.querySelectorAll('input[name="table_ids"]')];
   }
@@ -52,7 +47,7 @@
   function ttUpdateCount() {
     const n = ttBoxes().filter(b => b.checked).length;
     const el = document.getElementById('tt-sel-count');
-    if (el) el.textContent = n + ' επιλεγμένοι';
+    if (el) el.textContent = n + ' ' + TT_SEL2;
   }
   // Exposed under the name the OCR-swapped card calls back into.
   function updateCount() { ttUpdateCount(); }

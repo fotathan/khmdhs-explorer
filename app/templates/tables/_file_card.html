@@ -8,11 +8,11 @@
 } %}
 <div class="tt-card">
   <div class="tt-head">
-    <span class="tt-badge {{ report.status }}">{{ status_label[report.status] }}</span>
+    <span class="tt-badge {{ report.status }}">{{ status_label[report.status] | t }}</span>
     <span class="tt-name">{{ report.source }}</span>
     {% if report.tables %}
       <span class="tt-dims">
-        {% set nmain = report.tables | rejectattr("role", "equalto", "fragment") | list | length %}{{ nmain }} πίνακ{{ "ας" if nmain == 1 else "ες" }}
+        {% set nmain = report.tables | rejectattr("role", "equalto", "fragment") | list | length %}{% if lang=='en' %}{{ nmain }} table{{ "" if nmain == 1 else "s" }}{% else %}{{ nmain }} πίνακ{{ "ας" if nmain == 1 else "ες" }}{% endif %}
       </span>
     {% endif %}
   </div>
@@ -29,11 +29,11 @@
       <button type="button" class="tt-btn tt-secondary tt-mini"
               hx-get="/tables/pages?session_id={{ session_id }}&entry_id={{ report.entry_id }}"
               hx-target="closest .tt-picker-wrap" hx-swap="innerHTML">
-        {% if sel %}Σελίδες {{ sel.label }} — αλλαγή{% else %}Προεπισκόπηση / επιλογή σελίδων{% endif %}
+        {% if sel %}{% if lang=='en' %}Pages {{ sel.label }} — change{% else %}Σελίδες {{ sel.label }} — αλλαγή{% endif %}{% else %}{{ t("Προεπισκόπηση / επιλογή σελίδων") }}{% endif %}
       </button>
     </div>
     {% elif report.status == "image" %}
-    <img class="tt-inline-thumb" loading="lazy" alt="προεπισκόπηση" title="κλικ για μεγέθυνση"
+    <img class="tt-inline-thumb" loading="lazy" alt="{{ t('προεπισκόπηση') }}" title="{{ t('κλικ για μεγέθυνση') }}"
          style="display:block;margin-bottom:.5rem"
          src="/tables/thumb?session_id={{ session_id }}&entry_id={{ report.entry_id }}&page=1"
          onclick="openLightbox(event, '{{ session_id }}', '{{ report.entry_id }}', 1, 1, false)">
@@ -44,37 +44,33 @@
             hx-vals='{"session_id": "{{ session_id }}", "entry_id": "{{ report.entry_id }}"}'
             hx-indicator="#tt-ocr-busy-{{ report.entry_id }}"
             hx-disabled-elt="this">
-      Εκτέλεση OCR{% if sel %} ({{ sel.n }} σελίδ{{ "α" if sel.n == 1 else "ες" }}){% elif report.n_pages %} ({{ report.n_pages }} σελίδ{{ "α" if report.n_pages == 1 else "ες" }}){% endif %}
+      {{ t("Εκτέλεση OCR") }}{% if sel %} ({% if lang=='en' %}{{ sel.n }} page{{ "" if sel.n == 1 else "s" }}{% else %}{{ sel.n }} σελίδ{{ "α" if sel.n == 1 else "ες" }}{% endif %}){% elif report.n_pages %} ({% if lang=='en' %}{{ report.n_pages }} page{{ "" if report.n_pages == 1 else "s" }}{% else %}{{ report.n_pages }} σελίδ{{ "α" if report.n_pages == 1 else "ες" }}{% endif %}){% endif %}
     </button>
     <span class="tt-indicator" id="tt-ocr-busy-{{ report.entry_id }}">
-      αποστολή σελίδων στο Claude API — μπορεί να πάρει λίγο…
+      {{ t("αποστολή σελίδων στο Claude API — μπορεί να πάρει λίγο…") }}
     </span>
     {% else %}
     <p class="tt-truncated" style="margin-top:.4rem">
-      Το <code>ANTHROPIC_API_KEY</code> δεν είναι ορισμένο — το OCR είναι ανενεργό.
+      {{ t('Το <code>ANTHROPIC_API_KEY</code> δεν είναι ορισμένο — το OCR είναι ανενεργό.') | safe }}
     </p>
     {% endif %}
   </div>
   {% endif %}
 
-  {# Fallback: even when extraction "succeeded" (ok / no_tables), a digital PDF
-     can yield distorted Greek (bad font encoding). Offer Claude extraction as a
-     manual override. Only for rasterizable files (PDF/images) — Claude OCR works
-     on rendered pages, so it makes no sense for xlsx/docx/csv. #}
   {% set _src = (report.source or "") | lower %}
   {% set _rasterizable = _src.endswith(".pdf") or _src.endswith(".png") or _src.endswith(".jpg") or _src.endswith(".jpeg") or _src.endswith(".tif") or _src.endswith(".tiff") or _src.endswith(".webp") %}
   {% if report.status in ("ok", "no_tables") and report.entry_id and _rasterizable %}
   {% set selr = (page_sel | default({})).get(report.entry_id) %}
   <div class="tt-detail" style="padding-top:0; border-top:1px dashed var(--tt-rule, #ddd); margin-top:.6rem">
     <p class="tt-truncated" style="margin:.4rem 0 .5rem; color:var(--tt-muted, #666);">
-      Λάθος ή αλλοιωμένο κείμενο (π.χ. ελληνικοί χαρακτήρες); Δοκιμάστε εξαγωγή μέσω Claude.
+      {{ t("Λάθος ή αλλοιωμένο κείμενο (π.χ. ελληνικοί χαρακτήρες); Δοκιμάστε εξαγωγή μέσω Claude.") }}
     </p>
     {% if ocr_available %}
     <div class="tt-picker-wrap" style="margin-bottom:.5rem">
       <button type="button" class="tt-btn tt-secondary tt-mini"
               hx-get="/tables/pages?session_id={{ session_id }}&entry_id={{ report.entry_id }}"
               hx-target="closest .tt-picker-wrap" hx-swap="innerHTML">
-        {% if selr %}Σελίδες {{ selr.label }} — αλλαγή{% else %}Επιλογή σελίδων (προαιρετικό){% endif %}
+        {% if selr %}{% if lang=='en' %}Pages {{ selr.label }} — change{% else %}Σελίδες {{ selr.label }} — αλλαγή{% endif %}{% else %}{{ t("Επιλογή σελίδων (προαιρετικό)") }}{% endif %}
       </button>
     </div>
     <button type="button" class="tt-btn tt-secondary"
@@ -82,47 +78,47 @@
             hx-vals='{"session_id": "{{ session_id }}", "entry_id": "{{ report.entry_id }}"}'
             hx-indicator="#tt-ocr-busy-{{ report.entry_id }}"
             hx-disabled-elt="this">
-      Εξαγωγή μέσω Claude{% if selr %} ({{ selr.n }} σελίδ{{ "α" if selr.n == 1 else "ες" }}){% elif report.n_pages %} ({{ report.n_pages }} σελίδ{{ "α" if report.n_pages == 1 else "ες" }}){% endif %}
+      {{ t("Εξαγωγή μέσω Claude") }}{% if selr %} ({% if lang=='en' %}{{ selr.n }} page{{ "" if selr.n == 1 else "s" }}{% else %}{{ selr.n }} σελίδ{{ "α" if selr.n == 1 else "ες" }}{% endif %}){% elif report.n_pages %} ({% if lang=='en' %}{{ report.n_pages }} page{{ "" if report.n_pages == 1 else "s" }}{% else %}{{ report.n_pages }} σελίδ{{ "α" if report.n_pages == 1 else "ες" }}{% endif %}){% endif %}
     </button>
     <span class="tt-indicator" id="tt-ocr-busy-{{ report.entry_id }}">
-      αποστολή σελίδων στο Claude API — μπορεί να πάρει λίγο…
+      {{ t("αποστολή σελίδων στο Claude API — μπορεί να πάρει λίγο…") }}
     </span>
     {% else %}
     <p class="tt-truncated" style="margin-top:.4rem">
-      Το <code>ANTHROPIC_API_KEY</code> δεν είναι ορισμένο — η εξαγωγή μέσω Claude είναι ανενεργή.
+      {{ t('Το <code>ANTHROPIC_API_KEY</code> δεν είναι ορισμένο — η εξαγωγή μέσω Claude είναι ανενεργή.') | safe }}
     </p>
     {% endif %}
   </div>
   {% endif %}
 
-  {% for t in report.tables if t.role != "fragment" %}
+  {% for tbl in report.tables if tbl.role != "fragment" %}
   <div class="tt-block">
     <label class="tt-pick">
-      <input type="checkbox" name="table_ids" value="{{ t.id }}" checked
+      <input type="checkbox" name="table_ids" value="{{ tbl.id }}" checked
              form="tt-export-form" onchange="ttUpdateCount()">
-      <span class="tt-loc">{{ t.locator }}</span>
-      {% if t.role == "stitched" %}<span class="tt-badge ok">ενωμένος</span>{% endif %}
-      {% if "(OCR" in t.locator %}<span class="tt-badge image">OCR</span>{% endif %}
-      <span class="tt-dims">{{ t.n_rows }} × {{ t.n_cols }}</span>
+      <span class="tt-loc">{{ tbl.locator }}</span>
+      {% if tbl.role == "stitched" %}<span class="tt-badge ok">{{ t("ενωμένος") }}</span>{% endif %}
+      {% if "(OCR" in tbl.locator %}<span class="tt-badge image">OCR</span>{% endif %}
+      <span class="tt-dims">{{ tbl.n_rows }} × {{ tbl.n_cols }}</span>
     </label>
     <div class="tt-preview">
       <table>
-        {% for row in t.rows[:PREVIEW_ROWS] %}
+        {% for row in tbl.rows[:PREVIEW_ROWS] %}
         <tr>
           {% for cell in row[:PREVIEW_COLS] %}<td>{{ cell }}</td>{% endfor %}
           {% if row|length > PREVIEW_COLS %}<td>…</td>{% endif %}
         </tr>
         {% endfor %}
       </table>
-      {% if t.n_rows > PREVIEW_ROWS or t.n_cols > PREVIEW_COLS %}
-        <p class="tt-truncated">προεπισκόπηση περιορισμένη — πλήρης πίνακας {{ t.n_rows }} γραμμές × {{ t.n_cols }} στήλες</p>
+      {% if tbl.n_rows > PREVIEW_ROWS or tbl.n_cols > PREVIEW_COLS %}
+        <p class="tt-truncated">{% if lang=='en' %}preview limited — full table {{ tbl.n_rows }} rows × {{ tbl.n_cols }} columns{% else %}προεπισκόπηση περιορισμένη — πλήρης πίνακας {{ tbl.n_rows }} γραμμές × {{ tbl.n_cols }} στήλες{% endif %}</p>
       {% endif %}
     </div>
 
-    {% if t.role == "stitched" %}
-    {% set parts = report.tables | selectattr("group", "equalto", t.id) | list %}
+    {% if tbl.role == "stitched" %}
+    {% set parts = report.tables | selectattr("group", "equalto", tbl.id) | list %}
     <details class="tt-fragments">
-      <summary>Φαίνεται λάθος η ένωση; Χρησιμοποιήστε τα {{ parts|length }} τμήματα σελίδων ξεχωριστά</summary>
+      <summary>{% if lang=='en' %}Stitch looks wrong? Use the {{ parts|length }} page fragments separately{% else %}Φαίνεται λάθος η ένωση; Χρησιμοποιήστε τα {{ parts|length }} τμήματα σελίδων ξεχωριστά{% endif %}</summary>
       {% for f in parts %}
       <div class="tt-block">
         <label class="tt-pick">
@@ -140,7 +136,7 @@
             </tr>
             {% endfor %}
           </table>
-          {% if f.n_rows > 3 %}<p class="tt-truncated">{{ f.n_rows }} γραμμές συνολικά</p>{% endif %}
+          {% if f.n_rows > 3 %}<p class="tt-truncated">{% if lang=='en' %}{{ f.n_rows }} rows total{% else %}{{ f.n_rows }} γραμμές συνολικά{% endif %}</p>{% endif %}
         </div>
       </div>
       {% endfor %}

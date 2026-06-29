@@ -911,10 +911,92 @@ _LEGACY3 = {
         'Distribution by CPV sector (two-digit code). Values come from line items <strong>excl. VAT</strong>, so they do not sum to the total award amount; they show the relative distribution per category. Contracts and notices are shown separately.',
 }
 
+# Tender-Tables tool (app/templates/tables/*) — shared with the sibling tool
+_TABLES = {
+    "Εξαγωγή πινάκων · Διαχείριση": "Table extraction · Administration",
+    "Διαχείριση · Εργαλεία": "Administration · Tools",
+    "Εξαγωγή πινάκων από συνημμένα": "Extract tables from attachments",
+    "Αντλήστε το επίσημο έγγραφο μιας πράξης με τον ΑΔΑΜ της, ή ανεβάστε αρχεία, και εξάγετε τους πίνακες (προϋπολογισμού, ειδών κ.λπ.) σε Excel. Υποστηρίζονται PDF, Word, Excel, CSV, zip και εικόνες.":
+        "Fetch an act's official document by its ΑΔΑΜ, or upload files, and extract the tables (budget, items, etc.) to Excel. PDF, Word, Excel, CSV, zip and images are supported.",
+    # select / kinds
+    "μορφές πινάκων": "table formats",
+    "εικόνα — OCR αργότερα": "image — OCR later",
+    "μη υποστηριζόμενο": "unsupported",
+    "Όλα είναι επιλεγμένα — αφαιρέστε ό,τι δεν θέλετε να σαρωθεί, μετά συνεχίστε.":
+        "All are selected — remove anything you don't want scanned, then continue.",
+    "Προεπισκόπηση / επιλογή σελίδων": "Preview / select pages",
+    "προεπισκόπηση": "preview",
+    "κλικ για μεγέθυνση": "click to enlarge",
+    "Επιλογή όλων": "Select all",
+    "Κανένα": "None",
+    "Σάρωση επιλεγμένων": "Scan selected",
+    "σάρωση…": "scanning…",
+    # results / export
+    "Ένα βιβλίο, ένα φύλλο ανά πίνακα": "One workbook, one sheet per table",
+    "Ένα βιβλίο ανά αρχείο (.zip)": "One workbook per file (.zip)",
+    "Εξαγωγή σε Excel": "Export to Excel",
+    "Αποθήκευση στην πράξη": "Save to the act",
+    "κείμενο/πίνακες": "text/tables",
+    "εικόνα — χωρίς κείμενο": "image — no text",
+    "χωρίς κείμενο": "no text",
+    "Επιλέξτε από ποια θέλετε να εξαχθεί κείμενο.": "Select which files to extract text from.",
+    "Εξαγωγή κειμένου": "Extract text",
+    "εξαγωγή…": "extracting…",
+    # file card statuses
+    "βρέθηκαν πίνακες": "tables found",
+    "σαρωμένο — χρειάζεται OCR": "scanned — needs OCR",
+    "εικόνα — χρειάζεται OCR": "image — needs OCR",
+    "Εκτέλεση OCR": "Run OCR",
+    "αποστολή σελίδων στο Claude API — μπορεί να πάρει λίγο…":
+        "sending pages to the Claude API — may take a moment…",
+    'Το <code>ANTHROPIC_API_KEY</code> δεν είναι ορισμένο — το OCR είναι ανενεργό.':
+        'The <code>ANTHROPIC_API_KEY</code> is not set — OCR is disabled.',
+    "Λάθος ή αλλοιωμένο κείμενο (π.χ. ελληνικοί χαρακτήρες); Δοκιμάστε εξαγωγή μέσω Claude.":
+        "Wrong or garbled text (e.g. Greek characters)? Try extraction via Claude.",
+    "Επιλογή σελίδων (προαιρετικό)": "Select pages (optional)",
+    "Εξαγωγή μέσω Claude": "Extract via Claude",
+    'Το <code>ANTHROPIC_API_KEY</code> δεν είναι ορισμένο — η εξαγωγή μέσω Claude είναι ανενεργή.':
+        'The <code>ANTHROPIC_API_KEY</code> is not set — extraction via Claude is disabled.',
+    "ενωμένος": "stitched",
+    # fulltext preview
+    "↑ Χρήση αυτού του κειμένου": "↑ Use this text",
+    "Το κείμενο μεταφέρεται στο πεδίο επάνω· πατήστε «Αποθήκευση κειμένου» για να αποθηκευτεί.":
+        "The text is moved to the field above; press «Save text» to store it.",
+    "Δεν εξήχθη κείμενο από τα επιλεγμένα αρχεία.": "No text was extracted from the selected files.",
+    "Λάθος ή αλλοιωμένο κείμενο (π.χ. ελληνικοί χαρακτήρες); Δοκιμάστε ανάγνωση μέσω Claude (PDF/εικόνες).":
+        "Wrong or garbled text (e.g. Greek characters)? Try reading via Claude (PDF/images).",
+    "Ανάγνωση μέσω Claude": "Read via Claude",
+    'Το <code>ANTHROPIC_API_KEY</code> δεν είναι ορισμένο — ανενεργό.':
+        'The <code>ANTHROPIC_API_KEY</code> is not set — disabled.',
+    "✓ Ανάγνωση μέσω Claude.": "✓ Read via Claude.",
+    "Αποθήκευση κειμένου": "Save text",
+    # extracted panel / row
+    "Δεν υπάρχουν αποθηκευμένοι πίνακες για αυτή την πράξη. Χρησιμοποιήστε το εργαλείο":
+        "No stored tables for this act. Use the",
+    "για εξαγωγή και αποθήκευση.": "tool to extract and save.",
+    "Δημοσιευμένοι εμφανίζονται στη δημόσια σελίδα της πράξης.":
+        "Published ones appear on the act's public page.",
+    "δημοσιευμένος": "published",
+    "πρόχειρο": "draft",
+    "Διαγραφή": "Delete",
+    "Οριστική διαγραφή αυτού του πίνακα;": "Permanently delete this table?",
+    # page picker / lightbox / assets
+    "Όλες": "All",
+    "Καμία": "None",
+    "Εφαρμογή επιλογής": "Apply selection",
+    "πρωτότυπο ↗": "original ↗",
+    "‹ Προηγ.": "‹ Prev.",
+    "Επόμ. ›": "Next ›",
+    "να συμπεριληφθεί": "include",
+    "✕ κλείσιμο": "✕ close",
+    "προεπισκόπηση σελίδας": "page preview",
+    "Εφαρμογή": "Apply",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
-             _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3):
+             _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES):
     UI_EN.update(_grp)
