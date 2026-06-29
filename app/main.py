@@ -37,6 +37,7 @@ from fastapi import FastAPI, Request, Query, HTTPException, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+from jinja2 import pass_context as _jinja_pass_context
 
 
 # ---------------------------------------------------------------------------- #
@@ -58,6 +59,32 @@ import sys as _sys
 if APP_DIR not in _sys.path:
     _sys.path.insert(0, APP_DIR)
 templates = Jinja2Templates(directory=os.path.join(APP_DIR, "templates"))
+
+# --- UI i18n (Greek default, English overlay) ------------------------------- #
+# A context processor injects `lang` and a bound `t()` into every render, so any
+# template can call {{ t("…") }} / {{ x|t }}. Record data is never translated —
+# only UI chrome and fixed enum labels. See app/i18n.py.
+try:
+    from app import i18n as _i18n
+except ImportError:  # flat layout (run with --app-dir=app)
+    import i18n as _i18n
+
+
+def _i18n_context(request):
+    lang = _i18n.lang_from_request(request)
+    return {"lang": lang, "t": (lambda s: _i18n.translate(s, lang))}
+
+
+templates.context_processors.append(_i18n_context)
+
+
+@_jinja_pass_context
+def _t_filter(ctx, s):
+    """{{ x|t }} — translate using the active language from the render context."""
+    return _i18n.translate(s, ctx.get("lang", "el"))
+
+
+templates.env.filters["t"] = _t_filter
 
 # Sanity ceiling for contract values (with VAT). Contracts above this are
 # treated as data errors (KHMDHS sometimes inflates values ~1000x) and excluded
@@ -170,15 +197,34 @@ templates.env.globals["TYPE_LABELS"] = TYPE_LABELS
 templates.env.globals["CONTRACT_TYPES"] = CONTRACT_TYPES
 templates.env.globals["PROCEDURE_TYPES"] = PROCEDURE_TYPES
 templates.env.globals["ASSIGN_CRITERIA"] = ASSIGN_CRITERIA
-templates.env.filters["type_label"] = lambda code: TYPE_LABELS.get(code, code or "—")
-# These need to tolerate ints too (in case the column stored as text contains a
-# numeric string that arrived from JSON as int); we str() before lookup.
-templates.env.filters["contract_type_label"] = (
-    lambda code: CONTRACT_TYPES.get(str(code) if code is not None else "", code or "—"))
-templates.env.filters["procedure_type_label"] = (
-    lambda code: PROCEDURE_TYPES.get(str(code) if code is not None else "", code or "—"))
-templates.env.filters["assign_criteria_label"] = (
-    lambda code: ASSIGN_CRITERIA.get(str(code) if code is not None else "", code or "—"))
+# Enum-label filters are language-aware: they read the active `lang` from the
+# render context (injected by _i18n_context) and resolve via i18n.enum_label,
+# which falls back Greek -> raw code -> "—". They tolerate ints (a numeric code
+# that arrived from JSON as int) — enum_label str()s before lookup.
+@_jinja_pass_context
+def _type_label(ctx, code):
+    return _i18n.enum_label("type", code, TYPE_LABELS, ctx.get("lang", "el"))
+
+
+@_jinja_pass_context
+def _contract_type_label(ctx, code):
+    return _i18n.enum_label("contract_type", code, CONTRACT_TYPES, ctx.get("lang", "el"))
+
+
+@_jinja_pass_context
+def _procedure_type_label(ctx, code):
+    return _i18n.enum_label("procedure_type", code, PROCEDURE_TYPES, ctx.get("lang", "el"))
+
+
+@_jinja_pass_context
+def _assign_criteria_label(ctx, code):
+    return _i18n.enum_label("assign_criteria", code, ASSIGN_CRITERIA, ctx.get("lang", "el"))
+
+
+templates.env.filters["type_label"] = _type_label
+templates.env.filters["contract_type_label"] = _contract_type_label
+templates.env.filters["procedure_type_label"] = _procedure_type_label
+templates.env.filters["assign_criteria_label"] = _assign_criteria_label
 
 
 # ---------------------------------------------------------------------------- #
@@ -737,6 +783,18 @@ def lookups() -> dict:
 # App + routes
 # ---------------------------------------------------------------------------- #
 app = FastAPI(title="Greek Procurement Explorer", version="0.1.0")
+
+
+@app.get("/set-lang")
+def set_lang(lang: str = "el", next: str = "/"):
+    """Persist the UI language in a cookie and return to the current page.
+    `next` is restricted to a same-site path to avoid open redirects."""
+    from fastapi.responses import RedirectResponse
+    target = next if (next.startswith("/") and not next.startswith("//")) else "/"
+    resp = RedirectResponse(url=target, status_code=303)
+    resp.set_cookie("lang", _i18n.normalize_lang(lang),
+                    max_age=60 * 60 * 24 * 365, samesite="lax", path="/")
+    return resp
 
 # ---------------------------------------------------------------------------- #
 # Optional HTTP Basic Auth gate (for the deployed, private instance).

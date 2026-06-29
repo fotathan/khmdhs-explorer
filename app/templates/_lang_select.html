@@ -1,0 +1,18 @@
+{# Language selector — Greek / English. Posts to /set-lang (cookie + redirect
+   back to the current page). hx-boost off so it's a real navigation that lands
+   the Set-Cookie. `lang` comes from the i18n context processor. #}
+{% set _ls_next = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
+<span class="lang-sel" title="{{ t('Γλώσσα') }}">
+  <a href="/set-lang?lang=el&next={{ _ls_next|urlencode }}" hx-boost="false"
+     class="{% if (lang|default('el'))=='el' %}on{% endif %}">ΕΛ</a>
+  <a href="/set-lang?lang=en&next={{ _ls_next|urlencode }}" hx-boost="false"
+     class="{% if (lang|default('el'))=='en' %}on{% endif %}">EN</a>
+</span>
+<style>
+  .lang-sel{display:inline-flex;align-items:center;gap:2px;margin-left:8px;padding-left:10px;
+    border-left:1px solid var(--rule,#e6e8ec);}
+  .lang-sel a{font-family:var(--mono,monospace);font-size:11px;letter-spacing:.04em;
+    padding:4px 7px;border-radius:6px;color:var(--ink-3,#9aa0aa);}
+  .lang-sel a:hover{color:var(--accent,#2563c4);}
+  .lang-sel a.on{background:var(--accent-soft,#eef3fc);color:var(--accent-2,#1d4ea0);font-weight:700;}
+</style>

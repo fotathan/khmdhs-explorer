@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="el">
+<html lang="{{ lang|default('el') }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}KHMDHS · Εξερευνητής{% endblock %}</title>
+<title>{% block title %}{{ t("KHMDHS · Εξερευνητής") }}{% endblock %}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -258,17 +258,18 @@
       <div class="brand">
         <div class="brand-mark">Δ</div>
         <div>
-          <div class="brand-title">Ελληνικές Δημόσιες Συμβάσεις · <em>Εξερευνητής</em></div>
-          <div class="brand-sub">Διαφάνεια στις δημόσιες προμήθειες</div>
+          <div class="brand-title">{{ t("Ελληνικές Δημόσιες Συμβάσεις · ") }}<em>{{ t("Εξερευνητής") }}</em></div>
+          <div class="brand-sub">{{ t("Διαφάνεια στις δημόσιες προμήθειες") }}</div>
         </div>
       </div>
       <nav class="mast-nav">
-        <a href="/" {% if nav_active=='search' %}class="on"{% endif %}>Πράξεις</a>
-        <a href="/authorities" {% if nav_active=='authorities' %}class="on"{% endif %}>Αναθέτουσες</a>
-        <a href="/contractors" {% if nav_active=='contractors' %}class="on"{% endif %}>Ανάδοχοι</a>
-        <a href="/explore" {% if nav_active=='explore' %}class="on"{% endif %}>Σύνοψη</a>
-        <a href="/analytics" {% if nav_active=='analytics' %}class="on"{% endif %}>Στατιστικά</a>
-        <a href="/admin" {% if nav_active=='admin' %}class="on"{% endif %}>Διαχείριση</a>
+        <a href="/" {% if nav_active=='search' %}class="on"{% endif %}>{{ t("Πράξεις") }}</a>
+        <a href="/authorities" {% if nav_active=='authorities' %}class="on"{% endif %}>{{ t("Αναθέτουσες") }}</a>
+        <a href="/contractors" {% if nav_active=='contractors' %}class="on"{% endif %}>{{ t("Ανάδοχοι") }}</a>
+        <a href="/explore" {% if nav_active=='explore' %}class="on"{% endif %}>{{ t("Σύνοψη") }}</a>
+        <a href="/analytics" {% if nav_active=='analytics' %}class="on"{% endif %}>{{ t("Στατιστικά") }}</a>
+        <a href="/admin" {% if nav_active=='admin' %}class="on"{% endif %}>{{ t("Διαχείριση") }}</a>
+        {% include "_lang_select.html" %}
       </nav>
     </div>
   </div>

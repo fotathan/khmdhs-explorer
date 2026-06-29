@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="el">
+<html lang="{{ lang|default('el') }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>{% block title %}Ελληνικές Δημόσιες Συμβάσεις · Εξερευνητής{% endblock %}</title>
+  <title>{% block title %}{{ t("Ελληνικές Δημόσιες Συμβάσεις · Εξερευνητής") }}{% endblock %}</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -203,17 +203,18 @@
 
 <header class="masthead">
   <div class="mast-row">
-    <a href="/" class="mast-title">Δημόσιες <em>Συμβάσεις</em></a>
+    <a href="/" class="mast-title">{{ t("Δημόσιες ") }}<em>{{ t("Συμβάσεις") }}</em></a>
     <span class="mast-meta">
-      <a href="/">Πράξεις</a>
-      <a href="/explore">Σύνοψη</a>
-      <a href="/analytics">Αναλυτικά</a>
-      <a href="/authorities">Αρχές</a>
-      <a href="/contractors">Ανάδοχοι</a>
-      <a href="/admin">Διαχείριση</a>
+      <a href="/">{{ t("Πράξεις") }}</a>
+      <a href="/explore">{{ t("Σύνοψη") }}</a>
+      <a href="/analytics">{{ t("Αναλυτικά") }}</a>
+      <a href="/authorities">{{ t("Αρχές") }}</a>
+      <a href="/contractors">{{ t("Ανάδοχοι") }}</a>
+      <a href="/admin">{{ t("Διαχείριση") }}</a>
+      {% include "_lang_select.html" %}
     </span>
   </div>
-  <div class="mast-sub">Ένα αρχείο διαγωνισμών, αναθέσεων, συμβάσεων και πληρωμών του ελληνικού δημοσίου.</div>
+  <div class="mast-sub">{{ t("Ένα αρχείο διαγωνισμών, αναθέσεων, συμβάσεων και πληρωμών του ελληνικού δημοσίου.") }}</div>
 </header>
 
 <main>

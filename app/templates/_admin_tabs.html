@@ -2,11 +2,11 @@
    page passes `admin_tab` to mark the active one:
    collection | acts | curate | merge-contractor | merge-authority #}
 <div class="admin-tabs">
-  <a href="/admin/collection" class="admin-tab {% if admin_tab=='collection' %}on{% endif %}">Συλλογή Δεδομένων</a>
-  <a href="/admin/acts" class="admin-tab {% if admin_tab=='acts' %}on{% endif %}">Διαχείριση Πράξεων</a>
-  <a href="/admin/curate" class="admin-tab {% if admin_tab=='curate' %}on{% endif %}">Επιμέλεια Σημειώσεων</a>
-  <a href="/admin/merge/contractor" class="admin-tab {% if admin_tab=='merge-contractor' %}on{% endif %}">Ενοποίηση Αναδόχων</a>
-  <a href="/admin/merge/authority" class="admin-tab {% if admin_tab=='merge-authority' %}on{% endif %}">Ενοποίηση Αρχών</a>
+  <a href="/admin/collection" class="admin-tab {% if admin_tab=='collection' %}on{% endif %}">{{ t("Συλλογή Δεδομένων") }}</a>
+  <a href="/admin/acts" class="admin-tab {% if admin_tab=='acts' %}on{% endif %}">{{ t("Διαχείριση Πράξεων") }}</a>
+  <a href="/admin/curate" class="admin-tab {% if admin_tab=='curate' %}on{% endif %}">{{ t("Επιμέλεια Σημειώσεων") }}</a>
+  <a href="/admin/merge/contractor" class="admin-tab {% if admin_tab=='merge-contractor' %}on{% endif %}">{{ t("Ενοποίηση Αναδόχων") }}</a>
+  <a href="/admin/merge/authority" class="admin-tab {% if admin_tab=='merge-authority' %}on{% endif %}">{{ t("Ενοποίηση Αρχών") }}</a>
 </div>
 <style>
   .admin-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--rule);margin:20px 0 24px;}
