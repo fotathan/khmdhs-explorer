@@ -604,9 +604,151 @@ _ADMIN3 = {
         "Edit details. These fields are never overwritten by automatic imports. The name is edited from the entity's page.",
 }
 
+# Edit-form field labels & group headings (admin.py _act_form_fields /
+# _party_form_fields). Passed through |t in the form templates.
+_FORMLABELS = {
+    "Έχει συνημμένα": "Has attachments",
+    "ΑΦΜ/κωδικός αρχής": "Tax ID/authority code",
+    "Ακυρωμένη": "Cancelled",
+    "Αναφορές & πλατφόρμα": "References & platform",
+    "Αξία με ΦΠΑ": "Value incl. VAT",
+    "Αξία σε EUR": "Value in EUR",
+    "Αξία σε USD": "Value in USD",
+    "Αξία χωρίς ΦΠΑ": "Value excl. VAT",
+    "Αριθμός αναφοράς": "Reference number",
+    "Αριθμός τμήματος": "Lot number",
+    "Βαρύτητα τιμής (%)": "Price weighting (%)",
+    "Γεωγραφία": "Geography",
+    "ΔΣΑ (DPS)": "DPS",
+    "Διεύθυνση (οδός)": "Address (street)",
+    "Είδος σύμβασης (πηγής)": "Contract category (source)",
+    "Ελληνικό ΑΦΜ": "Greek Tax ID",
+    "Επιλεξιμότητα": "Eligibility",
+    "Επισημάνσεις": "Flags",
+    "Ηλεκτρονικός πλειστηριασμός": "Electronic auction",
+    "Ημ. δημοσίευσης": "Publication date",
+    "Ημ. υπογραφής": "Signing date",
+    "Ημερομηνίες": "Dates",
+    "Κανονισμός": "Regulation",
+    "Κατηγοριοποίηση": "Classification",
+    "Κωδικός NUTS": "NUTS code",
+    "Κωδικός κατηγορίας": "Category code",
+    "Κωδικός τύπου": "Type code",
+    "Λήξη υποβολής": "Submission deadline",
+    "Νόμισμα": "Currency",
+    "Οικονομικά": "Financials",
+    "Προσφορές & παράταση": "Bids & extension",
+    "Προϋπολογισμός": "Budget",
+    "Στοιχεία": "Details",
+    "Συντελεστής ΦΠΑ (%)": "VAT rate (%)",
+    "Σύνδεσμος πηγής": "Source link",
+    "Σύντομη περιγραφή": "Short description",
+    "Ταυτότητα & πηγή": "Identity & source",
+    "Ταυτότητα": "Identity",
+    "Τοποθεσία": "Location",
+    "Τύπος εγγράφου": "Document type",
+    "Υποτύπος εγγράφου": "Document subtype",
+    "Χώρα": "Country",
+}
+
+# Act-edit hub panels (_panel_fields/_annotate/_fulltext/_tables) + CPV picker
+_PANELS = {
+    # _panel_fields
+    "Εισαγόμενη πράξη — τα βασικά πεδία ανήκουν στην πηγή και ενημερώνονται από τις αυτόματες εισαγωγές. Για διορθώσεις χωρίς αλλοίωση της πηγής, χρησιμοποιήστε την καρτέλα «Σημειώσεις». Για να επεξεργαστείτε απευθείας τα βασικά πεδία, αναλάβετε την κυριότητα της πράξης — μονόδρομη ενέργεια· έπειτα οι αυτόματες εισαγωγές δεν θα την τροποποιούν.":
+        "Imported act — the core fields belong to the source and are updated by automatic imports. For corrections without altering the source, use the «Notes» tab. To edit the core fields directly, take ownership of the act — a one-way action; after that automatic imports won't modify it.",
+    "Ανάληψη κυριότητας της πράξης": "Take ownership of act",
+    "; Δεν αναιρείται.": "? Not undoable.",
+    "Ανάληψη κυριότητας & επεξεργασία": "Take ownership & edit",
+    "ΑΦΜ ή org_id της αρχής": "Tax ID or org_id of the authority",
+    "Αποθήκευση βασικών πεδίων": "Save core fields",
+    # _cpv_field
+    "Αναζήτηση με κωδικό ή λέξεις…": "Search by code or words…",
+    "Επιλογή κωδικών CPV": "Select CPV codes",
+    "Κωδικοί CPV — επιλογή": "CPV codes — selection",
+    "Κλείσιμο παραθύρου ✕": "Close window ✕",
+    "Αναζήτηση κωδικού ή περιγραφής…": "Search code or description…",
+    # _cpv_browse
+    "Όλες οι κατηγορίες": "All categories",
+    "Προσθήκη κωδικού": "Add code",
+    "Υποκατηγορία ›": "Subcategory ›",
+    "Καμία υποκατηγορία.": "No subcategory.",
+    # _cpv_suggest
+    "όλα όσα ξεκινούν με": "everything starting with",
+    "Καμία αντιστοιχία.": "No match.",
+    # _panel_annotate
+    "Σημείωση": "Note",
+    "ελεύθερο κείμενο…": "free text…",
+    "Ετικέτες (χωρισμένες με κόμμα ή κενό)": "Tags (comma or space separated)",
+    "— καμία —": "— none —",
+    "Διορθωμένη αξία (με ΦΠΑ)": "Corrected value (incl. VAT)",
+    "Αρχική τιμή από την πηγή:": "Original source value:",
+    "Η διόρθωση χρησιμοποιείται στους υπολογισμούς· η αρχική τιμή διατηρείται και εμφανίζεται.":
+        "The correction is used in calculations; the original value is kept and shown.",
+    "Διορθωμένη αξία (χωρίς ΦΠΑ)": "Corrected value (excl. VAT)",
+    "Αποθήκευση σημείωσης": "Save note",
+    "✓ αποθηκεύτηκε": "✓ saved",
+    "Άδειο πεδίο σε όλα → η τρέχουσα σημείωση αφαιρείται (το ιστορικό διατηρείται).":
+        "All fields empty → the current note is removed (history is kept).",
+    "διόρθωση ειδών ›": "correct items ›",
+    "Ιστορικό αλλαγών": "Change history",
+    "τρέχον": "current",
+    "Καμία σημείωση ακόμη.": "No notes yet.",
+    "π.χ. 6138.00 — άφησέ το κενό για καμία διόρθωση": "e.g. 6138.00 — leave empty for no correction",
+    "π.χ. 4950.00 — άφησέ το κενό για καμία διόρθωση": "e.g. 4950.00 — leave empty for no correction",
+    # _panel_fulltext
+    "Αποθηκευμένο κείμενο": "Stored text",
+    "ενημερώθηκε": "updated",
+    "πηγή:": "source:",
+    "Δεν υπάρχει αποθηκευμένο κείμενο ακόμη.": "No stored text yet.",
+    "Εξαγωγή από συνημμένα": "Extraction from attachments",
+    "Άντληση με ΑΔΑΜ": "Fetch by ΑΔΑΜ",
+    "Άντληση εγγράφου": "Fetch document",
+    "λήψη από ΚΗΜΔΗΣ…": "downloading from KHMDHS…",
+    "ή": "or",
+    "Μεταφόρτωση αρχείων": "Upload files",
+    "Σύρετε εδώ τα αρχεία": "Drag files here",
+    "Επιλογή αρχείων": "Choose files",
+    "Φόρτωση αρχείων": "Load files",
+    "επεξεργασία…": "processing…",
+    # _panel_tables
+    "π.χ. 24PROC… — ο ΑΔΑΜ της πράξης": "e.g. 24PROC… — the act's ΑΔΑΜ",
+    "Άντληση & σάρωση": "Fetch & scan",
+    "Το επίσημο έγγραφο αντλείται απευθείας από το ΚΗΜΔΗΣ — δεν χρειάζεται να το κατεβάσετε.":
+        "The official document is fetched directly from KHMDHS — no need to download it.",
+    "Σύρετε εδώ τα συνημμένα": "Drag the attachments here",
+    "Σάρωση για πίνακες": "Scan for tables",
+    'Το OCR για σαρωμένα PDF/εικόνες είναι ανενεργό — ορίστε <code>ANTHROPIC_API_KEY</code> και επανεκκινήστε για να ενεργοποιηθεί.':
+        'OCR for scanned PDFs/images is off — set <code>ANTHROPIC_API_KEY</code> and restart to enable it.',
+    "Αποθηκευμένοι πίνακες": "Saved tables",
+}
+
+# Act create/edit form (admin_act_form.html)
+_ACTFORM = {
+    "Νέα πράξη": "New act",
+    "Επεξεργασία πράξης": "Edit act",
+    "‹ πίσω στη διαχείριση πράξεων": "‹ back to act management",
+    "Δημιουργία πράξης (χειροκίνητη)": "Create act (manual)",
+    'Συμπληρώστε τα πεδία και αποθηκεύστε. Η πράξη δημιουργείται ως <strong>χειροκίνητη</strong> (origin = authored) και δεν επηρεάζεται ποτέ από αυτόματες εισαγωγές.':
+        'Fill in the fields and save. The act is created as <strong>manual</strong> (origin = authored) and is never affected by automatic imports.',
+    "· χειροκίνητη πράξη · πλήρως επεξεργάσιμη.": "· manual act · fully editable.",
+    "Τελευταία επεξεργασία:": "Last edited:",
+    "✓ Αποθηκεύτηκε.": "✓ Saved.",
+    "✓ Η πράξη έγινε χειροκίνητη. Τα βασικά πεδία είναι πλέον πλήρως επεξεργάσιμα και οι αυτόματες εισαγωγές δεν θα την τροποποιούν.":
+        "✓ The act is now manual. Its core fields are fully editable and automatic imports won't modify it.",
+    "Αναγνωριστικό": "Identifier",
+    "ΑΔΑΜ (προαιρετικό — αφήστε κενό για αυτόματο MANUAL-…)":
+        "ΑΔΑΜ (optional — leave empty for an automatic MANUAL-…)",
+    "αφήστε κενό για αυτόματη δημιουργία": "leave empty for automatic creation",
+    "Δημιουργία πράξης": "Create act",
+    "Πλήρες κείμενο & πίνακες": "Full text & tables",
+    "Διαθέσιμα μετά την αποθήκευση. Δημιουργήστε πρώτα την πράξη, και στη συνέχεια θα μπορείτε να προσθέσετε πλήρες κείμενο και πίνακες από τη φόρμα επεξεργασίας.":
+        "Available after saving. Create the act first, then you can add full text and tables from the edit form.",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
-             _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3):
+             _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
+             _PANELS, _ACTFORM):
     UI_EN.update(_grp)

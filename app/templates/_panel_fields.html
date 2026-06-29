@@ -4,17 +4,13 @@
    core fields are owned by the source. #}
 {% if origin != 'authored' %}
   <p style="font-family:var(--serif); font-size:14px; color:var(--ink-2); line-height:1.6; margin:0 0 16px; max-width:60ch;">
-    Εισαγόμενη πράξη — τα βασικά πεδία ανήκουν στην πηγή και ενημερώνονται από τις
-    αυτόματες εισαγωγές. Για διορθώσεις χωρίς αλλοίωση της πηγής, χρησιμοποιήστε την
-    καρτέλα «Σημειώσεις». Για να επεξεργαστείτε απευθείας τα βασικά πεδία, αναλάβετε
-    την κυριότητα της πράξης — μονόδρομη ενέργεια· έπειτα οι αυτόματες εισαγωγές δεν
-    θα την τροποποιούν.
+    {{ t("Εισαγόμενη πράξη — τα βασικά πεδία ανήκουν στην πηγή και ενημερώνονται από τις αυτόματες εισαγωγές. Για διορθώσεις χωρίς αλλοίωση της πηγής, χρησιμοποιήστε την καρτέλα «Σημειώσεις». Για να επεξεργαστείτε απευθείας τα βασικά πεδία, αναλάβετε την κυριότητα της πράξης — μονόδρομη ενέργεια· έπειτα οι αυτόματες εισαγωγές δεν θα την τροποποιούν.") }}
   </p>
   <form method="post" action="/admin/acts/{{ adam }}/take-ownership">
     <button type="submit"
-            onclick="return confirm('Ανάληψη κυριότητας της πράξης {{ adam }}; Δεν αναιρείται.');"
+            onclick="return confirm('{{ t('Ανάληψη κυριότητας της πράξης') }} {{ adam }}{{ t('; Δεν αναιρείται.') }}');"
             style="background:var(--ink); color:var(--paper); border:0; padding:11px 24px; font-family:var(--sans); font-size:12px; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer;">
-      Ανάληψη κυριότητας &amp; επεξεργασία
+      {{ t("Ανάληψη κυριότητας & επεξεργασία") }}
     </button>
   </form>
 {% else %}
@@ -24,7 +20,7 @@
 
   {% for group, fields in groups.items() %}
   <div class="form-section">
-    <div class="form-section-h">{{ group }}</div>
+    <div class="form-section-h">{{ group | t }}</div>
     <div class="form-grid">
       {% for name, label, kind in fields %}
       {% set val = act.get(name) %}
@@ -32,10 +28,10 @@
         {% if kind == 'bool' %}
           <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; text-transform:none; letter-spacing:0;">
             <input type="checkbox" name="{{ name }}" value="1" {% if val %}checked{% endif %}>
-            {{ label }}
+            {{ label | t }}
           </label>
         {% else %}
-          <label>{{ label }}</label>
+          <label>{{ label | t }}</label>
           {% if kind == 'textarea' %}
             <textarea name="{{ name }}" rows="2">{{ val or '' }}</textarea>
           {% elif kind == 'type' %}
@@ -50,7 +46,7 @@
             <input type="text" inputmode="decimal" name="{{ name }}" value="{{ val if val is not none else '' }}">
           {% elif kind == 'authority' %}
             <input type="text" name="{{ name }}" value="{{ val or '' }}"
-                   placeholder="ΑΦΜ ή org_id της αρχής">
+                   placeholder="{{ t('ΑΦΜ ή org_id της αρχής') }}">
             {% if authority_name %}<div class="meta" style="margin-top:4px; letter-spacing:0; text-transform:none;">→ {{ authority_name }}</div>{% endif %}
           {% else %}
             <input type="text" name="{{ name }}" value="{{ val or '' }}">
@@ -67,7 +63,7 @@
   <div style="border-top:1px solid var(--rule); padding-top:16px; margin-top:8px;">
     <button type="submit"
             style="background:var(--ink); color:var(--paper); border:0; padding:11px 28px; font-family:var(--sans); font-size:12px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer;">
-      Αποθήκευση βασικών πεδίων
+      {{ t("Αποθήκευση βασικών πεδίων") }}
     </button>
   </div>
 </form>

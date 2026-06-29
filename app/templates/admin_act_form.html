@@ -1,33 +1,32 @@
 {% extends "base.html" %}
-{% block title %}{% if mode=='create' %}Νέα πράξη{% else %}Επεξεργασία πράξης{% endif %} · Διαχείριση{% endblock %}
+{% block title %}{% if mode=='create' %}{{ t("Νέα πράξη") }}{% else %}{{ t("Επεξεργασία πράξης") }}{% endif %} · {{ t("Διαχείριση") }}{% endblock %}
 
 {% block content %}
-<p style="margin:20px 0 0;"><a class="back" href="/admin/acts" hx-boost="false">‹ πίσω στη διαχείριση πράξεων</a></p>
+<p style="margin:20px 0 0;"><a class="back" href="/admin/acts" hx-boost="false">{{ t("‹ πίσω στη διαχείριση πράξεων") }}</a></p>
 
 <div class="detail-h">
-  <div class="kicker">Διαχείριση · {% if mode=='create' %}Νέα πράξη{% else %}Επεξεργασία{% endif %}</div>
+  <div class="kicker">{{ t("Διαχείριση") }} · {% if mode=='create' %}{{ t("Νέα πράξη") }}{% else %}{{ t("Επεξεργασία") }}{% endif %}</div>
   <h1 class="detail-title">
-    {% if mode=='create' %}Δημιουργία πράξης (χειροκίνητη){% else %}{{ act.title or adam }}{% endif %}
+    {% if mode=='create' %}{{ t("Δημιουργία πράξης (χειροκίνητη)") }}{% else %}{{ act.title or adam }}{% endif %}
   </h1>
   <div class="detail-sub">
     {% if mode=='create' %}
-      Συμπληρώστε τα πεδία και αποθηκεύστε. Η πράξη δημιουργείται ως <strong>χειροκίνητη</strong>
-      (origin = authored) και δεν επηρεάζεται ποτέ από αυτόματες εισαγωγές.
+      {{ t('Συμπληρώστε τα πεδία και αποθηκεύστε. Η πράξη δημιουργείται ως <strong>χειροκίνητη</strong> (origin = authored) και δεν επηρεάζεται ποτέ από αυτόματες εισαγωγές.') | safe }}
     {% else %}
-      <span class="adam">{{ adam }}</span> · χειροκίνητη πράξη · πλήρως επεξεργάσιμη.
-      {% if act.last_edited_by %}<br>Τελευταία επεξεργασία: {{ act.last_edited_by }}{% if act.last_edited_at %}, {{ act.last_edited_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}{% endif %}
+      <span class="adam">{{ adam }}</span> {{ t("· χειροκίνητη πράξη · πλήρως επεξεργάσιμη.") }}
+      {% if act.last_edited_by %}<br>{{ t("Τελευταία επεξεργασία:") }} {{ act.last_edited_by }}{% if act.last_edited_at %}, {{ act.last_edited_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}{% endif %}
     {% endif %}
   </div>
 </div>
 
 {% if request.query_params.get('saved') %}
 <div style="margin:18px 0; padding:11px 16px; background:#eaf6ef; border:1px solid #b7e0c7; border-radius:8px; color:#1a7f47; font-size:13px;">
-  ✓ Αποθηκεύτηκε.
+  {{ t("✓ Αποθηκεύτηκε.") }}
 </div>
 {% endif %}
 {% if request.query_params.get('owned') %}
 <div style="margin:18px 0; padding:11px 16px; background:#fff7e6; border:1px solid #f0dcb0; border-radius:8px; color:#8a5a1c; font-size:13px;">
-  ✓ Η πράξη έγινε χειροκίνητη. Τα βασικά πεδία είναι πλέον πλήρως επεξεργάσιμα και οι αυτόματες εισαγωγές δεν θα την τροποποιούν.
+  {{ t("✓ Η πράξη έγινε χειροκίνητη. Τα βασικά πεδία είναι πλέον πλήρως επεξεργάσιμα και οι αυτόματες εισαγωγές δεν θα την τροποποιούν.") }}
 </div>
 {% endif %}
 
@@ -37,17 +36,17 @@
 
   {% if mode=='create' %}
   <div class="form-section">
-    <div class="form-section-h">Αναγνωριστικό</div>
+    <div class="form-section-h">{{ t("Αναγνωριστικό") }}</div>
     <div class="field">
-      <label>ΑΔΑΜ (προαιρετικό — αφήστε κενό για αυτόματο MANUAL-…)</label>
-      <input type="text" name="adam" value="" placeholder="αφήστε κενό για αυτόματη δημιουργία">
+      <label>{{ t("ΑΔΑΜ (προαιρετικό — αφήστε κενό για αυτόματο MANUAL-…)") }}</label>
+      <input type="text" name="adam" value="" placeholder="{{ t('αφήστε κενό για αυτόματη δημιουργία') }}">
     </div>
   </div>
   {% endif %}
 
   {% for group, fields in groups.items() %}
   <div class="form-section">
-    <div class="form-section-h">{{ group }}</div>
+    <div class="form-section-h">{{ group | t }}</div>
     <div class="form-grid">
       {% for name, label, kind in fields %}
       {% set val = act.get(name) %}
@@ -55,10 +54,10 @@
         {% if kind == 'bool' %}
           <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; text-transform:none; letter-spacing:0;">
             <input type="checkbox" name="{{ name }}" value="1" {% if val %}checked{% endif %}>
-            {{ label }}
+            {{ label | t }}
           </label>
         {% else %}
-          <label>{{ label }}</label>
+          <label>{{ label | t }}</label>
           {% if kind == 'textarea' %}
             <textarea name="{{ name }}" rows="2">{{ val or '' }}</textarea>
           {% elif kind == 'type' %}
@@ -73,7 +72,7 @@
             <input type="text" inputmode="decimal" name="{{ name }}" value="{{ val if val is not none else '' }}">
           {% elif kind == 'authority' %}
             <input type="text" name="{{ name }}" value="{{ val or '' }}"
-                   placeholder="ΑΦΜ ή org_id της αρχής">
+                   placeholder="{{ t('ΑΦΜ ή org_id της αρχής') }}">
             {% if authority_name %}<div class="meta" style="margin-top:4px; letter-spacing:0; text-transform:none;">→ {{ authority_name }}</div>{% endif %}
           {% else %}
             <input type="text" name="{{ name }}" value="{{ val or '' }}">
@@ -90,9 +89,9 @@
   <div style="background:var(--paper); border-top:1px solid var(--rule); padding:16px 0; margin-top:8px; display:flex; gap:12px; align-items:center;">
     <button type="submit"
             style="background:var(--ink); color:var(--paper); border:0; padding:11px 28px; font-family:var(--sans); font-size:12px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer;">
-      {% if mode=='create' %}Δημιουργία πράξης{% else %}Αποθήκευση βασικών πεδίων{% endif %}
+      {% if mode=='create' %}{{ t("Δημιουργία πράξης") }}{% else %}{{ t("Αποθήκευση βασικών πεδίων") }}{% endif %}
     </button>
-    <a class="back" href="/admin/acts" hx-boost="false">Άκυρο</a>
+    <a class="back" href="/admin/acts" hx-boost="false">{{ t("Άκυρο") }}</a>
   </div>
 </form>
 
@@ -101,21 +100,21 @@
    their OWN save endpoints (they persist independently of the scalar-field form
    above), so they sit outside the main <form>. Tabs lazy-load each panel. #}
 <div class="form-section" style="margin-top:30px;">
-  <div class="form-section-h">Πλήρες κείμενο & πίνακες</div>
+  <div class="form-section-h">{{ t("Πλήρες κείμενο & πίνακες") }}</div>
   <div class="edit-tabs" role="tablist" style="margin-bottom:14px;">
     <button type="button" class="edit-tab on" id="ftab-fulltext"
             hx-get="/admin/act/{{ adam }}/panel/fulltext"
             hx-target="#act-content-panel" hx-swap="innerHTML"
-            onclick="actContentTab(this)">Πλήρες κείμενο</button>
+            onclick="actContentTab(this)">{{ t("Πλήρες κείμενο") }}</button>
     <button type="button" class="edit-tab" id="ftab-tables"
             hx-get="/admin/act/{{ adam }}/panel/tables"
             hx-target="#act-content-panel" hx-swap="innerHTML"
-            onclick="actContentTab(this)">Πίνακες</button>
+            onclick="actContentTab(this)">{{ t("Πίνακες") }}</button>
   </div>
   <div id="act-content-panel"
        hx-get="/admin/act/{{ adam }}/panel/fulltext"
        hx-trigger="load" hx-swap="innerHTML">
-    <div class="panel-loading" style="color:var(--ink-3); font-style:italic; padding:14px 0;">Φόρτωση…</div>
+    <div class="panel-loading" style="color:var(--ink-3); font-style:italic; padding:14px 0;">{{ t("Φόρτωση…") }}</div>
   </div>
 </div>
 <script>
@@ -126,10 +125,9 @@
 </script>
 {% else %}
 <div class="form-section" style="margin-top:30px;">
-  <div class="form-section-h">Πλήρες κείμενο & πίνακες</div>
+  <div class="form-section-h">{{ t("Πλήρες κείμενο & πίνακες") }}</div>
   <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); font-size:13px;">
-    Διαθέσιμα μετά την αποθήκευση. Δημιουργήστε πρώτα την πράξη, και στη συνέχεια
-    θα μπορείτε να προσθέσετε πλήρες κείμενο και πίνακες από τη φόρμα επεξεργασίας.
+    {{ t("Διαθέσιμα μετά την αποθήκευση. Δημιουργήστε πρώτα την πράξη, και στη συνέχεια θα μπορείτε να προσθέσετε πλήρες κείμενο και πίνακες από τη φόρμα επεξεργασίας.") }}
   </p>
 </div>
 {% endif %}

@@ -3,7 +3,7 @@
    (admin_act_form.html) and the edit hub's Βασικά πεδία tab (_panel_fields.html).
    Expects `cpvs` (list of {cpv_code, description}); defaults to empty. #}
 <div class="form-section">
-  <div class="form-section-h">Κωδικοί CPV</div>
+  <div class="form-section-h">{{ t("Κωδικοί CPV") }}</div>
   <div class="cpv-chips" id="act-cpv-chips">
     {% for c in cpvs|default([]) %}
     <span class="cpv-chip" data-code="{{ c.cpv_code }}">
@@ -16,33 +16,33 @@
   <div class="cpv-input-row">
     <div class="cpv-ta-wrap">
       <input type="text" id="act-cpv-search" autocomplete="off"
-             placeholder="Αναζήτηση με κωδικό ή λέξεις…"
+             placeholder="{{ t('Αναζήτηση με κωδικό ή λέξεις…') }}"
              hx-get="/api/cpv-suggest?wild=0"
              hx-trigger="input changed delay:200ms, focus"
              hx-target="#act-cpv-suggest" hx-swap="innerHTML"
              hx-vals='js:{term: document.getElementById("act-cpv-search").value}'>
       <div id="act-cpv-suggest"></div>
     </div>
-    <button type="button" class="cpv-browse-btn" onclick="actCpvOpenDialog()">Επιλογή κωδικών CPV</button>
+    <button type="button" class="cpv-browse-btn" onclick="actCpvOpenDialog()">{{ t("Επιλογή κωδικών CPV") }}</button>
   </div>
 
   {# Native <dialog> renders in the top layer — always viewport-centred,
      immune to scroll position and any transformed ancestor. #}
   <dialog id="cpv-modal" class="cpv-modal">
     <div class="cpv-modal-h">
-      <strong>Κωδικοί CPV — επιλογή</strong>
-      <button type="button" class="cpv-modal-x" onclick="actCpvCloseDialog()">Κλείσιμο παραθύρου ✕</button>
+      <strong>{{ t("Κωδικοί CPV — επιλογή") }}</strong>
+      <button type="button" class="cpv-modal-x" onclick="actCpvCloseDialog()">{{ t("Κλείσιμο παραθύρου ✕") }}</button>
     </div>
     <div class="cpv-ta-wrap" style="margin:0 0 12px;">
       <input type="text" id="cpv-modal-search" autocomplete="off"
-             placeholder="Αναζήτηση κωδικού ή περιγραφής…"
+             placeholder="{{ t('Αναζήτηση κωδικού ή περιγραφής…') }}"
              hx-get="/api/cpv-suggest?wild=0"
              hx-trigger="input changed delay:200ms, focus"
              hx-target="#cpv-modal-suggest" hx-swap="innerHTML"
              hx-vals='js:{term: document.getElementById("cpv-modal-search").value}'>
       <div id="cpv-modal-suggest"></div>
     </div>
-    <div id="cpv-browse-body" class="cpv-modal-body"><div class="meta">Φόρτωση…</div></div>
+    <div id="cpv-browse-body" class="cpv-modal-body"><div class="meta">{{ t("Φόρτωση…") }}</div></div>
   </dialog>
 </div>
 

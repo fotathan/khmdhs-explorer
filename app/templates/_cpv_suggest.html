@@ -6,7 +6,7 @@
   <button type="button" class="cpv-opt cpv-opt-wild"
           onclick="pickCpv('{{ digits }}')">
     <code>{{ digits }}*</code>
-    <span>όλα όσα ξεκινούν με {{ digits }}</span>
+    <span>{{ t("όλα όσα ξεκινούν με") }} {{ digits }}</span>
   </button>
   {% endif %}
   {% for r in rows %}
@@ -16,6 +16,6 @@
   </button>
   {% endfor %}
   {% if not rows and not digits %}
-  <div class="cpv-empty">Καμία αντιστοιχία.</div>
+  <div class="cpv-empty">{{ t("Καμία αντιστοιχία.") }}</div>
   {% endif %}
 </div>
