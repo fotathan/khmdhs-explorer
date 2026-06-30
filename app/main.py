@@ -575,13 +575,22 @@ def build_where(params: dict) -> tuple[str, list]:
     nuts_vals = _as_list(params.get("nuts"))
     if nuts_vals:
         # Each value is a prefix ('EL' = all Greece, 'EL5' = a region cluster);
-        # multi-select means match ANY of the chosen prefixes. Build an OR of
-        # LIKE prefix tests, each wildcard living in the bind value (never SQL).
-        ors = []
+        # multi-select means match ANY of the chosen prefixes. An act matches on
+        # its primary region (a.nuts_code) OR any place-of-performance in
+        # proc.act_nuts, so secondary regions are findable too. Wildcards live in
+        # the bind values (never SQL); args are appended in SQL order.
+        primary = []
         for n in nuts_vals:
-            ors.append("a.nuts_code LIKE %s")
+            primary.append("a.nuts_code LIKE %s")
             args.append(f"{n}%")
-        where.append("(" + " OR ".join(ors) + ")")
+        secondary = []
+        for n in nuts_vals:
+            secondary.append("an.nuts_code LIKE %s")
+            args.append(f"{n}%")
+        where.append(
+            "(" + " OR ".join(primary)
+            + " OR EXISTS (SELECT 1 FROM proc.act_nuts an"
+            + " WHERE an.adam = a.adam AND (" + " OR ".join(secondary) + ")))")
 
     # Date filter applies to *publication* date (KHMDHS submission) — that's
     # the "this became public" timestamp users care about for transparency.
