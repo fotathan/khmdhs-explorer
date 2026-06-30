@@ -246,12 +246,6 @@
           <span><span class="at">{{ t("Έγγραφο στη Διαύγεια") if is_diavgeia else t("Έγγραφο στο ΚΗΜΔΗΣ") }}</span><span class="ad">{{ t("Η πράξη στη Διαύγεια") if is_diavgeia else t("Το επίσημο PDF της πράξης") }}</span></span>
         </a>
         {% endif %}
-        {% if tables_enabled %}
-        <a class="action-link" href="/admin/act/{{ n.adam }}/edit?tab=tables">
-          <span class="ico">▦</span>
-          <span><span class="at">{{ t("Εξαγωγή πινάκων") }}</span><span class="ad">{{ t("Πίνακες από τα συνημμένα σε Excel") }}</span></span>
-        </a>
-        {% endif %}
       </div>
 
       <div class="sidecard">

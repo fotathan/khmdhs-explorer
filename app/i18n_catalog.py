@@ -929,6 +929,7 @@ _TABLES = {
     "προεπισκόπηση": "preview",
     "κλικ για μεγέθυνση": "click to enlarge",
     "Επιλογή όλων": "Select all",
+    "Επιλογή / αποεπιλογή όλων": "Select / deselect all",
     "Κανένα": "None",
     "Σάρωση επιλεγμένων": "Scan selected",
     "σάρωση…": "scanning…",

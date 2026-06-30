@@ -6,6 +6,13 @@
 <form action="/tables/export" method="post" id="tt-export-form">
   <input type="hidden" name="session_id" value="{{ session_id }}">
 
+  {% if n_tables %}
+  <div class="tt-exportbar" style="margin:0 0 14px;">
+    <button type="button" class="tt-btn tt-secondary" onclick="ttToggleAll()">{{ t("Επιλογή / αποεπιλογή όλων") }}</button>
+    <span class="tt-count" id="tt-sel-count-top"></span>
+  </div>
+  {% endif %}
+
   {% for report in reports %}
     {% include "tables/_file_card.html" %}
   {% endfor %}
@@ -44,10 +51,19 @@
     return [...document.querySelectorAll('input[name="table_ids"]')];
   }
   function ttSetAll(state) { ttBoxes().forEach(b => b.checked = state); ttUpdateCount(); }
+  // Single select/deselect-all toggle (top bar): if everything is already
+  // checked, clear it; otherwise select everything.
+  function ttToggleAll() {
+    const boxes = ttBoxes();
+    const allOn = boxes.length > 0 && boxes.every(b => b.checked);
+    ttSetAll(!allOn);
+  }
   function ttUpdateCount() {
     const n = ttBoxes().filter(b => b.checked).length;
-    const el = document.getElementById('tt-sel-count');
-    if (el) el.textContent = n + ' ' + TT_SEL2;
+    [document.getElementById('tt-sel-count'),
+     document.getElementById('tt-sel-count-top')].forEach(function (el) {
+      if (el) el.textContent = n + ' ' + TT_SEL2;
+    });
   }
   // Exposed under the name the OCR-swapped card calls back into.
   function updateCount() { ttUpdateCount(); }

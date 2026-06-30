@@ -660,8 +660,9 @@ def make_router(templates, cursor) -> APIRouter:
     # SAVE TO ACT — persist selected tables to proc.extracted_table so they
     # can be shown inline on the act detail page. Same selection UI as Excel
     # export; this is the second submit button on results.html. Saved tables
-    # start UNPUBLISHED (is_published = FALSE) — curator publishes them per
-    # table from the act edit hub. A table dict carries no separate header
+    # are PUBLISHED on save (is_published = TRUE) so they appear on the act
+    # detail page immediately; the curator can unpublish/delete per table from
+    # the act edit hub if needed. A table dict carries no separate header
     # field: rows[0] is the header (matching exporter's _write_table, which
     # styles the first data row as the header). We store source + locator +
     # rows verbatim, so the inline render and the per-table Excel re-export
@@ -705,16 +706,16 @@ def make_router(templates, cursor) -> APIRouter:
             for t in selected:
                 c.execute(
                     """INSERT INTO proc.extracted_table
-                       (adam, source, locator, rows, n_rows, n_cols)
-                       VALUES (%s,%s,%s,%s,%s,%s)""",
+                       (adam, source, locator, rows, n_rows, n_cols, is_published)
+                       VALUES (%s,%s,%s,%s,%s,%s, TRUE)""",
                     (adam, t["source"], t["locator"],
                      Json(t["rows"]), int(t["n_rows"]), int(t["n_cols"])),
                 )
                 n += 1
         return HTMLResponse(
             f"<div class='tt-flash tt-ok'>Αποθηκεύτηκαν {n} πίνακ"
-            f"{'ας' if n == 1 else 'ες'} στην πράξη (μη δημοσιευμένοι). "
-            f"<a href='/admin/act/{adam}/edit#tables'>διαχείριση & δημοσίευση ›</a></div>"
+            f"{'ας' if n == 1 else 'ες'} στην πράξη (δημοσιευμένοι). "
+            f"<a href='/admin/act/{adam}/edit#tables'>διαχείριση ›</a></div>"
         )
 
     # ------------------------------------------------------------------ #
