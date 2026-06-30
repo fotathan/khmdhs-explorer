@@ -17,6 +17,7 @@
     <div class="card-top">
       <div style="min-width:0;">
         <span class="card-type t-{{ r.type }}">{{ r.type | type_label }}</span>
+        {% if r.data_source == 'diavgeia' %}<span class="src-badge src-diavgeia">{{ t("Διαύγεια") }}</span>{% endif %}
         <h3 class="card-title"><a href="/act/{{ r.adam }}">{{ r.title or '—' }}</a></h3>
         <div class="card-meta">
           {% if r.authority_id %}
@@ -35,7 +36,7 @@
           <span class="dt deadline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lbl">{{ t("λήξη") }}</span> <b>{{ r.final_submission_date.strftime('%d/%m/%Y') }}</b></span>
           {% endif %}
 
-          <span class="m adam">ΑΔΑΜ {{ r.adam }}</span>
+          <span class="m adam">{{ "ΑΔΑ" if r.data_source == 'diavgeia' else "ΑΔΑΜ" }} {{ r.adam }}</span>
 
           {% if r.cancelled %}<span class="pill cancel">{{ t("ακυρωμένη") }}</span>{% endif %}
           {% if r.is_modified %}<span class="pill amend">{{ t("ορθή επ.") }}</span>{% endif %}

@@ -559,6 +559,11 @@ def cmd_diavgeia_backfill(args):
             print("\n=== resolving authorities (dedupe by ΑΦΜ) ===")
             n = repo.resolve_authorities()
             print(f"  resolved {n} distinct organizations into proc.authority")
+        # Project into procurement_act so the web app surfaces the new acts.
+        if not args.skip_project:
+            print("\n=== projecting into procurement_act (app-facing) ===")
+            n = repo.project_all()
+            print(f"  {n} Diavgeia acts present in proc.procurement_act")
     print(f"\ndiavgeia backfill complete. windows={totals['windows']} "
           f"done={totals['done']} skipped={totals['skipped']} "
           f"errored={totals['errored']}")
@@ -580,6 +585,16 @@ def cmd_diavgeia_resolve(args):
         if args.dictionaries:
             ns, nu = repo.resolve_dictionaries()
             print(f"dictionaries: {ns} signers, {nu} units labelled.")
+
+
+def cmd_diavgeia_project(args):
+    """Project Diavgeia decisions into proc.procurement_act (+ reused child
+    tables) so the web app surfaces them like KHMDHS acts. Set-based, idempotent,
+    and never touches acts a curator has taken ownership of (origin='authored')."""
+    import diavgeia_ingest as di
+    with Database() as db:
+        n = di.DiavgeiaRepository(db).project_all()
+        print(f"projected — {n} Diavgeia acts present in proc.procurement_act.")
 
 
 def _diavgeia_watermark(db, decision_type: str):
@@ -764,6 +779,9 @@ def main():
     p_dbf.add_argument("--skip-resolve", action="store_true",
                        help="don't run authority dedup after the backfill "
                             "(defer it to `diavgeia-resolve`)")
+    p_dbf.add_argument("--skip-project", action="store_true",
+                       help="don't project into procurement_act after the backfill "
+                            "(defer it to `diavgeia-project`)")
     p_dbf.set_defaults(func=cmd_diavgeia_backfill)
 
     p_dr = sub.add_parser("diavgeia-resolve",
@@ -773,6 +791,11 @@ def main():
                       help="also fetch signer/unit labels (one API call per new "
                            "uid; can be large)")
     p_dr.set_defaults(func=cmd_diavgeia_resolve)
+
+    p_dp = sub.add_parser("diavgeia-project",
+                          help="project Diavgeia decisions into procurement_act so "
+                               "the web app surfaces them (idempotent)")
+    p_dp.set_defaults(func=cmd_diavgeia_project)
 
     p_dcu = sub.add_parser("diavgeia-catchup",
                            help="incremental Diavgeia fetch since last run (per type), "

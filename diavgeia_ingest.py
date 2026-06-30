@@ -208,9 +208,9 @@ class DiavgeiaRepository:
         "financed_project", "duration", "raw_json",
     ]
 
-    def __init__(self, db, client: DiavgeiaClient):
+    def __init__(self, db, client: DiavgeiaClient | None = None):
         self.db = db
-        self.client = client
+        self.client = client            # only needed for ingest/resolve, not projection
         # reuse the KHMDHS operator upsert (VAT-keyed, idempotent) verbatim
         self._ops = Repository(db)
 
@@ -483,6 +483,113 @@ class DiavgeiaRepository:
         self.db.commit()
         return ns, nu
 
+    # ---- projection into procurement_act (the app-facing fact table) ----- #
+    # Diavgeia decision_type -> KHMDHS act_type enum. Award (ΚΑΤΑΚΥΡΩΣΗ) maps to
+    # 'auction', which is our award stage.
+    _PROJECT_TYPE_SQL = (
+        "CASE d.decision_type WHEN 'Δ.2.1' THEN 'notice' "
+        "WHEN 'Δ.2.2' THEN 'auction' WHEN 'Γ.3.4' THEN 'contract' END")
+    _SCOPE = "('Δ.2.1','Δ.2.2','Γ.3.4')"
+    # ADA never collides with an ADAM (Greek letters / dashes vs ASCII), so a
+    # diavgeia adam in procurement_act is always a projected Diavgeia row.
+    _NOT_AUTHORED = ("NOT EXISTS (SELECT 1 FROM proc.procurement_act pa "
+                     "WHERE pa.adam=d.ada AND pa.origin='authored')")
+    _AUTHORED_ADAMS = ("SELECT adam FROM proc.procurement_act WHERE origin='authored'")
+
+    def project_all(self) -> int:
+        """Project Diavgeia decisions into proc.procurement_act (+ the reused
+        child tables) so the web app surfaces them like KHMDHS acts. Set-based
+        and idempotent. NEVER touches an act a curator has taken ownership of
+        (origin='authored'). Returns the number of Diavgeia header rows present."""
+        db = self.db
+
+        # 1. header row
+        db.execute(f"""
+            INSERT INTO proc.procurement_act
+              (adam, type, data_source, origin, external_id, title, signed_date,
+               submission_date, total_cost_with_vat, total_cost_without_vat, budget,
+               source_url, source_status, protocol_number, type_of_document,
+               subtype_of_document, authority_id, raw_json, ingested_at)
+            SELECT d.ada, ({self._PROJECT_TYPE_SQL})::proc.act_type,
+                   'diavgeia', 'import', d.ada, d.subject, d.issue_date,
+                   d.submission_timestamp, d.amount, d.amount, d.amount,
+                   d.document_url, d.status, d.protocol_number, d.document_type,
+                   d.decision_type, d.authority_id, d.raw_json, now()
+            FROM proc.diavgeia_decision d
+            WHERE d.decision_type IN {self._SCOPE} AND {self._NOT_AUTHORED}
+            ON CONFLICT (adam) DO UPDATE SET
+               type=EXCLUDED.type, data_source=EXCLUDED.data_source,
+               external_id=EXCLUDED.external_id, title=EXCLUDED.title,
+               signed_date=EXCLUDED.signed_date, submission_date=EXCLUDED.submission_date,
+               total_cost_with_vat=EXCLUDED.total_cost_with_vat,
+               total_cost_without_vat=EXCLUDED.total_cost_without_vat,
+               budget=EXCLUDED.budget, source_url=EXCLUDED.source_url,
+               source_status=EXCLUDED.source_status, protocol_number=EXCLUDED.protocol_number,
+               type_of_document=EXCLUDED.type_of_document,
+               subtype_of_document=EXCLUDED.subtype_of_document,
+               authority_id=EXCLUDED.authority_id, raw_json=EXCLUDED.raw_json,
+               ingested_at=now()
+            WHERE proc.procurement_act.origin <> 'authored'
+        """)
+        db.commit()
+
+        # 2. one synthetic line item carrying the CPVs, so the CPV/category
+        #    filters (which search object_detail_cpv) find Diavgeia acts and the
+        #    detail page renders them. Delete+reinsert (only Diavgeia adams, never
+        #    authored) → idempotent.
+        db.execute(f"""DELETE FROM proc.act_object_detail
+                       WHERE adam IN (SELECT ada FROM proc.diavgeia_decision)
+                         AND adam NOT IN ({self._AUTHORED_ADAMS})""")
+        db.execute(f"""
+            INSERT INTO proc.act_object_detail
+              (adam, line_no, short_description, cost_without_vat, currency_code)
+            SELECT d.ada, 1, d.subject, d.amount, d.currency_code
+            FROM proc.diavgeia_decision d
+            WHERE d.decision_type IN {self._SCOPE} AND {self._NOT_AUTHORED}
+              AND EXISTS (SELECT 1 FROM proc.diavgeia_decision_cpv c WHERE c.ada=d.ada)
+        """)
+        db.execute("""
+            INSERT INTO proc.object_detail_cpv (object_detail_id, cpv_code)
+            SELECT od.id, dc.cpv_code
+            FROM proc.act_object_detail od
+            JOIN proc.diavgeia_decision_cpv dc ON dc.ada = od.adam
+            WHERE od.line_no = 1
+            ON CONFLICT DO NOTHING
+        """)
+        db.commit()
+
+        # 3. award/contract winners -> act_operator (ΑΦΜ-resolved persons only).
+        db.execute(f"""DELETE FROM proc.act_operator
+                       WHERE adam IN (SELECT ada FROM proc.diavgeia_decision)
+                         AND adam NOT IN ({self._AUTHORED_ADAMS})""")
+        db.execute(f"""
+            INSERT INTO proc.act_operator (adam, operator_id, role)
+            SELECT DISTINCT p.ada, p.operator_id, 'winner'::proc.participation_role
+            FROM proc.diavgeia_decision_person p
+            WHERE p.operator_id IS NOT NULL
+              AND p.ada NOT IN ({self._AUTHORED_ADAMS})
+              AND EXISTS (SELECT 1 FROM proc.procurement_act pa WHERE pa.adam = p.ada)
+            ON CONFLICT (adam, operator_id, role) DO NOTHING
+        """)
+        db.commit()
+
+        # 4. related ADA->ADA edges -> act_link (generic).
+        db.execute("""DELETE FROM proc.act_link
+                      WHERE relation='generic'
+                        AND source_adam IN (SELECT ada FROM proc.diavgeia_decision)""")
+        db.execute("""
+            INSERT INTO proc.act_link (source_adam, target_adam, relation)
+            SELECT r.source_ada, r.target_ada, 'generic'::proc.link_relation
+            FROM proc.diavgeia_related r
+            WHERE EXISTS (SELECT 1 FROM proc.procurement_act pa WHERE pa.adam = r.source_ada)
+            ON CONFLICT DO NOTHING
+        """)
+        db.commit()
+
+        rows = db.query("SELECT count(*) FROM proc.procurement_act "
+                        "WHERE data_source='diavgeia'")
+        return rows[0][0] if rows else 0
+
 
 # --------------------------------------------------------------------------- #
 # Orchestration — windowed, per-decision-type, resumable (mirrors ingest_type)
@@ -573,8 +680,13 @@ def watermark(db, decision_type: str):
     return rows[0][0] if rows and rows[0][0] else None
 
 
-def backfill_all(db, start: dt.date, end: dt.date,
-                 names=None, *, resume: bool = False, resolve: bool = True):
+def project_all(db) -> int:
+    """Project all Diavgeia decisions into proc.procurement_act (no API needed)."""
+    return DiavgeiaRepository(db).project_all()
+
+
+def backfill_all(db, start: dt.date, end: dt.date, names=None, *,
+                 resume: bool = False, resolve: bool = True, project: bool = True):
     client = DiavgeiaClient()
     repo = DiavgeiaRepository(db, client)
     for name in (names or TYPE_NAMES):
@@ -586,3 +698,7 @@ def backfill_all(db, start: dt.date, end: dt.date,
         print("\n=== resolving authorities (dedupe by ΑΦΜ) ===")
         n = repo.resolve_authorities()
         print(f"  resolved {n} distinct organizations into proc.authority")
+    if project:
+        print("\n=== projecting into procurement_act (app-facing) ===")
+        n = repo.project_all()
+        print(f"  {n} Diavgeia acts present in proc.procurement_act")

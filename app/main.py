@@ -116,6 +116,20 @@ def khmdhs_doc_url(act_type: str, adam: str) -> str | None:
 
 templates.env.globals["khmdhs_doc_url"] = khmdhs_doc_url
 
+
+def source_doc_url(act) -> str | None:
+    """Source-document URL for an act row, source-aware. Diavgeia (and any other
+    non-KHMDHS source) links to its own document via source_url; KHMDHS acts use
+    the opendata attachment endpoint."""
+    if not act:
+        return None
+    ds = act.get("data_source")
+    if ds and ds != "khmdhs":
+        return act.get("source_url") or None
+    return khmdhs_doc_url(act.get("act_type") or act.get("type"), act.get("adam"))
+
+templates.env.globals["source_doc_url"] = source_doc_url
+
 # Whether the tender-table extraction feature is mounted (see the /tables
 # router registration below). Templates use this to show/hide the act-detail
 # "Εξαγωγή πινάκων" button so it never points at a route that isn't there.
@@ -320,6 +334,7 @@ SELECT_COLS = """
     a.contract_type_code,
     a.procedure_type_code,
     a.nuts_code,
+    a.data_source,
     auth.org_id      AS authority_id,
     auth.name        AS authority_name
 """
@@ -464,6 +479,12 @@ def build_where(params: dict) -> tuple[str, list]:
     if auth_ids:
         where.append("a.authority_id = ANY(%s)")
         args.append(auth_ids)
+
+    # Data source — multi-select (e.g. 'khmdhs', 'diavgeia'). Empty => all.
+    sources = _as_list(params.get("source"))
+    if sources:
+        where.append("a.data_source = ANY(%s)")
+        args.append(sources)
 
     # Full-text search across the extracted document text (full_text_tsv is a
     # stored, Greek-stemmed tsvector — see full_text_tsv_migration.sql). Separate
@@ -1139,7 +1160,7 @@ def _params_from(request: Request) -> dict:
               "date_from", "date_to", "deadline_from", "deadline_to",
               "value_min", "value_max", "status", "sort")
     multi = ("type", "authority", "contract_type", "procedure_type", "nuts",
-             "cpv", "cat")
+             "cpv", "cat", "source")
     out = {k: request.query_params.get(k, "") for k in single}
     for k in multi:
         # keep only non-empty values; preserves order, drops blanks
@@ -1347,6 +1368,8 @@ def act_detail(adam: str, request: Request):
                    a.journal_number, a.eprocurement_portal,
                    a.contact_email, a.contact_phone, a.contact_fax,
                    a.street_address, a.contact_url,
+                   a.source_url, a.source_status,
+                   a.type_of_document, a.subtype_of_document,
                    nuts.label AS nuts_label
             FROM proc.procurement_act a
             LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id

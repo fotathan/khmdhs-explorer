@@ -39,6 +39,18 @@
         </div>
       </div>
 
+      {% set sel_src = request.query_params.getlist('source') %}
+      <div class="fgroup">
+        <div class="fgroup-h">{{ t("Πηγή δεδομένων") }}</div>
+        <div class="chips">
+          {% for code, label in [('khmdhs', 'ΚΗΜΔΗΣ'), ('diavgeia', t('Διαύγεια'))] %}
+          <label class="chip {% if code in sel_src %}on{% endif %}">
+            <input type="checkbox" name="source" value="{{ code }}" {% if code in sel_src %}checked{% endif %}>{{ label }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
       {% set sel_auth = request.query_params.getlist('authority') %}
       <div class="fgroup">
         <div class="fgroup-h">{{ t("Αναθέτουσα αρχή") }}</div>

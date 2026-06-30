@@ -9,6 +9,7 @@
   <div class="act-hero">
     <div class="badges">
       <span class="card-type t-{{ atype }}">{{ type_label_el }}</span>
+      {% if n.data_source == 'diavgeia' %}<span class="src-badge src-diavgeia">{{ t("Διαύγεια") }}</span>{% endif %}
       {% if n.cancelled %}<span class="pill cancel">{{ t("ακυρωμένη") }}</span>{% endif %}
       {% if n.is_modified %}<span class="pill amend">{{ t("ορθή επανάληψη") }}</span>{% endif %}
       {% if excluded_reason == 'over_threshold' %}
@@ -52,7 +53,7 @@
       <div class="panel">
         <h3 class="panel-h">{{ t("Στοιχεία πράξης") }}</h3>
         <dl class="facts">
-          <dt>ΑΔΑΜ</dt><dd><code>{{ n.adam }}</code></dd>
+          <dt>{{ "ΑΔΑ" if n.data_source == 'diavgeia' else "ΑΔΑΜ" }}</dt><dd><code>{{ n.adam }}</code></dd>
           <dt>{{ t("Τύπος") }}</dt><dd>{{ type_label_el }}</dd>
           {% if n.signed_date %}<dt>{{ t("Υπογραφή") }}</dt><dd>{{ n.signed_date.strftime('%d/%m/%Y') }}</dd>{% endif %}
 
@@ -237,11 +238,12 @@
     <aside>
       <div class="sidecard">
         <div class="sidecard-h">{{ t("Ενέργειες") }}</div>
-        {% set doc_url = khmdhs_doc_url(n.act_type, n.adam) %}
+        {% set doc_url = source_doc_url(n) %}
         {% if doc_url %}
+        {% set is_diavgeia = n.data_source == 'diavgeia' %}
         <a class="action-link" href="{{ doc_url }}" target="_blank" rel="noopener">
           <span class="ico">↗</span>
-          <span><span class="at">{{ t("Έγγραφο στο ΚΗΜΔΗΣ") }}</span><span class="ad">{{ t("Το επίσημο PDF της πράξης") }}</span></span>
+          <span><span class="at">{{ t("Έγγραφο στη Διαύγεια") if is_diavgeia else t("Έγγραφο στο ΚΗΜΔΗΣ") }}</span><span class="ad">{{ t("Η πράξη στη Διαύγεια") if is_diavgeia else t("Το επίσημο PDF της πράξης") }}</span></span>
         </a>
         {% endif %}
         {% if tables_enabled %}

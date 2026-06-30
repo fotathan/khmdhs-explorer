@@ -1033,11 +1033,17 @@ _CPV_EDIT = {
         "These codes come from the imported act's line items. Edit and save them as act-level CPV codes.",
 }
 
+_DIAVGEIA = {
+    "Διαύγεια": "Diavgeia",
+    "Έγγραφο στη Διαύγεια": "Document on Diavgeia",
+    "Η πράξη στη Διαύγεια": "The act on Diavgeia",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
-             _NUTS_REGIONS, _CPV_EDIT):
+             _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA):
     UI_EN.update(_grp)

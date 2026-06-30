@@ -67,8 +67,10 @@ Usage:
   ./ingest.sh <local|prod> <command> [db.py flags...] [--fulltext]
 
   KHMDHS commands : backfill | catchup | fulltext-backfill
-  Diavgeia commands: diavgeia-backfill | diavgeia-catchup
-                     (--types notice award contract; windows on issue date)
+  Diavgeia commands: diavgeia-backfill | diavgeia-catchup | diavgeia-resolve | diavgeia-project
+                     (--types notice award contract; windows on issue date.
+                      backfill auto-runs resolve + project; project surfaces
+                      decisions in the web app via procurement_act)
 
 Examples:
   ./ingest.sh local backfill          --start 2026-06-01 --end 2026-06-19 --types notice
@@ -96,8 +98,8 @@ case "$TARGET" in
 esac
 
 case "$COMMAND" in
-  backfill|catchup|fulltext-backfill|diavgeia-backfill|diavgeia-catchup) ;;
-  *) die "second argument must be one of: backfill, catchup, fulltext-backfill, diavgeia-backfill, diavgeia-catchup (got '$COMMAND')";;
+  backfill|catchup|fulltext-backfill|diavgeia-backfill|diavgeia-catchup|diavgeia-resolve|diavgeia-project) ;;
+  *) die "second argument must be one of: backfill, catchup, fulltext-backfill, diavgeia-backfill, diavgeia-catchup, diavgeia-resolve, diavgeia-project (got '$COMMAND')";;
 esac
 
 # ---- pull out our custom --fulltext flag before passing the rest to db.py ---
