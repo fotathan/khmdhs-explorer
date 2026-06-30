@@ -84,6 +84,7 @@
     <label>{{ t("Κατηγορία / Υποκατηγορία (Ctrl/⌘-click για πολλαπλά)") }}</label>
     {# Two-level taxonomy over CPV (derived). optgroup=κατηγορία; πρώτη επιλογή
        = όλη η κατηγορία (c:<id>), οι υπόλοιπες = υποκατηγορίες (s:<id>). #}
+    {% include "_cat_filter.html" %}
     <select name="cat" multiple size="6" style="width:100%;">
       {% for c in categories %}
       <optgroup label="{{ c | vname }}">

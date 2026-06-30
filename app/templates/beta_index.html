@@ -115,6 +115,7 @@
            each optgroup is a category whose first option selects the WHOLE
            category (value c:<id>); the rest are its subcategories (s:<id>).
            Ctrl/⌘-click to pick several — they OR together. #}
+        {% include "_cat_filter.html" %}
         <select name="cat" multiple size="12" class="cat-sel"
                 style="width:100%; font-size:12px; padding:4px;">
           {% for cat in lk.categories %}

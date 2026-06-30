@@ -1,0 +1,46 @@
+{# Typeahead that narrows the grouped Κατηγορία/Υποκατηγορία <select name="cat">
+   in the same wrapper (.fgroup or .field). Pure client-side: hides non-matching
+   options and empty optgroups, accent- and final-sigma-insensitive like the
+   app's search. The input has NO name (never submitted) and stops its own change
+   event so it doesn't trigger the surrounding filter form. Matching a category
+   name keeps all its subcategories; matching a subcategory keeps that row plus
+   its category's "▸ όλη η κατηγορία" pick. #}
+<input type="text" class="cat-filter" autocomplete="off"
+       placeholder="{{ t('φιλτράρισμα κατηγοριών…') }}"
+       oninput="catFilter(this)" onchange="event.stopPropagation()"
+       style="width:100%; box-sizing:border-box; margin-bottom:6px; font-size:12px;
+              padding:5px 8px; border:1px solid var(--rule, #ccc); border-radius:6px;">
+<script>
+if (!window.__catFilter) {
+  window.__catFilter = true;
+  window.catFilter = function (input) {
+    var norm = function (s) {
+      // lowercase, strip combining accents (U+0300–U+036F), final sigma ς→σ
+      return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/ς/g, 'σ').toLowerCase().trim();
+    };
+    var q = norm(input.value);
+    var wrap = input.closest('.fgroup, .field') || document;
+    var sel = wrap.querySelector('select[name=cat]');
+    if (!sel) return;
+    var groups = sel.getElementsByTagName('optgroup');
+    for (var i = 0; i < groups.length; i++) {
+      var og = groups[i];
+      var labelMatch = q === '' || norm(og.label).indexOf(q) !== -1;
+      var opts = og.getElementsByTagName('option');
+      var anySub = false;
+      for (var j = 0; j < opts.length; j++) {
+        if (opts[j].value.charAt(0) === 'c') continue;        // "όλη η κατηγορία" row
+        var show = q === '' || labelMatch || norm(opts[j].textContent).indexOf(q) !== -1;
+        opts[j].hidden = !show;
+        if (show) anySub = true;
+      }
+      var visible = labelMatch || anySub;
+      for (var k = 0; k < opts.length; k++) {
+        if (opts[k].value.charAt(0) === 'c') opts[k].hidden = !visible;
+      }
+      og.hidden = !visible;
+    }
+  };
+}
+</script>

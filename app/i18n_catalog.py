@@ -95,6 +95,7 @@ _SEARCH = {
     "από": "from",
     "έως": "to",
     "Κατηγορία / Υποκατηγορία": "Category / Subcategory",
+    "φιλτράρισμα κατηγοριών…": "filter categories…",
     "▸ όλη η κατηγορία": "▸ whole category",
     "προσθήκη CPV, π.χ. 331…": "add CPV, e.g. 331…",
     "Ημ/νία δημοσίευσης": "Publication date",
