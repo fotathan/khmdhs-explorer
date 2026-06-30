@@ -287,7 +287,8 @@ def cmd_fulltext_backfill(args):
 # job's targeted ΑΔΑΜ list and records, per act, what was found. Modelled on the
 # full-text backfill; self-contained job lifecycle in proc.table_extract_*.
 # --------------------------------------------------------------------------- #
-def _table_outcome(adam: str, act_type: str, want_tables: bool = False):
+def _table_outcome(adam: str, act_type: str, data_source: str | None = None,
+                   want_tables: bool = False):
     """Classify one act's attachments for table content. Returns a 5-tuple
     (outcome, n_tables, n_files, note, tables): `tables` is the list of clean
     extracted table dicts (source/locator/rows/n_rows/n_cols) when
@@ -305,16 +306,21 @@ def _table_outcome(adam: str, act_type: str, want_tables: bool = False):
     if _app_dir not in _sys.path:
         _sys.path.insert(0, _app_dir)
     try:
-        from app.tables import _fetch_act_document
+        from app.tables import _fetch_act_document, _fetch_diavgeia_document
         from app.extractors import collect_files, extract_entry
     except ImportError:
-        from tables import _fetch_act_document
+        from tables import _fetch_act_document, _fetch_diavgeia_document
         from extractors import collect_files, extract_entry
     import khmdhs_ingest
     api_key = bool(_o.environ.get("ANTHROPIC_API_KEY"))
 
     try:
-        data, fname = _fetch_act_document(act_type, adam)
+        # Source-aware fetch: Diavgeia acts' documents live on diavgeia.gov.gr,
+        # not the KHMDHS attachment endpoint (mirrors app/tables.py:/fetch).
+        if data_source == "diavgeia":
+            data, fname = _fetch_diavgeia_document(adam)
+        else:
+            data, fname = _fetch_act_document(act_type, adam)
     except ValueError:
         return ("no_attachment", 0, 0, "χωρίς συνημμένο", None)
     except Exception as e:  # noqa: BLE001
@@ -415,7 +421,7 @@ def cmd_extract_tables(args):
                            (job_id,))
             srow = db.cur.fetchone()
             save_mode = bool(srow[0] if not hasattr(srow, "keys") else srow["save_tables"])
-            db.cur.execute("""SELECT t.adam, a.type, a.title
+            db.cur.execute("""SELECT t.adam, a.type, a.title, a.data_source
                               FROM proc.table_extract_target t
                               JOIN proc.procurement_act a ON a.adam = t.adam
                               WHERE t.job_id=%s AND NOT t.done
@@ -429,8 +435,9 @@ def cmd_extract_tables(args):
                 adam = row[0] if not hasattr(row, "keys") else row["adam"]
                 act_type = row[1] if not hasattr(row, "keys") else row["type"]
                 title = row[2] if not hasattr(row, "keys") else row["title"]
+                data_source = row[3] if not hasattr(row, "keys") else row["data_source"]
                 outcome, n_tables, n_files, note, tables = _table_outcome(
-                    adam, act_type, want_tables=save_mode)
+                    adam, act_type, data_source, want_tables=save_mode)
                 n[outcome] = n.get(outcome, 0) + 1
                 n_saved = 0
                 if save_mode and outcome == "extracted" and tables:
