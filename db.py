@@ -688,6 +688,15 @@ def cmd_diavgeia_catchup(args):
             any_run = True
 
         if any_run:
+            # Resolve authorities for any new orgs and project into
+            # procurement_act, so caught-up acts immediately show their authority
+            # in the web app (mirrors what diavgeia-backfill does at the end).
+            print("\n=== resolving authorities (dedupe by ΑΦΜ / name) ===")
+            n = repo.resolve_authorities()
+            print(f"  resolved {n} distinct organizations into proc.authority")
+            print("=== projecting into procurement_act (app-facing) ===")
+            m = repo.project_all()
+            print(f"  {m} Diavgeia acts present in proc.procurement_act")
             print("\nnew watermarks (latest done window end per type):")
             for name in names:
                 wm = di.watermark(db, di.NAME_TO_UID[name])

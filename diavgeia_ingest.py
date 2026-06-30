@@ -215,11 +215,25 @@ class DiavgeiaRepository:
         self._ops = Repository(db)
 
     # ---- authority resolution (dedupe into the shared table) ------------ #
+    def _link_existing(self, org_id: str, org_uid: str) -> str:
+        """Tag an existing authority as the home of this Diavgeia org."""
+        self.db.execute(
+            """UPDATE proc.authority
+               SET diavgeia_org_uid=%s,
+                   source=CASE WHEN source='diavgeia' THEN 'diavgeia' ELSE 'merged' END,
+                   last_seen=now()
+               WHERE org_id=%s""", (org_uid, org_id))
+        return org_id
+
     def resolve_authority(self, org_uid: str | None) -> str | None:
         """Map a Diavgeia organizationId to a proc.authority.org_id, reusing an
-        existing authority matched by ΑΦΜ (vat_number) where possible so we don't
-        create duplicates. Falls back to a synthetic 'DIAV:<uid>' authority for
-        organizations we don't already hold from KHMDHS."""
+        existing authority so we don't create duplicates. Match order:
+          1. ΑΦΜ, but only when UNAMBIGUOUS — many ministries share placeholder
+             VATs (e.g. 011111111), so a non-unique VAT is skipped.
+          2. authority NAME (the org label), accent/space/case-insensitive,
+             against existing (non-Diavgeia) authorities — this is what links a
+             Diavgeia org to its KHMDHS authority when the VAT is shared/missing.
+          3. otherwise a synthetic 'DIAV:<uid>' authority carrying the org name."""
         if not org_uid:
             return None
         # already linked from a previous decision/run? (cheap, avoids the API)
@@ -235,23 +249,26 @@ class DiavgeiaRepository:
         name = _str(org.get("label")) or f"(diavgeia org {org_uid})"
         vat = _str(org.get("vatNumber"))
 
-        # match an existing authority by ΑΦΜ → link it to this Diavgeia org.
+        # 1. UNAMBIGUOUS ΑΦΜ match (exactly one authority holds it).
         if vat:
             rows = self.db.query(
                 "SELECT org_id FROM proc.authority WHERE vat_number=%s "
-                "ORDER BY (source='khmdhs') DESC LIMIT 1", (vat,))
-            if rows:
-                org_id = rows[0][0]
-                self.db.execute(
-                    """UPDATE proc.authority
-                       SET diavgeia_org_uid=%s,
-                           source=CASE WHEN source='diavgeia' THEN 'diavgeia'
-                                       ELSE 'merged' END,
-                           last_seen=now()
-                       WHERE org_id=%s""", (org_uid, org_id))
-                return org_id
+                "ORDER BY (source='khmdhs') DESC LIMIT 2", (vat,))
+            if len(rows) == 1:
+                return self._link_existing(rows[0][0], org_uid)
 
-        # no match → create a Diavgeia-sourced authority under a synthetic key.
+        # 2. NAME match against an existing KHMDHS-side authority.
+        rows = self.db.query(
+            """SELECT org_id FROM proc.authority
+               WHERE org_id NOT LIKE 'DIAV:%%'
+                 AND upper(regexp_replace(btrim(proc.f_unaccent(coalesce(name,''))), '\\s+', ' ', 'g'))
+                   = upper(regexp_replace(btrim(proc.f_unaccent(%s)), '\\s+', ' ', 'g'))
+               ORDER BY (source='khmdhs') DESC, (vat_number IS NOT NULL) DESC
+               LIMIT 1""", (name,))
+        if rows:
+            return self._link_existing(rows[0][0], org_uid)
+
+        # 3. no match → create a Diavgeia-sourced authority under a synthetic key.
         org_id = f"DIAV:{org_uid}"
         self.db.execute(
             """INSERT INTO proc.authority
