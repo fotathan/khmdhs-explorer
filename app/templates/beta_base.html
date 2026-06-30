@@ -195,6 +195,29 @@
   .cpv-opt-wild code{font-weight:700;}
   .cpv-empty{padding:9px 11px;font-size:12px;color:var(--ink-3);font-style:italic;}
   .cpv-current{margin-top:7px;font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:7px;}
+  /* ---- CPV browse dialog (top layer) — shared with the act-edit picker ---- */
+  .cpv-ta-wrap{position:relative;}
+  .cpv-browse-btn{background:transparent;border:1px solid var(--accent);color:var(--accent);
+    padding:7px 13px;font-family:var(--sans);font-size:12px;border-radius:6px;cursor:pointer;white-space:nowrap;}
+  .cpv-browse-btn:hover{background:var(--accent);color:#fff;}
+  dialog.cpv-modal{border:0;border-radius:10px;width:min(760px,92vw);max-height:84vh;padding:18px 20px;
+    box-shadow:0 20px 60px rgba(0,0,0,.3);}
+  dialog.cpv-modal::backdrop{background:rgba(0,0,0,.4);}
+  .cpv-modal-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+  .cpv-modal-x{border:1px solid var(--rule);background:var(--paper-2);border-radius:6px;padding:6px 12px;
+    font-family:var(--sans);font-size:11px;cursor:pointer;}
+  .cpv-modal-body{overflow:auto;border-top:1px solid var(--rule);padding-top:10px;}
+  .cpvb-crumbs{font-size:12px;color:var(--ink-2);margin:0 0 10px;}
+  .cpvb-crumbs a{color:var(--accent);text-decoration:none;}
+  .cpvb-crumbs .cpvb-sep{color:var(--ink-3);margin:0 4px;}
+  .cpvb-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .cpvb-table td{padding:6px 8px;border-bottom:1px solid var(--rule);vertical-align:top;}
+  .cpvb-code a{text-decoration:none;} .cpvb-code code{font-family:var(--mono);color:var(--accent);}
+  .cpvb-desc{color:var(--ink-1);}
+  .cpvb-drill{text-align:right;white-space:nowrap;}
+  .cpvb-drill a{color:var(--ink-2);font-size:12px;text-decoration:none;}
+  .cpvb-drill a:hover{color:var(--accent);}
+  .cpvb-empty{color:var(--ink-3);font-style:italic;}
   .cpv-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px;}
   .cpv-chip{display:inline-flex;align-items:center;gap:6px;background:var(--accent-soft);
     border:1px solid #cfe0f7;border-radius:7px;padding:3px 6px 3px 9px;}

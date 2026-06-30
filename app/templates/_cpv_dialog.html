@@ -1,0 +1,39 @@
+{# Reusable CPV hierarchy-browser dialog (native <dialog>, top layer). Open it
+   with cpvOpenDialog(); it drills via /api/cpv-browse and selects via the HOST
+   page's pickCpv(code, desc) (the browse/suggest partials call both). Used by
+   the acts search filter (beta_index.html). Styling lives in beta_base.html. #}
+<dialog id="cpv-modal" class="cpv-modal">
+  <div class="cpv-modal-h">
+    <strong>{{ t("Κωδικοί CPV — επιλογή") }}</strong>
+    <button type="button" class="cpv-modal-x" onclick="cpvCloseDialog()">{{ t("Κλείσιμο παραθύρου ✕") }}</button>
+  </div>
+  <div class="cpv-ta-wrap" style="margin:0 0 12px;">
+    <input type="text" id="cpv-modal-search" autocomplete="off"
+           placeholder="{{ t('Αναζήτηση κωδικού ή περιγραφής…') }}"
+           hx-get="/api/cpv-suggest" hx-trigger="input changed delay:200ms, focus"
+           hx-target="#cpv-modal-suggest" hx-swap="innerHTML"
+           onchange="event.stopPropagation()"
+           hx-vals='js:{term: document.getElementById("cpv-modal-search").value}'>
+    <div id="cpv-modal-suggest"></div>
+  </div>
+  <div id="cpv-browse-body" class="cpv-modal-body"><div class="meta">{{ t("Φόρτωση…") }}</div></div>
+</dialog>
+<script>
+  if (!window.__cpvDialog) {
+    window.__cpvDialog = true;
+    window.cpvOpenDialog = function () {
+      var d = document.getElementById('cpv-modal');
+      if (d.showModal) { d.showModal(); } else { d.setAttribute('open', ''); }
+      cpvBrowse('');
+    };
+    window.cpvCloseDialog = function () {
+      var d = document.getElementById('cpv-modal');
+      if (d.close) { d.close(); } else { d.removeAttribute('open'); }
+    };
+    window.cpvBrowse = function (parent) {
+      fetch('/api/cpv-browse?parent=' + encodeURIComponent(parent))
+        .then(function (r) { return r.text(); })
+        .then(function (html) { document.getElementById('cpv-browse-body').innerHTML = html; });
+    };
+  }
+</script>

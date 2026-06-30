@@ -149,7 +149,10 @@
                  hx-target="#cpv-suggest-mount" hx-swap="innerHTML"
                  hx-vals='js:{term: document.getElementById("cpv-typeahead").value}'>
           <div id="cpv-suggest-mount"></div>
+          <button type="button" class="cpv-browse-btn" onclick="cpvOpenDialog()"
+                  style="margin-top:8px;">{{ t("Επιλογή κωδικών CPV") }}</button>
         </div>
+        {% include "_cpv_dialog.html" %}
       </div>
 
       <div class="fgroup">
@@ -216,12 +219,17 @@
     var form=document.getElementById('filters');
     if(form) form.dispatchEvent(new Event('change',{bubbles:true}));
   }
-  function pickCpv(code){
+  // `code` plus an optional `desc` (the browse dialog / suggest rows pass both;
+  // the search filter only needs the code).
+  function pickCpv(code, desc){
     var chips=document.getElementById('cpv-chips');
     var typeahead=document.getElementById('cpv-typeahead');
     var mount=document.getElementById('cpv-suggest-mount');
     if(mount) mount.innerHTML='';
     if(typeahead) typeahead.value='';
+    // also clear the browse-dialog's own search box + suggestions, if open
+    var mMount=document.getElementById('cpv-modal-suggest'); if(mMount) mMount.innerHTML='';
+    var mSearch=document.getElementById('cpv-modal-search'); if(mSearch) mSearch.value='';
     if(!chips) return;
     // skip duplicates
     var existing=chips.querySelectorAll('.cpv-chip');
