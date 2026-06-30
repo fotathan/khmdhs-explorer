@@ -1034,6 +1034,11 @@ _CPV_EDIT = {
         "These codes come from the imported act's line items. Edit and save them as act-level CPV codes.",
 }
 
+_NUTS_FIELD = {
+    "Αναζήτηση NUTS (κωδικός ή περιοχή)…": "Search NUTS (code or region)…",
+    "π.χ. 11142": "e.g. 11142",
+}
+
 _DIAVGEIA = {
     "Διαύγεια": "Diavgeia",
     "Έγγραφο στη Διαύγεια": "Document on Diavgeia",
@@ -1046,5 +1051,5 @@ UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
-             _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA):
+             _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD):
     UI_EN.update(_grp)

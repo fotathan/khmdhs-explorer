@@ -50,7 +50,7 @@
     <div class="form-grid">
       {% for name, label, kind in fields %}
       {% set val = act.get(name) %}
-      <div class="field {% if kind in ('textarea',) %}field-wide{% endif %}">
+      <div class="field {% if kind in ('textarea', 'nuts') %}field-wide{% endif %}">
         {% if kind == 'bool' %}
           <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; text-transform:none; letter-spacing:0;">
             <input type="checkbox" name="{{ name }}" value="1" {% if val %}checked{% endif %}>
@@ -74,6 +74,14 @@
             <input type="text" name="{{ name }}" value="{{ val or '' }}"
                    placeholder="{{ t('ΑΦΜ ή org_id της αρχής') }}">
             {% if authority_name %}<div class="meta" style="margin-top:4px; letter-spacing:0; text-transform:none;">→ {{ authority_name }}</div>{% endif %}
+          {% elif kind == 'nuts' %}
+            {% include "_nuts_field.html" %}
+          {% elif kind == 'postal' %}
+            <input type="text" name="{{ name }}" value="{{ val or '' }}"
+                   placeholder="{{ t('π.χ. 11142') }}"
+                   onblur="if(window.nutsFromZip) nutsFromZip(this.value)">
+          {% elif kind == 'country' %}
+            <input type="text" name="{{ name }}" value="{{ val or 'Ελλάδα' }}">
           {% else %}
             <input type="text" name="{{ name }}" value="{{ val or '' }}">
           {% endif %}

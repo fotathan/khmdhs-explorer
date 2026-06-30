@@ -1,0 +1,68 @@
+{# Reusable NUTS multi-select picker. Include INSIDE the act form (the hidden
+   name="nuts_code" inputs submit with it). Used by the edit hub
+   (_panel_fields.html) and the create/import form (admin_act_form.html).
+   Expects `nuts` (list of {nuts_code, label}); defaults to empty. Reuses the
+   CPV picker's .cpv-chip/.cpv-suggest styling, which is always present on the
+   same act form. Typing a Τ.Κ. (postal code) on the form calls nutsFromZip(),
+   which adds the mapped region chip. #}
+<div class="cpv-chips" id="act-nuts-chips">
+  {% for n in nuts|default([]) %}
+  <span class="cpv-chip" data-code="{{ n.nuts_code }}">
+    <code>{{ n.nuts_code }}</code> <span class="cpv-chip-d">{{ n.label or '' }}</span>
+    <input type="hidden" name="nuts_code" value="{{ n.nuts_code }}">
+    <button type="button" class="cpv-chip-x" onclick="nutsRemove(this)">✕</button>
+  </span>
+  {% endfor %}
+</div>
+<div class="cpv-input-row">
+  <div class="cpv-ta-wrap">
+    <input type="text" id="act-nuts-search" autocomplete="off"
+           placeholder="{{ t('Αναζήτηση NUTS (κωδικός ή περιοχή)…') }}"
+           hx-get="/api/nuts-suggest" hx-trigger="input changed delay:200ms, focus"
+           hx-target="#act-nuts-suggest" hx-swap="innerHTML"
+           hx-vals='js:{term: document.getElementById("act-nuts-search").value}'>
+    <div id="act-nuts-suggest"></div>
+  </div>
+</div>
+
+<script>
+  if (!window.__nutsField) {
+    window.__nutsField = true;
+    // Add a NUTS code as a chip. Called by the autosuggest (_nuts_suggest.html)
+    // and by the Τ.Κ. → NUTS auto-fill (nutsFromZip).
+    window.pickNuts = function (code, label) {
+      label = label || '';
+      var chips = document.getElementById('act-nuts-chips');
+      if (!chips) { return; }
+      if (chips.querySelector('.cpv-chip[data-code="' + code + '"]')) { _nutsClear(); return; }
+      var span = document.createElement('span');
+      span.className = 'cpv-chip'; span.setAttribute('data-code', code);
+      span.innerHTML = '<code></code> <span class="cpv-chip-d"></span>' +
+        '<input type="hidden" name="nuts_code" value="' + code + '">' +
+        '<button type="button" class="cpv-chip-x" onclick="nutsRemove(this)">✕</button>';
+      span.querySelector('code').textContent = code;
+      span.querySelector('.cpv-chip-d').textContent = label;
+      chips.appendChild(span);
+      _nutsClear();
+    };
+    window.nutsRemove = function (btn) { var ch = btn.closest('.cpv-chip'); if (ch) ch.remove(); };
+    window._nutsClear = function () {
+      var m = document.getElementById('act-nuts-suggest'); if (m) m.innerHTML = '';
+      var s = document.getElementById('act-nuts-search'); if (s) s.value = '';
+    };
+    // Τ.Κ. → NUTS: look up the postal code and add the mapped region chip.
+    window.nutsFromZip = function (zip) {
+      zip = (zip || '').replace(/\D/g, '');
+      if (!zip) { return; }
+      fetch('/api/postal-nuts?zip=' + encodeURIComponent(zip))
+        .then(function (r) { return r.json(); })
+        .then(function (d) { if (d && d.nuts_code) { pickNuts(d.nuts_code, d.label || ''); } });
+    };
+    // Close the suggest list when clicking away from it.
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('#act-nuts-search') && !e.target.closest('#act-nuts-suggest')) {
+        var m = document.getElementById('act-nuts-suggest'); if (m) m.innerHTML = '';
+      }
+    });
+  }
+</script>

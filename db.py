@@ -604,6 +604,44 @@ def cmd_diavgeia_project(args):
         print(f"projected — {n} Diavgeia acts present in proc.procurement_act.")
 
 
+def cmd_load_postal_nuts(args):
+    """Load the Greek postal-code → NUTS-3 mapping into proc.postal_nuts.
+
+    The Eurostat CSV (data/pc2025_EL_NUTS-2024_v1.0.csv) is BOM-prefixed,
+    ';'-delimited and single-quoted ('NUTS3';'CODE'). Idempotent upsert; rows
+    whose NUTS code isn't in proc.nuts_code are skipped (and reported)."""
+    import csv
+    path = args.file or os.path.join(HERE, "data", "pc2025_EL_NUTS-2024_v1.0.csv")
+    if not os.path.exists(path):
+        sys.exit(f"file not found: {path}")
+    rows = []
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        reader = csv.reader(f, delimiter=";")
+        next(reader, None)                     # header: NUTS3;CODE
+        for r in reader:
+            if len(r) < 2:
+                continue
+            nuts = r[0].strip().strip("'").strip()
+            code = r[1].strip().strip("'").strip()
+            if nuts and code:
+                rows.append((code, nuts))
+    inserted = skipped = 0
+    with Database() as db:
+        valid = {r[0] for r in db.query("SELECT nuts_code FROM proc.nuts_code")}
+        for code, nuts in rows:
+            if nuts not in valid:
+                skipped += 1
+                continue
+            db.execute("""INSERT INTO proc.postal_nuts (postal_code, nuts_code)
+                          VALUES (%s,%s)
+                          ON CONFLICT (postal_code) DO UPDATE
+                            SET nuts_code=EXCLUDED.nuts_code""", (code, nuts))
+            inserted += 1
+        db.commit()
+    print(f"postal_nuts loaded from {path}: {inserted} upserted, "
+          f"{skipped} skipped (NUTS not in proc.nuts_code).")
+
+
 def _diavgeia_watermark(db, decision_type: str):
     import diavgeia_ingest as di
     return di.watermark(db, decision_type)
@@ -803,6 +841,12 @@ def main():
                           help="project Diavgeia decisions into procurement_act so "
                                "the web app surfaces them (idempotent)")
     p_dp.set_defaults(func=cmd_diavgeia_project)
+
+    p_pn = sub.add_parser("load-postal-nuts",
+                          help="load the Greek postal-code → NUTS-3 mapping into "
+                               "proc.postal_nuts (idempotent)")
+    p_pn.add_argument("--file", help="path to the CSV (default: data/pc2025_EL_NUTS-2024_v1.0.csv)")
+    p_pn.set_defaults(func=cmd_load_postal_nuts)
 
     p_dcu = sub.add_parser("diavgeia-catchup",
                            help="incremental Diavgeia fetch since last run (per type), "

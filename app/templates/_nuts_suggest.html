@@ -1,0 +1,15 @@
+{# NUTS autosuggest results — clickable options that call pickNuts(code, label).
+   Reuses the .cpv-suggest/.cpv-opt styling already on the act form (from
+   _cpv_field.html), so no extra CSS is needed. #}
+<div class="cpv-suggest">
+  {% for r in rows %}
+  <button type="button" class="cpv-opt"
+          onclick="pickNuts({{ r.nuts_code|tojson|forceescape }}, {{ (r.label or '')|tojson|forceescape }})">
+    <code>{{ r.nuts_code }}</code>
+    <span>{{ r.label or '' }}</span>
+  </button>
+  {% endfor %}
+  {% if not rows %}
+  <div class="cpv-empty">{{ t("Καμία αντιστοιχία.") }}</div>
+  {% endif %}
+</div>

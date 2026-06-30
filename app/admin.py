@@ -916,10 +916,10 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 ("eprocurement_portal", "Πλατφόρμα ηλ. προμηθειών", "text"),
             ],
             "Γεωγραφία": [
-                ("nuts_code", "Κωδικός NUTS", "text"),
+                ("nuts_code", "Κωδικός NUTS", "nuts"),
                 ("city", "Πόλη", "text"),
-                ("postal_code", "Τ.Κ.", "text"),
-                ("country", "Χώρα", "text"),
+                ("postal_code", "Τ.Κ.", "postal"),
+                ("country", "Χώρα", "country"),
             ],
             "Επικοινωνία": [
                 ("contact_email", "Email επικοινωνίας", "text"),
@@ -995,6 +995,21 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 c.execute("INSERT INTO proc.act_cpv (adam, cpv_code, ord) "
                           "VALUES (%s,%s,%s)", (adam, code, i))
 
+        # Place(s) of performance — multi-value NUTS, outside the scalar field
+        # map. The first/primary code is mirrored into procurement_act.nuts_code
+        # automatically (data["nuts_code"] = form.get("nuts_code") = first).
+        nuts_codes = []
+        for code in form.getlist("nuts_code"):
+            code = (code or "").strip()
+            if code and code not in nuts_codes:
+                nuts_codes.append(code)
+
+        def _save_nuts(c, adam):
+            c.execute("DELETE FROM proc.act_nuts WHERE adam=%s", (adam,))
+            for code in nuts_codes:
+                c.execute("INSERT INTO proc.act_nuts (adam, nuts_code) "
+                          "VALUES (%s,%s) ON CONFLICT DO NOTHING", (adam, code))
+
         curator = unquote(request.cookies.get("curator", "")) or "curator"
 
         if mode == "edit":
@@ -1018,6 +1033,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                         WHERE adam = %s""",
                     vals + [curator, adam])
                 _save_cpv(c, adam)
+                _save_nuts(c, adam)
             return RedirectResponse(url=f"/admin/act/{adam}/edit?tab=fields&saved=1",
                                     status_code=303)
         else:
@@ -1045,6 +1061,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                         VALUES ({placeholders})""",
                     all_vals)
                 _save_cpv(c, adam)
+                _save_nuts(c, adam)
             return RedirectResponse(url=f"/admin/act/{adam}/edit?tab=fields&saved=1",
                                     status_code=303)
 
@@ -1425,9 +1442,21 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                              WHERE od.adam=%s ORDER BY oc.cpv_code""", (adam,))
                 cpvs = c.fetchall()
                 cpv_seeded = bool(cpvs)
+            # NUTS region chips: the multi-valued act_nuts, falling back to the
+            # single procurement_act.nuts_code so existing acts pre-populate.
+            c.execute("""SELECT an.nuts_code, nc.label
+                         FROM proc.act_nuts an
+                         LEFT JOIN proc.nuts_code nc ON nc.nuts_code = an.nuts_code
+                         WHERE an.adam=%s ORDER BY an.nuts_code""", (adam,))
+            nuts = c.fetchall()
+            if not nuts and act.get("nuts_code"):
+                c.execute("SELECT nuts_code, label FROM proc.nuts_code WHERE nuts_code=%s",
+                          (act["nuts_code"],))
+                row = c.fetchone()
+                nuts = [row] if row else [{"nuts_code": act["nuts_code"], "label": None}]
         return {"groups": _act_form_fields(), "act": dict(act), "adam": adam,
                 "authority_name": authority_name, "origin": act["origin"],
-                "cpvs": cpvs, "cpv_seeded": cpv_seeded}
+                "cpvs": cpvs, "cpv_seeded": cpv_seeded, "nuts": nuts}
 
     @router.get("/act/{adam}/panel/fields", response_class=HTMLResponse)
     def panel_fields(adam: str, request: Request):

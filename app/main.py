@@ -970,6 +970,46 @@ def cpv_suggest(request: Request, term: str = Query(""), wild: int = Query(1)):
         {"term": term, "digits": digits, "rows": rows, "wild": bool(wild)})
 
 
+@app.get("/api/nuts-suggest", response_class=HTMLResponse)
+def nuts_suggest(request: Request, term: str = Query("")):
+    """Autosuggest for the act-form NUTS picker. Matches Greek NUTS codes (EL*)
+    by code (e.g. 'EL3', '303') or by Greek label (accent- and final-σ-
+    insensitive, like the search). Returns an HTMX fragment of clickable options
+    that call pickNuts(code, label)."""
+    term = term.strip()
+    if not term:
+        return HTMLResponse("")
+    with cursor() as c:
+        c.execute("""
+            SELECT nuts_code, label
+            FROM proc.nuts_code
+            WHERE nuts_code LIKE 'EL%%'
+              AND (upper(nuts_code) LIKE upper(%s)
+                   OR translate(proc.f_unaccent(lower(coalesce(label,''))), 'ς', 'σ')
+                      LIKE translate(proc.f_unaccent(lower(%s)), 'ς', 'σ'))
+            ORDER BY length(nuts_code), nuts_code
+            LIMIT 15
+        """, (f"%{term}%", f"%{term}%"))
+        rows = c.fetchall()
+    return templates.TemplateResponse(request, "_nuts_suggest.html", {"rows": rows})
+
+
+@app.get("/api/postal-nuts")
+def postal_nuts(zip: str = Query("")):
+    """ZIP→NUTS lookup for the act form. Given a Greek postal code, returns the
+    mapped NUTS-3 region as JSON {nuts_code, label}, or {} if unknown."""
+    z = re.sub(r"\D", "", zip or "")
+    if not z:
+        return {}
+    with cursor() as c:
+        c.execute("""SELECT pn.nuts_code, nc.label
+                     FROM proc.postal_nuts pn
+                     JOIN proc.nuts_code nc ON nc.nuts_code = pn.nuts_code
+                     WHERE pn.postal_code = %s""", (z,))
+        row = c.fetchone()
+    return {"nuts_code": row["nuts_code"], "label": row["label"]} if row else {}
+
+
 def _cpv_level_sig(code: str) -> tuple[int, str]:
     """A CPV code's hierarchy level and significant digit-prefix. CPV is
     positional: division = first 2 digits (even when digit 2 is '0', e.g. '30'),
