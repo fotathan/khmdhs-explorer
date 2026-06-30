@@ -224,6 +224,73 @@ def _fetch_act_document(act_type: str, adam: str) -> tuple[bytes, str]:
     return data, fname
 
 
+def _fetch_diavgeia_document(adam: str) -> tuple[bytes, str]:
+    """Fetch a Diavgeia act's document (PDF) by ΑΔΑ, server-side.
+
+    Built from the canonical opendata document endpoint with the ΑΔΑ
+    percent-encoded — the stored source_url/documentUrl carries the raw Greek
+    ΑΔΑ, which urllib can't ASCII-encode. Same caps / hardened SSL / streaming
+    as _fetch_act_document. Returns (data, filename); raises ValueError with a
+    human message on any problem.
+    """
+    import urllib.error
+    import urllib.request
+
+    if not adam:
+        raise ValueError("Λείπει ο ΑΔΑ.")
+    url = (
+        "https://diavgeia.gov.gr/luminapi/opendata/decisions/"
+        f"{quote(adam)}/document"
+    )
+
+    try:
+        try:
+            from app.ocr import _SSL_CTX  # noqa: WPS437 — intentional internal reuse
+        except ImportError:
+            from ocr import _SSL_CTX  # noqa: WPS437
+        ctx = _SSL_CTX
+    except Exception:  # pragma: no cover
+        ctx = None
+
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "KHMDHS-tables/1.0", "Accept": "application/pdf"})
+    try:
+        with urllib.request.urlopen(req, timeout=120, context=ctx) as resp:
+            chunks: list[bytes] = []
+            total = 0
+            while True:
+                chunk = resp.read(64 * 1024)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > MAX_FETCH_BYTES:
+                    raise ValueError(
+                        f"Το έγγραφο ξεπερνά το όριο "
+                        f"({MAX_FETCH_BYTES // (1024 * 1024)} MB) — "
+                        "κατεβάστε το χειροκίνητα και ανεβάστε ό,τι χρειάζεστε."
+                    )
+                chunks.append(chunk)
+            data = b"".join(chunks)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise ValueError(
+                "Δεν βρέθηκε έγγραφο για αυτόν τον ΑΔΑ στη Διαύγεια."
+            ) from exc
+        raise ValueError(f"Σφάλμα λήψης από τη Διαύγεια (HTTP {exc.code}).") from exc
+    except ValueError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise ValueError(f"Αποτυχία λήψης: {exc.__class__.__name__}.") from exc
+
+    if not data:
+        raise ValueError("Η Διαύγεια επέστρεψε κενό έγγραφο.")
+
+    fname = f"{adam}.pdf"
+    if data[:2] == b"PK":  # zip magic
+        fname = f"{adam}.zip"
+    return data, fname
+
+
 # --------------------------------------------------------------------------- #
 # Router factory (mirrors admin.make_router)
 # --------------------------------------------------------------------------- #
@@ -260,14 +327,17 @@ def make_router(templates, cursor) -> APIRouter:
             },
         )
 
-    def _act_type(adam: str) -> str | None:
-        """Resolve an act's type from the DB (so we fetch the right segment)."""
+    def _act_info(adam: str):
+        """Resolve an act's type, data source and source document URL — so we
+        fetch from the right place (KHMDHS attachment endpoint vs the Diavgeia
+        document) and label the identifier (ΑΔΑΜ vs ΑΔΑ) correctly. Returns the
+        row (dict) or None if the act isn't in our DB."""
         with cursor() as c:
             c.execute(
-                "SELECT type FROM proc.procurement_act WHERE adam = %s", (adam,)
+                "SELECT type, data_source, source_url "
+                "FROM proc.procurement_act WHERE adam = %s", (adam,)
             )
-            row = c.fetchone()
-        return row["type"] if row else None
+            return c.fetchone()
 
     # ---- entry: landing page (upload + ΑΔΑΜ box) ----
     @router.get("", response_class=HTMLResponse)
@@ -288,13 +358,19 @@ def make_router(templates, cursor) -> APIRouter:
     def tables_fetch(request: Request, adam: str = Form(...)):
         _prune_sessions()
         adam = adam.strip()
-        act_type = _act_type(adam)
-        if act_type is None:
-            # Not in our DB — fall back to 'notice' segment, which is the most
-            # common, but tell the curator we couldn't confirm the type.
-            act_type = "notice"
+        info = _act_info(adam)
+        data_source = info["data_source"] if info else None
         try:
-            data, fname = _fetch_act_document(act_type, adam)
+            if data_source == "diavgeia":
+                # Diavgeia document lives at the act's source_url, not KHMDHS.
+                data, fname = _fetch_diavgeia_document(adam)
+                id_label = "ΑΔΑ"
+            else:
+                # KHMDHS (or unknown — fall back to the most common 'notice'
+                # segment, but the type stays best-effort).
+                act_type = (info["type"] if info else None) or "notice"
+                data, fname = _fetch_act_document(act_type, adam)
+                id_label = "ΑΔΑΜ"
         except ValueError as exc:
             return HTMLResponse(
                 f"<div class='tt-flash tt-error'>{exc}</div>", status_code=422
@@ -320,7 +396,7 @@ def make_router(templates, cursor) -> APIRouter:
                 "entries": entries,
                 "errors": errors,
                 "total_size": sum(e.size for e in entries),
-                "source_label": f"ΑΔΑΜ {adam}",
+                "source_label": f"{id_label} {adam}",
             },
         )
 
@@ -776,9 +852,14 @@ def make_router(templates, cursor) -> APIRouter:
         """Fetch the act's document and show the file/page picker for text."""
         _prune_sessions()
         adam = adam.strip()
-        act_type = _act_type(adam) or "notice"
+        info = _act_info(adam)
+        data_source = info["data_source"] if info else None
         try:
-            data, fname = _fetch_act_document(act_type, adam)
+            if data_source == "diavgeia":
+                data, fname = _fetch_diavgeia_document(adam)
+            else:
+                act_type = (info["type"] if info else None) or "notice"
+                data, fname = _fetch_act_document(act_type, adam)
         except ValueError as exc:
             return HTMLResponse(
                 f"<div class='tt-flash tt-error'>{exc}</div>", status_code=422
