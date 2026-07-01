@@ -88,6 +88,16 @@ def _ocr_png(png: bytes) -> str:
             pass
 
 
+def ocr_image(data: bytes) -> str | None:
+    """OCR a single already-rendered page image (PNG/JPEG bytes). Used by the
+    interactive full-text editor, which renders pages itself (page-aware, handles
+    PDFs and image files) and hands each one here. None if disabled / empty."""
+    if not data or not enabled():
+        return None
+    txt = _ocr_png(data).strip()  # tesseract sniffs the format from content
+    return txt or None
+
+
 def ocr_pdf(data: bytes, max_pages: int | None = None) -> str | None:
     """Render a PDF's pages and OCR them with Tesseract. Returns the concatenated
     text, or None if the tier is disabled/unavailable, the bytes aren't a PDF, or

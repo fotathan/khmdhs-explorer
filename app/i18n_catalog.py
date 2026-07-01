@@ -968,6 +968,9 @@ _TABLES = {
     "Λάθος ή αλλοιωμένο κείμενο (π.χ. ελληνικοί χαρακτήρες); Δοκιμάστε ανάγνωση μέσω Claude (PDF/εικόνες).":
         "Wrong or garbled text (e.g. Greek characters)? Try reading via Claude (PDF/images).",
     "Ανάγνωση μέσω Claude": "Read via Claude",
+    "✓ Ανάγνωση μέσω τοπικού OCR (Tesseract).": "✓ Read via local OCR (Tesseract).",
+    "Αν το κείμενο δεν είναι αρκετά καλό, δοκιμάστε ανάγνωση μέσω Claude (PDF/εικόνες).":
+        "If the text isn't good enough, try reading via Claude (PDFs/images).",
     'Το <code>ANTHROPIC_API_KEY</code> δεν είναι ορισμένο — ανενεργό.':
         'The <code>ANTHROPIC_API_KEY</code> is not set — disabled.',
     "✓ Ανάγνωση μέσω Claude.": "✓ Read via Claude.",

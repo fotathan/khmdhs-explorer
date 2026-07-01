@@ -291,6 +291,42 @@ def _fetch_diavgeia_document(adam: str) -> tuple[bytes, str]:
     return data, fname
 
 
+def _local_ocr_entry(entry, pages) -> str:
+    """Local (Tesseract) OCR of one file entry, page-aware — mirrors the Claude
+    path (safe_ocr_text_from_entry) but free and offline. Renders pages with the
+    app's crash-isolated renderer and OCRs each via local_ocr. Returns text (''
+    on anything missing/failed); never raises."""
+    try:
+        import local_ocr
+    except Exception:
+        return ""
+    if not local_ocr.enabled():
+        return ""
+    if entry.ext not in (".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp"):
+        return ""
+    if entry.ext == ".pdf":
+        if pages:
+            page_nums = sorted(pages)
+        else:
+            try:
+                total = safe_page_count(entry.data)
+            except Exception:
+                total = 1
+            page_nums = list(range(1, min(total, local_ocr.MAX_PAGES) + 1))
+    else:
+        page_nums = [1]  # a single image file
+    parts: list[str] = []
+    for pg in page_nums:
+        try:
+            img = safe_render_full(entry, pg)
+        except Exception:
+            continue
+        txt = local_ocr.ocr_image(img)
+        if txt:
+            parts.append(txt)
+    return "\n".join(parts).strip()
+
+
 # --------------------------------------------------------------------------- #
 # Router factory (mirrors admin.make_router)
 # --------------------------------------------------------------------------- #
@@ -944,6 +980,36 @@ def make_router(templates, cursor) -> APIRouter:
                 else:
                     skipped.append(entry.source)
         combined = "\n\n".join(chunks).strip()
+
+        # Local OCR auto-pass: when ordinary extraction is empty (scanned) or
+        # garbled (broken fonts), try Tesseract BEFORE the curator reaches for
+        # the paid Claude button. The Claude fallback stays available if the
+        # local result still isn't good enough.
+        via_local = False
+        try:
+            from khmdhs_ingest import looks_garbled
+        except Exception:
+            looks_garbled = lambda s: False  # noqa: E731
+        try:
+            import local_ocr
+            local_on = local_ocr.enabled()
+        except Exception:
+            local_on = False
+        if local_on and ((not combined) or looks_garbled(combined)):
+            oparts, oskipped = [], []
+            for eid in session["order"]:
+                if eid in selected and eid in session["entries"]:
+                    entry = session["entries"][eid]
+                    sel = session["page_sel"].get(eid)
+                    ot = _local_ocr_entry(entry, set(sel) if sel else None)
+                    if ot:
+                        oparts.append(f"=== {entry.source} (OCR) ===\n{ot}")
+                    else:
+                        oskipped.append(entry.source)
+            ocr_combined = "\n\n".join(oparts).strip()
+            if ocr_combined and not looks_garbled(ocr_combined):
+                combined, skipped, via_local = ocr_combined, oskipped, True
+
         return templates.TemplateResponse(
             request, "tables/_fulltext_preview.html",
             {
@@ -955,6 +1021,7 @@ def make_router(templates, cursor) -> APIRouter:
                 "file_ids": list(file_ids),
                 "ocr_available": api_key_present(),
                 "via_ocr": False,
+                "via_local_ocr": via_local,
             },
         )
 
@@ -1019,6 +1086,7 @@ def make_router(templates, cursor) -> APIRouter:
                 "file_ids": list(file_ids),
                 "ocr_available": api_key_present(),
                 "via_ocr": True,
+                "via_local_ocr": False,
             },
         )
 

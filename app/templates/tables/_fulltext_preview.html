@@ -22,10 +22,14 @@
   </p>
   {% endif %}
 
+  {% if via_local_ocr %}
+  <p class="tt-truncated" style="margin-top:.6rem; color:#2e7d32;">{{ t("✓ Ανάγνωση μέσω τοπικού OCR (Tesseract).") }}</p>
+  {% endif %}
+
   {% if not via_ocr and file_ids %}
   <div class="tt-detail" style="border-top:1px dashed var(--tt-rule, #ddd); margin-top:.8rem; padding-top:.7rem;">
     <p class="tt-truncated" style="margin:0 0 .5rem; color:var(--tt-muted, #666);">
-      {{ t("Λάθος ή αλλοιωμένο κείμενο (π.χ. ελληνικοί χαρακτήρες); Δοκιμάστε ανάγνωση μέσω Claude (PDF/εικόνες).") }}
+      {% if via_local_ocr %}{{ t("Αν το κείμενο δεν είναι αρκετά καλό, δοκιμάστε ανάγνωση μέσω Claude (PDF/εικόνες).") }}{% else %}{{ t("Λάθος ή αλλοιωμένο κείμενο (π.χ. ελληνικοί χαρακτήρες); Δοκιμάστε ανάγνωση μέσω Claude (PDF/εικόνες).") }}{% endif %}
     </p>
     {% if ocr_available %}
     <form hx-post="/tables/fulltext/ocr" hx-target="closest .tt-card" hx-swap="outerHTML"

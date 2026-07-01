@@ -25,6 +25,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the application code and templates.
 COPY app/ ./app/
+# The local OCR tier lives at the repo root; the interactive full-text editor
+# (app/tables.py) imports it, so it must be in the image alongside app/.
+COPY local_ocr.py ./
 
 # Render (and most hosts) inject $PORT. Default to 8000 for local `docker run`.
 ENV PORT=8000
