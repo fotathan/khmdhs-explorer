@@ -781,6 +781,26 @@ def looks_garbled(text: str | None) -> bool:
     return False
 
 
+def _local_ocr_text(data: bytes) -> str | None:
+    """Try the local Tesseract OCR tier on a document's bytes. Returns clean text
+    ONLY if it clears the garbled heuristic; otherwise None, so the caller keeps
+    the pdfplumber result (garbled) or flags the doc for the Anthropic tier.
+    Fail-soft + lazily imported so the ingester still runs without the tier."""
+    try:
+        import local_ocr
+    except Exception:
+        return None
+    try:
+        if not local_ocr.enabled():
+            return None
+        ocr = local_ocr.ocr_pdf(data)
+    except Exception:
+        return None
+    if ocr and not looks_garbled(ocr):
+        return ocr
+    return None
+
+
 def extract_full_text_for_act(client: "KhmdhsClient", repo: "Repository",
                               act_type: str, adam: str) -> tuple[bool, int | None, str]:
     """Fetch an act's attachment, extract its text, and store it (fill-only-if-
@@ -813,15 +833,24 @@ def extract_full_text_for_act(client: "KhmdhsClient", repo: "Repository",
             except ImportError:
                 return (False, None, "libs_missing")
         text = extract_text_from_upload(fname, data)
+        garbled = bool(text) and looks_garbled(text)
+        source, used_ocr = "auto:import", False
+        # Local OCR tier: for scanned (no text layer) or garbled (broken-font)
+        # documents, try Tesseract before giving up / flagging for the API tier.
+        if (not text) or garbled:
+            ocr = _local_ocr_text(data)
+            if ocr:
+                text, garbled, source, used_ocr = ocr, False, "auto:ocr-local", True
         if not text:
-            return (False, None, "no_text")  # scanned/image — leave for manual OCR
-        # Flag (don't reject) garbled output: store it but mark the source so it
-        # surfaces for manual OCR; the curator's OCR re-save will overwrite it.
-        garbled = looks_garbled(text)
-        wrote = repo.set_full_text_if_empty(
-            adam, text, source="auto:garbled?" if garbled else "auto:import")
+            return (False, None, "no_text")  # scanned & local OCR unavailable/failed
+        # Flag (don't reject) still-garbled output: stored but marked so it
+        # surfaces for the Anthropic OCR path; a manual re-save overwrites it.
+        if garbled:
+            source = "auto:garbled?"
+        wrote = repo.set_full_text_if_empty(adam, text, source=source)
         if wrote:
-            return (True, len(text), "garbled" if garbled else "extracted")
+            note = "ocr_local" if used_ocr else ("garbled" if garbled else "extracted")
+            return (True, len(text), note)
         return (False, len(text), "exists")
     except Exception:  # noqa: BLE001 — never propagate into the ingest loop
         return (False, None, "error")
@@ -852,12 +881,19 @@ def extract_full_text_status(client: "KhmdhsClient", repo: "Repository",
             except ImportError:
                 return "error"  # libs missing — don't mark, allow retry later
         text = extract_text_from_upload(fname, data)
+        garbled = bool(text) and looks_garbled(text)
+        source = "auto:mass"
+        # Local OCR tier (scanned / garbled) before flagging for the API tier.
+        if (not text) or garbled:
+            ocr = _local_ocr_text(data)
+            if ocr:
+                text, garbled, source = ocr, False, "auto:ocr-local"
         if not text:
             repo.mark_full_text_attempted_empty(adam, "auto:no-text")
             return "empty"
-        garbled = looks_garbled(text)
-        repo.set_full_text_if_empty(
-            adam, text, source="auto:garbled?" if garbled else "auto:mass")
+        if garbled:
+            source = "auto:garbled?"
+        repo.set_full_text_if_empty(adam, text, source=source)
         return "garbled" if garbled else "stored"
     except Exception:  # noqa: BLE001
         return "error"

@@ -11,6 +11,14 @@ FROM python:3.12-slim
 # System deps kept minimal; psycopg[binary] ships its own libpq.
 WORKDIR /app
 
+# Tesseract (+ Greek data) powers the local OCR tier in local_ocr.py — the middle
+# step between pdfplumber and the Anthropic API for scanned / broken-font PDFs.
+# Needed only when OCR runs in the container (e.g. an in-container full-text
+# backfill); harmless otherwise. ~40 MB.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-ell \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install Python deps first (better layer caching).
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
