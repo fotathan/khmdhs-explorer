@@ -968,6 +968,10 @@ _TABLES = {
     "Λάθος ή αλλοιωμένο κείμενο (π.χ. ελληνικοί χαρακτήρες); Δοκιμάστε ανάγνωση μέσω Claude (PDF/εικόνες).":
         "Wrong or garbled text (e.g. Greek characters)? Try reading via Claude (PDF/images).",
     "Ανάγνωση μέσω Claude": "Read via Claude",
+    "+ Γραμμή": "+ Row",
+    "Διαγραφή γραμμής": "Delete row",
+    "Επεξεργαστείτε τα κελιά· η πρώτη γραμμή είναι η κεφαλίδα. Η «Αποθήκευση» ενημερώνει και την αναζήτηση.":
+        "Edit the cells — the first row is the header. Saving also updates the search index.",
     "✓ Ανάγνωση μέσω τοπικού OCR (Tesseract).": "✓ Read via local OCR (Tesseract).",
     "Αν το κείμενο δεν είναι αρκετά καλό, δοκιμάστε ανάγνωση μέσω Claude (PDF/εικόνες).":
         "If the text isn't good enough, try reading via Claude (PDFs/images).",

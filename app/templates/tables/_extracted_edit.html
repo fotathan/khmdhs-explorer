@@ -1,0 +1,93 @@
+{# tables/_extracted_edit.html — editable cell grid for one stored table.
+   Swapped in over the read-only admin row (same #tt-xt-<id> anchor). Save posts
+   the current grid as a JSON 2-D array to /tables/admin/<adam>/<tid>/edit; Cancel
+   restores the unchanged row. content_tsv is generated over `rows`, so search
+   updates automatically. `xt` avoids shadowing the i18n t(). #}
+<figure class="tt-extracted-row" id="tt-xt-{{ xt.id }}"
+        style="border:1px solid var(--accent,#2563c4); border-radius:8px; padding:12px; margin-bottom:12px;">
+  <figcaption style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+    <span class="tt-loc"><b>{{ xt.locator }}</b></span>
+    <span class="tt-name" style="color:var(--ink-2,#666);">{{ xt.source }}</span>
+    <span style="margin-left:auto; display:flex; gap:8px;">
+      <button type="button" class="tt-btn tt-secondary tt-mini"
+              onclick="ttEditAddRow('tt-edit-{{ xt.id }}')">{{ t("+ Γραμμή") }}</button>
+      <button type="button" class="tt-btn tt-mini"
+              hx-post="/tables/admin/{{ adam }}/{{ xt.id }}/edit"
+              hx-vals='js:{rows: JSON.stringify(ttEditCollect("tt-edit-{{ xt.id }}"))}'
+              hx-target="#tt-xt-{{ xt.id }}" hx-swap="outerHTML">{{ t("Αποθήκευση") }}</button>
+      <button type="button" class="tt-btn tt-secondary tt-mini"
+              hx-get="/tables/admin/{{ adam }}/{{ xt.id }}/row"
+              hx-target="#tt-xt-{{ xt.id }}" hx-swap="outerHTML">{{ t("Άκυρο") }}</button>
+    </span>
+  </figcaption>
+
+  <div class="tt-edit-wrap" style="overflow:auto; max-height:60vh;">
+    <table class="tt-edit-grid" id="tt-edit-{{ xt.id }}">
+      <tbody>
+        {% for row in xt.rows %}
+        <tr>
+          {% for cell in row %}
+          <td><input type="text" class="tt-cell" value="{{ cell if cell is not none else '' }}"></td>
+          {% endfor %}
+          <td class="tt-rowdel"><button type="button" title="{{ t('Διαγραφή γραμμής') }}"
+                 onclick="ttEditDelRow(this)">✕</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="tt-truncated" style="margin-top:6px;">
+    {{ t("Επεξεργαστείτε τα κελιά· η πρώτη γραμμή είναι η κεφαλίδα. Η «Αποθήκευση» ενημερώνει και την αναζήτηση.") }}
+  </p>
+</figure>
+
+<script>
+  if (!window.__ttEdit) {
+    window.__ttEdit = true;
+    window.ttEditCollect = function (gridId) {
+      var g = document.getElementById(gridId);
+      if (!g) return [];
+      var out = [];
+      g.querySelectorAll('tbody tr').forEach(function (tr) {
+        var cells = [];
+        tr.querySelectorAll('input.tt-cell').forEach(function (inp) { cells.push(inp.value); });
+        out.push(cells);
+      });
+      return out;
+    };
+    window.ttEditDelRow = function (btn) { var tr = btn.closest('tr'); if (tr) tr.remove(); };
+    window.ttEditAddRow = function (gridId) {
+      var g = document.getElementById(gridId);
+      if (!g) return;
+      var body = g.querySelector('tbody');
+      var first = body.querySelector('tr');
+      var ncols = first ? first.querySelectorAll('input.tt-cell').length : 1;
+      var tr = document.createElement('tr');
+      for (var i = 0; i < ncols; i++) {
+        var td = document.createElement('td');
+        var inp = document.createElement('input');
+        inp.type = 'text'; inp.className = 'tt-cell';
+        td.appendChild(inp); tr.appendChild(td);
+      }
+      var del = document.createElement('td');
+      del.className = 'tt-rowdel';
+      del.innerHTML = '<button type="button" onclick="ttEditDelRow(this)">✕</button>';
+      tr.appendChild(del);
+      body.appendChild(tr);
+    };
+  }
+</script>
+
+<style>
+  .tt-edit-grid { border-collapse: collapse; }
+  .tt-edit-grid td { border: 1px solid var(--rule, #ddd); padding: 0; }
+  .tt-edit-grid input.tt-cell {
+    border: 0; padding: 5px 7px; font-size: 12.5px; min-width: 90px;
+    width: 100%; box-sizing: border-box; background: transparent;
+  }
+  .tt-edit-grid input.tt-cell:focus { outline: 2px solid var(--accent, #2563c4); outline-offset: -2px; }
+  .tt-edit-grid tr:first-child input.tt-cell { font-weight: 600; background: var(--paper-2, #f6f7f9); }
+  .tt-edit-grid td.tt-rowdel { border: 0; }
+  .tt-rowdel button { border: 0; background: transparent; color: var(--ink-3, #999); cursor: pointer; padding: 4px 8px; }
+  .tt-rowdel button:hover { color: #c0392b; }
+</style>

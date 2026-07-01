@@ -19,6 +19,11 @@
               hx-target="#tt-xt-{{ xt.id }}" hx-swap="outerHTML">
         {% if lang=='en' %}{{ "Unpublish" if xt.is_published else "Publish" }}{% else %}{{ "Απόσυρση" if xt.is_published else "Δημοσίευση" }}{% endif %}
       </button>
+      <button type="button" class="tt-btn tt-secondary tt-mini"
+              hx-get="/tables/admin/{{ adam }}/{{ xt.id }}/edit"
+              hx-target="#tt-xt-{{ xt.id }}" hx-swap="outerHTML">
+        {{ t("Επεξεργασία") }}
+      </button>
       <a class="tt-btn tt-secondary tt-mini"
          href="/tables/public/{{ adam }}/{{ xt.id }}.xlsx">Excel</a>
       <button type="button" class="tt-btn tt-secondary tt-mini"

@@ -808,6 +808,70 @@ def make_router(templates, cursor) -> APIRouter:
             )
         return HTMLResponse("")
 
+    def _one_table(adam: str, tid: int):
+        with cursor() as c:
+            c.execute(
+                """SELECT id, source, locator, rows, n_rows, n_cols, is_published
+                   FROM proc.extracted_table WHERE id=%s AND adam=%s""",
+                (tid, adam),
+            )
+            return c.fetchone()
+
+    @router.get("/admin/{adam}/{tid}/row", response_class=HTMLResponse)
+    def tables_admin_row(request: Request, adam: str, tid: int):
+        """Re-render one stored table's admin row unchanged (used to cancel an edit)."""
+        xt = _one_table(adam, tid)
+        if xt is None:
+            return HTMLResponse("", status_code=404)
+        return templates.TemplateResponse(
+            request, "tables/_extracted_row.html",
+            {"adam": adam, "xt": xt, "PREVIEW_ROWS": 5, "PREVIEW_COLS": 10})
+
+    @router.get("/admin/{adam}/{tid}/edit", response_class=HTMLResponse)
+    def tables_admin_edit_form(request: Request, adam: str, tid: int):
+        """Editable cell grid for one stored table (swapped in over its row)."""
+        xt = _one_table(adam, tid)
+        if xt is None:
+            return HTMLResponse("", status_code=404)
+        return templates.TemplateResponse(
+            request, "tables/_extracted_edit.html", {"adam": adam, "xt": xt})
+
+    @router.post("/admin/{adam}/{tid}/edit", response_class=HTMLResponse)
+    async def tables_admin_edit_save(request: Request, adam: str, tid: int):
+        """Persist edited cells back to proc.extracted_table. content_tsv is a
+        generated column over `rows`, so the table search re-indexes itself.
+        Returns the re-rendered (read-only) admin row."""
+        import json as _json
+        form = await request.form()
+        try:
+            grid = _json.loads(form.get("rows") or "[]")
+        except ValueError:
+            return HTMLResponse(
+                "<div class='tt-flash tt-error'>Μη έγκυρα δεδομένα.</div>",
+                status_code=400)
+        # Normalise to a list-of-lists of strings; drop fully-empty trailing rows.
+        norm: list[list[str]] = []
+        for r in grid if isinstance(grid, list) else []:
+            if isinstance(r, list):
+                norm.append(["" if c is None else str(c) for c in r])
+        while norm and all(c.strip() == "" for c in norm[-1]):
+            norm.pop()
+        n_rows = len(norm)
+        n_cols = max((len(r) for r in norm), default=0)
+        with cursor() as c:
+            c.execute(
+                """UPDATE proc.extracted_table
+                   SET rows=%s, n_rows=%s, n_cols=%s
+                   WHERE id=%s AND adam=%s
+                   RETURNING id, source, locator, rows, n_rows, n_cols, is_published""",
+                (Json(norm), n_rows, n_cols, tid, adam))
+            xt = c.fetchone()
+        if xt is None:
+            return HTMLResponse("", status_code=404)
+        return templates.TemplateResponse(
+            request, "tables/_extracted_row.html",
+            {"adam": adam, "xt": xt, "PREVIEW_ROWS": 5, "PREVIEW_COLS": 10})
+
     # ------------------------------------------------------------------ #
     # PUBLIC — published tables for an act, rendered as a lazy-loaded tab on
     # the detail page. Empty body when there are none (the tab hides itself).
