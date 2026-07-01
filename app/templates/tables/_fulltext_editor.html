@@ -51,7 +51,16 @@
       var holder = document.querySelector('.ft-editor');
       if (holder && holder.__quill) {
         holder.__quill.setText(e.detail);
-        holder.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Jump to the Save button (not the editor) so a long text doesn't force
+        // a scroll to reach it; focus it too, so Enter can submit.
+        var form = holder.closest('form');
+        var saveBtn = form && form.querySelector('button[type="submit"]');
+        if (saveBtn) {
+          saveBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          saveBtn.focus({ preventScroll: true });
+        } else {
+          holder.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
       }
     });
   }
