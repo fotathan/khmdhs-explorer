@@ -968,6 +968,8 @@ _TABLES = {
     "Λάθος ή αλλοιωμένο κείμενο (π.χ. ελληνικοί χαρακτήρες); Δοκιμάστε ανάγνωση μέσω Claude (PDF/εικόνες).":
         "Wrong or garbled text (e.g. Greek characters)? Try reading via Claude (PDF/images).",
     "Ανάγνωση μέσω Claude": "Read via Claude",
+    "Επικολλήστε εδώ το πλήρες κείμενο· αποθηκεύεται μαζί με την πράξη, ώστε να συμπληρώσετε τα πεδία διαβάζοντάς το.":
+        "Paste the full text here — it's saved together with the act, so you can fill the fields by reading from it.",
     "+ Γραμμή": "+ Row",
     "Διαγραφή γραμμής": "Delete row",
     "Επεξεργαστείτε τα κελιά· η πρώτη γραμμή είναι η κεφαλίδα. Η «Αποθήκευση» ενημερώνει και την αναζήτηση.":

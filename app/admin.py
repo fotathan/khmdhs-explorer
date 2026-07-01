@@ -1051,6 +1051,20 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             all_cols = ["adam", "origin", "data_source", "authored_by",
                         "last_edited_by", "last_edited_at"] + field_cols
             all_vals = base_vals + [data[c2] for c2 in field_cols]
+            # Full text pasted on the create form. It's columns on the act row,
+            # so it saves in this same INSERT (no need to create the act first).
+            # Mirrors /tables/fulltext/save: plain text + sanitised HTML.
+            ft = (form.get("full_text") or "").strip()
+            if ft:
+                try:
+                    from app.tables import sanitize_full_text_html
+                except ImportError:
+                    from tables import sanitize_full_text_html
+                all_cols += ["full_text", "full_text_html",
+                             "full_text_source", "full_text_extracted_at"]
+                all_vals += [ft,
+                             sanitize_full_text_html(form.get("full_text_html") or ""),
+                             f"manual:{adam}", dt.datetime.now()]
             placeholders = ", ".join(["%s"] * len(all_cols))
             with cursor() as c:
                 c.execute("SELECT 1 FROM proc.procurement_act WHERE adam = %s", (adam,))

@@ -42,6 +42,59 @@
       <input type="text" name="adam" value="" placeholder="{{ t('αφήστε κενό για αυτόματη δημιουργία') }}">
     </div>
   </div>
+
+  {# Full text up front: paste it here first, then fill the fields below by
+     reading from it. Saved in the same submit as the rest of the act. #}
+  <div class="form-section">
+    <div class="form-section-h">{{ t("Πλήρες κείμενο") }}</div>
+    <p class="meta" style="margin:0 0 8px; letter-spacing:0; text-transform:none;">
+      {{ t("Επικολλήστε εδώ το πλήρες κείμενο· αποθηκεύεται μαζί με την πράξη, ώστε να συμπληρώσετε τα πεδία διαβάζοντάς το.") }}
+    </p>
+    <div class="ftc-editor"></div>
+    <input type="hidden" name="full_text" class="ftc-plain">
+    <input type="hidden" name="full_text_html" class="ftc-html">
+  </div>
+  <style>
+    .ftc-editor { background:#fff; }
+    .ftc-editor .ql-editor { min-height:220px; font-size:14px; line-height:1.6; }
+  </style>
+  <script>
+  (function () {
+    var CSS = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css';
+    var JS  = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js';
+    var mount = document.querySelector('.ftc-editor');
+    if (!mount) return;
+    function ensureCss() {
+      if (document.getElementById('ftc-quill-css')) return;
+      var l = document.createElement('link');
+      l.id = 'ftc-quill-css'; l.rel = 'stylesheet'; l.href = CSS;
+      document.head.appendChild(l);
+    }
+    function init() {
+      if (mount.__quill) return;
+      var q = new Quill(mount, { theme: 'snow', modules: { toolbar: [
+        [{ header: [1, 2, 3, false] }], ['bold', 'italic', 'underline'],
+        [{ list: 'ordered' }, { list: 'bullet' }], ['blockquote', 'link'], ['clean'],
+      ] } });
+      mount.__quill = q;
+      var form = mount.closest('form');
+      if (form) {
+        // Plain (non-HTMX) POST: mirror Quill into the hidden inputs on submit,
+        // so full_text + full_text_html post with the create form.
+        form.addEventListener('submit', function () {
+          var empty = q.getText().trim() === '';
+          var plain = form.querySelector('.ftc-plain');
+          var html = form.querySelector('.ftc-html');
+          if (plain) plain.value = empty ? '' : q.getText();
+          if (html) html.value = empty ? '' : q.root.innerHTML;
+        });
+      }
+    }
+    ensureCss();
+    if (window.Quill) { init(); }
+    else { var s = document.createElement('script'); s.src = JS; s.onload = init; document.head.appendChild(s); }
+  })();
+  </script>
   {% endif %}
 
   {% for group, fields in groups.items() %}
