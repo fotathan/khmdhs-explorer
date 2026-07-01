@@ -969,6 +969,8 @@ _TABLES = {
         "Wrong or garbled text (e.g. Greek characters)? Try reading via Claude (PDF/images).",
     "Ανάγνωση μέσω Claude": "Read via Claude",
     "Δίστηλη προβολή: κείμενο | πεδία": "Two-column view: text | fields",
+    "Επικόλληση επιλογής σε πεδίο": "Paste selection into a field",
+    "φιλτράρισμα πεδίου…": "filter field…",
     "Επικολλήστε εδώ το πλήρες κείμενο· αποθηκεύεται μαζί με την πράξη, ώστε να συμπληρώσετε τα πεδία διαβάζοντάς το.":
         "Paste the full text here — it's saved together with the act, so you can fill the fields by reading from it.",
     "+ Γραμμή": "+ Row",

@@ -99,7 +99,97 @@
           if (html) html.value = empty ? '' : q.root.innerHTML;
         });
       }
+      setupPasteMenu(q);
     }
+
+    // Floating "paste selection into a field" menu: highlight text in the
+    // editor and a small list of the free-text fields pops up next to it; click
+    // one to drop the selection into it. Structured widgets (selects, CPV/NUTS,
+    // dates) are intentionally excluded.
+    function setupPasteMenu(q) {
+      var menu = document.createElement('div');
+      menu.className = 'ft-selmenu';
+      menu.style.display = 'none';
+      menu.innerHTML =
+        '<div class="ft-selmenu-h">{{ t("Επικόλληση επιλογής σε πεδίο") }}</div>' +
+        '<input class="ft-selmenu-filter" placeholder="{{ t('φιλτράρισμα πεδίου…') }}">' +
+        '<div class="ft-selmenu-list"></div>';
+      document.body.appendChild(menu);
+      var listEl = menu.querySelector('.ft-selmenu-list');
+      var filterEl = menu.querySelector('.ft-selmenu-filter');
+      var lastText = '';
+
+      function fields() {
+        var scope = document.querySelector('.af-fields') || document;
+        var excl = { cpv_code: 1, nuts_code: 1, full_text: 1, full_text_html: 1 };
+        var res = [];
+        scope.querySelectorAll('input, textarea').forEach(function (el) {
+          if (el.tagName === 'INPUT' && (el.getAttribute('type') || 'text').toLowerCase() !== 'text') return;
+          if (!el.name || excl[el.name]) return;
+          var id = el.id || '';
+          if (id.indexOf('act-cpv') === 0 || id.indexOf('act-nuts') === 0 || id.indexOf('cpv-modal') === 0) return;
+          if (el.offsetParent === null) return;   // hidden
+          var fld = el.closest('.field');
+          var lab = fld && fld.querySelector('label');
+          res.push({ el: el, label: (lab ? lab.textContent : el.name).replace(/\s+/g, ' ').trim() });
+        });
+        return res;
+      }
+      function pasteInto(el, text) {
+        el.value = text;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.classList.add('ft-flash');
+        el.scrollIntoView({ block: 'nearest' });
+        setTimeout(function () { el.classList.remove('ft-flash'); }, 1000);
+      }
+      function build() {
+        listEl.innerHTML = '';
+        fields().forEach(function (f) {
+          var b = document.createElement('button');
+          b.type = 'button'; b.className = 'ft-selitem'; b.textContent = f.label;
+          b.addEventListener('mousedown', function (ev) {
+            ev.preventDefault();               // keep the editor selection alive
+            pasteInto(f.el, lastText);
+            hide();
+          });
+          listEl.appendChild(b);
+        });
+      }
+      filterEl.addEventListener('input', function () {
+        var qq = this.value.toLowerCase();
+        listEl.querySelectorAll('.ft-selitem').forEach(function (b) {
+          b.style.display = b.textContent.toLowerCase().indexOf(qq) >= 0 ? '' : 'none';
+        });
+      });
+      function open(text, rect) {
+        lastText = text; build(); filterEl.value = '';
+        menu.style.display = 'block';
+        menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 266)) + 'px';
+        menu.style.top = (rect.bottom + 6) + 'px';
+      }
+      function hide() { menu.style.display = 'none'; }
+
+      q.on('selection-change', function (range) {
+        if (range && range.length > 0) {
+          var text = (q.getText(range.index, range.length) || '').trim();
+          var sel = window.getSelection();
+          if (text && sel && sel.rangeCount) {
+            open(text, sel.getRangeAt(0).getBoundingClientRect());
+            return;
+          }
+        }
+        // No selection: don't auto-hide (focusing the filter blurs the editor);
+        // the outside-click / scroll handlers dismiss it.
+      });
+      document.addEventListener('mousedown', function (e) {
+        if (menu.style.display === 'none') return;
+        if (menu.contains(e.target) || mount.contains(e.target)) return;
+        hide();
+      });
+      window.addEventListener('scroll', hide, true);
+      window.addEventListener('resize', hide);
+    }
+
     ensureCss();
     if (window.Quill) { init(); }
     else { var s = document.createElement('script'); s.src = JS; s.onload = init; document.head.appendChild(s); }
@@ -240,6 +330,18 @@
     .actform-body.split .af-fulltext{position:static;}
     .actform-body.split .af-fulltext .ql-editor{max-height:none;}
   }
+
+  /* Floating "paste selection into a field" menu (appears on text selection). */
+  .ft-selmenu{position:fixed; z-index:1000; width:252px; padding:7px; background:var(--paper,#fff);
+    border:1px solid var(--rule,#ccc); border-radius:8px; box-shadow:0 8px 28px rgba(0,0,0,.16);}
+  .ft-selmenu-h{font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-3,#888); padding:2px 4px 6px;}
+  .ft-selmenu-filter{width:100%; box-sizing:border-box; padding:5px 8px; font-size:12px; margin-bottom:5px;
+    border:1px solid var(--rule,#ddd); border-radius:5px;}
+  .ft-selmenu-list{max-height:240px; overflow:auto; display:flex; flex-direction:column;}
+  .ft-selitem{display:block; width:100%; text-align:left; background:transparent; border:0; padding:6px 8px;
+    font-size:12.5px; cursor:pointer; border-radius:5px; color:var(--ink,#222);}
+  .ft-selitem:hover{background:var(--accent-soft,#eef3fc);}
+  .ft-flash{outline:2px solid var(--accent,#2563c4) !important; outline-offset:1px;}
 </style>
 <script>
   // View switch: stacked ⇄ two-column (text left / fields right). Persisted so
