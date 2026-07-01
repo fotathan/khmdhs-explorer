@@ -13,11 +13,14 @@ WORKDIR /app
 
 # Tesseract (+ Greek data) powers the local OCR tier in local_ocr.py — the middle
 # step between pdfplumber and the Anthropic API for scanned / broken-font PDFs.
-# Needed only when OCR runs in the container (e.g. an in-container full-text
-# backfill); harmless otherwise. ~40 MB.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-ell \
-    && rm -rf /var/lib/apt/lists/*
+# NON-FATAL: the OCR tier self-disables gracefully (local_ocr.available()) if the
+# binary is missing, so a transient apt failure must never fail the whole deploy.
+# Retries guard against flaky package mirrors on the build host.
+RUN (apt-get update -o Acquire::Retries=5 \
+     && apt-get install -y --no-install-recommends -o Acquire::Retries=5 \
+        tesseract-ocr tesseract-ocr-ell \
+     && rm -rf /var/lib/apt/lists/*) \
+    || echo "WARNING: tesseract install failed — local OCR tier disabled at runtime"
 
 # Install Python deps first (better layer caching).
 COPY requirements.txt .
