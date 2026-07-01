@@ -32,7 +32,8 @@ import sys
 from urllib.parse import unquote
 from typing import Optional
 
-from fastapi import APIRouter, Form, HTTPException, Query, Request, status
+from fastapi import (APIRouter, File, Form, HTTPException, Query, Request,
+                     UploadFile, status)
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
@@ -1780,5 +1781,117 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             c.execute("""DELETE FROM proc.entity_group WHERE id=%s AND kind=%s""",
                       (group_id, kind))
         return RedirectResponse(url=f"/admin/merge/{kind}", status_code=303)
+
+    # ------------------------------------------------------------------ #
+    # ATTACHMENTS — upload/store original files per act and search inside
+    # them. LOCAL-ONLY: bytes live on the local filesystem (app/attachments),
+    # the DB holds only text+metadata, and everything is gated on
+    # attachments.enabled() (ATTACHMENTS_ENABLED) so prod stores nothing.
+    # ------------------------------------------------------------------ #
+    def _attachments():
+        try:
+            from app import attachments as _att
+        except ImportError:
+            import attachments as _att   # flat layout (--app-dir=app)
+        return _att
+
+    def _attach_ctx(adam: str) -> dict:
+        att = _attachments()
+        rows = []
+        if att.enabled():
+            with cursor() as c:
+                c.execute("""SELECT id, filename, mimetype, size_bytes, n_inner,
+                                    (extracted_text IS NOT NULL AND extracted_text <> '') AS searchable,
+                                    uploaded_at
+                             FROM proc.act_attachment WHERE adam=%s
+                             ORDER BY id DESC""", (adam,))
+                rows = c.fetchall()
+        return {"adam": adam, "attachments": rows, "attachments_enabled": att.enabled()}
+
+    @router.get("/act/{adam}/panel/attachments", response_class=HTMLResponse)
+    def panel_attachments(adam: str, request: Request):
+        return templates.TemplateResponse(
+            request, "_panel_attachments.html", _attach_ctx(adam))
+
+    @router.post("/act/{adam}/attachments", response_class=HTMLResponse)
+    async def attachment_upload(adam: str, request: Request,
+                                files: list[UploadFile] = File(default=[])):
+        att = _attachments()
+        if not att.enabled():
+            return HTMLResponse(
+                "<div class='tt-flash tt-error'>Τα συνημμένα είναι ανενεργά εδώ.</div>",
+                status_code=403)
+        with cursor() as c:
+            c.execute("SELECT 1 FROM proc.procurement_act WHERE adam=%s", (adam,))
+            if not c.fetchone():
+                raise HTTPException(404, "act not found")
+        try:
+            from app.extractors import extract_text_from_upload, collect_files
+        except ImportError:
+            from extractors import extract_text_from_upload, collect_files
+        curator = unquote(request.cookies.get("curator", "")) or "curator"
+        for uf in files:
+            data = await uf.read()
+            if not data:
+                continue
+            try:
+                meta = att.store(adam, uf.filename, data)
+            except att.AttachmentError as exc:
+                return HTMLResponse(
+                    f"<div class='tt-flash tt-error'>{exc}</div>", status_code=400)
+            # Searchable text (reuses the extractor: unpacks zips, reads
+            # pdf/docx/xlsx/csv). Fail-soft — a file we can't read is still stored.
+            text, n_inner = None, None
+            try:
+                text = extract_text_from_upload(uf.filename, data)
+                entries, _ = collect_files(uf.filename, data)
+                n_inner = len(entries)
+            except Exception:  # noqa: BLE001
+                pass
+            with cursor() as c:
+                c.execute(
+                    """INSERT INTO proc.act_attachment
+                         (adam, filename, mimetype, size_bytes, checksum,
+                          storage_backend, storage_ref, extracted_text, n_inner, uploaded_by)
+                       VALUES (%s,%s,%s,%s,%s,'local_fs',%s,%s,%s,%s)""",
+                    (adam, uf.filename, meta["mimetype"], meta["size"], meta["checksum"],
+                     meta["storage_ref"], text, n_inner, curator))
+                c.execute("UPDATE proc.procurement_act SET has_attachments=true WHERE adam=%s",
+                          (adam,))
+        return templates.TemplateResponse(
+            request, "_attachment_list.html", _attach_ctx(adam))
+
+    @router.get("/act/{adam}/attachments/{aid}/download")
+    def attachment_download(adam: str, aid: int):
+        att = _attachments()
+        if not att.enabled():
+            raise HTTPException(403, "attachments disabled")
+        with cursor() as c:
+            c.execute("""SELECT filename, mimetype, storage_ref
+                         FROM proc.act_attachment WHERE id=%s AND adam=%s""", (aid, adam))
+            row = c.fetchone()
+        if not row:
+            raise HTTPException(404, "attachment not found")
+        try:
+            data = att.load(row["storage_ref"])
+        except att.AttachmentError:
+            raise HTTPException(404, "stored file missing")
+        fname = (row["filename"] or "attachment").replace('"', "")
+        return Response(
+            content=data, media_type=row["mimetype"] or "application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
+    @router.delete("/act/{adam}/attachments/{aid}", response_class=HTMLResponse)
+    def attachment_delete(adam: str, aid: int):
+        att = _attachments()
+        if not att.enabled():
+            raise HTTPException(403, "attachments disabled")
+        with cursor() as c:
+            c.execute("""DELETE FROM proc.act_attachment WHERE id=%s AND adam=%s
+                         RETURNING storage_ref""", (aid, adam))
+            row = c.fetchone()
+        if row:
+            att.remove(row["storage_ref"])
+        return HTMLResponse("")
 
     return router

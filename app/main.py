@@ -137,6 +137,13 @@ templates.env.globals["tables_enabled"] = (
     os.environ.get("TABLES_ENABLED", "1") == "1"
 )
 
+# Attachment upload/store + search-inside is LOCAL-ONLY for now (prod is a
+# free-tier DB with no room for the raw files). Default OFF. When off, the edit
+# hub tab is hidden and build_where emits no attachment clause — so prod never
+# references proc.act_attachment (that table is applied to the local DB only).
+ATTACHMENTS_ENABLED = os.environ.get("ATTACHMENTS_ENABLED", "0") == "1"
+templates.env.globals["attachments_enabled"] = ATTACHMENTS_ENABLED
+
 # --- Single source of truth for act-type display labels (Greek) ------------- #
 # Used by every template via the |type_label filter. Internal codes ("notice",
 # "auction", …) stay English everywhere they're a contract — URLs, form values,
@@ -466,6 +473,16 @@ def build_where(params: dict) -> tuple[str, list]:
                     WHERE et.adam = a.adam AND et.is_published AND {tbl_sql}
                 )""")
                 qargs.extend(tbl_args)
+            # Uploaded attachments (LOCAL-ONLY, flag-gated). Off in prod → clause
+            # never emitted → proc.act_attachment need not exist there.
+            if ATTACHMENTS_ENABLED:
+                att_sql, att_args = _text_search_clause(q, "att.content_tsv", "att.filename")
+                if att_sql:
+                    parts.append(f"""EXISTS (
+                        SELECT 1 FROM proc.act_attachment att
+                        WHERE att.adam = a.adam AND {att_sql}
+                    )""")
+                    qargs.extend(att_args)
             if parts:
                 where.append("(" + " OR ".join(parts) + ")")
                 args.extend(qargs)

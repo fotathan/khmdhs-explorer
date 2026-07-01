@@ -58,6 +58,12 @@
           hx-get="/admin/act/{{ act.adam }}/panel/tables"
           hx-target="#edit-panel" hx-swap="innerHTML"
           onclick="ttEditTab(this)">{{ t("Πίνακες") }}</button>
+  {% if attachments_enabled %}
+  <button class="edit-tab {% if tab=='attachments' %}on{% endif %}" id="tab-attachments" role="tab"
+          hx-get="/admin/act/{{ act.adam }}/panel/attachments"
+          hx-target="#edit-panel" hx-swap="innerHTML"
+          onclick="ttEditTab(this)">{{ t("Συνημμένα") }}</button>
+  {% endif %}
 </div>
 
 {# The requested tab's panel loads on page open via hx-trigger=load; the others

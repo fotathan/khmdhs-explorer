@@ -25,3 +25,6 @@ venv/
 # Data dumps (don't commit large CSVs/DB dumps unless you mean to)
 *.dump
 *.sql.gz
+
+# Local-only attachment binaries (see app/attachments.py)
+attachment_store/

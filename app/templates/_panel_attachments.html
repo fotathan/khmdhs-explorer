@@ -1,0 +1,67 @@
+{# Attachments panel (edit hub → "Συνημμένα" tab). Upload + list stored files
+   and search inside them. LOCAL-ONLY: gated on attachments_enabled. Reuses the
+   tt-* styles from tables/_tt_assets.html (already on the hub). #}
+{% if not attachments_enabled %}
+<p class="tt-truncated" style="color:var(--ink-3,#999); padding:14px 0;">
+  {{ t("Τα συνημμένα είναι διαθέσιμα μόνο στο τοπικό περιβάλλον (η βάση παραγωγής δεν έχει διαθέσιμο χώρο).") }}
+</p>
+{% else %}
+<div class="tt-wrap">
+  <div class="section-h" style="margin-top:6px;">{{ t("Μεταφόρτωση συνημμένων") }}</div>
+  <form id="att-upload-form" hx-post="/admin/act/{{ adam }}/attachments"
+        hx-target="#att-list" hx-swap="outerHTML"
+        hx-encoding="multipart/form-data" hx-indicator="#att-busy">
+    <div class="tt-dropzone" id="att-dropzone">
+      <p><strong>{{ t("Σύρετε εδώ αρχεία") }}</strong> {{ t("ή") }}</p>
+      <button type="button" class="tt-btn tt-secondary"
+              onclick="document.getElementById('att-file-input').click()">
+        {{ t("Επιλογή αρχείων") }}
+      </button>
+      <p class="tt-formats">.pdf · .docx · .xlsx · .xls · .csv · .zip · εικόνες</p>
+      <input type="file" id="att-file-input" name="files" multiple hidden>
+      <div class="tt-filelist" id="att-filelist"></div>
+    </div>
+    <p>
+      <button type="submit" class="tt-btn" id="att-upload-btn" disabled>{{ t("Μεταφόρτωση & ευρετηρίαση") }}</button>
+      <span class="tt-indicator" id="att-busy">{{ t("επεξεργασία…") }}</span>
+    </p>
+  </form>
+  <p class="tt-truncated" style="margin-top:-4px;">
+    {{ t("Τα αρχεία αποθηκεύονται τοπικά· το κείμενό τους (και όσων περιέχονται σε zip) γίνεται αναζητήσιμο από την κύρια αναζήτηση.") }}
+  </p>
+
+  {% include "_attachment_list.html" %}
+</div>
+
+<script>
+  (function () {
+    var input = document.getElementById('att-file-input');
+    var zone = document.getElementById('att-dropzone');
+    var list = document.getElementById('att-filelist');
+    var btn = document.getElementById('att-upload-btn');
+    if (!input || !zone) return;
+    function refresh() {
+      var names = [].map.call(input.files, function (f) { return f.name; });
+      if (list) list.textContent = names.length ? names.join('  ·  ') : '';
+      if (btn) btn.disabled = names.length === 0;
+    }
+    input.addEventListener('change', refresh);
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.add('tt-dragover'); });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.remove('tt-dragover'); });
+    });
+    zone.addEventListener('drop', function (e) {
+      if (e.dataTransfer.files.length) { input.files = e.dataTransfer.files; refresh(); }
+    });
+    // Clear the picker after a successful upload so the next drop starts fresh.
+    document.body.addEventListener('htmx:afterRequest', function (e) {
+      var p = (e.detail && e.detail.requestConfig && e.detail.requestConfig.path) || '';
+      if (p.indexOf('/attachments') !== -1 && e.detail.successful && input) {
+        input.value = ''; refresh();
+      }
+    });
+  })();
+</script>
+{% endif %}

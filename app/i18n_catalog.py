@@ -1058,11 +1058,25 @@ _DIAVGEIA = {
     "Η πράξη στη Διαύγεια": "The act on Diavgeia",
 }
 
+_ATTACHMENTS = {
+    "Μεταφόρτωση συνημμένων": "Upload attachments",
+    "Σύρετε εδώ αρχεία": "Drag files here",
+    "Μεταφόρτωση & ευρετηρίαση": "Upload & index",
+    "αναζητήσιμο": "searchable",
+    "αρχεία μέσα στο zip": "files inside the zip",
+    "Δεν υπάρχουν συνημμένα ακόμη.": "No attachments yet.",
+    "Διαγραφή συνημμένου;": "Delete this attachment?",
+    "Τα συνημμένα είναι διαθέσιμα μόνο στο τοπικό περιβάλλον (η βάση παραγωγής δεν έχει διαθέσιμο χώρο).":
+        "Attachments are available only on the local environment (the production DB has no spare space).",
+    "Τα αρχεία αποθηκεύονται τοπικά· το κείμενό τους (και όσων περιέχονται σε zip) γίνεται αναζητήσιμο από την κύρια αναζήτηση.":
+        "Files are stored locally; their text (and that of any zipped files) becomes searchable from the main search.",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
-             _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD):
+             _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS):
     UI_EN.update(_grp)

@@ -1,0 +1,38 @@
+{# Stored-attachments list for one act. Returned standalone by the upload POST
+   (swaps #att-list) and included by _panel_attachments.html. #}
+<div id="att-list" style="margin-top:16px;">
+  {% if attachments %}
+  <table class="att-table" style="width:100%; border-collapse:collapse; font-size:13px;">
+    <tbody>
+      {% for a in attachments %}
+      <tr id="att-row-{{ a.id }}" style="border-bottom:1px solid var(--rule,#eee);">
+        <td style="padding:8px 6px;">
+          <span style="font-family:var(--mono,monospace);">{{ a.filename or '—' }}</span>
+          {% if a.n_inner and a.n_inner > 1 %}
+            <span class="tt-badge" title="{{ t('αρχεία μέσα στο zip') }}">zip · {{ a.n_inner }}</span>
+          {% endif %}
+          {% if a.searchable %}
+            <span class="tt-badge ok">{{ t("αναζητήσιμο") }}</span>
+          {% else %}
+            <span class="tt-badge">{{ t("χωρίς κείμενο") }}</span>
+          {% endif %}
+        </td>
+        <td style="padding:8px 6px; text-align:right; color:var(--ink-2,#666); white-space:nowrap;">
+          {{ ((a.size_bytes or 0) / 1024) | round(0) | int }} KB
+        </td>
+        <td style="padding:8px 6px; text-align:right; white-space:nowrap;">
+          <a class="tt-btn tt-secondary tt-mini"
+             href="/admin/act/{{ adam }}/attachments/{{ a.id }}/download">{{ t("Λήψη") }}</a>
+          <button type="button" class="tt-btn tt-secondary tt-mini"
+                  hx-delete="/admin/act/{{ adam }}/attachments/{{ a.id }}"
+                  hx-target="#att-row-{{ a.id }}" hx-swap="outerHTML"
+                  hx-confirm="{{ t('Διαγραφή συνημμένου;') }}">{{ t("Διαγραφή") }}</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="tt-truncated" style="color:var(--ink-3,#999);">{{ t("Δεν υπάρχουν συνημμένα ακόμη.") }}</p>
+  {% endif %}
+</div>
