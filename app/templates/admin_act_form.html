@@ -42,11 +42,21 @@
       <input type="text" name="adam" value="" placeholder="{{ t('αφήστε κενό για αυτόματη δημιουργία') }}">
     </div>
   </div>
+  <div class="af-toggle">
+    <label class="af-switch">
+      <input type="checkbox" id="af-split-toggle" onchange="afToggleSplit(this.checked)">
+      {{ t("Δίστηλη προβολή: κείμενο | πεδία") }}
+    </label>
+  </div>
+  {% endif %}
 
-  {# Full text up front: paste it here first, then fill the fields below by
-     reading from it. Saved in the same submit as the rest of the act. #}
-  <div class="form-section">
-    <div class="form-section-h">{{ t("Πλήρες κείμενο") }}</div>
+  <div class="actform-body" id="actform-body">
+  {% if mode=='create' %}
+    <div class="af-fulltext">
+      {# Full text up front: paste it here first, then fill the fields (right / below
+         in two-column view) by reading from it. Saved in the same submit. #}
+      <div class="form-section">
+        <div class="form-section-h">{{ t("Πλήρες κείμενο") }}</div>
     <p class="meta" style="margin:0 0 8px; letter-spacing:0; text-transform:none;">
       {{ t("Επικολλήστε εδώ το πλήρες κείμενο· αποθηκεύεται μαζί με την πράξη, ώστε να συμπληρώσετε τα πεδία διαβάζοντάς το.") }}
     </p>
@@ -95,7 +105,9 @@
     else { var s = document.createElement('script'); s.src = JS; s.onload = init; document.head.appendChild(s); }
   })();
   </script>
+    </div>{# .af-fulltext #}
   {% endif %}
+    <div class="af-fields">
 
   {% for group, fields in groups.items() %}
   <div class="form-section">
@@ -146,6 +158,8 @@
   {% endfor %}
 
   {% include "_cpv_field.html" %}
+    </div>{# .af-fields #}
+  </div>{# .actform-body #}
 
   <div style="background:var(--paper); border-top:1px solid var(--rule); padding:16px 0; margin-top:8px; display:flex; gap:12px; align-items:center;">
     <button type="submit"
@@ -209,5 +223,37 @@
     text-transform:uppercase; color:var(--ink-3); }
   .edit-tab:hover { color:var(--accent); }
   .edit-tab.on { color:var(--accent); border-bottom-color:var(--accent); }
+
+  /* Two-column ("full text | fields") view for the create form. Off by default
+     (stacked: text on top, fields below); the switch flips .actform-body.split. */
+  .af-toggle{display:flex; justify-content:flex-end; margin:10px 0 0;}
+  .af-switch{display:inline-flex; align-items:center; gap:8px; font-size:12px;
+    color:var(--ink-2); cursor:pointer; text-transform:none; letter-spacing:0;}
+  .actform-body.split{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    gap:26px; align-items:start;}
+  .actform-body.split .af-fulltext{position:sticky; top:8px;}
+  .actform-body.split .af-fulltext .ql-editor{max-height:74vh; overflow:auto;}
+  .actform-body.split .af-fields .form-grid{grid-template-columns:1fr;}
+  .actform-body.split .af-fields .form-grid .field-wide{grid-column:span 1;}
+  @media (max-width:900px){
+    .actform-body.split{grid-template-columns:1fr;}
+    .actform-body.split .af-fulltext{position:static;}
+    .actform-body.split .af-fulltext .ql-editor{max-height:none;}
+  }
 </style>
+<script>
+  // View switch: stacked ⇄ two-column (text left / fields right). Persisted so
+  // the curator's preference sticks across acts.
+  function afToggleSplit(on){
+    var b=document.getElementById('actform-body');
+    if(b) b.classList.toggle('split', !!on);
+    try{ localStorage.setItem('af_split', on ? '1' : '0'); }catch(e){}
+  }
+  (function(){
+    var t=document.getElementById('af-split-toggle');
+    if(!t) return;
+    var pref='0'; try{ pref=localStorage.getItem('af_split')||'0'; }catch(e){}
+    if(pref==='1'){ t.checked=true; afToggleSplit(true); }
+  })();
+</script>
 {% endblock %}
