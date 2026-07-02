@@ -224,7 +224,12 @@ def cmd_fulltext_backfill(args):
     limit = args.limit
 
     # Build the WHERE for "untried" acts, with optional type/date filters.
-    where = ["full_text IS NULL", "full_text_source IS NULL"]
+    # Exclude Diavgeia acts: their documents live on diavgeia.gov.gr, not the
+    # KHMDHS attachment endpoint this pass uses, so fetching them here would fail
+    # and (worse) mark them tried-empty — blocking the dedicated
+    # diavgeia-fulltext-backfill. They have their own bulk pass.
+    where = ["full_text IS NULL", "full_text_source IS NULL",
+             "data_source IS DISTINCT FROM 'diavgeia'"]
     params: list = []
     where.append("type = ANY(%s)")
     params.append(types)
@@ -605,6 +610,81 @@ def cmd_diavgeia_backfill(args):
     return totals
 
 
+def cmd_diavgeia_fulltext_backfill(args):
+    """Mass full-text extraction over Diavgeia acts ALREADY projected into
+    procurement_act that don't have text yet. The Diavgeia counterpart of
+    fulltext-backfill: selects 'never tried' acts (full_text NULL and
+    full_text_source NULL, data_source='diavgeia'), fetches + parses each act's
+    Diavgeia document, and stores the text. Resumable (each act commits as it
+    finishes; scanned/no-document acts are marked tried-empty so a re-run skips
+    them) and bounded by --limit. Logs one per-act row per attempt when launched
+    from the admin panel (INGEST_JOB_ID), so the job page shows the list + filter.
+    """
+    import diavgeia_ingest as di
+
+    limit = args.limit
+    where = ["data_source='diavgeia'", "(full_text IS NULL OR full_text='')",
+             "full_text_source IS NULL", "origin <> 'authored'"]
+    params: list = []
+    if args.start:
+        where.append("coalesce(submission_date, signed_date) >= %s")
+        params.append(dt.date.fromisoformat(args.start))
+    if args.end:
+        where.append("coalesce(submission_date, signed_date) <= %s")
+        params.append(dt.date.fromisoformat(args.end))
+    where_sql = " AND ".join(where)
+
+    final_status = "done"
+    with Database() as db:
+      try:
+        repo = di.DiavgeiaRepository(db, di.DiavgeiaClient())
+        remaining = db.query(
+            f"SELECT count(*) FROM proc.procurement_act WHERE {where_sql}",
+            tuple(params))[0][0]
+        print(f"untried Diavgeia acts matching filter: {remaining:,}")
+        if remaining == 0:
+            print("nothing to do.")
+            return
+        rows = db.query(
+            f"""SELECT adam, type, title FROM proc.procurement_act
+                WHERE {where_sql}
+                ORDER BY coalesce(submission_date, signed_date) DESC NULLS LAST
+                LIMIT %s""",
+            tuple(params) + (limit,))
+        print(f"this run will attempt: {len(rows):,} (limit={limit})\n")
+
+        n = {"stored": 0, "garbled": 0, "empty": 0, "error": 0}
+        for i, (adam, act_type, title) in enumerate(rows, start=1):
+            extracted, chars, note = di._extract_diavgeia_full_text(repo, adam)
+            if note in ("extracted", "ocr_local"):
+                n["stored"] += 1
+            elif note == "garbled":
+                n["garbled"] += 1
+                print(f"  ! garbled extraction (flagged for OCR): {adam}")
+            elif note in ("no_attachment", "no_text", "libs_missing"):
+                # tried and got nothing → mark so a re-run skips it.
+                repo.mark_full_text_attempted_empty(adam, note)
+                n["empty"] += 1
+            else:  # 'error' / 'exists' / anything else
+                n["error" if note == "error" else "empty"] += 1
+            if di.INGEST_JOB_ID:
+                # procurement_act.type is already a readable act_type enum
+                # (notice/contract/…), which type_label renders directly.
+                repo.log_act(di.INGEST_JOB_ID, adam, str(act_type), title,
+                             "updated", extracted, chars, note)
+            db.commit()  # commit each act → resumable
+            if i % 100 == 0 or i == len(rows):
+                print(f"  {i:>6}/{len(rows)}  stored={n['stored']} "
+                      f"garbled={n['garbled']} empty={n['empty']} error={n['error']}")
+      except BaseException:
+        final_status = "error"
+        raise
+      finally:
+        _finalize_job(db, final_status)
+    print(f"\ndiavgeia full-text backfill: stored={n['stored']} "
+          f"garbled={n['garbled']} empty={n['empty']} error={n['error']}")
+
+
 def cmd_diavgeia_resolve(args):
     """Resolve Diavgeia references decoupled from ingest: authority dedup (by ΑΦΜ)
     always; signer/unit dictionary labels with --dictionaries (one API call per
@@ -831,6 +911,17 @@ def main():
     p_ft.add_argument("--start", help="YYYY-MM-DD; only acts on/after this date")
     p_ft.add_argument("--end", help="YYYY-MM-DD; only acts on/before this date")
     p_ft.set_defaults(func=cmd_fulltext_backfill)
+
+    p_dft = sub.add_parser("diavgeia-fulltext-backfill",
+                           help="extract & store full text for already-imported "
+                                "DIAVGEIA acts that don't have it yet "
+                                "(resumable, --limit)")
+    p_dft.add_argument("--limit", type=int, default=5000,
+                       help="max acts to attempt this run (default: 5000). "
+                            "Re-run to continue; it's resumable.")
+    p_dft.add_argument("--start", help="YYYY-MM-DD; only acts on/after this date")
+    p_dft.add_argument("--end", help="YYYY-MM-DD; only acts on/before this date")
+    p_dft.set_defaults(func=cmd_diavgeia_fulltext_backfill)
 
     p_cu = sub.add_parser("catchup",
                           help="incremental fetch since last run (per type), "

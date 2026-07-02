@@ -390,6 +390,10 @@ _ADMIN1 = {
     "όριο ανά εκτέλεση": "limit per run",
     "Πόσες πράξεις θα επιχειρηθούν αυτή τη φορά.": "How many acts will be attempted this time.",
     "Εκκίνηση εξαγωγής κειμένου": "Start text extraction",
+    "Μαζική εξαγωγή πλήρους κειμένου (Διαύγεια)": "Bulk full-text extraction (Diavgeia)",
+    'Για πράξεις της <strong>Διαύγειας</strong> που υπάρχουν ήδη στη βάση αλλά δεν έχουν πλήρες κείμενο. Αντλεί το έγγραφο από τη Διαύγεια & αποθηκεύει το κείμενο σε παρτίδες (resumable — μπορείτε να το ξανατρέξετε για να συνεχίσει). Τα σαρωμένα PDF παραλείπονται.':
+        'For <strong>Diavgeia</strong> acts that already exist in the database but have no full text. Fetches the document from Diavgeia & stores the text in batches (resumable — you can re-run it to continue). Scanned PDFs are skipped.',
+    "Εκκίνηση εξαγωγής κειμένου (Διαύγεια)": "Start text extraction (Diavgeia)",
     "Πρόσφατες εκτελέσεις": "Recent runs",
     "Παράμετροι": "Parameters",
     "Εκκίνηση": "Started",

@@ -665,6 +665,18 @@ class DiavgeiaRepository:
             {"text": text, "source": source, "adam": adam})
         return bool(n)
 
+    def mark_full_text_attempted_empty(self, adam: str, reason: str) -> None:
+        """Record that we tried and got nothing (scanned/no document), WITHOUT
+        setting full_text — so the resumable mass pass (which selects on
+        full_text_source IS NULL) doesn't re-download the same dead documents on
+        every run. Only marks still-untouched, non-authored rows."""
+        self.db.execute(
+            """UPDATE proc.procurement_act
+               SET full_text_extracted_at=now(), full_text_source=%(reason)s
+               WHERE adam=%(adam)s AND origin <> 'authored'
+                 AND full_text IS NULL AND full_text_source IS NULL""",
+            {"reason": reason, "adam": adam})
+
     def extract_fulltext_pass(self, job_id: int) -> dict:
         """Post-projection full-text pass: for each act this job logged as
         'pending', fetch its Diavgeia document, extract text (pdfplumber → local
