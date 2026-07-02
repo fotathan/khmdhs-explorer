@@ -27,6 +27,7 @@ import mimetypes
 import os
 import re
 import uuid
+from urllib.parse import quote
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIR = os.environ.get("ATTACHMENTS_DIR", os.path.join(_REPO_ROOT, "attachment_store"))
@@ -36,6 +37,15 @@ MAX_BYTES = int(os.environ.get("ATTACH_MAX_MB", "80")) * 1024 * 1024
 
 def enabled() -> bool:
     return os.environ.get("ATTACHMENTS_ENABLED", "0") == "1"
+
+
+def content_disposition(filename: str) -> str:
+    """A latin-1-safe Content-Disposition for a download. HTTP header values must
+    be latin-1, so a Greek filename in a bare filename="…" 500s the server. Emit
+    an ASCII fallback plus an RFC 5987 filename* with the real UTF-8 name."""
+    name = (filename or "attachment").replace('"', "").replace("\\", "")
+    ascii_fallback = name.encode("ascii", "ignore").decode("ascii").strip() or "attachment"
+    return f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{quote(name)}"
 
 
 class AttachmentError(Exception):

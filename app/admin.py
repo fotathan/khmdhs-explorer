@@ -1876,10 +1876,9 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             data = att.load(row["storage_ref"])
         except att.AttachmentError:
             raise HTTPException(404, "stored file missing")
-        fname = (row["filename"] or "attachment").replace('"', "")
         return Response(
             content=data, media_type=row["mimetype"] or "application/octet-stream",
-            headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+            headers={"Content-Disposition": att.content_disposition(row["filename"])})
 
     @router.delete("/act/{adam}/attachments/{aid}", response_class=HTMLResponse)
     def attachment_delete(adam: str, aid: int):

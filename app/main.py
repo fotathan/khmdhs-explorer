@@ -1667,10 +1667,9 @@ def act_attachment_download(adam: str, aid: int):
         data = att.load(row["storage_ref"])
     except att.AttachmentError:
         raise HTTPException(404, "stored file missing")
-    fname = (row["filename"] or "attachment").replace('"', "")
     return _Response(
         content=data, media_type=row["mimetype"] or "application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+        headers={"Content-Disposition": att.content_disposition(row["filename"])})
 
 
 @app.get("/act/{adam}/attachments.zip")
@@ -1703,10 +1702,10 @@ def act_attachments_zip(adam: str):
             else:
                 seen[name] = 0
             z.writestr(name, data)
-    fname = f"{adam}-attachments.zip".replace('"', "").replace("/", "_")
     return _Response(
         content=buf.getvalue(), media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+        headers={"Content-Disposition": att.content_disposition(
+            f"{adam}-attachments.zip".replace('/', '_'))})
 
 
 
