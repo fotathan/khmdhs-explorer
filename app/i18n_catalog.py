@@ -1065,6 +1065,8 @@ _ATTACHMENTS = {
     "αναζητήσιμο": "searchable",
     "αρχεία μέσα στο zip": "files inside the zip",
     "Δεν υπάρχουν συνημμένα ακόμη.": "No attachments yet.",
+    "Λήψη όλων (zip)": "Download all (zip)",
+    "αρχεία": "files",
     "Διαγραφή συνημμένου;": "Delete this attachment?",
     "Τα συνημμένα είναι διαθέσιμα μόνο στο τοπικό περιβάλλον (η βάση παραγωγής δεν έχει διαθέσιμο χώρο).":
         "Attachments are available only on the local environment (the production DB has no spare space).",

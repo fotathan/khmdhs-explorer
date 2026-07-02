@@ -246,6 +246,21 @@
           <span><span class="at">{{ t("Έγγραφο στη Διαύγεια") if is_diavgeia else t("Έγγραφο στο ΚΗΜΔΗΣ") }}</span><span class="ad">{{ t("Η πράξη στη Διαύγεια") if is_diavgeia else t("Το επίσημο PDF της πράξης") }}</span></span>
         </a>
         {% endif %}
+
+        {% if attachments %}
+        {% if attachments|length > 1 %}
+        <a class="action-link" href="/act/{{ n.adam }}/attachments.zip">
+          <span class="ico">⭳</span>
+          <span><span class="at">{{ t("Λήψη όλων (zip)") }}</span><span class="ad">{{ attachments|length }} {{ t("αρχεία") }}</span></span>
+        </a>
+        {% endif %}
+        {% for a in attachments %}
+        <a class="action-link" href="/act/{{ n.adam }}/attachment/{{ a.id }}">
+          <span class="ico">⭳</span>
+          <span><span class="at">{{ a.filename or 'attachment' }}</span><span class="ad">{{ ((a.size_bytes or 0) / 1024) | round(0) | int }} KB</span></span>
+        </a>
+        {% endfor %}
+        {% endif %}
       </div>
 
       <div class="sidecard">

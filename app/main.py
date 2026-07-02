@@ -1616,12 +1616,22 @@ def act_detail(adam: str, request: Request):
         elif annotation and annotation.get("flag") == "suspicious":
             excluded_reason = "flagged"
 
+    # Uploaded attachments (LOCAL-ONLY, flag-gated) — surfaced on the detail page
+    # for download. Prod (flag off) never queries proc.act_attachment.
+    attachments = []
+    if ATTACHMENTS_ENABLED:
+        with cursor() as c:
+            c.execute("""SELECT id, filename, size_bytes FROM proc.act_attachment
+                         WHERE adam=%s ORDER BY id""", (adam,))
+            attachments = c.fetchall()
+
     return templates.TemplateResponse(
         request, "beta_act.html",
         {"n": notice,
          "line_items": line_items,
          "operators": operators,
          "act_cpvs": act_cpvs,
+         "attachments": attachments,
          "act_categories": act_categories,
          "downstream": downstream,
          "incoming": incoming,
@@ -1631,6 +1641,72 @@ def act_detail(adam: str, request: Request):
              notice.get(f) is not None for f in EXTENDED_ACT_FIELDS),
          "nav_active": "search"},
     )
+
+
+def _attachments_mod():
+    try:
+        from app import attachments as _att
+    except ImportError:
+        import attachments as _att
+    return _att
+
+
+@app.get("/act/{adam}/attachment/{aid}")
+def act_attachment_download(adam: str, aid: int):
+    """Download one uploaded attachment from the detail page (LOCAL-ONLY)."""
+    if not ATTACHMENTS_ENABLED:
+        raise HTTPException(404, "not found")
+    att = _attachments_mod()
+    with cursor() as c:
+        c.execute("""SELECT filename, mimetype, storage_ref
+                     FROM proc.act_attachment WHERE id=%s AND adam=%s""", (aid, adam))
+        row = c.fetchone()
+    if not row:
+        raise HTTPException(404, "attachment not found")
+    try:
+        data = att.load(row["storage_ref"])
+    except att.AttachmentError:
+        raise HTTPException(404, "stored file missing")
+    fname = (row["filename"] or "attachment").replace('"', "")
+    return _Response(
+        content=data, media_type=row["mimetype"] or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
+
+@app.get("/act/{adam}/attachments.zip")
+def act_attachments_zip(adam: str):
+    """Download all of an act's uploaded attachments as one zip (LOCAL-ONLY)."""
+    if not ATTACHMENTS_ENABLED:
+        raise HTTPException(404, "not found")
+    att = _attachments_mod()
+    with cursor() as c:
+        c.execute("""SELECT id, filename, storage_ref FROM proc.act_attachment
+                     WHERE adam=%s ORDER BY id""", (adam,))
+        rows = c.fetchall()
+    if not rows:
+        raise HTTPException(404, "no attachments")
+    import io
+    import zipfile
+    buf = io.BytesIO()
+    seen: dict[str, int] = {}
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for r in rows:
+            try:
+                data = att.load(r["storage_ref"])
+            except att.AttachmentError:
+                continue
+            name = r["filename"] or f"attachment-{r['id']}"
+            if name in seen:                     # de-dup identical filenames
+                seen[name] += 1
+                base, dot, ext = name.rpartition(".")
+                name = f"{base} ({seen[name]}){dot}{ext}" if dot else f"{name} ({seen[name]})"
+            else:
+                seen[name] = 0
+            z.writestr(name, data)
+    fname = f"{adam}-attachments.zip".replace('"', "").replace("/", "_")
+    return _Response(
+        content=buf.getvalue(), media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'})
 
 
 
