@@ -47,6 +47,7 @@ TYPE_LABELS_EN = {
     "contract": "Contract",
     "payment":  "Payment order",
     "request":  "Primary request",
+    "award":    "Award decision",
 }
 CONTRACT_TYPES_EN = {
     "9":  "Services",

@@ -152,10 +152,17 @@ def _finalize_job(db, status: str):
     so the runner itself is what moves its job row out of 'running' on the way
     out. No-op for plain shell runs (no INGEST_JOB_ID). Guarded on
     status='running' so it never overrides a 'cancelled' the cancel button set.
+
+    Reads INGEST_JOB_ID straight from the environment (rather than
+    khmdhs_ingest.INGEST_JOB_ID) so this works for ANY harvester the admin panel
+    launches — khmdhs backfill and diavgeia-backfill alike.
     """
-    import khmdhs_ingest as ingest
-    job_id = ingest.INGEST_JOB_ID
-    if job_id is None:
+    raw = os.environ.get("INGEST_JOB_ID")
+    if not raw:
+        return
+    try:
+        job_id = int(raw)
+    except ValueError:
         return
     try:
         db.rollback()  # clear any failed transaction so the UPDATE can run
@@ -552,25 +559,34 @@ def cmd_diavgeia_backfill(args):
         client = di.DiavgeiaClient()
         repo = di.DiavgeiaRepository(db, client)
         totals = {"windows": 0, "done": 0, "skipped": 0, "errored": 0}
-        for name in names:
-            uid = di.NAME_TO_UID[name]
-            print(f"\n=== diavgeia {name} ({uid}): {start} .. {end}"
-                  f"{' (resume)' if args.resume else ''} ===")
-            s = di.ingest_type(client, repo, uid, start, end, resume=args.resume)
-            for k in totals:
-                totals[k] += s[k]
-        # Authority dedup runs as a bounded post-pass (one API call per distinct
-        # organization), decoupled from the per-decision hot path. --skip-resolve
-        # to defer it to a later `diavgeia-resolve`.
-        if not args.skip_resolve:
-            print("\n=== resolving authorities (dedupe by ΑΦΜ) ===")
-            n = repo.resolve_authorities()
-            print(f"  resolved {n} distinct organizations into proc.authority")
-        # Project into procurement_act so the web app surfaces the new acts.
-        if not args.skip_project:
-            print("\n=== projecting into procurement_act (app-facing) ===")
-            n = repo.project_all()
-            print(f"  {n} Diavgeia acts present in proc.procurement_act")
+        # Mirror cmd_backfill: on an admin-launched run, move the ingest_job row
+        # out of 'running' on the way out (done on clean exit, error on crash).
+        final_status = "done"
+        try:
+            for name in names:
+                uid = di.NAME_TO_UID[name]
+                print(f"\n=== diavgeia {name} ({uid}): {start} .. {end}"
+                      f"{' (resume)' if args.resume else ''} ===")
+                s = di.ingest_type(client, repo, uid, start, end, resume=args.resume)
+                for k in totals:
+                    totals[k] += s[k]
+            # Authority dedup runs as a bounded post-pass (one API call per distinct
+            # organization), decoupled from the per-decision hot path. --skip-resolve
+            # to defer it to a later `diavgeia-resolve`.
+            if not args.skip_resolve:
+                print("\n=== resolving authorities (dedupe by ΑΦΜ) ===")
+                n = repo.resolve_authorities()
+                print(f"  resolved {n} distinct organizations into proc.authority")
+            # Project into procurement_act so the web app surfaces the new acts.
+            if not args.skip_project:
+                print("\n=== projecting into procurement_act (app-facing) ===")
+                n = repo.project_all()
+                print(f"  {n} Diavgeia acts present in proc.procurement_act")
+        except BaseException:
+            final_status = "error"
+            raise
+        finally:
+            _finalize_job(db, final_status)
     print(f"\ndiavgeia backfill complete. windows={totals['windows']} "
           f"done={totals['done']} skipped={totals['skipped']} "
           f"errored={totals['errored']}")

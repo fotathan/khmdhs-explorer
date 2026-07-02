@@ -50,6 +50,15 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
 
     ACT_TYPES = ["request", "notice", "auction", "contract", "payment"]
 
+    # Diavgeia decision types the admin panel can harvest. Keys are the readable
+    # names stored in proc.ingest_job.types; values are the Diavgeia decision-type
+    # UIDs used as decision_type in proc.diavgeia_ingest_window. Source of truth
+    # is diavgeia_ingest.NAME_TO_UID — kept in sync here so the web app doesn't
+    # have to import the ingest module (and its API deps).
+    DIAVGEIA_TYPES = {"notice": "Δ.2.1", "award": "Δ.2.2", "contract": "Γ.3.4"}
+    DIAVGEIA_TYPE_NAMES = list(DIAVGEIA_TYPES)
+    DIAVGEIA_UID_TO_NAME = {v: k for k, v in DIAVGEIA_TYPES.items()}
+
     # How many per-act log rows the job page shows inline; the rest are reachable
     # via the CSV download. Keeps the page light when a run touched many acts.
     ACT_LOG_PREVIEW = 200
@@ -105,20 +114,33 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         (or 'error' if any errored); work still unfinished or no windows ever
         registered ⇒ 'stale'. Called on every admin page load — cheap."""
         with cursor() as c:
-            c.execute("""SELECT id, pid, types, date_from, date_to
+            c.execute("""SELECT id, pid, types, date_from, date_to, source
                          FROM proc.ingest_job WHERE status='running'""")
             rows = c.fetchall()
             for r in rows:
                 if pid_alive(r["pid"]):
                     continue
-                c.execute("""SELECT
-                               count(*) AS total,
-                               count(*) FILTER (WHERE status IN ('pending','running')) AS unfinished,
-                               count(*) FILTER (WHERE status='error') AS errored
-                             FROM proc.ingest_window
-                             WHERE act_type = ANY(%s)
-                               AND date_from >= %s AND date_to <= %s""",
-                          (r["types"], r["date_from"], r["date_to"]))
+                # Which window table holds this job's progress depends on source.
+                if r["source"] == "diavgeia":
+                    uids = [DIAVGEIA_TYPES[t] for t in (r["types"] or [])
+                            if t in DIAVGEIA_TYPES]
+                    c.execute("""SELECT
+                                   count(*) AS total,
+                                   count(*) FILTER (WHERE status IN ('pending','running')) AS unfinished,
+                                   count(*) FILTER (WHERE status='error') AS errored
+                                 FROM proc.diavgeia_ingest_window
+                                 WHERE decision_type = ANY(%s)
+                                   AND date_from >= %s AND date_to <= %s""",
+                              (uids, r["date_from"], r["date_to"]))
+                else:
+                    c.execute("""SELECT
+                                   count(*) AS total,
+                                   count(*) FILTER (WHERE status IN ('pending','running')) AS unfinished,
+                                   count(*) FILTER (WHERE status='error') AS errored
+                                 FROM proc.ingest_window
+                                 WHERE act_type = ANY(%s)
+                                   AND date_from >= %s AND date_to <= %s""",
+                              (r["types"], r["date_from"], r["date_to"]))
                 w = c.fetchone()
                 if not w["total"] or w["unfinished"]:
                     new_status = "stale"
@@ -159,7 +181,8 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         reconcile_stale()
         with cursor() as c:
             c.execute("""SELECT id, status, types, date_from, date_to, resume,
-                                started_at, finished_at, exit_code, last_error, pid
+                                started_at, finished_at, exit_code, last_error, pid,
+                                source
                          FROM proc.ingest_job
                          ORDER BY started_at DESC LIMIT 30""")
             jobs = c.fetchall()
@@ -173,11 +196,33 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                          FROM proc.ingest_window
                          GROUP BY act_type ORDER BY act_type""")
             window_summary = c.fetchall()
+            # Same coverage roll-up for Diavgeia, keyed by decision_type UID which
+            # we re-label to a readable name for the template.
+            diavgeia_summary = []
+            try:
+                c.execute("""SELECT decision_type,
+                                    count(*) AS windows,
+                                    sum(CASE WHEN status='done' THEN 1 ELSE 0 END) AS done_n,
+                                    sum(CASE WHEN status='error' THEN 1 ELSE 0 END) AS error_n,
+                                    min(date_from) AS covered_from,
+                                    max(date_to) AS covered_to
+                             FROM proc.diavgeia_ingest_window
+                             GROUP BY decision_type ORDER BY decision_type""")
+                for r in c.fetchall():
+                    r["act_type"] = DIAVGEIA_UID_TO_NAME.get(
+                        r["decision_type"], r["decision_type"])
+                    diavgeia_summary.append(r)
+            except Exception:
+                # Diavgeia window table absent (e.g. an environment without the
+                # diavgeia migration) — just show no Diavgeia coverage.
+                diavgeia_summary = []
         return templates.TemplateResponse(
             request, "admin_index.html",
             {"jobs": jobs, "window_summary": window_summary,
+             "diavgeia_summary": diavgeia_summary,
              "running_now": any_running(),
              "act_types": ACT_TYPES,
+             "diavgeia_types": DIAVGEIA_TYPE_NAMES,
              "today": dt.date.today().isoformat(),
              "default_start": (dt.date.today() - dt.timedelta(days=180)).isoformat(),
              "admin_tab": "collection"},
@@ -336,6 +381,84 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
 
         return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
 
+    @router.post("/jobs/diavgeia")
+    def admin_start_diavgeia_job(request: Request,
+                                 date_from: str = Form(...),
+                                 date_to: str = Form(""),
+                                 types: list[str] = Form(default=[]),
+                                 resume: str = Form(default="")):
+        """Spawn a Diavgeia harvest (db.py diavgeia-backfill) over an issueDate
+        range. Parallel to admin_start_job but for the Diavgeia source: harvests
+        decisions, dedups authorities, and projects into procurement_act so the
+        acts surface in the app. Tracked in the same proc.ingest_job table with
+        source='diavgeia', so the job page / cancel / monitoring all work."""
+        try:
+            df = dt.date.fromisoformat(date_from)
+            dtt = dt.date.fromisoformat(date_to) if date_to else dt.date.today()
+        except ValueError:
+            raise HTTPException(400, "invalid date (expected YYYY-MM-DD)")
+        if dtt < df:
+            raise HTTPException(400, "date_to must be on or after date_from")
+        chosen = [t for t in types if t in DIAVGEIA_TYPES]
+        if not chosen:
+            chosen = DIAVGEIA_TYPE_NAMES[:]
+        resume_flag = bool(resume)
+
+        reconcile_stale()
+        if any_running():
+            raise HTTPException(409,
+                "another backfill is already running; cancel it or wait for it to finish")
+
+        root = project_root()
+        cmd = [sys.executable, os.path.join(root, "db.py"), "diavgeia-backfill",
+               "--start", df.isoformat(), "--end", dtt.isoformat(),
+               "--types", *chosen]
+        if resume_flag:
+            cmd.append("--resume")
+
+        with cursor() as c:
+            c.execute("""INSERT INTO proc.ingest_job
+                         (status, types, date_from, date_to, resume, source)
+                         VALUES ('running', %s, %s, %s, %s, 'diavgeia')
+                         RETURNING id""",
+                      (chosen, df, dtt, resume_flag))
+            job_id = c.fetchone()["id"]
+        log_path = os.path.join(LOG_DIR, f"job-{job_id}.log")
+
+        job_env = {**os.environ}
+        # Diavgeia harvest has no full-text pass; make sure a stray env flag from
+        # the parent process doesn't turn one on.
+        job_env.pop("EXTRACT_FULLTEXT", None)
+        job_env["INGEST_JOB_ID"] = str(job_id)
+
+        log_fh = open(log_path, "w")
+        log_fh.write(
+            f"# diavgeia backfill job {job_id}: types={chosen} "
+            f"{df.isoformat()}..{dtt.isoformat()} resume={resume_flag}\n\n")
+        log_fh.flush()
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=log_fh, stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True,
+                cwd=root,
+                env=job_env,
+            )
+        except Exception as e:
+            with cursor() as c:
+                c.execute("""UPDATE proc.ingest_job
+                             SET status='error', last_error=%s, finished_at=now()
+                             WHERE id=%s""", (f"spawn failed: {e!r}", job_id))
+            log_fh.close()
+            raise HTTPException(500, f"failed to launch subprocess: {e!r}")
+
+        with cursor() as c:
+            c.execute("""UPDATE proc.ingest_job SET pid=%s, log_path=%s
+                         WHERE id=%s""", (proc.pid, log_path, job_id))
+
+        return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
+
     @router.get("/jobs/{job_id}", response_class=HTMLResponse)
     def admin_job_detail(job_id: int, request: Request,
                          ftf: str = Query("all")):
@@ -350,46 +473,74 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             job = c.fetchone()
             if not job:
                 raise HTTPException(404, f"job {job_id} not found")
-            # Detailed window progress for the act types this job touches,
-            # scoped to its date range. Same source of truth the runner writes.
-            c.execute("""SELECT act_type, date_from, date_to, status,
-                                last_error, started_at, finished_at
-                         FROM proc.ingest_window
-                         WHERE act_type = ANY(%s)
-                           AND date_from >= %s AND date_to <= %s
-                         ORDER BY act_type, date_from""",
-                      (job["types"], job["date_from"], job["date_to"]))
-            windows = c.fetchall()
-            # Roll-up counters for the header.
-            c.execute("""SELECT status, count(*) FROM proc.ingest_window
-                         WHERE act_type = ANY(%s)
-                           AND date_from >= %s AND date_to <= %s
-                         GROUP BY status""",
-                      (job["types"], job["date_from"], job["date_to"]))
-            counts = {r["status"]: r["count"] for r in c.fetchall()}
 
-            # Per-act transparency log for this run: counts by action, full-text
-            # tally, and the most recent rows (the rest are in the CSV download).
-            c.execute("""SELECT action, count(*) AS n
-                         FROM proc.ingest_act_log WHERE job_id=%s
-                         GROUP BY action""", (job_id,))
-            act_actions = {r["action"]: r["n"] for r in c.fetchall()}
-            c.execute("""SELECT count(*) AS total,
-                                count(*) FILTER (WHERE full_text_extracted) AS ft_yes,
-                                count(*) FILTER (WHERE full_text_note='garbled') AS ft_garbled
-                         FROM proc.ingest_act_log WHERE job_id=%s""", (job_id,))
-            ftrow = c.fetchone()
-            act_log_total = ftrow["total"] if ftrow else 0
-            act_ft_yes = ftrow["ft_yes"] if ftrow else 0
-            act_ft_garbled = ftrow["ft_garbled"] if ftrow else 0
-            c.execute(f"""SELECT adam, act_type, title, action,
-                                full_text_extracted, full_text_chars,
-                                full_text_note, logged_at
-                         FROM proc.ingest_act_log
-                         WHERE job_id=%s {_FT_FILTERS[ftf]}
-                         ORDER BY id DESC LIMIT %s""",
-                      (job_id, ACT_LOG_PREVIEW))
-            act_log = c.fetchall()
+            if job["source"] == "diavgeia":
+                # Diavgeia progress lives in a different window table, keyed by
+                # decision_type UID; re-label to a readable name for the page.
+                uids = [DIAVGEIA_TYPES[t] for t in (job["types"] or [])
+                        if t in DIAVGEIA_TYPES]
+                c.execute("""SELECT decision_type, date_from, date_to, status,
+                                    last_error, started_at, finished_at
+                             FROM proc.diavgeia_ingest_window
+                             WHERE decision_type = ANY(%s)
+                               AND date_from >= %s AND date_to <= %s
+                             ORDER BY decision_type, date_from""",
+                          (uids, job["date_from"], job["date_to"]))
+                windows = c.fetchall()
+                for w in windows:
+                    w["act_type"] = DIAVGEIA_UID_TO_NAME.get(
+                        w["decision_type"], w["decision_type"])
+                c.execute("""SELECT status, count(*) FROM proc.diavgeia_ingest_window
+                             WHERE decision_type = ANY(%s)
+                               AND date_from >= %s AND date_to <= %s
+                             GROUP BY status""",
+                          (uids, job["date_from"], job["date_to"]))
+                counts = {r["status"]: r["count"] for r in c.fetchall()}
+                # The per-act transparency log is a KHMDHS-only feature.
+                act_actions = {}
+                act_log_total = act_ft_yes = act_ft_garbled = 0
+                act_log = []
+            else:
+                # Detailed window progress for the act types this job touches,
+                # scoped to its date range. Same source of truth the runner writes.
+                c.execute("""SELECT act_type, date_from, date_to, status,
+                                    last_error, started_at, finished_at
+                             FROM proc.ingest_window
+                             WHERE act_type = ANY(%s)
+                               AND date_from >= %s AND date_to <= %s
+                             ORDER BY act_type, date_from""",
+                          (job["types"], job["date_from"], job["date_to"]))
+                windows = c.fetchall()
+                # Roll-up counters for the header.
+                c.execute("""SELECT status, count(*) FROM proc.ingest_window
+                             WHERE act_type = ANY(%s)
+                               AND date_from >= %s AND date_to <= %s
+                             GROUP BY status""",
+                          (job["types"], job["date_from"], job["date_to"]))
+                counts = {r["status"]: r["count"] for r in c.fetchall()}
+
+                # Per-act transparency log for this run: counts by action, full-text
+                # tally, and the most recent rows (the rest are in the CSV download).
+                c.execute("""SELECT action, count(*) AS n
+                             FROM proc.ingest_act_log WHERE job_id=%s
+                             GROUP BY action""", (job_id,))
+                act_actions = {r["action"]: r["n"] for r in c.fetchall()}
+                c.execute("""SELECT count(*) AS total,
+                                    count(*) FILTER (WHERE full_text_extracted) AS ft_yes,
+                                    count(*) FILTER (WHERE full_text_note='garbled') AS ft_garbled
+                             FROM proc.ingest_act_log WHERE job_id=%s""", (job_id,))
+                ftrow = c.fetchone()
+                act_log_total = ftrow["total"] if ftrow else 0
+                act_ft_yes = ftrow["ft_yes"] if ftrow else 0
+                act_ft_garbled = ftrow["ft_garbled"] if ftrow else 0
+                c.execute(f"""SELECT adam, act_type, title, action,
+                                    full_text_extracted, full_text_chars,
+                                    full_text_note, logged_at
+                             FROM proc.ingest_act_log
+                             WHERE job_id=%s {_FT_FILTERS[ftf]}
+                             ORDER BY id DESC LIMIT %s""",
+                          (job_id, ACT_LOG_PREVIEW))
+                act_log = c.fetchall()
 
         # Tail the log file (last ~4 KB) without loading the whole thing.
         log_tail = ""

@@ -366,6 +366,16 @@ _ADMIN1 = {
     "Εκκίνηση συλλογής": "Start collection",
     "Η εκτέλεση γίνεται σε ξεχωριστή διαδικασία και επιβιώνει σε επανεκκίνηση του server. Διαστήματα 180 ημερών γίνονται αυτόματα.":
         "The run happens in a separate process and survives a server restart. 180-day windows are handled automatically.",
+    "Νέα συλλογή Διαύγειας": "New Diavgeia collection",
+    "Άντληση αποφάσεων από τη Διαύγεια (diavgeia.gov.gr) — προκηρύξεις, αναθέσεις και συμβάσεις — με βάση την ημερομηνία ανάρτησης. Μετά την άντληση, γίνεται αυτόματα ταύτιση αναθετουσών αρχών και ένταξη στην εφαρμογή.":
+        "Harvest decisions from Diavgeia (diavgeia.gov.gr) — notices, awards and contracts — by posting date. After harvesting, awarding authorities are matched and the acts are surfaced in the app automatically.",
+    "τύποι αποφάσεων (επιλέξτε ένα ή περισσότερα — αν τίποτα, όλοι)":
+        "decision types (pick one or more — if none, all)",
+    "Εκκίνηση συλλογής Διαύγειας": "Start Diavgeia collection",
+    "Η εκτέλεση γίνεται σε ξεχωριστή διαδικασία και επιβιώνει σε επανεκκίνηση του server. Διαστήματα γίνονται αυτόματα.":
+        "The run happens in a separate process and survives a server restart. Windows are handled automatically.",
+    "ΚΗΜΔΗΣ": "KHMDHS",
+    "Κάλυψη Διαύγειας": "Diavgeia coverage",
     "Μαζική εξαγωγή πλήρους κειμένου": "Bulk full-text extraction",
     'Για πράξεις που <strong>υπάρχουν ήδη</strong> στη βάση αλλά δεν έχουν πλήρες κείμενο. Αντλεί & αποθηκεύει το κείμενο σε παρτίδες (resumable — μπορείτε να το ξανατρέξετε για να συνεχίσει). Τα σαρωμένα PDF παραλείπονται.':
         'For acts that <strong>already exist</strong> in the database but have no full text. Fetches & stores the text in batches (resumable — you can re-run it to continue). Scanned PDFs are skipped.',

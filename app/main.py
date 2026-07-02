@@ -154,6 +154,8 @@ TYPE_LABELS = {
     "contract": "Σύμβαση",
     "payment":  "Εντολή Πληρωμής",
     "request":  "Πρωτογενές Αίτημα",
+    # Diavgeia decision type (Δ.2.2), distinct from the KHMDHS 'auction' award.
+    "award":    "Ανάθεση",
 }
 # Which act types appear as filter OPTIONS, in display order. 'request' is kept
 # in TYPE_LABELS (so any such act still gets a proper label if encountered) but

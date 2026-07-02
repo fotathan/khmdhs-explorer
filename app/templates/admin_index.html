@@ -77,6 +77,53 @@
     {% endif %}
 
     {% if not running_now %}
+    <div class="section-h" style="margin-top:28px;">{{ t("Νέα συλλογή Διαύγειας") }}</div>
+    <p class="meta" style="margin-top:-4px; margin-bottom:12px;">
+      {{ t("Άντληση αποφάσεων από τη Διαύγεια (diavgeia.gov.gr) — προκηρύξεις, αναθέσεις και συμβάσεις — με βάση την ημερομηνία ανάρτησης. Μετά την άντληση, γίνεται αυτόματα ταύτιση αναθετουσών αρχών και ένταξη στην εφαρμογή.") }}
+    </p>
+    <form method="post" action="/admin/jobs/diavgeia" style="margin-bottom:20px;">
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-bottom:12px;">
+        <div class="field">
+          <label>{{ t("από") }}</label>
+          <input type="date" name="date_from" value="{{ default_start }}" required>
+        </div>
+        <div class="field">
+          <label>{{ t("έως") }}</label>
+          <input type="date" name="date_to" value="{{ today }}">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>{{ t("τύποι αποφάσεων (επιλέξτε ένα ή περισσότερα — αν τίποτα, όλοι)") }}</label>
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
+          {% for t_code in diavgeia_types %}
+            <label style="display:inline-flex; align-items:center; gap:6px; border:1px solid var(--rule); padding:5px 10px; cursor:pointer; font-size:13px; font-family:var(--sans);">
+              <input type="checkbox" name="types" value="{{ t_code }}" style="margin:0;">
+              {{ t_code | type_label }}
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="field">
+        <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" name="resume" value="1" checked>
+          <span style="font-size:13px; letter-spacing:0; text-transform:none; color:var(--ink);">
+            <strong>{{ t("Συνέχιση") }}</strong> — {{ t("παράλειψη παραθύρων που έχουν ήδη ολοκληρωθεί (συνιστάται)") }}
+          </span>
+        </label>
+      </div>
+
+      <button type="submit" style="background:var(--ink); color:var(--paper); border:0; padding:10px 22px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; margin-top:8px;">
+        {{ t("Εκκίνηση συλλογής Διαύγειας") }}
+      </button>
+      <p class="meta" style="margin-top:8px;">
+        {{ t("Η εκτέλεση γίνεται σε ξεχωριστή διαδικασία και επιβιώνει σε επανεκκίνηση του server. Διαστήματα γίνονται αυτόματα.") }}
+      </p>
+    </form>
+    {% endif %}
+
+    {% if not running_now %}
     <div class="section-h" style="margin-top:28px;">{{ t("Μαζική εξαγωγή πλήρους κειμένου") }}</div>
     <p class="meta" style="margin-top:-4px; margin-bottom:12px;">
       {{ t('Για πράξεις που <strong>υπάρχουν ήδη</strong> στη βάση αλλά δεν έχουν πλήρες κείμενο. Αντλεί & αποθηκεύει το κείμενο σε παρτίδες (resumable — μπορείτε να το ξανατρέξετε για να συνεχίσει). Τα σαρωμένα PDF παραλείπονται.') | safe }}
@@ -126,6 +173,7 @@
                 {{ j.date_from.strftime('%Y-%m-%d') }} → {{ j.date_to.strftime('%Y-%m-%d') }}
               </a>
               <div class="auth">
+                {% if j.source == 'diavgeia' %}<span style="display:inline-block; font-size:10px; letter-spacing:0.04em; text-transform:uppercase; color:#a0246b; background:#fbeef4; border-radius:4px; padding:1px 7px; margin-right:4px;">{{ t("Διαύγεια") }}</span>{% else %}<span style="display:inline-block; font-size:10px; letter-spacing:0.04em; text-transform:uppercase; color:var(--accent-2); background:var(--accent-soft); border-radius:4px; padding:1px 7px; margin-right:4px;">{{ t("ΚΗΜΔΗΣ") }}</span>{% endif %}
                 {% for t_code in j.types %}<span style="display:inline-block; font-size:11px; color:var(--ink-2); border:1px solid var(--rule); padding:1px 6px; margin-right:3px;">{{ t_code | type_label }}</span>{% endfor %}
                 {% if j.resume %}<span class="meta">+resume</span>{% endif %}
               </div>
@@ -188,6 +236,33 @@
       <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); font-size:13px;">
         {{ t("Καμία συλλογή δεν έχει εκτελεστεί ακόμη.") }}
       </p>
+    {% endif %}
+
+    {% if diavgeia_summary %}
+      <div class="section-h" style="margin-top:24px;">{{ t("Κάλυψη Διαύγειας") }}</div>
+      <table class="lines">
+        <thead><tr>
+          <th>{{ t("Τύπος") }}</th>
+          <th style="text-align:right;">{{ t("Παράθυρα") }}</th>
+          <th style="text-align:right;">OK</th>
+          <th style="text-align:right;">{{ t("Σφάλμα") }}</th>
+        </tr></thead>
+        <tbody>
+          {% for r in diavgeia_summary %}
+            <tr>
+              <td><strong style="font-size:13px;">{{ r.act_type | type_label }}</strong></td>
+              <td class="val">{{ r.windows }}</td>
+              <td class="val">{{ r.done_n or 0 }}</td>
+              <td class="val" style="{% if r.error_n %}color:var(--accent);{% endif %}">{{ r.error_n or 0 }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="meta" style="padding-top:0; border-top:0;">
+                {{ t("κάλυψη") }} {{ r.covered_from }} → {{ r.covered_to }}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     {% endif %}
   </aside>
 </div>

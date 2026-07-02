@@ -92,6 +92,7 @@
       </p>
     {% endif %}
 
+    {% if job.source != 'diavgeia' %}
     <div class="section-h">{{ t("Πράξεις αυτής της εκτέλεσης") }}</div>
     {% if act_log_total %}
       {# garbled rows have full_text_extracted = true, so split it out of "with" #}
@@ -174,6 +175,7 @@
         {{ t("(Διαθέσιμο για εκτελέσεις που ξεκινούν από αυτό το πάνελ· παλαιότερες εκτελέσεις δεν το έχουν.)") }}
       </p>
     {% endif %}
+    {% endif %}
 
     <div class="section-h">{{ t("Έξοδος (τέλος αρχείου)") }}</div>
     {% if log_tail %}
@@ -189,6 +191,7 @@
   <aside>
     <div class="section-h">{{ t("Λεπτομέρειες") }}</div>
     <dl class="facts">
+      <dt>{{ t("Πηγή") }}</dt><dd>{% if job.source == 'diavgeia' %}{{ t("Διαύγεια") }}{% else %}{{ t("ΚΗΜΔΗΣ") }}{% endif %}</dd>
       <dt>{{ t("Εκκίνηση") }}</dt><dd>{{ job.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
       {% if job.finished_at %}<dt>{{ t("Λήξη") }}</dt><dd>{{ job.finished_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>{% endif %}
       <dt>Status</dt><dd>{{ job.status }}</dd>
