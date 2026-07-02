@@ -59,6 +59,19 @@ BACKOFF_BASE = 5.0
 BACKOFF_CAP = 120.0
 PROGRESS_COMMIT_SECONDS = float(os.environ.get("INGEST_PROGRESS_COMMIT_SECONDS", "3"))
 
+# Full-text extraction toggle — mirrors khmdhs_ingest.EXTRACT_FULLTEXT. When on,
+# each handled decision has its Diavgeia document fetched and its text stored on
+# the projected procurement_act (fill-only-if-empty). Off by default: it adds a
+# document download per act, so a plain harvest stays fast.
+EXTRACT_FULLTEXT = os.environ.get("EXTRACT_FULLTEXT", "0") == "1"
+# An admin-launched run gets its proc.ingest_job id via INGEST_JOB_ID; the loop
+# then records one proc.ingest_act_log row per handled act (the job page's
+# per-act transparency list). No-op for plain shell runs.
+try:
+    INGEST_JOB_ID = int(os.environ["INGEST_JOB_ID"])
+except (KeyError, ValueError):
+    INGEST_JOB_ID = None
+
 
 # --------------------------------------------------------------------------- #
 # small coercion helpers
@@ -283,10 +296,15 @@ class DiavgeiaRepository:
         return org_id
 
     # ---- core decision -------------------------------------------------- #
-    def upsert_decision(self, d: dict) -> None:
+    def upsert_decision(self, d: dict) -> str | None:
+        """Upsert one decision (+ children). Returns 'new' | 'updated' for the
+        per-act run log, or None if the payload had no ΑΔΑ."""
         ada = d.get("ada")
         if not ada:
-            return
+            return None
+        existed = self.db.query(
+            "SELECT 1 FROM proc.diavgeia_decision WHERE ada=%s", (ada,))
+        action = "updated" if existed else "new"
         ev = d.get("extraFieldValues") or {}
         signer_ids = d.get("signerIds") or []
         money = ev.get("estimatedAmount") or ev.get("awardAmount") \
@@ -341,6 +359,7 @@ class DiavgeiaRepository:
         self._replace_thematic(ada, d.get("thematicCategoryIds") or [])
         self._replace_attachments(ada, d.get("attachments") or [])
         self._record_related(ada, ev)
+        return action
 
     # ---- children ------------------------------------------------------- #
     def _replace_cpv(self, ada: str, codes) -> None:
@@ -607,6 +626,122 @@ class DiavgeiaRepository:
                         "WHERE data_source='diavgeia'")
         return rows[0][0] if rows else 0
 
+    # ---- per-act run log + full text (mirrors khmdhs_ingest) ------------- #
+    def log_act(self, job_id: int, adam: str, act_type: str, title,
+                action: str, full_text_extracted: bool,
+                full_text_chars, full_text_note: str) -> None:
+        """Append one proc.ingest_act_log row for the admin job page's per-act
+        transparency list. Same table/shape the KHMDHS runner writes, so the job
+        page renders Diavgeia runs identically."""
+        self.db.execute(
+            """INSERT INTO proc.ingest_act_log
+                 (job_id, adam, act_type, title, action,
+                  full_text_extracted, full_text_chars, full_text_note)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (job_id, adam, act_type, title, action,
+             full_text_extracted, full_text_chars, full_text_note))
+
+    def _update_act_fulltext(self, job_id: int, adam: str,
+                             full_text_extracted: bool, full_text_chars,
+                             full_text_note: str) -> None:
+        """Back-fill a per-act log row's full-text outcome after the extraction
+        pass (which runs post-projection, once the procurement_act row exists)."""
+        self.db.execute(
+            """UPDATE proc.ingest_act_log
+               SET full_text_extracted=%s, full_text_chars=%s, full_text_note=%s
+               WHERE job_id=%s AND adam=%s""",
+            (full_text_extracted, full_text_chars, full_text_note, job_id, adam))
+
+    def set_full_text_if_empty(self, adam: str, text: str, source: str) -> bool:
+        """Write procurement_act.full_text ONLY if currently NULL/empty and the
+        act isn't curator-owned. Returns True iff a row was updated."""
+        n = self.db.execute_returning(
+            """UPDATE proc.procurement_act
+               SET full_text=%(text)s, full_text_extracted_at=now(),
+                   full_text_source=%(source)s
+               WHERE adam=%(adam)s AND origin <> 'authored'
+                 AND (full_text IS NULL OR full_text='')
+               RETURNING adam""",
+            {"text": text, "source": source, "adam": adam})
+        return bool(n)
+
+    def extract_fulltext_pass(self, job_id: int) -> dict:
+        """Post-projection full-text pass: for each act this job logged as
+        'pending', fetch its Diavgeia document, extract text (pdfplumber → local
+        OCR), store it (fill-only-if-empty) and resolve the log row. Entirely
+        fail-soft — one bad document never aborts the pass. Returns a small tally."""
+        rows = self.db.query(
+            """SELECT adam FROM proc.ingest_act_log
+               WHERE job_id=%s AND full_text_note='pending' ORDER BY id""",
+            (job_id,))
+        tally = {"seen": 0, "extracted": 0, "garbled": 0, "empty": 0}
+        for r in rows:
+            adam = r[0]
+            tally["seen"] += 1
+            extracted, chars, note = _extract_diavgeia_full_text(self, adam)
+            self._update_act_fulltext(job_id, adam, extracted, chars, note)
+            self.db.commit()
+            if note in ("extracted", "ocr_local"):
+                tally["extracted"] += 1
+            elif note == "garbled":
+                tally["garbled"] += 1
+            elif note in ("no_attachment", "no_text"):
+                tally["empty"] += 1
+        return tally
+
+
+def _extract_diavgeia_full_text(repo: "DiavgeiaRepository",
+                                adam: str) -> tuple[bool, "int | None", str]:
+    """Fetch a Diavgeia act's document, extract its text and store it on the
+    projected procurement_act (fill-only-if-empty). Mirrors
+    khmdhs_ingest.extract_full_text_for_act but for the Diavgeia document
+    endpoint. Fail-soft; returns (extracted, chars, note) for the run log."""
+    from khmdhs_ingest import looks_garbled, _local_ocr_text
+    try:
+        # app/{tables,ocr,exporter,extractors}.py double as a flat-layout tool and
+        # import each other with BARE names; the web app makes that work by putting
+        # app/ on sys.path (main.py). This ingest subprocess must do the same or
+        # app.tables' transitive imports fail. Mirror main.py / db.py exactly.
+        import sys as _sys
+        _app_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app")
+        if _app_dir not in _sys.path:
+            _sys.path.insert(0, _app_dir)
+        try:
+            from app.tables import _fetch_diavgeia_document
+        except ImportError:
+            from tables import _fetch_diavgeia_document
+        try:
+            data, fname = _fetch_diavgeia_document(adam)
+        except Exception:
+            return (False, None, "no_attachment")
+        if not data:
+            return (False, None, "no_attachment")
+        try:
+            from app.extractors import extract_text_from_upload
+        except ImportError:
+            try:
+                from extractors import extract_text_from_upload
+            except ImportError:
+                return (False, None, "libs_missing")
+        text = extract_text_from_upload(fname, data)
+        garbled = bool(text) and looks_garbled(text)
+        source, used_ocr = "auto:diavgeia", False
+        if (not text) or garbled:
+            ocr = _local_ocr_text(data)
+            if ocr:
+                text, garbled, source, used_ocr = ocr, False, "auto:ocr-local", True
+        if not text:
+            return (False, None, "no_text")
+        if garbled:
+            source = "auto:garbled?"
+        wrote = repo.set_full_text_if_empty(adam, text, source=source)
+        if wrote:
+            note = "ocr_local" if used_ocr else ("garbled" if garbled else "extracted")
+            return (True, len(text), note)
+        return (False, len(text), "exists")
+    except Exception:  # noqa: BLE001 — never propagate into the run
+        return (False, None, "error")
+
 
 # --------------------------------------------------------------------------- #
 # Orchestration — windowed, per-decision-type, resumable (mirrors ingest_type)
@@ -649,11 +784,23 @@ def ingest_type(client: DiavgeiaClient, repo: DiavgeiaRepository,
 
         try:
             last_commit = time.monotonic()
+            type_name = UID_TO_NAME.get(decision_type, decision_type)
             for d in client.search(decision_type, w_from, w_to):
                 if time.monotonic() - last_commit >= PROGRESS_COMMIT_SECONDS:
                     db.commit()
                     last_commit = time.monotonic()
-                repo.upsert_decision(d)
+                action = repo.upsert_decision(d)
+                # Per-act run log for the admin job page. Full-text status is
+                # deferred to the post-projection pass (the procurement_act row
+                # doesn't exist yet), so log 'pending' now and resolve it later;
+                # 'disabled' when the full-text toggle is off.
+                if INGEST_JOB_ID and action:
+                    ada = d.get("ada")
+                    if ada:
+                        repo.log_act(
+                            INGEST_JOB_ID, ada, type_name, d.get("subject"),
+                            action, False, None,
+                            "pending" if EXTRACT_FULLTEXT else "disabled")
             db.execute(
                 """UPDATE proc.diavgeia_ingest_window
                    SET status='done', finished_at=now()

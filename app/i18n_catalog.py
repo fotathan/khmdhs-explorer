@@ -363,6 +363,11 @@ _ADMIN1 = {
         "for each new act, fetches the attachment and stores its text.",
     "Πιο αργό & με πολλές λήψεις από το ΚΗΜΔΗΣ. Συμπληρώνει μόνο όσες πράξεις δεν έχουν ήδη κείμενο· τα σαρωμένα PDF παραλείπονται.":
         "Slower & with many downloads from KHMDHS. Fills only acts that don't already have text; scanned PDFs are skipped.",
+    "για κάθε απόφαση, αντλεί το έγγραφο από τη Διαύγεια και αποθηκεύει το κείμενό του.":
+        "for each decision, fetches the document from Diavgeia and stores its text.",
+    "Πιο αργό & με πολλές λήψεις από τη Διαύγεια. Συμπληρώνει μόνο όσες πράξεις δεν έχουν ήδη κείμενο· τα σαρωμένα PDF παραλείπονται.":
+        "Slower & with many downloads from Diavgeia. Fills only acts that don't already have text; scanned PDFs are skipped.",
+    "σε αναμονή…": "pending…",
     "Εκκίνηση συλλογής": "Start collection",
     "Η εκτέλεση γίνεται σε ξεχωριστή διαδικασία και επιβιώνει σε επανεκκίνηση του server. Διαστήματα 180 ημερών γίνονται αυτόματα.":
         "The run happens in a separate process and survives a server restart. 180-day windows are handled automatically.",

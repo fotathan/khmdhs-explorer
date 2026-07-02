@@ -582,6 +582,15 @@ def cmd_diavgeia_backfill(args):
                 print("\n=== projecting into procurement_act (app-facing) ===")
                 n = repo.project_all()
                 print(f"  {n} Diavgeia acts present in proc.procurement_act")
+            # Full-text pass (opt-in via EXTRACT_FULLTEXT): now that the acts are
+            # projected, fetch each handled act's document and store its text.
+            # Runs per-act-logged run only (needs INGEST_JOB_ID to know the set).
+            if di.EXTRACT_FULLTEXT and di.INGEST_JOB_ID:
+                print("\n=== extracting full text (fetch + parse documents) ===")
+                ft = repo.extract_fulltext_pass(di.INGEST_JOB_ID)
+                print(f"  full text: {ft['extracted']} extracted, "
+                      f"{ft['garbled']} garbled, {ft['empty']} without text "
+                      f"(of {ft['seen']} handled)")
         except BaseException:
             final_status = "error"
             raise

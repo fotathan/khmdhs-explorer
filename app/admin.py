@@ -386,7 +386,8 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                                  date_from: str = Form(...),
                                  date_to: str = Form(""),
                                  types: list[str] = Form(default=[]),
-                                 resume: str = Form(default="")):
+                                 resume: str = Form(default=""),
+                                 extract_fulltext: str = Form(default="")):
         """Spawn a Diavgeia harvest (db.py diavgeia-backfill) over an issueDate
         range. Parallel to admin_start_job but for the Diavgeia source: harvests
         decisions, dedups authorities, and projects into procurement_act so the
@@ -425,16 +426,22 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             job_id = c.fetchone()["id"]
         log_path = os.path.join(LOG_DIR, f"job-{job_id}.log")
 
+        fulltext_flag = bool(extract_fulltext)
         job_env = {**os.environ}
-        # Diavgeia harvest has no full-text pass; make sure a stray env flag from
-        # the parent process doesn't turn one on.
-        job_env.pop("EXTRACT_FULLTEXT", None)
+        # Opt-in full-text: fetch + parse each handled act's Diavgeia document and
+        # store its text (post-projection pass). diavgeia_ingest reads
+        # EXTRACT_FULLTEXT, same as the KHMDHS harvest.
+        if fulltext_flag:
+            job_env["EXTRACT_FULLTEXT"] = "1"
+        else:
+            job_env.pop("EXTRACT_FULLTEXT", None)
         job_env["INGEST_JOB_ID"] = str(job_id)
 
         log_fh = open(log_path, "w")
         log_fh.write(
             f"# diavgeia backfill job {job_id}: types={chosen} "
-            f"{df.isoformat()}..{dtt.isoformat()} resume={resume_flag}\n\n")
+            f"{df.isoformat()}..{dtt.isoformat()} resume={resume_flag} "
+            f"extract_fulltext={fulltext_flag}\n\n")
         log_fh.flush()
         try:
             proc = subprocess.Popen(
@@ -496,10 +503,6 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                              GROUP BY status""",
                           (uids, job["date_from"], job["date_to"]))
                 counts = {r["status"]: r["count"] for r in c.fetchall()}
-                # The per-act transparency log is a KHMDHS-only feature.
-                act_actions = {}
-                act_log_total = act_ft_yes = act_ft_garbled = 0
-                act_log = []
             else:
                 # Detailed window progress for the act types this job touches,
                 # scoped to its date range. Same source of truth the runner writes.
@@ -519,28 +522,30 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                           (job["types"], job["date_from"], job["date_to"]))
                 counts = {r["status"]: r["count"] for r in c.fetchall()}
 
-                # Per-act transparency log for this run: counts by action, full-text
-                # tally, and the most recent rows (the rest are in the CSV download).
-                c.execute("""SELECT action, count(*) AS n
-                             FROM proc.ingest_act_log WHERE job_id=%s
-                             GROUP BY action""", (job_id,))
-                act_actions = {r["action"]: r["n"] for r in c.fetchall()}
-                c.execute("""SELECT count(*) AS total,
-                                    count(*) FILTER (WHERE full_text_extracted) AS ft_yes,
-                                    count(*) FILTER (WHERE full_text_note='garbled') AS ft_garbled
-                             FROM proc.ingest_act_log WHERE job_id=%s""", (job_id,))
-                ftrow = c.fetchone()
-                act_log_total = ftrow["total"] if ftrow else 0
-                act_ft_yes = ftrow["ft_yes"] if ftrow else 0
-                act_ft_garbled = ftrow["ft_garbled"] if ftrow else 0
-                c.execute(f"""SELECT adam, act_type, title, action,
-                                    full_text_extracted, full_text_chars,
-                                    full_text_note, logged_at
-                             FROM proc.ingest_act_log
-                             WHERE job_id=%s {_FT_FILTERS[ftf]}
-                             ORDER BY id DESC LIMIT %s""",
-                          (job_id, ACT_LOG_PREVIEW))
-                act_log = c.fetchall()
+            # Per-act transparency log for this run: counts by action, full-text
+            # tally, and the most recent rows (the rest are in the CSV download).
+            # Keyed by job_id, so it's identical for both sources — the KHMDHS and
+            # Diavgeia harvests both write proc.ingest_act_log.
+            c.execute("""SELECT action, count(*) AS n
+                         FROM proc.ingest_act_log WHERE job_id=%s
+                         GROUP BY action""", (job_id,))
+            act_actions = {r["action"]: r["n"] for r in c.fetchall()}
+            c.execute("""SELECT count(*) AS total,
+                                count(*) FILTER (WHERE full_text_extracted) AS ft_yes,
+                                count(*) FILTER (WHERE full_text_note='garbled') AS ft_garbled
+                         FROM proc.ingest_act_log WHERE job_id=%s""", (job_id,))
+            ftrow = c.fetchone()
+            act_log_total = ftrow["total"] if ftrow else 0
+            act_ft_yes = ftrow["ft_yes"] if ftrow else 0
+            act_ft_garbled = ftrow["ft_garbled"] if ftrow else 0
+            c.execute(f"""SELECT adam, act_type, title, action,
+                                full_text_extracted, full_text_chars,
+                                full_text_note, logged_at
+                         FROM proc.ingest_act_log
+                         WHERE job_id=%s {_FT_FILTERS[ftf]}
+                         ORDER BY id DESC LIMIT %s""",
+                      (job_id, ACT_LOG_PREVIEW))
+            act_log = c.fetchall()
 
         # Tail the log file (last ~4 KB) without loading the whole thing.
         log_tail = ""

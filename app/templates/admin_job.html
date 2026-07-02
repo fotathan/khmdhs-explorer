@@ -92,7 +92,6 @@
       </p>
     {% endif %}
 
-    {% if job.source != 'diavgeia' %}
     <div class="section-h">{{ t("Πράξεις αυτής της εκτέλεσης") }}</div>
     {% if act_log_total %}
       {# garbled rows have full_text_extracted = true, so split it out of "with" #}
@@ -156,6 +155,7 @@
                 {% if a.full_text_note == 'garbled' %}<span style="color:var(--accent);" title="{{ t('Το κείμενο φαίνεται αλλοιωμένο — χρειάζεται OCR') }}">{{ t("⚠ αλλοιωμένο") }}</span> · {{ a.full_text_chars }} {{ t("χαρ.") }}
                 {% elif a.full_text_extracted %}<span style="color:var(--ok);">✓</span> {{ a.full_text_chars }} {{ t("χαρ.") }}
                 {% elif a.full_text_note == 'exists' %}{{ t("υπήρχε ήδη") }}
+                {% elif a.full_text_note == 'pending' %}<span style="color:var(--ink-3);">{{ t("σε αναμονή…") }}</span>
                 {% elif a.full_text_note == 'no_attachment' %}{{ t("χωρίς συνημμένο") }}
                 {% elif a.full_text_note == 'no_text' %}{{ t("σαρωμένο/χωρίς κείμενο") }}
                 {% elif a.full_text_note == 'libs_missing' %}{{ t("μη διαθέσιμο") }}
@@ -174,7 +174,6 @@
         {% if job.status == 'running' %}{{ t("ακόμη") }}{% endif %}.
         {{ t("(Διαθέσιμο για εκτελέσεις που ξεκινούν από αυτό το πάνελ· παλαιότερες εκτελέσεις δεν το έχουν.)") }}
       </p>
-    {% endif %}
     {% endif %}
 
     <div class="section-h">{{ t("Έξοδος (τέλος αρχείου)") }}</div>
