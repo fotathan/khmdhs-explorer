@@ -28,3 +28,6 @@ venv/
 
 # Local-only attachment binaries (see app/attachments.py)
 attachment_store/
+
+# Local preview launch config (contains local DB credentials)
+.claude/
