@@ -407,7 +407,7 @@ class Repository:
                   no_end_date, assign_criteria_code, bids_submitted, max_bids_submitted,
                   is_credit, payment_commitment_code, contract_value,
                   approval_ada, commitment_no, protocol_number, author_email,
-                  raw_json, source_endpoint)
+                  raw_json, source_endpoint, data_source)
                VALUES (%(adam)s, %(type)s, %(title)s, %(signed_date)s, %(submission_date)s,
                   %(last_update_date)s, %(published_eu_date)s, %(final_submission_date)s,
                   %(procurement_delivery_date)s, %(cancelled)s, %(cancellation_date)s,
@@ -428,14 +428,16 @@ class Repository:
                   %(no_end_date)s, %(assign_criteria_code)s, %(bids_submitted)s, %(max_bids_submitted)s,
                   %(is_credit)s, %(payment_commitment_code)s, %(contract_value)s,
                   %(approval_ada)s, %(commitment_no)s, %(protocol_number)s, %(author_email)s,
-                  %(raw_json)s, %(source_endpoint)s)
+                  %(raw_json)s, %(source_endpoint)s, 'khmdhs')
                ON CONFLICT (adam) DO UPDATE SET
                   title=EXCLUDED.title, last_update_date=EXCLUDED.last_update_date,
                   cancelled=EXCLUDED.cancelled, cancellation_date=EXCLUDED.cancellation_date,
                   total_cost_without_vat=EXCLUDED.total_cost_without_vat,
                   total_cost_with_vat=EXCLUDED.total_cost_with_vat,
+                  data_source='khmdhs',
                   raw_json=EXCLUDED.raw_json, ingested_at=now()
                WHERE proc.procurement_act.origin = 'import'
+                 AND proc.procurement_act.data_source IS DISTINCT FROM 'diavgeia'
                RETURNING (xmax = 0) AS inserted""",
             {
                 "adam": adam, "type": act_type, "title": act.get("title"),
