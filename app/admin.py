@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -41,6 +42,46 @@ from fastapi.templating import Jinja2Templates
 # ---------------------------------------------------------------------------- #
 # Wired up by main.py: we need its template engine and DB cursor() helper.
 # ---------------------------------------------------------------------------- #
+def _clean_number(s):
+    """Normalize a number/currency string in any common format to a DB-ready
+    numeric string, so a value the curator pasted or typed ('1.234.567,89 €',
+    '1,234,567.89', '1234,56') lands correctly in a numeric column instead of
+    breaking the cast. Greek-primary: a lone comma is the decimal separator, a
+    lone dot introducing a 3-digit group is a thousands separator. Mirrors the
+    act form's cleanNumber(). Returns the ORIGINAL string when no number can be
+    parsed, so genuinely bad input still fails loudly (no silent data loss)."""
+    if s is None:
+        return None
+    t = re.sub(r"[^0-9.,-]", "", str(s))
+    neg = t.startswith("-")
+    t = t.replace("-", "")
+    if not t:
+        return s
+    commas, dots = t.count(","), t.count(".")
+    lc, ld = t.rfind(","), t.rfind(".")
+    if not commas and not dots:
+        num = t
+    elif lc > ld:                                   # comma is the rightmost sep
+        num = (t.replace(".", "").replace(",", "")  # 1,234,567 → thousands
+               if commas > 1
+               else t.replace(".", "").replace(",", "."))  # 1.234,56 → decimal
+    else:                                           # dot is rightmost / only dots
+        if lc != -1:
+            num = t.replace(",", "")                # 1,234.56 → English decimal
+        elif dots > 1:
+            num = t.replace(".", "")                # 1.234.567 → Greek thousands
+        else:
+            tail = len(t) - ld - 1                  # single dot, no comma: ambiguous
+            num = t.replace(".", "") if (tail == 3 and ld <= 3) else t
+    try:
+        v = round(float(num), 2)
+    except ValueError:
+        return s
+    if neg:
+        v = -v
+    return str(int(v)) if v == int(v) else str(v)   # whole → int (safe for int cols)
+
+
 def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
     router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -1192,7 +1233,9 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             if kind == "bool":
                 data[name] = (name in form)  # checkbox present => True
             elif kind in ("number",):
-                data[name] = None if raw == "" else raw
+                # Accept any pasted/typed money format and store the DB-ready
+                # numeric string (safety net behind the form's paste cleaner).
+                data[name] = None if raw == "" else _clean_number(raw)
             elif kind in ("date",):
                 data[name] = None if raw == "" else raw
             else:

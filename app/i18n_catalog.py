@@ -990,6 +990,11 @@ _TABLES = {
     "Δίστηλη προβολή: κείμενο | πεδία": "Two-column view: text | fields",
     "Επικόλληση επιλογής σε πεδίο": "Paste selection into a field",
     "φιλτράρισμα πεδίου…": "filter field…",
+    "➜ Κωδικοί CPV (αυτόματος εντοπισμός)": "➜ CPV codes (auto-detect)",
+    "Δεν βρέθηκαν έγκυροι κωδικοί CPV στην επιλογή": "No valid CPV codes found in the selection",
+    "CPV προστέθηκαν": "CPV added",
+    "ήδη υπήρχαν": "already present",
+    "Σφάλμα εντοπισμού CPV": "CPV detection failed",
     "Επικολλήστε εδώ το πλήρες κείμενο· αποθηκεύεται μαζί με την πράξη, ώστε να συμπληρώσετε τα πεδία διαβάζοντάς το.":
         "Paste the full text here — it's saved together with the act, so you can fill the fields by reading from it.",
     "+ Γραμμή": "+ Row",

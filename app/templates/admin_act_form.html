@@ -135,15 +135,114 @@
         });
         return res;
       }
+      // Normalize a money/number string in any common format (Greek
+      // "1.234.567,89 €", English "1,234,567.89", plain "1234.56") to a DB-ready
+      // dot-decimal string, or null if there's no number. Greek-primary: a lone
+      // comma is the decimal separator; a lone dot before a 3-digit group is a
+      // thousands separator. Mirrors _clean_number() on the server.
+      function cleanNumber(s) {
+        if (s == null) return null;
+        var t = String(s).replace(/[^0-9.,-]/g, '');
+        var neg = t.charAt(0) === '-';
+        t = t.replace(/-/g, '');
+        if (!t) return null;
+        var commas = (t.match(/,/g) || []).length;
+        var dots = (t.match(/\./g) || []).length;
+        var lc = t.lastIndexOf(','), ld = t.lastIndexOf('.');
+        var num;
+        if (!commas && !dots) {
+          num = t;
+        } else if (lc > ld) {                       // comma is rightmost separator
+          num = (commas > 1) ? t.replace(/[.,]/g, '')             // 1,234,567 → thousands
+                             : t.replace(/\./g, '').replace(',', '.'); // 1.234,56 → decimal
+        } else {                                    // dot is rightmost / only dots
+          if (lc !== -1) { num = t.replace(/,/g, ''); }            // 1,234.56 → English decimal
+          else if (dots > 1) { num = t.replace(/\./g, ''); }      // 1.234.567 → Greek thousands
+          else {                                    // single dot, no comma: ambiguous
+            var tail = t.length - ld - 1;
+            num = (tail === 3 && ld <= 3) ? t.replace(/\./g, '') : t;
+          }
+        }
+        var n = parseFloat(num);
+        if (isNaN(n)) return null;
+        if (neg) n = -n;
+        return (Math.round(n * 100) / 100).toString();
+      }
       function pasteInto(el, text) {
-        el.value = text;
+        var val = text;
+        // Money/number fields (kind 'number' renders inputmode=decimal): clean
+        // the selection into the numeric form the DB stores, so any format works.
+        if (el.tagName === 'INPUT' && (el.getAttribute('inputmode') || '').toLowerCase() === 'decimal') {
+          var cleaned = cleanNumber(text);
+          if (cleaned !== null) val = cleaned;
+        }
+        el.value = val;
         el.dispatchEvent(new Event('input', { bubbles: true }));
         el.classList.add('ft-flash');
         el.scrollIntoView({ block: 'nearest' });
         setTimeout(function () { el.classList.remove('ft-flash'); }, 1000);
       }
+      function cpvToast(msg) {
+        var t = document.createElement('div');
+        t.className = 'ft-toast';
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(function () { t.classList.add('show'); }, 10);
+        setTimeout(function () { t.classList.remove('show'); }, 3000);
+        setTimeout(function () { t.remove(); }, 3400);
+      }
+      // Send the selection to the server, which returns the CPV codes it contains
+      // that actually exist in the vocabulary; add each via the picker's pickCpv
+      // (which dedupes). Reports how many were added vs already present.
+      function addCpvFromSelection(text) {
+        var body = new URLSearchParams(); body.set('text', text || '');
+        fetch('/api/cpv-extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body
+        }).then(function (r) { return r.json(); }).then(function (data) {
+          var codes = (data && data.codes) || [];
+          if (typeof pickCpv !== 'function') { return; }
+          var chips = document.getElementById('act-cpv-chips');
+          var added = 0;
+          codes.forEach(function (c) {
+            var have = chips && chips.querySelector('.cpv-chip[data-code="' + c.code + '"]');
+            pickCpv(c.code, c.description || '');
+            if (!have) added++;
+          });
+          if (chips) {
+            chips.scrollIntoView({ block: 'nearest' });
+            chips.classList.add('ft-flash');
+            setTimeout(function () { chips.classList.remove('ft-flash'); }, 1200);
+          }
+          if (!codes.length) {
+            cpvToast('{{ t("Δεν βρέθηκαν έγκυροι κωδικοί CPV στην επιλογή") }}');
+          } else {
+            var dup = codes.length - added;
+            var msg = added + ' {{ t("CPV προστέθηκαν") }}';
+            if (dup > 0) { msg += ' · ' + dup + ' {{ t("ήδη υπήρχαν") }}'; }
+            cpvToast(msg);
+          }
+        }).catch(function () {
+          cpvToast('{{ t("Σφάλμα εντοπισμού CPV") }}');
+        });
+      }
       function build() {
         listEl.innerHTML = '';
+        // Special target: scan the selection for CPV codes and add the real ones
+        // as chips (only present when the act form's CPV picker is on the page).
+        if (document.getElementById('act-cpv-chips')) {
+          var cb = document.createElement('button');
+          cb.type = 'button';
+          cb.className = 'ft-selitem ft-selitem-cpv';
+          cb.textContent = '{{ t("➜ Κωδικοί CPV (αυτόματος εντοπισμός)") }}';
+          cb.addEventListener('mousedown', function (ev) {
+            ev.preventDefault();               // keep the editor selection alive
+            addCpvFromSelection(lastText);
+            hide();
+          });
+          listEl.appendChild(cb);
+        }
         fields().forEach(function (f) {
           var b = document.createElement('button');
           b.type = 'button'; b.className = 'ft-selitem'; b.textContent = f.label;
@@ -341,7 +440,13 @@
   .ft-selitem{display:block; width:100%; text-align:left; background:transparent; border:0; padding:6px 8px;
     font-size:12.5px; cursor:pointer; border-radius:5px; color:var(--ink,#222);}
   .ft-selitem:hover{background:var(--accent-soft,#fbe9ec);}
+  .ft-selitem-cpv{font-weight:600; color:var(--accent,#b41034); border-bottom:1px solid var(--rule,#e6e8ec);
+    margin-bottom:4px; padding-bottom:8px;}
   .ft-flash{outline:2px solid var(--accent, #b41034) !important; outline-offset:1px;}
+  .ft-toast{position:fixed; left:50%; bottom:28px; transform:translateX(-50%) translateY(8px);
+    background:var(--ink,#14181f); color:#fff; padding:9px 16px; border-radius:8px; font-size:13px;
+    z-index:1001; box-shadow:0 6px 20px rgba(0,0,0,.22); opacity:0; transition:opacity .18s, transform .18s; pointer-events:none;}
+  .ft-toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
 </style>
 <script>
   // View switch: stacked ⇄ two-column (text left / fields right). Persisted so

@@ -1096,6 +1096,50 @@ def cpv_browse(request: Request, parent: str = Query("")):
         {"children": children, "crumbs": crumbs, "parent": parent})
 
 
+# Full 8-digit runs (optionally with a -check digit) and 3-7 digit partials.
+# \b…\b keeps it to a whole run, so a longer number (amount, protocol no.) with a
+# 3-8 digit substring is NOT matched.
+_CPV_TOKEN_RE = re.compile(r"\b(\d{3,8})(?:-\d)?\b")
+
+
+def _cpv_candidates(text: str) -> list[str]:
+    """Pull candidate CPV 8-digit codes out of free text: full 8-digit codes
+    (with or without the -check digit) and 3-7 digit partials right-padded with
+    zeros to the canonical 8-digit form (4521 -> 45210000). Whether a candidate
+    is a REAL code is decided by validating against proc.cpv_code — so a stray
+    number that happens to pad to a real code is the only false positive, which
+    is acceptable for a curator tool where every added chip is reviewable."""
+    out = set()
+    for m in _CPV_TOKEN_RE.finditer(text or ""):
+        digits = m.group(1)
+        if 3 <= len(digits) <= 8:
+            out.add(digits.ljust(8, "0"))
+    return list(out)
+
+
+@app.post("/api/cpv-extract", response_class=JSONResponse)
+def cpv_extract(request: Request, text: str = Form("")):
+    """Scan pasted text for CPV codes and return the ones that exist in the
+    vocabulary (full stored code + localized description). Used by the act form's
+    'paste selection into CPV' action. Matches candidates by their 8-digit prefix
+    since proc.cpv_code stores the -check-digit form (e.g. 45210000-7)."""
+    candidates = _cpv_candidates(text)
+    if not candidates:
+        return JSONResponse({"codes": []})
+    lang = _i18n.lang_from_request(request)
+    dc = _desc_col(lang, "cpv_code")
+    with cursor() as c:
+        c.execute(f"""
+            SELECT cpv_code, {dc} AS description
+            FROM proc.cpv_code
+            WHERE left(cpv_code, 8) = ANY(%s)
+            ORDER BY cpv_code
+        """, (candidates,))
+        rows = c.fetchall()
+    return JSONResponse({"codes": [
+        {"code": r["cpv_code"], "description": r["description"] or ""} for r in rows]})
+
+
 @app.get("/analytics", response_class=HTMLResponse)
 def analytics(request: Request):
     """Dashboard of deduplicated AWARDED value (contracts only; payments and
