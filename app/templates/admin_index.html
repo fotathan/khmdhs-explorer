@@ -5,185 +5,196 @@
 
 {% include "_admin_tabs.html" %}
 
+<style>
+  .src-card{border:1px solid var(--rule); border-radius:12px; margin-bottom:24px; overflow:hidden;
+    background:var(--paper); box-shadow:0 1px 2px rgba(20,24,31,.05);}
+  .src-card-h{display:flex; align-items:center; gap:12px; padding:13px 18px; border-bottom:1px solid var(--rule);}
+  .src-card.khmdhs .src-card-h{background:var(--accent-soft);}
+  .src-card.diavgeia .src-card-h{background:#fbeef4;}
+  .src-tag{display:inline-block; font-size:11px; font-weight:700; letter-spacing:.06em;
+    text-transform:uppercase; padding:5px 11px; border-radius:6px; color:#fff; white-space:nowrap;}
+  .src-tag.khmdhs{background:var(--accent);}
+  .src-tag.diavgeia{background:#a0246b;}
+  .src-name{font-size:15px; font-weight:600; color:var(--ink); line-height:1.2;}
+  .src-role{font-size:12px; color:var(--ink-2); margin-top:2px;}
+  .src-card-body{padding:18px;}
+  .fn-block + .fn-block{border-top:1px solid var(--rule-2); margin-top:20px; padding-top:20px;}
+  .fn-h{font-size:13.5px; font-weight:600; color:var(--ink); margin:0 0 3px; letter-spacing:0; text-transform:none;}
+  .fn-desc{font-size:12.5px; color:var(--ink-2); margin:0 0 14px; line-height:1.5;}
+  .fn-desc .warn{display:block; color:var(--warn); margin-top:4px;}
+  .type-opts{display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;}
+  .type-opts label{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--rule);
+    padding:5px 10px; cursor:pointer; font-size:13px; font-family:var(--sans); border-radius:6px;}
+  .run-btn{background:var(--ink); color:var(--paper); border:0; padding:10px 22px; font-family:var(--sans);
+    font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; margin-top:10px; border-radius:7px;}
+  .run-note{margin-top:8px;}
+  .running-banner{font-family:var(--serif); font-style:italic; color:var(--accent);
+    border-left:2px solid var(--accent); padding:10px 14px; background:var(--paper-2); border-radius:0 8px 8px 0; margin-bottom:22px;}
+</style>
+
 <div class="detail-h">
   <div class="kicker">{{ t("Διαχείριση") }}</div>
   <h1 class="detail-title">{{ t("Συλλογή δεδομένων") }}</h1>
   <div class="detail-sub">
-    {{ t("Εκκίνηση και παρακολούθηση εκτελέσεων backfill για κάθε τύπο πράξης.") }}
+    {{ t("Άντληση και εμπλουτισμός πράξεων από τις δύο πηγές: ΚΗΜΔΗΣ και Διαύγεια. Μία εκτέλεση τη φορά.") }}
   </div>
 </div>
 
 <div class="detail-grid">
   <div>
 
-    <div class="section-h">{{ t("Νέα συλλογή") }}</div>
     {% if running_now %}
-      <p style="font-family:var(--serif); font-style:italic; color:var(--accent); border-left:2px solid var(--accent); padding:8px 12px; background:var(--paper-2);">
-        {{ t("Μια εκτέλεση είναι ήδη σε εξέλιξη. Δείτε την παρακάτω ή ακυρώστε την πριν ξεκινήσετε νέα.") }}
-      </p>
-    {% else %}
-    <form method="post" action="/admin/jobs" style="margin-bottom:20px;">
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-bottom:12px;">
-        <div class="field">
-          <label>{{ t("από") }}</label>
-          <input type="date" name="date_from" value="{{ default_start }}" required>
-        </div>
-        <div class="field">
-          <label>{{ t("έως") }}</label>
-          <input type="date" name="date_to" value="{{ today }}">
-        </div>
-      </div>
-
-      <div class="field">
-        <label>{{ t("τύποι πράξεων (επιλέξτε ένα ή περισσότερα — αν τίποτα, όλοι)") }}</label>
-        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
-          {% for t_code in act_types %}
-            <label style="display:inline-flex; align-items:center; gap:6px; border:1px solid var(--rule); padding:5px 10px; cursor:pointer; font-size:13px; font-family:var(--sans);">
-              <input type="checkbox" name="types" value="{{ t_code }}" style="margin:0;">
-              {{ t_code | type_label }}
-            </label>
-          {% endfor %}
-        </div>
-      </div>
-
-      <div class="field">
-        <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
-          <input type="checkbox" name="resume" value="1" checked>
-          <span style="font-size:13px; letter-spacing:0; text-transform:none; color:var(--ink);">
-            <strong>{{ t("Συνέχιση") }}</strong> — {{ t("παράλειψη παραθύρων που έχουν ήδη ολοκληρωθεί (συνιστάται)") }}
-          </span>
-        </label>
-      </div>
-
-      <div class="field">
-        <label style="display:inline-flex; align-items:flex-start; gap:8px; cursor:pointer;">
-          <input type="checkbox" name="extract_fulltext" value="1" style="margin-top:3px;">
-          <span style="font-size:13px; letter-spacing:0; text-transform:none; color:var(--ink);">
-            <strong>{{ t("Εξαγωγή πλήρους κειμένου") }}</strong> — {{ t("για κάθε νέα πράξη, αντλεί το συνημμένο και αποθηκεύει το κείμενό του.") }}
-            <span style="display:block; color:var(--warn); margin-top:3px;">
-              {{ t("Πιο αργό & με πολλές λήψεις από το ΚΗΜΔΗΣ. Συμπληρώνει μόνο όσες πράξεις δεν έχουν ήδη κείμενο· τα σαρωμένα PDF παραλείπονται.") }}
-            </span>
-          </span>
-        </label>
-      </div>
-
-      <button type="submit" style="background:var(--ink); color:var(--paper); border:0; padding:10px 22px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; margin-top:8px;">
-        {{ t("Εκκίνηση συλλογής") }}
-      </button>
-      <p class="meta" style="margin-top:8px;">
-        {{ t("Η εκτέλεση γίνεται σε ξεχωριστή διαδικασία και επιβιώνει σε επανεκκίνηση του server. Διαστήματα 180 ημερών γίνονται αυτόματα.") }}
-      </p>
-    </form>
+    <p class="running-banner">
+      {{ t("Μια εκτέλεση είναι ήδη σε εξέλιξη. Δείτε την παρακάτω ή ακυρώστε την πριν ξεκινήσετε νέα.") }}
+    </p>
     {% endif %}
 
     {% if not running_now %}
-    <div class="section-h" style="margin-top:28px;">{{ t("Νέα συλλογή Διαύγειας") }}</div>
-    <p class="meta" style="margin-top:-4px; margin-bottom:12px;">
-      {{ t("Άντληση αποφάσεων από τη Διαύγεια (diavgeia.gov.gr) — προκηρύξεις, αναθέσεις και συμβάσεις — με βάση την ημερομηνία ανάρτησης. Μετά την άντληση, γίνεται αυτόματα ταύτιση αναθετουσών αρχών και ένταξη στην εφαρμογή.") }}
-    </p>
-    <form method="post" action="/admin/jobs/diavgeia" style="margin-bottom:20px;">
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-bottom:12px;">
-        <div class="field">
-          <label>{{ t("από") }}</label>
-          <input type="date" name="date_from" value="{{ default_start }}" required>
-        </div>
-        <div class="field">
-          <label>{{ t("έως") }}</label>
-          <input type="date" name="date_to" value="{{ today }}">
+    {# ───────────────────────── ΚΗΜΔΗΣ ───────────────────────── #}
+    <div class="src-card khmdhs">
+      <div class="src-card-h">
+        <span class="src-tag khmdhs">{{ t("ΚΗΜΔΗΣ") }}</span>
+        <div>
+          <div class="src-name">{{ t("Κεντρικό Μητρώο (ΚΗΜΔΗΣ)") }}</div>
+          <div class="src-role">{{ t("Κύρια πηγή · cerpp.eprocurement.gov.gr") }}</div>
         </div>
       </div>
+      <div class="src-card-body">
 
-      <div class="field">
-        <label>{{ t("τύποι αποφάσεων (επιλέξτε ένα ή περισσότερα — αν τίποτα, όλοι)") }}</label>
-        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
-          {% for t_code in diavgeia_types %}
-            <label style="display:inline-flex; align-items:center; gap:6px; border:1px solid var(--rule); padding:5px 10px; cursor:pointer; font-size:13px; font-family:var(--sans);">
-              <input type="checkbox" name="types" value="{{ t_code }}" style="margin:0;">
-              {{ t_code | type_label }}
-            </label>
-          {% endfor %}
+        <div class="fn-block">
+          <div class="fn-h">{{ t("Νέα συλλογή") }}</div>
+          <p class="fn-desc">{{ t("Άντληση πράξεων από το ΚΗΜΔΗΣ για ένα εύρος ημερομηνιών. Διαστήματα 180 ημερών γίνονται αυτόματα.") }}</p>
+          <form method="post" action="/admin/jobs">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-bottom:12px;">
+              <div class="field"><label>{{ t("από") }}</label><input type="date" name="date_from" value="{{ default_start }}" required></div>
+              <div class="field"><label>{{ t("έως") }}</label><input type="date" name="date_to" value="{{ today }}"></div>
+            </div>
+            <div class="field">
+              <label>{{ t("τύποι πράξεων (επιλέξτε ένα ή περισσότερα — αν τίποτα, όλοι)") }}</label>
+              <div class="type-opts">
+                {% for t_code in act_types %}
+                  <label><input type="checkbox" name="types" value="{{ t_code }}" style="margin:0;"> {{ t_code | type_label }}</label>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="field">
+              <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+                <input type="checkbox" name="resume" value="1" checked>
+                <span style="font-size:13px; letter-spacing:0; text-transform:none; color:var(--ink);">
+                  <strong>{{ t("Συνέχιση") }}</strong> — {{ t("παράλειψη παραθύρων που έχουν ήδη ολοκληρωθεί (συνιστάται)") }}
+                </span>
+              </label>
+            </div>
+            <div class="field">
+              <label style="display:inline-flex; align-items:flex-start; gap:8px; cursor:pointer;">
+                <input type="checkbox" name="extract_fulltext" value="1" style="margin-top:3px;">
+                <span style="font-size:13px; letter-spacing:0; text-transform:none; color:var(--ink);">
+                  <strong>{{ t("Εξαγωγή πλήρους κειμένου") }}</strong> — {{ t("για κάθε νέα πράξη, αντλεί το συνημμένο και αποθηκεύει το κείμενό του.") }}
+                  <span style="display:block; color:var(--warn); margin-top:3px;">
+                    {{ t("Πιο αργό & με πολλές λήψεις από το ΚΗΜΔΗΣ. Συμπληρώνει μόνο όσες πράξεις δεν έχουν ήδη κείμενο· τα σαρωμένα PDF παραλείπονται.") }}
+                  </span>
+                </span>
+              </label>
+            </div>
+            <button type="submit" class="run-btn">{{ t("Εκκίνηση συλλογής ΚΗΜΔΗΣ") }}</button>
+          </form>
+        </div>
+
+        <div class="fn-block">
+          <div class="fn-h">{{ t("Μαζική εξαγωγή πλήρους κειμένου") }}</div>
+          <p class="fn-desc">
+            {{ t('Για πράξεις ΚΗΜΔΗΣ που <strong>υπάρχουν ήδη</strong> στη βάση αλλά δεν έχουν πλήρες κείμενο. Αντλεί & αποθηκεύει το κείμενο σε παρτίδες (resumable — μπορείτε να το ξανατρέξετε για να συνεχίσει). Τα σαρωμένα PDF παραλείπονται.') | safe }}
+            <span class="warn">{{ t('Αφορά την <strong>τοπική</strong> βάση (εκεί που τρέχει ο server). Για την παραγωγή, χρησιμοποιήστε το <code>ingest.sh</code> από το terminal.') | safe }}</span>
+          </p>
+          <form method="post" action="/admin/jobs/fulltext">
+            <div class="field">
+              <label>{{ t("τύποι πράξεων (αν τίποτα, όλοι)") }}</label>
+              <div class="type-opts">
+                {% for t_code in act_types %}
+                  <label><input type="checkbox" name="types" value="{{ t_code }}" style="margin:0;"> {{ t_code | type_label }}</label>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="field" style="max-width:220px;">
+              <label>{{ t("όριο ανά εκτέλεση") }}</label>
+              <input type="number" name="limit" value="5000" min="1" step="100">
+              <div class="meta" style="margin-top:4px;">{{ t("Πόσες πράξεις θα επιχειρηθούν αυτή τη φορά.") }}</div>
+            </div>
+            <button type="submit" class="run-btn">{{ t("Εκκίνηση εξαγωγής κειμένου ΚΗΜΔΗΣ") }}</button>
+          </form>
+        </div>
+
+      </div>
+    </div>
+
+    {# ───────────────────────── ΔΙΑΥΓΕΙΑ ───────────────────────── #}
+    <div class="src-card diavgeia">
+      <div class="src-card-h">
+        <span class="src-tag diavgeia">{{ t("Διαύγεια") }}</span>
+        <div>
+          <div class="src-name">{{ t("Διαύγεια") }}</div>
+          <div class="src-role">{{ t("Δεύτερη πηγή · diavgeia.gov.gr") }}</div>
         </div>
       </div>
+      <div class="src-card-body">
 
-      <div class="field">
-        <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
-          <input type="checkbox" name="resume" value="1" checked>
-          <span style="font-size:13px; letter-spacing:0; text-transform:none; color:var(--ink);">
-            <strong>{{ t("Συνέχιση") }}</strong> — {{ t("παράλειψη παραθύρων που έχουν ήδη ολοκληρωθεί (συνιστάται)") }}
-          </span>
-        </label>
-      </div>
-
-      <div class="field">
-        <label style="display:inline-flex; align-items:flex-start; gap:8px; cursor:pointer;">
-          <input type="checkbox" name="extract_fulltext" value="1" style="margin-top:3px;">
-          <span style="font-size:13px; letter-spacing:0; text-transform:none; color:var(--ink);">
-            <strong>{{ t("Εξαγωγή πλήρους κειμένου") }}</strong> — {{ t("για κάθε απόφαση, αντλεί το έγγραφο από τη Διαύγεια και αποθηκεύει το κείμενό του.") }}
-            <span style="display:block; color:var(--warn); margin-top:3px;">
-              {{ t("Πιο αργό & με πολλές λήψεις από τη Διαύγεια. Συμπληρώνει μόνο όσες πράξεις δεν έχουν ήδη κείμενο· τα σαρωμένα PDF παραλείπονται.") }}
-            </span>
-          </span>
-        </label>
-      </div>
-
-      <button type="submit" style="background:var(--ink); color:var(--paper); border:0; padding:10px 22px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; margin-top:8px;">
-        {{ t("Εκκίνηση συλλογής Διαύγειας") }}
-      </button>
-      <p class="meta" style="margin-top:8px;">
-        {{ t("Η εκτέλεση γίνεται σε ξεχωριστή διαδικασία και επιβιώνει σε επανεκκίνηση του server. Διαστήματα γίνονται αυτόματα.") }}
-      </p>
-    </form>
-    {% endif %}
-
-    {% if not running_now %}
-    <div class="section-h" style="margin-top:28px;">{{ t("Μαζική εξαγωγή πλήρους κειμένου") }}</div>
-    <p class="meta" style="margin-top:-4px; margin-bottom:12px;">
-      {{ t('Για πράξεις που <strong>υπάρχουν ήδη</strong> στη βάση αλλά δεν έχουν πλήρες κείμενο. Αντλεί & αποθηκεύει το κείμενο σε παρτίδες (resumable — μπορείτε να το ξανατρέξετε για να συνεχίσει). Τα σαρωμένα PDF παραλείπονται.') | safe }}
-      <span style="display:block; color:var(--warn); margin-top:4px;">
-        {{ t('Αφορά την <strong>τοπική</strong> βάση (εκεί που τρέχει ο server). Για την παραγωγή, χρησιμοποιήστε το <code>ingest.sh</code> από το terminal.') | safe }}
-      </span>
-    </p>
-    <form method="post" action="/admin/jobs/fulltext" style="margin-bottom:20px;">
-      <div class="field">
-        <label>{{ t("τύποι πράξεων (αν τίποτα, όλοι)") }}</label>
-        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
-          {% for t_code in act_types %}
-            <label style="display:inline-flex; align-items:center; gap:6px; border:1px solid var(--rule); padding:5px 10px; cursor:pointer; font-size:13px; font-family:var(--sans);">
-              <input type="checkbox" name="types" value="{{ t_code }}" style="margin:0;">
-              {{ t_code | type_label }}
-            </label>
-          {% endfor %}
+        <div class="fn-block">
+          <div class="fn-h">{{ t("Νέα συλλογή") }}</div>
+          <p class="fn-desc">{{ t("Άντληση αποφάσεων από τη Διαύγεια — προκηρύξεις, αναθέσεις και συμβάσεις — με βάση την ημερομηνία ανάρτησης. Μετά την άντληση, γίνεται αυτόματα ταύτιση αναθετουσών αρχών και ένταξη στην εφαρμογή.") }}</p>
+          <form method="post" action="/admin/jobs/diavgeia">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-bottom:12px;">
+              <div class="field"><label>{{ t("από") }}</label><input type="date" name="date_from" value="{{ default_start }}" required></div>
+              <div class="field"><label>{{ t("έως") }}</label><input type="date" name="date_to" value="{{ today }}"></div>
+            </div>
+            <div class="field">
+              <label>{{ t("τύποι αποφάσεων (επιλέξτε ένα ή περισσότερα — αν τίποτα, όλοι)") }}</label>
+              <div class="type-opts">
+                {% for t_code in diavgeia_types %}
+                  <label><input type="checkbox" name="types" value="{{ t_code }}" style="margin:0;"> {{ t_code | type_label }}</label>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="field">
+              <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+                <input type="checkbox" name="resume" value="1" checked>
+                <span style="font-size:13px; letter-spacing:0; text-transform:none; color:var(--ink);">
+                  <strong>{{ t("Συνέχιση") }}</strong> — {{ t("παράλειψη παραθύρων που έχουν ήδη ολοκληρωθεί (συνιστάται)") }}
+                </span>
+              </label>
+            </div>
+            <div class="field">
+              <label style="display:inline-flex; align-items:flex-start; gap:8px; cursor:pointer;">
+                <input type="checkbox" name="extract_fulltext" value="1" style="margin-top:3px;">
+                <span style="font-size:13px; letter-spacing:0; text-transform:none; color:var(--ink);">
+                  <strong>{{ t("Εξαγωγή πλήρους κειμένου") }}</strong> — {{ t("για κάθε απόφαση, αντλεί το έγγραφο από τη Διαύγεια και αποθηκεύει το κείμενό του.") }}
+                  <span style="display:block; color:var(--warn); margin-top:3px;">
+                    {{ t("Πιο αργό & με πολλές λήψεις από τη Διαύγεια. Συμπληρώνει μόνο όσες πράξεις δεν έχουν ήδη κείμενο· τα σαρωμένα PDF παραλείπονται.") }}
+                  </span>
+                </span>
+              </label>
+            </div>
+            <button type="submit" class="run-btn">{{ t("Εκκίνηση συλλογής Διαύγειας") }}</button>
+          </form>
         </div>
-      </div>
-      <div class="field" style="max-width:220px;">
-        <label>{{ t("όριο ανά εκτέλεση") }}</label>
-        <input type="number" name="limit" value="5000" min="1" step="100">
-        <div class="meta" style="margin-top:4px;">{{ t("Πόσες πράξεις θα επιχειρηθούν αυτή τη φορά.") }}</div>
-      </div>
-      <button type="submit" style="background:var(--ink); color:var(--paper); border:0; padding:10px 22px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; margin-top:4px;">
-        {{ t("Εκκίνηση εξαγωγής κειμένου") }}
-      </button>
-    </form>
-    {% endif %}
 
-    {% if not running_now %}
-    <div class="section-h" style="margin-top:28px;">{{ t("Μαζική εξαγωγή πλήρους κειμένου (Διαύγεια)") }}</div>
-    <p class="meta" style="margin-top:-4px; margin-bottom:12px;">
-      {{ t('Για πράξεις της <strong>Διαύγειας</strong> που υπάρχουν ήδη στη βάση αλλά δεν έχουν πλήρες κείμενο. Αντλεί το έγγραφο από τη Διαύγεια & αποθηκεύει το κείμενο σε παρτίδες (resumable — μπορείτε να το ξανατρέξετε για να συνεχίσει). Τα σαρωμένα PDF παραλείπονται.') | safe }}
-      <span style="display:block; color:var(--warn); margin-top:4px;">
-        {{ t('Αφορά την <strong>τοπική</strong> βάση (εκεί που τρέχει ο server). Για την παραγωγή, χρησιμοποιήστε το <code>ingest.sh</code> από το terminal.') | safe }}
-      </span>
-    </p>
-    <form method="post" action="/admin/jobs/diavgeia-fulltext" style="margin-bottom:20px;">
-      <div class="field" style="max-width:220px;">
-        <label>{{ t("όριο ανά εκτέλεση") }}</label>
-        <input type="number" name="limit" value="5000" min="1" step="100">
-        <div class="meta" style="margin-top:4px;">{{ t("Πόσες πράξεις θα επιχειρηθούν αυτή τη φορά.") }}</div>
+        <div class="fn-block">
+          <div class="fn-h">{{ t("Μαζική εξαγωγή πλήρους κειμένου") }}</div>
+          <p class="fn-desc">
+            {{ t('Για πράξεις Διαύγειας που <strong>υπάρχουν ήδη</strong> στη βάση αλλά δεν έχουν πλήρες κείμενο. Αντλεί το έγγραφο από τη Διαύγεια & αποθηκεύει το κείμενο σε παρτίδες (resumable — μπορείτε να το ξανατρέξετε για να συνεχίσει). Τα σαρωμένα PDF παραλείπονται.') | safe }}
+            <span class="warn">{{ t('Αφορά την <strong>τοπική</strong> βάση (εκεί που τρέχει ο server). Για την παραγωγή, χρησιμοποιήστε το <code>ingest.sh</code> από το terminal.') | safe }}</span>
+          </p>
+          <form method="post" action="/admin/jobs/diavgeia-fulltext">
+            <div class="field" style="max-width:220px;">
+              <label>{{ t("όριο ανά εκτέλεση") }}</label>
+              <input type="number" name="limit" value="5000" min="1" step="100">
+              <div class="meta" style="margin-top:4px;">{{ t("Πόσες πράξεις θα επιχειρηθούν αυτή τη φορά.") }}</div>
+            </div>
+            <button type="submit" class="run-btn">{{ t("Εκκίνηση εξαγωγής κειμένου Διαύγειας") }}</button>
+          </form>
+        </div>
+
       </div>
-      <button type="submit" style="background:var(--ink); color:var(--paper); border:0; padding:10px 22px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; margin-top:4px;">
-        {{ t("Εκκίνηση εξαγωγής κειμένου (Διαύγεια)") }}
-      </button>
-    </form>
+    </div>
     {% endif %}
 
     <div class="section-h">{{ t("Πρόσφατες εκτελέσεις") }}</div>
@@ -239,7 +250,7 @@
   </div>
 
   <aside>
-    <div class="section-h">{{ t("Κάλυψη ανά τύπο") }}</div>
+    <div class="section-h">{{ t("Κάλυψη ΚΗΜΔΗΣ") }}</div>
     {% if window_summary %}
       <table class="lines">
         <thead><tr>

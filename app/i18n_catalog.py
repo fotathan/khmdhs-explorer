@@ -374,6 +374,24 @@ _ADMIN1 = {
     "Νέα συλλογή Διαύγειας": "New Diavgeia collection",
     "Άντληση αποφάσεων από τη Διαύγεια (diavgeia.gov.gr) — προκηρύξεις, αναθέσεις και συμβάσεις — με βάση την ημερομηνία ανάρτησης. Μετά την άντληση, γίνεται αυτόματα ταύτιση αναθετουσών αρχών και ένταξη στην εφαρμογή.":
         "Harvest decisions from Diavgeia (diavgeia.gov.gr) — notices, awards and contracts — by posting date. After harvesting, awarding authorities are matched and the acts are surfaced in the app automatically.",
+    # Data-collection page — source-grouped redesign
+    "Άντληση και εμπλουτισμός πράξεων από τις δύο πηγές: ΚΗΜΔΗΣ και Διαύγεια. Μία εκτέλεση τη φορά.":
+        "Harvest and enrich acts from both sources: KHMDHS and Diavgeia. One run at a time.",
+    "Κεντρικό Μητρώο (ΚΗΜΔΗΣ)": "Central Registry (KHMDHS)",
+    "Κύρια πηγή · cerpp.eprocurement.gov.gr": "Primary source · cerpp.eprocurement.gov.gr",
+    "Δεύτερη πηγή · diavgeia.gov.gr": "Secondary source · diavgeia.gov.gr",
+    "Άντληση πράξεων από το ΚΗΜΔΗΣ για ένα εύρος ημερομηνιών. Διαστήματα 180 ημερών γίνονται αυτόματα.":
+        "Harvest acts from KHMDHS for a date range. 180-day windows are handled automatically.",
+    "Άντληση αποφάσεων από τη Διαύγεια — προκηρύξεις, αναθέσεις και συμβάσεις — με βάση την ημερομηνία ανάρτησης. Μετά την άντληση, γίνεται αυτόματα ταύτιση αναθετουσών αρχών και ένταξη στην εφαρμογή.":
+        "Harvest decisions from Diavgeia — notices, awards and contracts — by publication date. After harvesting, awarding authorities are matched and the acts are surfaced in the app automatically.",
+    "Εκκίνηση συλλογής ΚΗΜΔΗΣ": "Start KHMDHS collection",
+    "Εκκίνηση εξαγωγής κειμένου ΚΗΜΔΗΣ": "Start KHMDHS text extraction",
+    "Εκκίνηση εξαγωγής κειμένου Διαύγειας": "Start Diavgeia text extraction",
+    "Κάλυψη ΚΗΜΔΗΣ": "KHMDHS coverage",
+    'Για πράξεις ΚΗΜΔΗΣ που <strong>υπάρχουν ήδη</strong> στη βάση αλλά δεν έχουν πλήρες κείμενο. Αντλεί & αποθηκεύει το κείμενο σε παρτίδες (resumable — μπορείτε να το ξανατρέξετε για να συνεχίσει). Τα σαρωμένα PDF παραλείπονται.':
+        'For KHMDHS acts that <strong>already exist</strong> in the database but have no full text. Fetches & stores the text in batches (resumable — you can re-run it to continue). Scanned PDFs are skipped.',
+    'Για πράξεις Διαύγειας που <strong>υπάρχουν ήδη</strong> στη βάση αλλά δεν έχουν πλήρες κείμενο. Αντλεί το έγγραφο από τη Διαύγεια & αποθηκεύει το κείμενο σε παρτίδες (resumable — μπορείτε να το ξανατρέξετε για να συνεχίσει). Τα σαρωμένα PDF παραλείπονται.':
+        'For Diavgeia acts that <strong>already exist</strong> in the database but have no full text. Fetches the document from Diavgeia & stores the text in batches (resumable — you can re-run it to continue). Scanned PDFs are skipped.',
     "τύποι αποφάσεων (επιλέξτε ένα ή περισσότερα — αν τίποτα, όλοι)":
         "decision types (pick one or more — if none, all)",
     "Εκκίνηση συλλογής Διαύγειας": "Start Diavgeia collection",
