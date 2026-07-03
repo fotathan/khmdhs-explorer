@@ -1004,6 +1004,13 @@ _TABLES = {
     "✓ Ανάγνωση μέσω τοπικού OCR (Tesseract).": "✓ Read via local OCR (Tesseract).",
     "Αν το κείμενο δεν είναι αρκετά καλό, δοκιμάστε ανάγνωση μέσω Claude (PDF/εικόνες).":
         "If the text isn't good enough, try reading via Claude (PDFs/images).",
+    "Δωρεάν OCR (Tesseract)": "Free OCR (Tesseract)",
+    "τοπικό OCR…": "local OCR…",
+    "Ανάγνωση μέσω Claude (επί πληρωμή)": "Read via Claude (paid)",
+    "Αν το κείμενο δεν είναι αρκετά καλό, δοκιμάστε ως έσχατη λύση την ανάγνωση μέσω Claude (επί πληρωμή· PDF/εικόνες).":
+        "If the text still isn't good enough, as a last resort try reading via Claude (paid; PDFs/images).",
+    "Αν το κείμενο είναι λάθος/αλλοιωμένο ή λείπει: δοκιμάστε πρώτα το δωρεάν τοπικό OCR (Tesseract) και μόνο ως έσχατη λύση το Claude (επί πληρωμή).":
+        "If the text is wrong/garbled or missing: try the free local OCR (Tesseract) first, and Claude (paid) only as a last resort.",
     'Το <code>ANTHROPIC_API_KEY</code> δεν είναι ορισμένο — ανενεργό.':
         'The <code>ANTHROPIC_API_KEY</code> is not set — disabled.',
     "✓ Ανάγνωση μέσω Claude.": "✓ Read via Claude.",

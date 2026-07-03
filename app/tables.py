@@ -291,6 +291,24 @@ def _fetch_diavgeia_document(adam: str) -> tuple[bytes, str]:
     return data, fname
 
 
+def _looks_garbled(text) -> bool:
+    """Reuse the ingester's broken-font heuristic; fail-soft to False."""
+    try:
+        from khmdhs_ingest import looks_garbled
+        return looks_garbled(text)
+    except Exception:
+        return False
+
+
+def _local_ocr_enabled() -> bool:
+    """Whether the free local OCR tier (Tesseract + Greek) is usable here."""
+    try:
+        import local_ocr
+        return local_ocr.enabled()
+    except Exception:
+        return False
+
+
 def _local_ocr_entry(entry, pages) -> str:
     """Local (Tesseract) OCR of one file entry, page-aware — mirrors the Claude
     path (safe_ocr_text_from_entry) but free and offline. Renders pages with the
@@ -1045,35 +1063,11 @@ def make_router(templates, cursor) -> APIRouter:
                     skipped.append(entry.source)
         combined = "\n\n".join(chunks).strip()
 
-        # Local OCR auto-pass: when ordinary extraction is empty (scanned) or
-        # garbled (broken fonts), try Tesseract BEFORE the curator reaches for
-        # the paid Claude button. The Claude fallback stays available if the
-        # local result still isn't good enough.
-        via_local = False
-        try:
-            from khmdhs_ingest import looks_garbled
-        except Exception:
-            looks_garbled = lambda s: False  # noqa: E731
-        try:
-            import local_ocr
-            local_on = local_ocr.enabled()
-        except Exception:
-            local_on = False
-        if local_on and ((not combined) or looks_garbled(combined)):
-            oparts, oskipped = [], []
-            for eid in session["order"]:
-                if eid in selected and eid in session["entries"]:
-                    entry = session["entries"][eid]
-                    sel = session["page_sel"].get(eid)
-                    ot = _local_ocr_entry(entry, set(sel) if sel else None)
-                    if ot:
-                        oparts.append(f"=== {entry.source} (OCR) ===\n{ot}")
-                    else:
-                        oskipped.append(entry.source)
-            ocr_combined = "\n\n".join(oparts).strip()
-            if ocr_combined and not looks_garbled(ocr_combined):
-                combined, skipped, via_local = ocr_combined, oskipped, True
-
+        # Plain extraction only. If the result is empty (scanned) or garbled
+        # (broken fonts), the preview offers the FREE local OCR (Tesseract) button
+        # first, then the paid Claude button as a last resort — an explicit,
+        # tiered escalation the curator drives. (The headless mass/ingest paths
+        # still auto-run Tesseract; only this interactive flow is manual.)
         return templates.TemplateResponse(
             request, "tables/_fulltext_preview.html",
             {
@@ -1084,8 +1078,67 @@ def make_router(templates, cursor) -> APIRouter:
                 "char_count": len(combined),
                 "file_ids": list(file_ids),
                 "ocr_available": api_key_present(),
+                "local_ocr_available": _local_ocr_enabled(),
                 "via_ocr": False,
-                "via_local_ocr": via_local,
+                "via_local_ocr": False,
+                "garbled": bool(combined) and _looks_garbled(combined),
+            },
+        )
+
+    @router.post("/fulltext/local-ocr", response_class=HTMLResponse)
+    def fulltext_local_ocr(
+        request: Request,
+        session_id: str = Form(...),
+        file_ids: list[str] = Form(default=[]),
+    ):
+        """Re-read the chosen files with the FREE local OCR tier (Tesseract) — the
+        middle step between plain extraction and the paid Claude fallback. Same
+        editable preview; the Claude button stays available if it's still not good
+        enough. PDFs/images only."""
+        session = SESSIONS.get(session_id)
+        if session is None:
+            return HTMLResponse(
+                "<div class='tt-flash tt-error'>Η συνεδρία έληξε — ξεκινήστε ξανά.</div>",
+                status_code=410,
+            )
+        if not file_ids:
+            return HTMLResponse(
+                "<div class='tt-flash tt-error'>Δεν επιλέχθηκε κανένα αρχείο.</div>",
+                status_code=400,
+            )
+        if not _local_ocr_enabled():
+            return HTMLResponse(
+                "<div class='tt-flash tt-error'>Το τοπικό OCR (Tesseract) δεν είναι "
+                "διαθέσιμο σε αυτό το περιβάλλον.</div>",
+                status_code=400,
+            )
+        selected = set(file_ids)
+        chunks: list[str] = []
+        skipped: list[str] = []
+        for eid in session["order"]:
+            if eid in selected and eid in session["entries"]:
+                entry = session["entries"][eid]
+                sel = session["page_sel"].get(eid)
+                ot = _local_ocr_entry(entry, set(sel) if sel else None)
+                if ot:
+                    chunks.append(f"=== {entry.source} (OCR) ===\n{ot}")
+                else:
+                    skipped.append(entry.source)
+        combined = "\n\n".join(chunks).strip()
+        return templates.TemplateResponse(
+            request, "tables/_fulltext_preview.html",
+            {
+                "session_id": session_id,
+                "adam": session.get("fulltext_adam", ""),
+                "text": combined,
+                "skipped": skipped,
+                "char_count": len(combined),
+                "file_ids": list(file_ids),
+                "ocr_available": api_key_present(),
+                "local_ocr_available": True,
+                "via_ocr": False,
+                "via_local_ocr": True,
+                "garbled": bool(combined) and _looks_garbled(combined),
             },
         )
 
@@ -1149,8 +1202,10 @@ def make_router(templates, cursor) -> APIRouter:
                 "char_count": len(combined),
                 "file_ids": list(file_ids),
                 "ocr_available": api_key_present(),
+                "local_ocr_available": _local_ocr_enabled(),
                 "via_ocr": True,
                 "via_local_ocr": False,
+                "garbled": False,
             },
         )
 

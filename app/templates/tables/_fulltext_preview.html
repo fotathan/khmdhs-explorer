@@ -29,21 +29,34 @@
   {% if not via_ocr and file_ids %}
   <div class="tt-detail" style="border-top:1px dashed var(--tt-rule, #ddd); margin-top:.8rem; padding-top:.7rem;">
     <p class="tt-truncated" style="margin:0 0 .5rem; color:var(--tt-muted, #666);">
-      {% if via_local_ocr %}{{ t("Αν το κείμενο δεν είναι αρκετά καλό, δοκιμάστε ανάγνωση μέσω Claude (PDF/εικόνες).") }}{% else %}{{ t("Λάθος ή αλλοιωμένο κείμενο (π.χ. ελληνικοί χαρακτήρες); Δοκιμάστε ανάγνωση μέσω Claude (PDF/εικόνες).") }}{% endif %}
+      {% if via_local_ocr %}{{ t("Αν το κείμενο δεν είναι αρκετά καλό, δοκιμάστε ως έσχατη λύση την ανάγνωση μέσω Claude (επί πληρωμή· PDF/εικόνες).") }}{% elif local_ocr_available %}{{ t("Αν το κείμενο είναι λάθος/αλλοιωμένο ή λείπει: δοκιμάστε πρώτα το δωρεάν τοπικό OCR (Tesseract) και μόνο ως έσχατη λύση το Claude (επί πληρωμή).") }}{% else %}{{ t("Λάθος ή αλλοιωμένο κείμενο (π.χ. ελληνικοί χαρακτήρες); Δοκιμάστε ανάγνωση μέσω Claude (PDF/εικόνες).") }}{% endif %}
     </p>
-    {% if ocr_available %}
-    <form hx-post="/tables/fulltext/ocr" hx-target="closest .tt-card" hx-swap="outerHTML"
-          hx-indicator="#tt-ft-ocr-busy">
-      <input type="hidden" name="session_id" value="{{ session_id }}">
-      {% for fid in file_ids %}<input type="hidden" name="file_ids" value="{{ fid }}">{% endfor %}
-      <button type="submit" class="tt-btn tt-secondary" hx-disabled-elt="this">
-        {{ t("Ανάγνωση μέσω Claude") }}
-      </button>
-      <span class="tt-indicator" id="tt-ft-ocr-busy">{{ t("αποστολή σελίδων στο Claude API — μπορεί να πάρει λίγο…") }}</span>
-    </form>
-    {% else %}
-    <p class="tt-truncated">{{ t('Το <code>ANTHROPIC_API_KEY</code> δεν είναι ορισμένο — ανενεργό.') | safe }}</p>
-    {% endif %}
+    <div style="display:flex; gap:.7rem; flex-wrap:wrap; align-items:center;">
+      {% if local_ocr_available and not via_local_ocr %}
+      <form hx-post="/tables/fulltext/local-ocr" hx-target="closest .tt-card" hx-swap="outerHTML"
+            hx-indicator="#tt-ft-locr-busy" style="display:inline-flex; align-items:center; gap:.5rem;">
+        <input type="hidden" name="session_id" value="{{ session_id }}">
+        {% for fid in file_ids %}<input type="hidden" name="file_ids" value="{{ fid }}">{% endfor %}
+        <button type="submit" class="tt-btn" hx-disabled-elt="this">
+          {{ t("Δωρεάν OCR (Tesseract)") }}
+        </button>
+        <span class="tt-indicator" id="tt-ft-locr-busy">{{ t("τοπικό OCR…") }}</span>
+      </form>
+      {% endif %}
+      {% if ocr_available %}
+      <form hx-post="/tables/fulltext/ocr" hx-target="closest .tt-card" hx-swap="outerHTML"
+            hx-indicator="#tt-ft-ocr-busy" style="display:inline-flex; align-items:center; gap:.5rem;">
+        <input type="hidden" name="session_id" value="{{ session_id }}">
+        {% for fid in file_ids %}<input type="hidden" name="file_ids" value="{{ fid }}">{% endfor %}
+        <button type="submit" class="tt-btn tt-secondary" hx-disabled-elt="this">
+          {{ t("Ανάγνωση μέσω Claude (επί πληρωμή)") }}
+        </button>
+        <span class="tt-indicator" id="tt-ft-ocr-busy">{{ t("αποστολή σελίδων στο Claude API — μπορεί να πάρει λίγο…") }}</span>
+      </form>
+      {% elif not local_ocr_available %}
+      <p class="tt-truncated">{{ t('Το <code>ANTHROPIC_API_KEY</code> δεν είναι ορισμένο — ανενεργό.') | safe }}</p>
+      {% endif %}
+    </div>
   </div>
   {% elif via_ocr %}
   <p class="tt-truncated" style="margin-top:.6rem; color:var(--tt-muted, #666);">{{ t("✓ Ανάγνωση μέσω Claude.") }}</p>
