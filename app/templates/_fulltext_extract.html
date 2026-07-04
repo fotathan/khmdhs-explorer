@@ -1,0 +1,80 @@
+{# _fulltext_extract.html — full-text extraction widget (fetch a document by
+   ΑΔΑΜ / upload files → pick → extract → "Χρήση αυτού του κειμένου"). Reused by
+   the create page and the edit "Βασικά πεδία" tab.
+
+   MUST be rendered OUTSIDE the main /admin/acts/save form — its hx-post forms
+   cannot nest inside another <form>. Requires tables/_tt_assets.html on the page
+   (tt- CSS + lightbox). "Use this text" dispatches `tt:fulltext-extracted`, which
+   the editor in _act_form_body.html (.ftc-editor) / _fulltext_editor.html
+   (.ft-editor) listens for. Endpoints unchanged: /tables/fulltext/{fetch,upload}.
+   Expects `act` (may be {} on create). #}
+<div class="af-extract">
+  <div class="form-section-h">{{ t("Εξαγωγή κειμένου από αρχείο ή ΑΔΑΜ") }}</div>
+  <p class="meta" style="margin:0 0 10px; letter-spacing:0; text-transform:none;">
+    {{ t("Ανεβάστε PDF/έγγραφο ή αντλήστε το με ΑΔΑΜ· το κείμενο εξάγεται και μπορείτε να το περάσετε στο πλήρες κείμενο πιο κάτω.") }}
+  </p>
+
+  <div class="tt-wrap">
+    <div class="section-h" style="margin-top:0; border:0; font-size:11px;">{{ t("Άντληση με ΑΔΑΜ") }}</div>
+    <form hx-post="/tables/fulltext/fetch" hx-target="#tt-ft-results" hx-swap="innerHTML"
+          hx-indicator="#tt-ft-busy">
+      <div class="tt-adambar">
+        <input type="text" name="adam" value="{{ act.adam or '' }}" autocomplete="off"
+               placeholder="{{ t('ΑΔΑΜ / ΑΔΑ υπάρχουσας πράξης') }}">
+        <button type="submit" class="tt-btn">{{ t("Άντληση εγγράφου") }}</button>
+        <span class="tt-indicator" id="tt-ft-busy">{{ t("λήψη…") }}</span>
+      </div>
+    </form>
+
+    <div class="tt-or">{{ t("ή") }}</div>
+
+    <div class="section-h" style="margin-top:0; border:0; font-size:11px;">{{ t("Μεταφόρτωση αρχείων") }}</div>
+    <form id="tt-ft-upload-form"
+          hx-post="/tables/fulltext/upload" hx-target="#tt-ft-results" hx-swap="innerHTML"
+          hx-encoding="multipart/form-data" hx-indicator="#tt-ft-busy2">
+      <input type="hidden" name="adam" value="{{ act.adam or '' }}">
+      <div class="tt-dropzone" id="tt-ft-dropzone">
+        <p><strong>{{ t("Σύρετε εδώ τα αρχεία") }}</strong> {{ t("ή") }}</p>
+        <button type="button" class="tt-btn tt-secondary"
+                onclick="document.getElementById('tt-ft-file-input').click()">
+          {{ t("Επιλογή αρχείων") }}
+        </button>
+        <p class="tt-formats">.zip · .pdf · .docx · .xlsx · .xls · .csv</p>
+        <input type="file" id="tt-ft-file-input" name="files" multiple hidden
+               accept=".zip,.pdf,.docx,.doc,.xlsx,.xlsm,.xls,.csv">
+        <div class="tt-filelist" id="tt-ft-filelist"></div>
+      </div>
+      <p>
+        <button type="submit" class="tt-btn" id="tt-ft-scan-btn" disabled>{{ t("Φόρτωση αρχείων") }}</button>
+        <span class="tt-indicator" id="tt-ft-busy2">{{ t("επεξεργασία…") }}</span>
+      </p>
+    </form>
+
+    <div id="tt-ft-results"></div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const input = document.getElementById('tt-ft-file-input');
+    const zone = document.getElementById('tt-ft-dropzone');
+    const list = document.getElementById('tt-ft-filelist');
+    const scanBtn = document.getElementById('tt-ft-scan-btn');
+    if (!input || !zone) return;
+    function refreshList() {
+      const names = [...input.files].map(f => f.name);
+      list.textContent = names.length ? names.join('  ·  ') : '';
+      if (scanBtn) scanBtn.disabled = names.length === 0;
+    }
+    input.addEventListener('change', refreshList);
+    ['dragenter', 'dragover'].forEach(ev => zone.addEventListener(ev, e => {
+      e.preventDefault(); zone.classList.add('tt-dragover');
+    }));
+    ['dragleave', 'drop'].forEach(ev => zone.addEventListener(ev, e => {
+      e.preventDefault(); zone.classList.remove('tt-dragover');
+    }));
+    zone.addEventListener('drop', e => {
+      if (e.dataTransfer.files.length) { input.files = e.dataTransfer.files; refreshList(); }
+    });
+  })();
+</script>

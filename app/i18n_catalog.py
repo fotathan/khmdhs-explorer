@@ -1006,6 +1006,16 @@ _TABLES = {
         "Wrong or garbled text (e.g. Greek characters)? Try reading via Claude (PDF/images).",
     "Ανάγνωση μέσω Claude": "Read via Claude",
     "Δίστηλη προβολή: κείμενο | πεδία": "Two-column view: text | fields",
+    "Πεδία & κείμενο": "Fields & text",
+    "Εξαγωγή κειμένου από αρχείο ή ΑΔΑΜ": "Extract text from a file or ΑΔΑΜ",
+    "Ανεβάστε PDF/έγγραφο ή αντλήστε το με ΑΔΑΜ· το κείμενο εξάγεται και μπορείτε να το περάσετε στο πλήρες κείμενο πιο κάτω.":
+        "Upload a PDF/document or fetch it by ΑΔΑΜ; the text is extracted and you can drop it into the full text below.",
+    "ΑΔΑΜ / ΑΔΑ υπάρχουσας πράξης": "ΑΔΑΜ / ΑΔΑ of an existing act",
+    "λήψη…": "downloading…",
+    "Επικολλήστε, πληκτρολογήστε ή εξάγετε (από το εργαλείο πάνω) το πλήρες κείμενο· αποθηκεύεται μαζί με την πράξη, ώστε να συμπληρώσετε τα πεδία διαβάζοντάς το.":
+        "Paste, type, or extract (from the tool above) the full text; it saves with the act so you can fill the fields by reading it.",
+    "Εισαγόμενη πράξη — τα βασικά πεδία ανήκουν στην πηγή και ενημερώνονται από τις αυτόματες εισαγωγές. Το πλήρες κείμενο (αριστερά) είναι διαθέσιμο χωρίς ανάληψη. Για να επεξεργαστείτε τα βασικά πεδία, αναλάβετε την κυριότητα — μονόδρομη ενέργεια· έπειτα οι αυτόματες εισαγωγές δεν θα την τροποποιούν.":
+        "Imported act — the core fields belong to the source and are updated by automatic imports. The full text (left) is available without ownership. To edit the core fields, take ownership — a one-way action; after that automatic imports won't touch it.",
     "Επικόλληση επιλογής σε πεδίο": "Paste selection into a field",
     "φιλτράρισμα πεδίου…": "filter field…",
     "➜ Κωδικοί CPV (αυτόματος εντοπισμός)": "➜ CPV codes (auto-detect)",

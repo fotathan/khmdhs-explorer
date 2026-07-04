@@ -45,15 +45,11 @@
   <button class="edit-tab {% if tab=='fields' %}on{% endif %}" id="tab-fields" role="tab"
           hx-get="/admin/act/{{ act.adam }}/panel/fields"
           hx-target="#edit-panel" hx-swap="innerHTML"
-          onclick="ttEditTab(this)">{{ t("Βασικά πεδία") }}</button>
+          onclick="ttEditTab(this)">{{ t("Πεδία & κείμενο") }}</button>
   <button class="edit-tab {% if tab=='annotate' %}on{% endif %}" id="tab-annotate" role="tab"
           hx-get="/admin/act/{{ act.adam }}/panel/annotate"
           hx-target="#edit-panel" hx-swap="innerHTML"
           onclick="ttEditTab(this)">{{ t("Σημειώσεις") }}</button>
-  <button class="edit-tab {% if tab=='fulltext' %}on{% endif %}" id="tab-fulltext" role="tab"
-          hx-get="/admin/act/{{ act.adam }}/panel/fulltext"
-          hx-target="#edit-panel" hx-swap="innerHTML"
-          onclick="ttEditTab(this)">{{ t("Πλήρες κείμενο") }}</button>
   <button class="edit-tab {% if tab=='tables' %}on{% endif %}" id="tab-tables" role="tab"
           hx-get="/admin/act/{{ act.adam }}/panel/tables"
           hx-target="#edit-panel" hx-swap="innerHTML"

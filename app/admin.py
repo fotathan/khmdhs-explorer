@@ -1206,10 +1206,11 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
     @router.get("/acts/new", response_class=HTMLResponse)
     def act_create_form(request: Request):
         """Blank form to author a new act from scratch."""
-        return templates.TemplateResponse(
-            request, "admin_act_form.html",
-            {"groups": _act_form_fields(), "act": {}, "mode": "create",
-             "adam": None, "authority_name": None})
+        ctx = {"groups": _act_form_fields(), "act": {}, "mode": "create",
+               "adam": None, "authority_name": None,
+               "full_text": "", "full_text_html": ""}
+        ctx.update(_ocr_flags())
+        return templates.TemplateResponse(request, "admin_act_form.html", ctx)
 
     @router.get("/acts/{adam}/edit")
     def act_edit_form(adam: str):
@@ -1283,9 +1284,24 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                     raise HTTPException(404, "act not found")
                 if row["origin"] != "authored":
                     raise HTTPException(403, "imported acts are not editable here")
-                cols = list(data.keys())
-                set_sql = ", ".join(f"{c2} = %s" for c2 in cols)
-                vals = [data[c2] for c2 in cols]
+                set_parts = [f"{c2} = %s" for c2 in data.keys()]
+                vals = [data[c2] for c2 in data.keys()]
+                # Full text now saves in the SAME submit as the fields (the unified
+                # split-view form always posts the hidden inputs). Only touch it
+                # when the form carried it, so other callers are unaffected.
+                if "full_text" in form:
+                    try:
+                        from app.tables import sanitize_full_text_html
+                    except ImportError:
+                        from tables import sanitize_full_text_html
+                    ft = (form.get("full_text") or "").strip()
+                    set_parts += ["full_text = %s", "full_text_html = %s",
+                                  "full_text_source = %s",
+                                  "full_text_extracted_at = now()"]
+                    vals += [ft or None,
+                             sanitize_full_text_html(form.get("full_text_html") or "") or None,
+                             f"manual:{adam}"]
+                set_sql = ", ".join(set_parts)
                 c.execute(
                     f"""UPDATE proc.procurement_act
                         SET {set_sql}, last_edited_by = %s, last_edited_at = now()
@@ -1673,6 +1689,10 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         detail-page links and the redirects from the old standalone URLs)."""
         if tab not in _EDIT_TABS:
             tab = "annotate"
+        # "Πλήρες κείμενο" was merged into "Βασικά πεδία"; keep old deep-links
+        # (detail page, redirects) working by mapping them to the merged tab.
+        if tab == "fulltext":
+            tab = "fields"
         with cursor() as c:
             c.execute("""SELECT adam, type, title, origin FROM proc.procurement_act
                          WHERE adam=%s""", (adam,))
@@ -1681,6 +1701,19 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 raise HTTPException(404, f"act {adam} not found")
         return templates.TemplateResponse(request, "act_edit.html",
                                           {"act": act, "tab": tab})
+
+    def _ocr_flags() -> dict:
+        """OCR-tier availability for the extraction widget/preview buttons."""
+        try:
+            from app.ocr import api_key_present
+        except ImportError:
+            from ocr import api_key_present
+        try:
+            from app.tables import _local_ocr_enabled
+        except ImportError:
+            from tables import _local_ocr_enabled
+        return {"ocr_available": api_key_present(),
+                "local_ocr_available": _local_ocr_enabled()}
 
     def _fields_panel_context(adam: str) -> dict:
         """Context for the Βασικά-πεδία panel. The CPV picker lives inside the
@@ -1727,9 +1760,14 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                           (act["nuts_code"],))
                 row = c.fetchone()
                 nuts = [row] if row else [{"nuts_code": act["nuts_code"], "label": None}]
-        return {"groups": _act_form_fields(), "act": dict(act), "adam": adam,
-                "authority_name": authority_name, "origin": act["origin"],
-                "cpvs": cpvs, "cpv_seeded": cpv_seeded, "nuts": nuts}
+        ctx = {"groups": _act_form_fields(), "act": dict(act), "adam": adam,
+               "mode": "edit",
+               "authority_name": authority_name, "origin": act["origin"],
+               "cpvs": cpvs, "cpv_seeded": cpv_seeded, "nuts": nuts,
+               "full_text": act.get("full_text"),
+               "full_text_html": act.get("full_text_html")}
+        ctx.update(_ocr_flags())
+        return ctx
 
     @router.get("/act/{adam}/panel/fields", response_class=HTMLResponse)
     def panel_fields(adam: str, request: Request):

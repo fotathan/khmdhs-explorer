@@ -1,0 +1,424 @@
+{# _act_form_body.html — the shared split-view act editor body used by BOTH the
+   create page (admin_act_form.html) and the edit "Βασικά πεδία" tab
+   (_panel_fields.html), so the two never drift.
+
+   Context: mode ('create'|'edit'), adam, origin, groups, act, authority_name,
+   cpvs, cpv_seeded, nuts, full_text, full_text_html, ocr_available,
+   local_ocr_available. The extraction widget (_fulltext_extract.html) is included
+   by the caller ABOVE this body, OUTSIDE the save form.
+
+   authored/create → one <form> to /admin/acts/save (Save persists fields + full
+   text together; Quill mirrors into hidden inputs on submit).
+   imported → full-text editor + extraction work independently (own save form via
+   _fulltext_editor.html); scalar fields are gated behind take-ownership. #}
+{% set is_authored = (mode == 'create') or (origin == 'authored') %}
+
+<div class="af-toggle">
+  <label class="af-switch">
+    <input type="checkbox" id="af-split-toggle" onchange="afToggleSplit(this.checked)">
+    {{ t("Δίστηλη προβολή: κείμενο | πεδία") }}
+  </label>
+</div>
+
+{% if is_authored %}
+<form method="post" action="/admin/acts/save" style="padding-bottom:26px;">
+  <input type="hidden" name="_mode" value="{{ mode }}">
+  {% if mode == 'edit' %}<input type="hidden" name="_adam" value="{{ adam }}">{% endif %}
+
+  <div class="actform-body" id="actform-body">
+    <div class="af-fulltext">
+      <div class="form-section">
+        <div class="form-section-h">{{ t("Πλήρες κείμενο") }}</div>
+        <p class="meta" style="margin:0 0 8px; letter-spacing:0; text-transform:none;">
+          {{ t("Επικολλήστε, πληκτρολογήστε ή εξάγετε (από το εργαλείο πάνω) το πλήρες κείμενο· αποθηκεύεται μαζί με την πράξη, ώστε να συμπληρώσετε τα πεδία διαβάζοντάς το.") }}
+        </p>
+        <div class="ftc-editor"></div>
+        <input type="hidden" name="full_text" class="ftc-plain">
+        <input type="hidden" name="full_text_html" class="ftc-html">
+        <div class="ftc-initial-html" hidden>{% if full_text_html %}{{ full_text_html | safe }}{% endif %}</div>
+        <div class="ftc-initial-text" hidden>{{ full_text or '' }}</div>
+      </div>
+    </div>
+
+    <div class="af-fields">
+      {% if mode == 'create' %}
+      <div class="form-section">
+        <div class="form-section-h">{{ t("Αναγνωριστικό") }}</div>
+        <div class="field">
+          <label>{{ t("ΑΔΑΜ (προαιρετικό — αφήστε κενό για αυτόματο MANUAL-…)") }}</label>
+          <input type="text" name="adam" value="" placeholder="{{ t('αφήστε κενό για αυτόματη δημιουργία') }}">
+        </div>
+      </div>
+      {% endif %}
+
+      {% for group, fields in groups.items() %}
+      <div class="form-section">
+        <div class="form-section-h">{{ group | t }}</div>
+        <div class="form-grid">
+          {% for name, label, kind in fields %}
+          {% set val = act.get(name) %}
+          <div class="field {% if kind in ('textarea', 'nuts') %}field-wide{% endif %}">
+            {% if kind == 'bool' %}
+              <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; text-transform:none; letter-spacing:0;">
+                <input type="checkbox" name="{{ name }}" value="1" {% if val %}checked{% endif %}>
+                {{ label | t }}
+              </label>
+            {% else %}
+              <label>{{ label | t }}</label>
+              {% if kind == 'textarea' %}
+                <textarea name="{{ name }}" rows="2">{{ val or '' }}</textarea>
+              {% elif kind == 'type' %}
+                <select name="{{ name }}">
+                  {% for code in ['notice','auction','contract','payment','request'] %}
+                  <option value="{{ code }}" {% if val==code %}selected{% endif %}>{{ code | type_label }}</option>
+                  {% endfor %}
+                </select>
+              {% elif kind == 'date' %}
+                <input type="date" name="{{ name }}" value="{{ val.strftime('%Y-%m-%d') if val else '' }}">
+              {% elif kind == 'number' %}
+                <input type="text" inputmode="decimal" name="{{ name }}" value="{{ val if val is not none else '' }}">
+              {% elif kind == 'authority' %}
+                <input type="text" name="{{ name }}" value="{{ val or '' }}"
+                       placeholder="{{ t('ΑΦΜ ή org_id της αρχής') }}">
+                {% if authority_name %}<div class="meta" style="margin-top:4px; letter-spacing:0; text-transform:none;">→ {{ authority_name }}</div>{% endif %}
+              {% elif kind == 'nuts' %}
+                {% include "_nuts_field.html" %}
+              {% elif kind == 'postal' %}
+                <input type="text" name="{{ name }}" value="{{ val or '' }}"
+                       placeholder="{{ t('π.χ. 11142') }}"
+                       onblur="if(window.nutsFromZip) nutsFromZip(this.value)">
+              {% elif kind == 'country' %}
+                <input type="text" name="{{ name }}" value="{{ val or 'Ελλάδα' }}">
+              {% else %}
+                <input type="text" name="{{ name }}" value="{{ val or '' }}">
+              {% endif %}
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+
+      {% include "_cpv_field.html" %}
+      {% if cpv_seeded %}
+      <p class="meta" style="margin:-6px 0 14px; letter-spacing:0; text-transform:none; font-style:italic; color:var(--ink-3);">
+        {{ t("Οι κωδικοί προέρχονται από τα είδη της εισαγόμενης πράξης. Επεξεργαστείτε και αποθηκεύστε τους ως κωδικούς CPV επιπέδου πράξης.") }}
+      </p>
+      {% endif %}
+    </div>{# .af-fields #}
+  </div>{# .actform-body #}
+
+  <div class="af-actions">
+    <button type="submit" class="af-save-btn">
+      {% if mode=='create' %}{{ t("Δημιουργία πράξης") }}{% else %}{{ t("Αποθήκευση") }}{% endif %}
+    </button>
+    <a class="back" href="/admin/acts" hx-boost="false">{{ t("Άκυρο") }}</a>
+  </div>
+</form>
+
+{% else %}
+{# IMPORTED act: full-text editor + extraction work without ownership; scalar
+   fields need take-ownership first. Same split-view layout for consistency. #}
+<div class="actform-body" id="actform-body">
+  <div class="af-fulltext">
+    <div class="form-section">
+      <div class="form-section-h">{{ t("Πλήρες κείμενο") }}</div>
+      {% include "tables/_fulltext_editor.html" %}
+    </div>
+  </div>
+  <div class="af-fields">
+    <div class="form-section">
+      <div class="form-section-h">{{ t("Βασικά πεδία") }}</div>
+      <div class="take-own">
+        <p style="font-family:var(--serif); font-size:14px; color:var(--ink-2); line-height:1.6; margin:0 0 14px;">
+          {{ t("Εισαγόμενη πράξη — τα βασικά πεδία ανήκουν στην πηγή και ενημερώνονται από τις αυτόματες εισαγωγές. Το πλήρες κείμενο (αριστερά) είναι διαθέσιμο χωρίς ανάληψη. Για να επεξεργαστείτε τα βασικά πεδία, αναλάβετε την κυριότητα — μονόδρομη ενέργεια· έπειτα οι αυτόματες εισαγωγές δεν θα την τροποποιούν.") }}
+        </p>
+        <form method="post" action="/admin/acts/{{ adam }}/take-ownership">
+          <button type="submit" class="af-save-btn"
+                  onclick="return confirm('{{ t('Ανάληψη κυριότητας της πράξης') }} {{ adam }}{{ t('; Δεν αναιρείται.') }}');">
+            {{ t("Ανάληψη κυριότητας & επεξεργασία") }}
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<style>
+  .af-extract{margin:14px 0 4px; padding:14px 16px; border:1px solid var(--rule); border-radius:10px; background:var(--paper-2);}
+  .af-extract .form-section-h{margin-top:0;}
+  .af-toggle{display:flex; justify-content:flex-end; margin:14px 0 6px;}
+  .af-switch{display:inline-flex; align-items:center; gap:8px; font-size:12px;
+    color:var(--ink-2); cursor:pointer; text-transform:none; letter-spacing:0;}
+  .form-section{margin:22px 0; padding-bottom:6px;}
+  .form-section-h{font-family:var(--mono, monospace); font-size:11px; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--accent, #b41034); border-bottom:1px solid var(--rule);
+    padding-bottom:7px; margin-bottom:14px;}
+  .form-grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:14px 18px;}
+  .form-grid .field-wide{grid-column:span 3;}
+  .form-grid .field{margin:0;}
+  .form-grid textarea{width:100%; resize:vertical; font-family:inherit;}
+  .ftc-editor{background:#fff;}
+  .ftc-editor .ql-editor{min-height:220px; font-size:14px; line-height:1.6;}
+  .af-actions{background:var(--paper); border-top:1px solid var(--rule); padding:16px 0; margin-top:8px;
+    display:flex; gap:12px; align-items:center;}
+  .af-save-btn{background:var(--ink); color:var(--paper); border:0; padding:11px 28px; font-family:var(--sans);
+    font-size:12px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; border-radius:6px;}
+
+  /* Two-column ("full text | fields") view. Off by default (stacked). */
+  .actform-body.split{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    gap:26px; align-items:start;}
+  .actform-body.split .af-fulltext{position:sticky; top:8px;}
+  .actform-body.split .af-fulltext .ql-editor{max-height:74vh; overflow:auto;}
+  .actform-body.split .af-fields .form-grid{grid-template-columns:1fr;}
+  .actform-body.split .af-fields .form-grid .field-wide{grid-column:span 1;}
+  @media (max-width:900px){
+    .actform-body.split{grid-template-columns:1fr;}
+    .actform-body.split .af-fulltext{position:static;}
+    .actform-body.split .af-fulltext .ql-editor{max-height:none;}
+  }
+
+  /* Floating "paste selection into a field" menu (appears on text selection). */
+  .ft-selmenu{position:fixed; z-index:1000; width:252px; padding:7px; background:var(--paper,#fff);
+    border:1px solid var(--rule,#ccc); border-radius:8px; box-shadow:0 8px 28px rgba(0,0,0,.16);}
+  .ft-selmenu-h{font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-3,#888); padding:2px 4px 6px;}
+  .ft-selmenu-filter{width:100%; box-sizing:border-box; padding:5px 8px; font-size:12px; margin-bottom:5px;
+    border:1px solid var(--rule,#ddd); border-radius:5px;}
+  .ft-selmenu-list{max-height:240px; overflow:auto; display:flex; flex-direction:column;}
+  .ft-selitem{display:block; width:100%; text-align:left; background:transparent; border:0; padding:6px 8px;
+    font-size:12.5px; cursor:pointer; border-radius:5px; color:var(--ink,#222);}
+  .ft-selitem:hover{background:var(--accent-soft,#fbe9ec);}
+  .ft-selitem-cpv{font-weight:600; color:var(--accent,#b41034); border-bottom:1px solid var(--rule,#e6e8ec);
+    margin-bottom:4px; padding-bottom:8px;}
+  .ft-flash{outline:2px solid var(--accent, #b41034) !important; outline-offset:1px;}
+  .ft-toast{position:fixed; left:50%; bottom:28px; transform:translateX(-50%) translateY(8px);
+    background:var(--ink,#14181f); color:#fff; padding:9px 16px; border-radius:8px; font-size:13px;
+    z-index:1001; box-shadow:0 6px 20px rgba(0,0,0,.22); opacity:0; transition:opacity .18s, transform .18s; pointer-events:none;}
+  .ft-toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+</style>
+
+<script>
+  // Stacked ⇄ two-column view. Persisted so the preference sticks across acts.
+  function afToggleSplit(on){
+    var b=document.getElementById('actform-body');
+    if(b) b.classList.toggle('split', !!on);
+    try{ localStorage.setItem('af_split', on ? '1' : '0'); }catch(e){}
+  }
+  (function(){
+    var t=document.getElementById('af-split-toggle');
+    if(!t) return;
+    var pref='0'; try{ pref=localStorage.getItem('af_split')||'0'; }catch(e){}
+    if(pref==='1'){ t.checked=true; afToggleSplit(true); }
+  })();
+</script>
+
+{% if is_authored %}
+<script>
+(function () {
+  var CSS = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css';
+  var JS  = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js';
+  var mount = document.querySelector('.ftc-editor');
+  if (!mount) return;
+  function ensureCss() {
+    if (document.getElementById('ftc-quill-css')) return;
+    var l = document.createElement('link');
+    l.id = 'ftc-quill-css'; l.rel = 'stylesheet'; l.href = CSS;
+    document.head.appendChild(l);
+  }
+  function init() {
+    if (mount.__quill) return;
+    var q = new Quill(mount, { theme: 'snow', modules: { toolbar: [
+      [{ header: [1, 2, 3, false] }], ['bold', 'italic', 'underline'],
+      [{ list: 'ordered' }, { list: 'bullet' }], ['blockquote', 'link'], ['clean'],
+    ] } });
+    mount.__quill = q;
+
+    // Seed existing full text (edit) — prefer sanitised HTML, else plain.
+    var parent = mount.parentNode;
+    var htmlSeed = parent.querySelector('.ftc-initial-html');
+    var textSeed = parent.querySelector('.ftc-initial-text');
+    if (htmlSeed && htmlSeed.innerHTML.trim()) { q.clipboard.dangerouslyPasteHTML(htmlSeed.innerHTML); }
+    else if (textSeed && textSeed.textContent.trim()) { q.setText(textSeed.textContent); }
+
+    var form = mount.closest('form');
+    if (form) {
+      form.addEventListener('submit', function () {
+        var empty = q.getText().trim() === '';
+        var plain = form.querySelector('.ftc-plain');
+        var html = form.querySelector('.ftc-html');
+        if (plain) plain.value = empty ? '' : q.getText();
+        if (html) html.value = empty ? '' : q.root.innerHTML;
+      });
+    }
+    setupPasteMenu(q);
+  }
+
+  // "Χρήση αυτού του κειμένου" in the extraction preview dispatches this; route
+  // the extracted text into this editor. Bound once.
+  if (!window.__ftcExtractBound) {
+    window.__ftcExtractBound = true;
+    document.body.addEventListener('tt:fulltext-extracted', function (e) {
+      if (typeof e.detail !== 'string') return;
+      var m = document.querySelector('.ftc-editor');
+      if (m && m.__quill) {
+        m.__quill.setText(e.detail);
+        m.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+  }
+
+  function setupPasteMenu(q) {
+    // Re-swapping this panel (hub tab switch) re-runs this; drop any prior menu
+    // so they don't accumulate on <body>.
+    document.querySelectorAll('.ft-selmenu').forEach(function (m) { m.remove(); });
+    var menu = document.createElement('div');
+    menu.className = 'ft-selmenu';
+    menu.style.display = 'none';
+    menu.innerHTML =
+      '<div class="ft-selmenu-h">{{ t("Επικόλληση επιλογής σε πεδίο") }}</div>' +
+      '<input class="ft-selmenu-filter" placeholder="{{ t('φιλτράρισμα πεδίου…') }}">' +
+      '<div class="ft-selmenu-list"></div>';
+    document.body.appendChild(menu);
+    var listEl = menu.querySelector('.ft-selmenu-list');
+    var filterEl = menu.querySelector('.ft-selmenu-filter');
+    var lastText = '';
+
+    function fields() {
+      var scope = document.querySelector('.af-fields') || document;
+      var excl = { cpv_code: 1, nuts_code: 1, full_text: 1, full_text_html: 1 };
+      var res = [];
+      scope.querySelectorAll('input, textarea').forEach(function (el) {
+        if (el.tagName === 'INPUT' && (el.getAttribute('type') || 'text').toLowerCase() !== 'text') return;
+        if (!el.name || excl[el.name]) return;
+        var id = el.id || '';
+        if (id.indexOf('act-cpv') === 0 || id.indexOf('act-nuts') === 0 || id.indexOf('cpv-modal') === 0) return;
+        if (el.offsetParent === null) return;   // hidden
+        var fld = el.closest('.field');
+        var lab = fld && fld.querySelector('label');
+        res.push({ el: el, label: (lab ? lab.textContent : el.name).replace(/\s+/g, ' ').trim() });
+      });
+      return res;
+    }
+    function cleanNumber(s) {
+      if (s == null) return null;
+      var t = String(s).replace(/[^0-9.,-]/g, '');
+      var neg = t.charAt(0) === '-';
+      t = t.replace(/-/g, '');
+      if (!t) return null;
+      var commas = (t.match(/,/g) || []).length;
+      var dots = (t.match(/\./g) || []).length;
+      var lc = t.lastIndexOf(','), ld = t.lastIndexOf('.');
+      var num;
+      if (!commas && !dots) { num = t; }
+      else if (lc > ld) { num = (commas > 1) ? t.replace(/[.,]/g, '') : t.replace(/\./g, '').replace(',', '.'); }
+      else {
+        if (lc !== -1) { num = t.replace(/,/g, ''); }
+        else if (dots > 1) { num = t.replace(/\./g, ''); }
+        else { var tail = t.length - ld - 1; num = (tail === 3 && ld <= 3) ? t.replace(/\./g, '') : t; }
+      }
+      var n = parseFloat(num);
+      if (isNaN(n)) return null;
+      if (neg) n = -n;
+      return (Math.round(n * 100) / 100).toString();
+    }
+    function pasteInto(el, text) {
+      var val = text;
+      if (el.tagName === 'INPUT' && (el.getAttribute('inputmode') || '').toLowerCase() === 'decimal') {
+        var cleaned = cleanNumber(text);
+        if (cleaned !== null) val = cleaned;
+      }
+      el.value = val;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.classList.add('ft-flash');
+      el.scrollIntoView({ block: 'nearest' });
+      setTimeout(function () { el.classList.remove('ft-flash'); }, 1000);
+    }
+    function cpvToast(msg) {
+      var d = document.createElement('div');
+      d.className = 'ft-toast'; d.textContent = msg;
+      document.body.appendChild(d);
+      setTimeout(function () { d.classList.add('show'); }, 10);
+      setTimeout(function () { d.classList.remove('show'); }, 3000);
+      setTimeout(function () { d.remove(); }, 3400);
+    }
+    function addCpvFromSelection(text) {
+      var body = new URLSearchParams(); body.set('text', text || '');
+      fetch('/api/cpv-extract', {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body
+      }).then(function (r) { return r.json(); }).then(function (data) {
+        var codes = (data && data.codes) || [];
+        if (typeof pickCpv !== 'function') { return; }
+        var chips = document.getElementById('act-cpv-chips');
+        var added = 0;
+        codes.forEach(function (c) {
+          var have = chips && chips.querySelector('.cpv-chip[data-code="' + c.code + '"]');
+          pickCpv(c.code, c.description || '');
+          if (!have) added++;
+        });
+        if (chips) {
+          chips.scrollIntoView({ block: 'nearest' });
+          chips.classList.add('ft-flash');
+          setTimeout(function () { chips.classList.remove('ft-flash'); }, 1200);
+        }
+        if (!codes.length) { cpvToast('{{ t("Δεν βρέθηκαν έγκυροι κωδικοί CPV στην επιλογή") }}'); }
+        else {
+          var dup = codes.length - added;
+          var msg = added + ' {{ t("CPV προστέθηκαν") }}';
+          if (dup > 0) { msg += ' · ' + dup + ' {{ t("ήδη υπήρχαν") }}'; }
+          cpvToast(msg);
+        }
+      }).catch(function () { cpvToast('{{ t("Σφάλμα εντοπισμού CPV") }}'); });
+    }
+    function build() {
+      listEl.innerHTML = '';
+      if (document.getElementById('act-cpv-chips')) {
+        var cb = document.createElement('button');
+        cb.type = 'button'; cb.className = 'ft-selitem ft-selitem-cpv';
+        cb.textContent = '{{ t("➜ Κωδικοί CPV (αυτόματος εντοπισμός)") }}';
+        cb.addEventListener('mousedown', function (ev) { ev.preventDefault(); addCpvFromSelection(lastText); hide(); });
+        listEl.appendChild(cb);
+      }
+      fields().forEach(function (f) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'ft-selitem'; b.textContent = f.label;
+        b.addEventListener('mousedown', function (ev) { ev.preventDefault(); pasteInto(f.el, lastText); hide(); });
+        listEl.appendChild(b);
+      });
+    }
+    filterEl.addEventListener('input', function () {
+      var qq = this.value.toLowerCase();
+      listEl.querySelectorAll('.ft-selitem').forEach(function (b) {
+        b.style.display = b.textContent.toLowerCase().indexOf(qq) >= 0 ? '' : 'none';
+      });
+    });
+    function open(text, rect) {
+      lastText = text; build(); filterEl.value = '';
+      menu.style.display = 'block';
+      menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 266)) + 'px';
+      menu.style.top = (rect.bottom + 6) + 'px';
+    }
+    function hide() { menu.style.display = 'none'; }
+
+    q.on('selection-change', function (range) {
+      if (range && range.length > 0) {
+        var text = (q.getText(range.index, range.length) || '').trim();
+        var sel = window.getSelection();
+        if (text && sel && sel.rangeCount) { open(text, sel.getRangeAt(0).getBoundingClientRect()); return; }
+      }
+    });
+    document.addEventListener('mousedown', function (e) {
+      if (menu.style.display === 'none') return;
+      if (menu.contains(e.target) || mount.contains(e.target)) return;
+      hide();
+    });
+    window.addEventListener('scroll', hide, true);
+    window.addEventListener('resize', hide);
+  }
+
+  ensureCss();
+  if (window.Quill) { init(); }
+  else { var s = document.createElement('script'); s.src = JS; s.onload = init; document.head.appendChild(s); }
+})();
+</script>
+{% endif %}
