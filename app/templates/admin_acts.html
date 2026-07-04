@@ -214,7 +214,7 @@
         {% if r.origin == 'authored' %}
           <a class="back" href="/admin/act/{{ r.adam }}/edit?tab=fields" hx-boost="false" style="font-size:11px;">{{ t("επεξεργασία ›") }}</a>
         {% else %}
-          <a class="back" href="/admin/act/{{ r.adam }}/edit" hx-boost="false" style="font-size:11px;">{{ t("επεξεργασία ›") }}</a>
+          <a class="back" href="/admin/act/{{ r.adam }}/edit?tab=fields" hx-boost="false" style="font-size:11px;">{{ t("επεξεργασία ›") }}</a>
           <form method="post" action="/admin/acts/{{ r.adam }}/take-ownership" style="margin:4px 0 0;"
                 onsubmit="return confirm('{{ t('Μετατροπή σε χειροκίνητη πράξη; Τα βασικά πεδία θα γίνουν πλήρως επεξεργάσιμα και οι μελλοντικές εισαγωγές δεν θα την αγγίζουν. Μη αναστρέψιμο.') }}');">
             <button type="submit" class="back" style="font-size:10px; background:none; border:0; color:var(--ink-3); cursor:pointer; padding:0; text-decoration:underline;">{{ t("ανάληψη →") }}</button>
