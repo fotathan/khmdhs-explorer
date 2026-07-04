@@ -997,6 +997,8 @@ _TABLES = {
     'Το <code>ANTHROPIC_API_KEY</code> δεν είναι ορισμένο — η εξαγωγή μέσω Claude είναι ανενεργή.':
         'The <code>ANTHROPIC_API_KEY</code> is not set — extraction via Claude is disabled.',
     "ενωμένος": "stitched",
+    "λίστα ειδών ✓": "item list ✓",
+    "πιθανώς άσχετος": "likely irrelevant",
     # fulltext preview
     "↑ Χρήση αυτού του κειμένου": "↑ Use this text",
     "Το κείμενο μεταφέρεται στο πεδίο επάνω· πατήστε «Αποθήκευση κειμένου» για να αποθηκευτεί.":

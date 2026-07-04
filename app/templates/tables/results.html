@@ -1,7 +1,16 @@
 <div class="tt-summary">
   {% if lang=='en' %}Found <b>{{ n_tables }}</b> table{{ "" if n_tables == 1 else "s" }} in <b>{{ reports|length }}</b> file{{ "" if reports|length == 1 else "s" }}.{% else %}Βρέθηκαν <b>{{ n_tables }}</b> πίνακ{{ "ας" if n_tables == 1 else "ες" }} σε <b>{{ reports|length }}</b> αρχ{{ "είο" if reports|length == 1 else "εία" }}.{% endif %}
+  {% if n_tables and n_relevant is defined %}{% if lang=='en' %}<b>{{ n_relevant }}</b> look{{ "s" if n_relevant == 1 else "" }} like item/service list{{ "" if n_relevant == 1 else "s" }} (pre-selected).{% else %}<b>{{ n_relevant }}</b> μοιάζ{{ "ει" if n_relevant == 1 else "ουν" }} με λίστ{{ "α" if n_relevant == 1 else "ες" }} ειδών/υπηρεσιών (προεπιλεγμέν{{ "ος" if n_relevant == 1 else "οι" }}).{% endif %}{% endif %}
   {% if n_stitched %}{% if lang=='en' %}{{ n_stitched }} span multiple pages and were stitched. {% else %}{{ n_stitched }} εκτείνονται σε πολλές σελίδες και ενώθηκαν. {% endif %}{% endif %}{% if n_tables %}{% if lang=='en' %}Select the ones you want and export or save below.{% else %}Επιλέξτε όσους θέλετε και εξάγετε ή αποθηκεύστε παρακάτω.{% endif %}{% endif %}
 </div>
+
+{% if n_tables and n_relevant is defined and n_relevant == 0 %}
+{# When a document yields ONLY irrelevant grids, say so loudly — so nobody
+   wastes review time on TOC/signature tables (explicit user ask). #}
+<div class="tt-flash" style="background:#fdf0e3; border:1px solid #f0dcc0; color:#8a5a1c; margin:.6rem 0;">
+  {% if lang=='en' %}Only irrelevant tables found ({{ n_tables }}) — this document probably contains no item/service list. Nothing is pre-selected.{% else %}Βρέθηκαν μόνο άσχετοι πίνακες ({{ n_tables }}) — το έγγραφο μάλλον δεν περιέχει λίστα ειδών/υπηρεσιών. Δεν προεπιλέχθηκε κανένας.{% endif %}
+</div>
+{% endif %}
 
 <form action="/tables/export" method="post" id="tt-export-form">
   <input type="hidden" name="session_id" value="{{ session_id }}">

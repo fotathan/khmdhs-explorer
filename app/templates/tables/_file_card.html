@@ -92,13 +92,20 @@
   {% endif %}
 
   {% for tbl in report.tables if tbl.role != "fragment" %}
-  <div class="tt-block">
+  {% set _rel = tbl.get('relevant', true) %}
+  <div class="tt-block {% if not _rel %}tt-irrelevant{% endif %}">
     <label class="tt-pick">
-      <input type="checkbox" name="table_ids" value="{{ tbl.id }}" checked
+      {# Pre-check only tables the relevance classifier accepted; the rest stay
+         visible but unchecked (dimmed) — one click restores a wrong verdict. #}
+      <input type="checkbox" name="table_ids" value="{{ tbl.id }}" {% if _rel %}checked{% endif %}
              form="tt-export-form" onchange="ttUpdateCount()">
       <span class="tt-loc">{{ tbl.locator }}</span>
       {% if tbl.role == "stitched" %}<span class="tt-badge ok">{{ t("ενωμένος") }}</span>{% endif %}
       {% if "(OCR" in tbl.locator %}<span class="tt-badge image">OCR</span>{% endif %}
+      {% if tbl.get('relevant') is not none %}
+        {% if _rel %}<span class="tt-badge rel" title="{{ tbl.get('rel_why','') }}">{{ t("λίστα ειδών ✓") }}</span>
+        {% else %}<span class="tt-badge irrel" title="{{ tbl.get('rel_why','') }}">{{ t("πιθανώς άσχετος") }}</span>{% endif %}
+      {% endif %}
       <span class="tt-dims">{{ tbl.n_rows }} × {{ tbl.n_cols }}</span>
     </label>
     <div class="tt-preview">

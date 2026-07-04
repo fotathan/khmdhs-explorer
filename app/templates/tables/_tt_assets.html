@@ -59,6 +59,12 @@
 
   .tt-block { padding: .8rem .9rem; border-bottom: 1px solid var(--rule-2); }
   .tt-block:last-child { border-bottom: 0; }
+  /* Relevance classifier verdicts: irrelevant tables stay visible (one click
+     to re-check) but recede; badges carry the verdict + why (title tooltip). */
+  .tt-block.tt-irrelevant { opacity: .55; }
+  .tt-block.tt-irrelevant:hover { opacity: 1; }
+  .tt-badge.rel   { background: #e4efe8; color: var(--ok); }
+  .tt-badge.irrel { background: var(--paper-2); color: var(--ink-3); cursor: help; }
   .tt-pick { display: flex; gap: .55rem; align-items: center; margin-bottom: .45rem; }
   .tt-pick input { width: 1.05rem; height: 1.05rem; accent-color: var(--accent); }
   .tt-pick .tt-loc { font-weight: 600; font-size: .9rem; }

@@ -320,9 +320,11 @@ def _table_outcome(adam: str, act_type: str, data_source: str | None = None,
     try:
         from app.tables import _fetch_act_document, _fetch_diavgeia_document
         from app.extractors import collect_files, extract_entry
+        from app.table_relevance import annotate as _annotate_rel, enabled as _rel_on
     except ImportError:
         from tables import _fetch_act_document, _fetch_diavgeia_document
         from extractors import collect_files, extract_entry
+        from table_relevance import annotate as _annotate_rel, enabled as _rel_on
     import khmdhs_ingest
     api_key = bool(_o.environ.get("ANTHROPIC_API_KEY"))
 
@@ -344,6 +346,8 @@ def _table_outcome(adam: str, act_type: str, data_source: str | None = None,
 
     n_files = 0
     total_tables = 0
+    n_main = 0
+    n_rel = 0
     statuses = set()
     cells = []
     kept = []
@@ -357,6 +361,10 @@ def _table_outcome(adam: str, act_type: str, data_source: str | None = None,
         statuses.add(rep.status)
         if rep.status == "ok" and rep.tables:
             total_tables += len(rep.tables)
+            # Relevance pass (item/service lists vs TOC/signature/boilerplate
+            # grids) — per report, so stitch fragments find their parent.
+            n_rel += _annotate_rel(rep.tables)
+            n_main += sum(1 for t in rep.tables if t.get("role") != "fragment")
             for t in rep.tables:
                 for row in (t.get("rows") or [])[:25]:
                     cells.append(" ".join(str(c) for c in row))
@@ -366,7 +374,19 @@ def _table_outcome(adam: str, act_type: str, data_source: str | None = None,
     if total_tables > 0:
         if khmdhs_ingest.looks_garbled("\n".join(cells)):
             return ("garbled", total_tables, n_files, "αλλοιωμένο περιεχόμενο πινάκων", None)
-        return ("extracted", total_tables, n_files, None, kept if want_tables else None)
+        # Note carries the relevance tally either way (report + save modes), so
+        # the job log flags acts with ONLY irrelevant tables — no review time
+        # wasted on them. In save mode only relevant MAIN tables persist (the
+        # stitched parent already contains its page fragments' rows).
+        if _rel_on():
+            note = (f"{n_main} πίνακες, {n_rel} σχετικοί" if n_rel
+                    else f"μόνο άσχετοι πίνακες ({n_main})")
+            if want_tables:
+                kept = [t for t in kept
+                        if t.get("relevant") and t.get("role") != "fragment"]
+        else:
+            note = None  # classifier disabled — behave exactly as before
+        return ("extracted", total_tables, n_files, note, kept if want_tables else None)
     if statuses & {"scanned", "image"}:
         note = "σαρωμένο — χρειάζεται OCR" + ("" if api_key else " (χωρίς ANTHROPIC_API_KEY)")
         return ("needs_ocr", 0, n_files, note, None)
@@ -451,6 +471,8 @@ def cmd_extract_tables(args):
                 outcome, n_tables, n_files, note, tables = _table_outcome(
                     adam, act_type, data_source, want_tables=save_mode)
                 n[outcome] = n.get(outcome, 0) + 1
+                if note and note.startswith("μόνο άσχετοι"):
+                    n["only_irrelevant"] = n.get("only_irrelevant", 0) + 1
                 n_saved = 0
                 if save_mode and outcome == "extracted" and tables:
                     n_saved = _save_act_tables(db, adam, tables)

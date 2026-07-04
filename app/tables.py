@@ -80,6 +80,13 @@ except ImportError:
         safe_page_count, safe_render_full, safe_render_thumb,
     )
 
+# Item/service-list relevance classifier (KHMDHS-specific — annotates the
+# extractor's table dicts so the preview can pre-select the useful tables).
+try:
+    from app.table_relevance import annotate as annotate_relevance
+except ImportError:
+    from table_relevance import annotate as annotate_relevance
+
 # --------------------------------------------------------------------------- #
 # HTML sanitisation for curator-authored rich full text
 # --------------------------------------------------------------------------- #
@@ -365,6 +372,9 @@ def make_router(templates, cursor) -> APIRouter:
         session["tables"] = tables
         n_main = sum(1 for t in tables.values() if t.get("role") != "fragment")
         n_stitched = sum(1 for t in tables.values() if t.get("role") == "stitched")
+        # Relevance pass: pre-select item/service lists; irrelevant tables stay
+        # visible but unchecked (per-report so stitch fragments find their parent).
+        n_relevant = sum(annotate_relevance(r.tables) for r in reports)
         return templates.TemplateResponse(
             request,
             "tables/results.html",
@@ -373,6 +383,7 @@ def make_router(templates, cursor) -> APIRouter:
                 "reports": reports,
                 "n_tables": n_main,
                 "n_stitched": n_stitched,
+                "n_relevant": n_relevant,
                 "ocr_available": api_key_present(),
                 "page_sel": _page_sel_view(session),
                 "adam": session.get("tables_adam", ""),
@@ -665,6 +676,7 @@ def make_router(templates, cursor) -> APIRouter:
                                 f"OCR failed: {exc.__class__.__name__}: {exc}")
         report.entry_id = entry_id
 
+        annotate_relevance(report.tables)
         for t in report.tables:
             session["tables"][t["id"]] = t
 
