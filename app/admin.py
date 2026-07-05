@@ -747,15 +747,30 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         "suspicious": "Ύποπτο",
     }
 
-    def _acts_filter(q="", external_id="", reference="", data_source="",
-                     origin="", type="", source_status="", has_attachments="",
-                     date_from="", date_to="", cpv="", cat=None):
+    def _acts_filter(q="", external_id="", reference="", data_source=None,
+                     origin="", type=None, source_status="", has_attachments="",
+                     date_from="", date_to="", cpv=None, cat=None):
         """Build the WHERE for the acts-management list from the filter params.
         Returns (where_sql, args, human_description). Shared by the list page and
-        the mass table-extraction launcher so both target the same set."""
+        the mass table-extraction launcher so both target the same set.
+
+        data_source / type / cpv are MULTI-value (lists, OR'd). A plain string is
+        still accepted for back-compat (space-split for cpv, single-value else)."""
         where = ["TRUE"]
         args: list = []
         desc: list = []
+
+        # Coerce the multi-value filters to clean lists of non-blank strings,
+        # tolerating a legacy single string (cpv space-separated).
+        def _as_list(v, split=False):
+            if v is None:
+                return []
+            if isinstance(v, str):
+                v = v.split() if split else [v]
+            return [s.strip() for s in v if s and s.strip()]
+        data_source = _as_list(data_source)
+        type = _as_list(type)
+        cpvs = _as_list(cpv, split=True)
         q = q.strip()
         if q:
             where.append("(translate(proc.f_unaccent(lower(a.title)),'ς','σ') "
@@ -768,15 +783,15 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         if reference.strip():
             where.append("(a.reference_number ILIKE %s OR a.authority_reference ILIKE %s)")
             args += [f"%{reference.strip()}%", f"%{reference.strip()}%"]; desc.append("αναφορά")
-        if data_source.strip():
-            where.append("a.data_source = %s")
-            args.append(data_source.strip()); desc.append(f"πηγή={data_source.strip()}")
+        if data_source:
+            where.append("a.data_source = ANY(%s)")
+            args.append(data_source); desc.append("πηγή=" + "/".join(data_source))
         if origin in ("import", "authored"):
             where.append("a.origin = %s")
             args.append(origin); desc.append(origin)
-        if type.strip():
-            where.append("a.type = %s")
-            args.append(type.strip()); desc.append(f"τύπος={type.strip()}")
+        if type:
+            where.append("a.type = ANY(%s)")
+            args.append(type); desc.append("τύπος=" + "/".join(type))
         if source_status.strip():
             where.append("a.source_status = %s")
             args.append(source_status.strip()); desc.append(f"κατάσταση={source_status.strip()}")
@@ -790,10 +805,9 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         if date_to.strip():
             where.append("a.submission_date <= %s")
             args.append(date_to.strip()); desc.append(f"έως {date_to.strip()}")
-        # CPV — space-separated prefixes, OR'd; an act matches if any of its line
+        # CPV — one or more prefixes, OR'd; an act matches if any of its line
         # items has a CPV starting with any prefix. Mirrors the public search
         # filter (main.py) so both pages target the same set.
-        cpvs = cpv.split()
         if cpvs:
             like_terms = " OR ".join(["oc.cpv_code LIKE %s"] * len(cpvs))
             where.append(f"""EXISTS (
@@ -836,14 +850,14 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                     q: str = Query(""),
                     external_id: str = Query(""),
                     reference: str = Query(""),
-                    data_source: str = Query(""),
+                    data_source: list[str] = Query(default=[]),
                     origin: str = Query(""),
-                    type: str = Query(""),
+                    type: list[str] = Query(default=[]),
                     source_status: str = Query(""),
                     has_attachments: str = Query(""),
                     date_from: str = Query(""),
                     date_to: str = Query(""),
-                    cpv: str = Query(""),
+                    cpv: list[str] = Query(default=[]),
                     cat: list[str] = Query(default=[]),
                     sort: str = Query("recent"),
                     page: int = Query(1, ge=1)):
@@ -958,11 +972,11 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
     @router.post("/extract-tables")
     def extract_tables_launch(request: Request,
                               q: str = Form(""), external_id: str = Form(""),
-                              reference: str = Form(""), data_source: str = Form(""),
-                              origin: str = Form(""), type: str = Form(""),
+                              reference: str = Form(""), data_source: list[str] = Form(default=[]),
+                              origin: str = Form(""), type: list[str] = Form(default=[]),
                               source_status: str = Form(""), has_attachments: str = Form(""),
                               date_from: str = Form(""), date_to: str = Form(""),
-                              cpv: str = Form(""), cat: list[str] = Form(default=[]),
+                              cpv: list[str] = Form(default=[]), cat: list[str] = Form(default=[]),
                               save_tables: str = Form("")):
         where_sql, args, desc = _acts_filter(
             q, external_id, reference, data_source, origin, type,

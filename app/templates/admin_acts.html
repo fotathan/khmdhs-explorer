@@ -30,9 +30,8 @@
 
   <div class="field" style="margin:0;">
     <label>{{ t("Πηγή δεδομένων") }}</label>
-    <select name="data_source">
-      <option value="">{{ t("— όλες —") }}</option>
-      {% for s in sources %}<option value="{{ s }}" {% if data_source==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+    <select name="data_source" multiple size="4" style="width:100%;" title="{{ t('Ctrl/⌘-click για πολλαπλά') }}">
+      {% for s in sources %}<option value="{{ s }}" {% if s in data_source %}selected{% endif %}>{{ s }}</option>{% endfor %}
     </select>
   </div>
   <div class="field" style="margin:0;">
@@ -45,10 +44,9 @@
   </div>
   <div class="field" style="margin:0;">
     <label>{{ t("Τύπος") }}</label>
-    <select name="type">
-      <option value="">{{ t("— όλοι —") }}</option>
+    <select name="type" multiple size="5" style="width:100%;" title="{{ t('Ctrl/⌘-click για πολλαπλά') }}">
       {% for code in ['notice','auction','contract','payment','request'] %}
-      <option value="{{ code }}" {% if type==code %}selected{% endif %}>{{ code | type_label }}</option>
+      <option value="{{ code }}" {% if code in type %}selected{% endif %}>{{ code | type_label }}</option>
       {% endfor %}
     </select>
   </div>
@@ -76,9 +74,32 @@
     <label>{{ t("Έως") }}</label>
     <input type="date" name="date_to" value="{{ date_to }}">
   </div>
-  <div class="field" style="margin:0;">
-    <label>{{ t("CPV (πρόθεμα)") }}</label>
-    <input type="search" name="cpv" value="{{ cpv }}" placeholder="π.χ. 33 ή 45000000">
+  <div class="field" style="margin:0; grid-column:span 2;">
+    <label>CPV</label>
+    {# Homepage-style CPV filter: removable chips (each a hidden name="cpv" input,
+       prefixes OR'd), a type-ahead over /api/cpv-suggest, and a hierarchy-browse
+       dialog. pickCpv/removeCpv/cpvRerun are defined below; cpvOpenDialog/
+       cpvBrowse come from _cpv_dialog.html. #}
+    <div class="cpv-wrap">
+      <div id="cpv-chips" class="cpv-chips">
+        {% for code in request.query_params.getlist('cpv') %}
+        <span class="cpv-chip" data-code="{{ code }}">
+          <code>{{ code }}{% if code|length < 8 %}*{% endif %}</code>
+          <button type="button" class="cpv-chip-x" onclick="removeCpv(this)">✕</button>
+          <input type="hidden" name="cpv" value="{{ code }}">
+        </span>
+        {% endfor %}
+      </div>
+      <input type="text" id="cpv-typeahead" autocomplete="off"
+             placeholder="{{ t('προσθήκη CPV, π.χ. 331…') }}"
+             hx-get="/api/cpv-suggest" hx-trigger="input changed delay:200ms, focus"
+             hx-target="#cpv-suggest-mount" hx-swap="innerHTML"
+             hx-vals='js:{term: document.getElementById("cpv-typeahead").value}'>
+      <div id="cpv-suggest-mount"></div>
+      <button type="button" class="cpv-browse-btn" onclick="cpvOpenDialog()"
+              style="margin-top:8px;">{{ t("Επιλογή κωδικών CPV") }}</button>
+    </div>
+    {% include "_cpv_dialog.html" %}
   </div>
   <div class="field" style="margin:0; grid-column:span 2;">
     <label>{{ t("Κατηγορία / Υποκατηγορία (Ctrl/⌘-click για πολλαπλά)") }}</label>
@@ -118,10 +139,13 @@
     {% if total %}
     <form method="post" action="/admin/extract-tables"
           onsubmit="return ttExtractGuard(this, {{ total }}, {{ max_table_extract }}, {{ max_table_extract_save }});">
-      {% for k in ['q','external_id','reference','data_source','origin','type','source_status','has_attachments','date_from','date_to','cpv'] %}
-      <input type="hidden" name="{{ k }}" value="{{ {'q':q,'external_id':external_id,'reference':reference,'data_source':data_source,'origin':origin,'type':type,'source_status':source_status,'has_attachments':has_attachments,'date_from':date_from,'date_to':date_to,'cpv':cpv}[k] }}">
+      {% for k in ['q','external_id','reference','origin','source_status','has_attachments','date_from','date_to'] %}
+      <input type="hidden" name="{{ k }}" value="{{ {'q':q,'external_id':external_id,'reference':reference,'origin':origin,'source_status':source_status,'has_attachments':has_attachments,'date_from':date_from,'date_to':date_to}[k] }}">
       {% endfor %}
-      {# cat is multi-valued — one hidden input per selected category/subcategory #}
+      {# multi-valued filters — one hidden input per selected value #}
+      {% for v in data_source %}<input type="hidden" name="data_source" value="{{ v }}">{% endfor %}
+      {% for v in type %}<input type="hidden" name="type" value="{{ v }}">{% endfor %}
+      {% for v in cpv %}<input type="hidden" name="cpv" value="{{ v }}">{% endfor %}
       {% for v in cat %}<input type="hidden" name="cat" value="{{ v }}">{% endfor %}
       <label title="{{ t('Αποθήκευση των καθαρών πινάκων στις πράξεις (μη δημοσιευμένοι)') }}"
              style="display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--ink-2); cursor:pointer; margin-right:8px; letter-spacing:0;">
@@ -227,7 +251,7 @@
 </table>
 
 {% if total_pages > 1 %}
-{% set qs %}q={{ q|urlencode }}&external_id={{ external_id|urlencode }}&reference={{ reference|urlencode }}&data_source={{ data_source|urlencode }}&origin={{ origin }}&type={{ type }}&source_status={{ source_status|urlencode }}&has_attachments={{ has_attachments }}&date_from={{ date_from }}&date_to={{ date_to }}&cpv={{ cpv|urlencode }}{% for v in cat %}&cat={{ v|urlencode }}{% endfor %}&sort={{ sort }}{% endset %}
+{% set qs %}q={{ q|urlencode }}&external_id={{ external_id|urlencode }}&reference={{ reference|urlencode }}{% for v in data_source %}&data_source={{ v|urlencode }}{% endfor %}&origin={{ origin }}{% for v in type %}&type={{ v|urlencode }}{% endfor %}&source_status={{ source_status|urlencode }}&has_attachments={{ has_attachments }}&date_from={{ date_from }}&date_to={{ date_to }}{% for v in cpv %}&cpv={{ v|urlencode }}{% endfor %}{% for v in cat %}&cat={{ v|urlencode }}{% endfor %}&sort={{ sort }}{% endset %}
 <div style="display:flex; justify-content:center; align-items:center; gap:12px; margin:22px 0;">
   {% if page > 1 %}<a class="back" href="/admin/acts?{{ qs }}&page={{ page-1 }}" hx-boost="false">{{ t("‹ προηγ.") }}</a>{% else %}<span class="meta">{{ t("‹ προηγ.") }}</span>{% endif %}
   <span class="meta">{{ t("σελίδα") }} {{ page }} {% if lang=='en' %}of{% else %}από{% endif %} {{ total_pages }}</span>
@@ -238,4 +262,90 @@
 {% else %}
 <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3);">{{ t("Καμία πράξη για αυτά τα φίλτρα.") }}</p>
 {% endif %}
+
+{# CPV filter widget — CSS ported from beta_base.html (the admin base.html lacks
+   it) and the chip JS from beta_index.html. cpvOpenDialog/cpvBrowse come from
+   _cpv_dialog.html; cpvRerun submits THIS filter form. #}
+<style>
+  .cpv-wrap{position:relative;}
+  #cpv-suggest-mount{position:relative;}
+  .cpv-suggest{position:absolute;z-index:30;left:0;right:0;background:var(--paper);
+    border:1px solid var(--rule);border-radius:9px;box-shadow:var(--shadow-md, 0 8px 24px rgba(20,24,31,.12));
+    margin-top:4px;max-height:280px;overflow:auto;}
+  .cpv-opt{display:flex;flex-direction:column;align-items:flex-start;gap:1px;
+    width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--rule-2);
+    padding:8px 11px;cursor:pointer;font-family:var(--sans);}
+  .cpv-opt:last-child{border-bottom:0;}
+  .cpv-opt:hover{background:var(--accent-soft);}
+  .cpv-opt code{font-family:var(--mono);font-size:12px;color:var(--accent-2);}
+  .cpv-opt span{font-size:11.5px;color:var(--ink-2);line-height:1.25;}
+  .cpv-opt-wild{background:var(--paper-2);}
+  .cpv-opt-wild code{font-weight:700;}
+  .cpv-empty{padding:9px 11px;font-size:12px;color:var(--ink-3);font-style:italic;}
+  .cpv-ta-wrap{position:relative;}
+  .cpv-browse-btn{background:transparent;border:1px solid var(--accent);color:var(--accent);
+    padding:7px 13px;font-family:var(--sans);font-size:12px;border-radius:6px;cursor:pointer;white-space:nowrap;}
+  .cpv-browse-btn:hover{background:var(--accent);color:#fff;}
+  dialog.cpv-modal{border:0;border-radius:10px;width:min(760px,92vw);max-height:84vh;padding:18px 20px;
+    box-shadow:0 20px 60px rgba(0,0,0,.3);}
+  dialog.cpv-modal::backdrop{background:rgba(0,0,0,.4);}
+  .cpv-modal-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+  .cpv-modal-x{border:1px solid var(--rule);background:var(--paper-2);border-radius:6px;padding:6px 12px;
+    font-family:var(--sans);font-size:11px;cursor:pointer;}
+  .cpv-modal-body{overflow:auto;border-top:1px solid var(--rule);padding-top:10px;}
+  .cpvb-crumbs{font-size:12px;color:var(--ink-2);margin:0 0 10px;}
+  .cpvb-crumbs a{color:var(--accent);text-decoration:none;}
+  .cpvb-crumbs .cpvb-sep{color:var(--ink-3);margin:0 4px;}
+  .cpvb-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .cpvb-table td{padding:6px 8px;border-bottom:1px solid var(--rule);vertical-align:top;}
+  .cpvb-code a{text-decoration:none;} .cpvb-code code{font-family:var(--mono);color:var(--accent);}
+  .cpvb-desc{color:var(--ink);}
+  .cpvb-drill{text-align:right;white-space:nowrap;}
+  .cpvb-drill a{color:var(--ink-2);font-size:12px;text-decoration:none;}
+  .cpvb-drill a:hover{color:var(--accent);}
+  .cpvb-empty{color:var(--ink-3);font-style:italic;}
+  .cpv-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px;}
+  .cpv-chip{display:inline-flex;align-items:center;gap:6px;background:var(--accent-soft);
+    border:1px solid var(--rule);border-radius:7px;padding:3px 6px 3px 9px;}
+  .cpv-chip code{font-family:var(--mono);font-size:12px;color:var(--accent-2);font-weight:600;}
+  .cpv-chip-x{background:none;border:0;color:var(--accent-2);cursor:pointer;font-size:12px;
+    line-height:1;padding:0 1px;opacity:.7;}
+  .cpv-chip-x:hover{opacity:1;color:#b3261e;}
+</style>
+<script>
+  // Adding/removing a CPV chip re-runs the (GET) filter form.
+  function cpvRerun(){
+    var form=document.querySelector('form[action="/admin/acts"]');
+    if(!form) return;
+    if(form.requestSubmit) form.requestSubmit(); else form.submit();
+  }
+  // Called by /api/cpv-suggest rows and the browse dialog (code [+ desc]).
+  function pickCpv(code, desc){
+    var chips=document.getElementById('cpv-chips');
+    var ta=document.getElementById('cpv-typeahead');
+    var mount=document.getElementById('cpv-suggest-mount');
+    if(mount) mount.innerHTML=''; if(ta) ta.value='';
+    var mMount=document.getElementById('cpv-modal-suggest'); if(mMount) mMount.innerHTML='';
+    var mSearch=document.getElementById('cpv-modal-search'); if(mSearch) mSearch.value='';
+    if(!chips) return;
+    var existing=chips.querySelectorAll('.cpv-chip');
+    for(var i=0;i<existing.length;i++){ if(existing[i].getAttribute('data-code')===code) return; }
+    var star=(code.length<8)?'*':'';
+    var span=document.createElement('span');
+    span.className='cpv-chip'; span.setAttribute('data-code',code);
+    span.innerHTML='<code>'+code+star+'</code>'+
+      '<button type="button" class="cpv-chip-x" onclick="removeCpv(this)">✕</button>'+
+      '<input type="hidden" name="cpv" value="'+code+'">';
+    chips.appendChild(span);
+    cpvRerun();
+  }
+  function removeCpv(btn){
+    var chip=btn.closest('.cpv-chip'); if(chip) chip.remove(); cpvRerun();
+  }
+  document.addEventListener('click', function(e){
+    if(!e.target.closest('.cpv-wrap')){
+      var mount=document.getElementById('cpv-suggest-mount'); if(mount) mount.innerHTML='';
+    }
+  });
+</script>
 {% endblock %}
