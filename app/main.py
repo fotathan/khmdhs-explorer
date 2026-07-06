@@ -423,6 +423,26 @@ def _text_search_clause(raw: str, tsv_col: str, raw_text_expr: str
     return f"{tsv_col} @@ websearch_to_tsquery('greek', %s)", [raw]
 
 
+def _split_query(raw: str) -> tuple[str, str]:
+    """Split a websearch-style keyword query into (positive, negative) strings.
+
+    A token prefixed with '-' (a bare word or a -"quoted phrase") is a NEGATIVE
+    term; everything else — words, "phrases", the `or` operator — is POSITIVE.
+    Negatives are OR'd together ("exclude if ANY of them appears"). This lets the
+    caller apply exclusion across ALL searched fields at once (AND NOT …) instead
+    of the per-field OR, which used to let an excluded act leak back in via a
+    field that happened not to contain the word.
+
+      "καθαριοτητα -νοσοκομεια" -> ("καθαριοτητα", "νοσοκομεια")
+      "-νοσοκομεια"            -> ("", "νοσοκομεια")   # bare exclusion
+      "cats or dogs"           -> ("cats or dogs", "")
+    """
+    pos, neg = [], []
+    for m in re.finditer(r'(-?)("(?:[^"]*)"|\S+)', raw or ""):
+        (neg if m.group(1) == "-" else pos).append(m.group(2))
+    return " ".join(pos), " or ".join(neg)
+
+
 def _as_list(v) -> list[str]:
     """Normalise a filter param to a clean list of values. Accepts a list
     (multi-select), a single string (legacy / single value), or None. Strips
@@ -460,33 +480,52 @@ def build_where(params: dict) -> tuple[str, list]:
         else:
             # Unified keyword search: ONE box matches title + document full text
             # (combined search_tsv, GIN-indexed) OR the act's published extracted
-            # tables. Greek-stemmed websearch syntax (AND words, "phrases", -excl).
-            # Falls back to a title substring LIKE if the combined tsv column
-            # isn't present yet (pre-migration), so search never breaks.
-            parts, qargs = [], []
-            main_sql, main_args = _text_search_clause(q, "a.search_tsv", "a.title")
-            if main_sql:
-                parts.append(main_sql)
-                qargs.extend(main_args)
-            tbl_sql, tbl_args = _text_search_clause(q, "et.content_tsv", "et.rows::text")
-            if tbl_sql:
-                parts.append(f"""EXISTS (
-                    SELECT 1 FROM proc.extracted_table et
-                    WHERE et.adam = a.adam AND et.is_published AND {tbl_sql}
-                )""")
-                qargs.extend(tbl_args)
-            # Uploaded attachments (LOCAL-ONLY, flag-gated). Off in prod → clause
-            # never emitted → proc.act_attachment need not exist there.
-            if ATTACHMENTS_ENABLED:
-                att_sql, att_args = _text_search_clause(q, "att.content_tsv", "att.filename")
-                if att_sql:
-                    parts.append(f"""EXISTS (
-                        SELECT 1 FROM proc.act_attachment att
-                        WHERE att.adam = a.adam AND {att_sql}
+            # tables OR uploaded attachments. Greek-stemmed websearch syntax
+            # (AND words, "phrases", or, -exclude).
+            #
+            # Positive terms match if found in ANY field (OR across fields).
+            # Negative (-term) terms EXCLUDE across ALL fields at once
+            # (AND NOT …) — so "-νοσοκομεια" cleanly returns everything except,
+            # and "καθαριοτητα -νοσοκομεια" won't leak a hospital act back in via
+            # a table/attachment that omits the word. Falls back to a title
+            # substring LIKE if there's nothing usable (e.g. pre-migration).
+            def _q_fields(qstr):
+                """(sql, args) OR-ing the q-box's fields matched against qstr."""
+                fparts, fargs = [], []
+                s, a = _text_search_clause(qstr, "a.search_tsv", "a.title")
+                if s:
+                    fparts.append(s); fargs.extend(a)
+                s, a = _text_search_clause(qstr, "et.content_tsv", "et.rows::text")
+                if s:
+                    fparts.append(f"""EXISTS (
+                        SELECT 1 FROM proc.extracted_table et
+                        WHERE et.adam = a.adam AND et.is_published AND {s}
                     )""")
-                    qargs.extend(att_args)
-            if parts:
-                where.append("(" + " OR ".join(parts) + ")")
+                    fargs.extend(a)
+                # Uploaded attachments (LOCAL-ONLY, flag-gated). Off in prod →
+                # clause never emitted → proc.act_attachment need not exist there.
+                if ATTACHMENTS_ENABLED:
+                    s, a = _text_search_clause(qstr, "att.content_tsv", "att.filename")
+                    if s:
+                        fparts.append(f"""EXISTS (
+                            SELECT 1 FROM proc.act_attachment att
+                            WHERE att.adam = a.adam AND {s}
+                        )""")
+                        fargs.extend(a)
+                if not fparts:
+                    return None, None
+                return "(" + " OR ".join(fparts) + ")", fargs
+
+            pos, neg = _split_query(q)
+            clauses, qargs = [], []
+            pos_sql, pos_args = _q_fields(pos) if pos else (None, None)
+            if pos_sql:
+                clauses.append(pos_sql); qargs.extend(pos_args)
+            neg_sql, neg_args = _q_fields(neg) if neg else (None, None)
+            if neg_sql:
+                clauses.append("NOT " + neg_sql); qargs.extend(neg_args)
+            if clauses:
+                where.append("(" + " AND ".join(clauses) + ")")
                 args.extend(qargs)
             else:
                 # Fallback (e.g. tsv column missing): old title substring match.
