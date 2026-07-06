@@ -64,6 +64,8 @@
     }
     .mast-meta a { color: var(--ink-2) !important; text-decoration: none; transition: color 120ms ease; }
     .mast-meta a:hover { color: var(--accent) !important; }
+    .acct-user { font-size: 12px; color: var(--ink); font-weight: 600; padding: 0 2px 0 12px; border-left: 1px solid var(--rule); }
+    .acct-cta { color: var(--accent) !important; font-weight: 600; }
     .mast-sub { font-family: var(--sans); font-size: 13px; color: var(--ink-3); margin-top: 10px; max-width: 720px; }
 
     main { max-width: 1320px; margin: 0 auto; padding: 0 40px 96px; }
@@ -211,8 +213,15 @@
       <a href="/analytics">{{ t("Αναλυτικά") }}</a>
       <a href="/authorities">{{ t("Αρχές") }}</a>
       <a href="/contractors">{{ t("Ανάδοχοι") }}</a>
-      <a href="/admin">{{ t("Διαχείριση") }}</a>
+      {% if is_admin %}<a href="/admin">{{ t("Διαχείριση") }}</a>{% endif %}
       {% include "_lang_select.html" %}
+      {% if is_authenticated %}
+        <span class="acct-user" title="{{ user.role }}">{{ user.username }}</span>
+        <a href="/logout">{{ t("Αποσύνδεση") }}</a>
+      {% else %}
+        <a href="/login">{{ t("Σύνδεση") }}</a>
+        <a href="/register" class="acct-cta">{{ t("Εγγραφή") }}</a>
+      {% endif %}
     </span>
   </div>
   <div class="mast-sub">{{ t("Ένα αρχείο διαγωνισμών, αναθέσεων, συμβάσεων και πληρωμών του ελληνικού δημοσίου.") }}</div>
