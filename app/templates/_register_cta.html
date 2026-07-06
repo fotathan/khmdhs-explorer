@@ -8,12 +8,19 @@
 <div class="reg-cta">
   <div class="reg-cta-body">
     <div class="reg-cta-icon">✦</div>
-    <h3 class="reg-cta-title">{{ t("Εγγραφείτε για να δείτε περισσότερα") }}</h3>
-    <p class="reg-cta-text">{{ t("Δημιουργήστε δωρεάν λογαριασμό για πλήρη πρόσβαση: πλοήγηση σε όλες τις σελίδες αποτελεσμάτων και πλήρη στοιχεία πράξεων, αναθετουσών και αναδόχων.") }}</p>
-    <div class="reg-cta-actions">
-      <a class="reg-cta-btn" href="/register?next={{ request.url.path | urlencode }}">{{ t("Εγγραφή") }}</a>
-      <a class="reg-cta-link" href="/login?next={{ request.url.path | urlencode }}">{{ t("Έχετε ήδη λογαριασμό; Σύνδεση") }}</a>
-    </div>
+    {% if is_authenticated %}
+      {# Logged-in but gated: an expired tester/subscriber (or a customer with no
+         active grant). No self-serve payment — direct them to the admin. #}
+      <h3 class="reg-cta-title">{{ t("Η πρόσβασή σας έχει λήξει") }}</h3>
+      <p class="reg-cta-text">{{ t("Η δοκιμαστική περίοδος ή η συνδρομή σας έληξε. Επικοινωνήστε με τον διαχειριστή για ανανέωση της πλήρους πρόσβασης.") }}</p>
+    {% else %}
+      <h3 class="reg-cta-title">{{ t("Εγγραφείτε για να δείτε περισσότερα") }}</h3>
+      <p class="reg-cta-text">{{ t("Δημιουργήστε δωρεάν λογαριασμό για πλήρη πρόσβαση: πλοήγηση σε όλες τις σελίδες αποτελεσμάτων και πλήρη στοιχεία πράξεων, αναθετουσών και αναδόχων.") }}</p>
+      <div class="reg-cta-actions">
+        <a class="reg-cta-btn" href="/register?next={{ request.url.path | urlencode }}">{{ t("Εγγραφή") }}</a>
+        <a class="reg-cta-link" href="/login?next={{ request.url.path | urlencode }}">{{ t("Έχετε ήδη λογαριασμό; Σύνδεση") }}</a>
+      </div>
+    {% endif %}
   </div>
 </div>
 <style>

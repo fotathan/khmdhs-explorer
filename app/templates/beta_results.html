@@ -57,7 +57,7 @@
   </div>
   {% endfor %}
 
-  {% if tier == 'anonymous' %}
+  {% if access_tier == 'gated' %}
     {% if total_pages > 1 %}{% include "_register_cta.html" %}{% endif %}
   {% else %}
   <div class="pager">

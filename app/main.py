@@ -940,23 +940,32 @@ def _auth_context(request):
     """Expose the account/tier to EVERY template (edit affordances, teaser)."""
     u = getattr(request.state, "user", None)
     role = u.get("role") if u else None
+    has_access = bool(u and u.get("has_access"))
     return {"user": u, "is_authenticated": u is not None,
-            "is_admin": role == "admin", "tier": role or "anonymous"}
+            "is_admin": role == "admin", "tier": role or "anonymous",
+            # subscription-aware fields for the teaser CTA / status badges:
+            "status": (u.get("status") if u else "anonymous"),
+            "has_access": has_access,
+            "access_tier": "full" if has_access else "gated"}
 
 
 templates.context_processors.append(_auth_context)
 
 
-def _is_anonymous(request: Request) -> bool:
-    """True when nobody is logged in — the freemium *teaser* tier.
+def _is_gated(request: Request) -> bool:
+    """True when the caller gets the freemium *teaser* rather than full access.
 
-    Teaser rule (Phase 2): anonymous callers may browse and filter, but the
-    paginated list routes are clamped to page 1 and the detail pages are
-    truncated to their top section, with a register CTA replacing the rest.
-    customer/admin get the full view. Enforced SERVER-SIDE here (so page-2
-    URLs and the JSON representation can't bypass it), plus a cosmetic CTA in
-    the templates keyed off the injected `tier`."""
-    return getattr(request.state, "user", None) is None
+    Gated = anonymous OR a customer whose subscription has lapsed (expired /
+    none). Ungated = admin, or a customer with an active, non-expired grant
+    (tester / subscriber) — see `has_access` computed in auth.load_user.
+
+    Teaser rule: gated callers may browse and filter, but the paginated list
+    routes are clamped to page 1 and the detail pages are truncated to their
+    top section, with a register/renew CTA replacing the rest. Enforced
+    SERVER-SIDE here (so page-2 URLs and the JSON representation can't bypass
+    it), plus a cosmetic CTA in the templates keyed off `access_tier`."""
+    u = getattr(request.state, "user", None)
+    return not (u and u.get("has_access"))
 
 
 def _is_admin_path(path: str) -> bool:
@@ -1094,6 +1103,9 @@ async def register_submit(request: Request):
         try:
             user = dict(_auth.create_user(c, username, password,
                                           role="customer", email=email or None))
+            # Self-service signup gets the test product (7-day default);
+            # granted_by NULL marks it as self-granted, not admin-issued.
+            _auth.grant_product(c, user["id"], "test", granted_by=None)
         except ValueError as e:
             return err(str(e))
         except Exception:  # unique email etc.
@@ -1407,7 +1419,7 @@ def home(request: Request,
     # Freemium teaser: anonymous callers are capped to the first page (both the
     # HTML pager and the JSON page param), so pagination past page 1 requires an
     # account. The template swaps the pager for a register CTA.
-    gated = _is_anonymous(request)
+    gated = _is_gated(request)
     if gated:
         page = 1
     offset = (page - 1) * per_page
@@ -1710,7 +1722,7 @@ def act_detail(adam: str, request: Request):
                  "referrers": referrers, "successors": successors},
             )
 
-        if _is_anonymous(request):
+        if _is_gated(request):
             # Freemium teaser: anonymous callers see only the hero (title,
             # authority, amounts, publication date); every below-the-fold panel
             # is replaced by a register CTA in the template. Skip the (expensive)
@@ -2015,7 +2027,7 @@ def authority_index(request: Request,
     across all member org_ids, search matches any member's name.
     """
     q = q.strip()
-    if _is_anonymous(request):   # freemium teaser: no pagination for anonymous
+    if _is_gated(request):   # freemium teaser: no pagination for gated (anonymous/expired)
         page = 1
     offset = (page - 1) * per_page
     order = {"activity": "n_acts DESC NULLS LAST",
@@ -2098,7 +2110,7 @@ def contractor_index(request: Request,
     summed across ALL member VATs, and search matches ANY member's name/VAT.
     """
     q = q.strip()
-    if _is_anonymous(request):   # freemium teaser: no pagination for anonymous
+    if _is_gated(request):   # freemium teaser: no pagination for gated (anonymous/expired)
         page = 1
     offset = (page - 1) * per_page
     order = {"activity": "n_acts DESC NULLS LAST",
@@ -2225,7 +2237,7 @@ def authority_detail(org_id: str, request: Request,
                 "n": len(member_rows),
             }
 
-        if _is_anonymous(request):
+        if _is_gated(request):
             # Freemium teaser: header + merge banner only, then a register CTA.
             # Skip the totals/act-list/CPV queries entirely for anonymous.
             return templates.TemplateResponse(
@@ -2376,7 +2388,7 @@ def contractor_detail(vat: str, request: Request,
                 "n": len(member_rows),
             }
 
-        if _is_anonymous(request):
+        if _is_gated(request):
             # Freemium teaser: header + merge banner only, then a register CTA.
             # Skip the totals/buyers/act-list/ΓΕΜΗ queries entirely for anonymous.
             return templates.TemplateResponse(

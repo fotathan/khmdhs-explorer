@@ -871,6 +871,32 @@ def cmd_create_user(args):
     print(f"created {role} account: {username}")
 
 
+def cmd_grant_product(args):
+    """Grant a subscription product (test/paid) to an existing account — CLI
+    parity with the /admin/users grant button (handy on prod). Uses the product
+    default period unless --days overrides it."""
+    username = (args.username or "").strip()
+    with Database() as db:
+        rows = db.query("SELECT id FROM proc.app_user WHERE lower(username)=lower(%s)",
+                        (username,))
+        if not rows:
+            sys.exit(f"user {username!r} not found")
+        uid = rows[0][0]
+        prod = db.query("SELECT default_period_days FROM proc.product "
+                        "WHERE code=%s AND is_active", (args.product,))
+        if not prod:
+            sys.exit(f"unknown or inactive product {args.product!r}")
+        days = args.days or int(prod[0][0])
+        if days <= 0:
+            sys.exit("period must be a positive number of days")
+        db.execute(
+            "INSERT INTO proc.user_subscription (user_id, product_code, expires_at, granted_by) "
+            "VALUES (%s, %s, now() + (%s * interval '1 day'), NULL)",
+            (uid, args.product, days))
+        db.commit()
+    print(f"granted {args.product} ({days}d) to {username}")
+
+
 def cmd_stats(args):
     with Database() as db:
         rows = db.query("""
@@ -1055,6 +1081,14 @@ def main():
     p_uc.add_argument("--email")
     p_uc.add_argument("--password", help="omit to be prompted (hidden input)")
     p_uc.set_defaults(func=cmd_create_user)
+
+    p_gp = sub.add_parser("grant-product",
+                          help="grant a subscription product (test/paid) to a user")
+    p_gp.add_argument("--username", required=True)
+    p_gp.add_argument("--product", required=True, choices=["test", "paid"])
+    p_gp.add_argument("--days", type=int,
+                      help="override the product's default period (days)")
+    p_gp.set_defaults(func=cmd_grant_product)
 
     p_st = sub.add_parser("stats", help="print row counts")
     p_st.set_defaults(func=cmd_stats)

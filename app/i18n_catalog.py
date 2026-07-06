@@ -1179,6 +1179,40 @@ _AUTH = {
     "Έχετε ήδη λογαριασμό; Σύνδεση": "Already have an account? Sign in",
 }
 
+# Subscriptions / products (test & paid, statuses, admin grant UI, expired CTA).
+_PRODUCTS = {
+    # product names (proc.product.name)
+    "Δοκιμαστικό": "Trial",
+    "Συνδρομή": "Subscription",
+    # derived customer statuses
+    "Δοκιμαστής": "Trial user",
+    "Συνδρομητής": "Subscriber",
+    "Ληγμένος δοκιμαστής": "Expired trial",
+    "Ληγμένη συνδρομή": "Expired subscription",
+    "Χωρίς πρόσβαση": "No access",
+    # admin users page
+    "Πρόσβαση / Προϊόν": "Access / Product",
+    "πλήρης (διαχειριστής)": "full (admin)",
+    "λήγει": "expires",
+    "ορισμός λήξης": "set expiry",
+    "ημέρες": "days",
+    "ανάθεση": "grant",
+    "Προαιρετικό — παρακάμπτει την προεπιλογή": "Optional — overrides the default",
+    "Προϊόντα": "Products",
+    "Προεπιλεγμένη διάρκεια νέων αναθέσεων (ημέρες).":
+        "Default length of new grants (days).",
+    # admin flash errors
+    "Δεν υπάρχει ενεργό προϊόν — αναθέστε πρώτα.":
+        "No active product — grant one first.",
+    "Μη έγκυρη ημερομηνία/διάρκεια.": "Invalid date/duration.",
+    "Μη έγκυρη ανάθεση.": "Invalid grant.",
+    "Μη έγκυρη διάρκεια.": "Invalid duration.",
+    # expired-user teaser CTA
+    "Η πρόσβασή σας έχει λήξει": "Your access has expired",
+    "Η δοκιμαστική περίοδος ή η συνδρομή σας έληξε. Επικοινωνήστε με τον διαχειριστή για ανανέωση της πλήρους πρόσβασης.":
+        "Your trial or subscription has ended. Contact the administrator to renew full access.",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
@@ -1186,5 +1220,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
              _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
-             _AUTH):
+             _AUTH, _PRODUCTS):
     UI_EN.update(_grp)

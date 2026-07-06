@@ -72,6 +72,20 @@ def password_ok(pw: str) -> bool:
 # DB helpers (c = open dict-row cursor)
 # --------------------------------------------------------------------------- #
 _COLS = "id, username, email, role, is_active, created_at, last_login_at"
+# Same columns, qualified — for queries that JOIN the subscription (which also
+# has an `id` column, so bare `id` would be ambiguous).
+_UCOLS = ", ".join("u." + col.strip() for col in _COLS.split(","))
+
+
+def _status_label(product_code, active) -> str:
+    """Derive the customer-facing status from the current grant.
+    None grant -> 'none'; paid -> subscriber/expired_subscriber; anything else
+    (test) -> tester/expired_tester."""
+    if not product_code:
+        return "none"
+    if product_code == "paid":
+        return "subscriber" if active else "expired_subscriber"
+    return "tester" if active else "expired_tester"
 
 
 def get_by_username(c, username):
@@ -82,10 +96,33 @@ def get_by_username(c, username):
 
 def load_user(c, uid):
     """Active user by id — used on every request to resolve the session, so
-    deactivation / role change take effect immediately (not on next login)."""
-    c.execute(f"SELECT {_COLS} FROM proc.app_user WHERE id = %s AND is_active",
-              (uid,))
-    return c.fetchone()
+    deactivation / role change / subscription expiry take effect immediately
+    (not on next login). Carries the CURRENT subscription (greatest expires_at)
+    plus a derived `status` and `has_access` flag, so the middleware and every
+    template can gate on it without a second query."""
+    c.execute(f"""
+        SELECT {_UCOLS},
+               s.product_code AS sub_product,
+               s.expires_at   AS sub_expires_at,
+               COALESCE(s.expires_at > now(), false) AS sub_active
+        FROM proc.app_user u
+        LEFT JOIN LATERAL (
+            SELECT product_code, expires_at
+            FROM proc.user_subscription
+            WHERE user_id = u.id
+            ORDER BY expires_at DESC
+            LIMIT 1
+        ) s ON true
+        WHERE u.id = %s AND u.is_active
+    """, (uid,))
+    row = c.fetchone()
+    if not row:
+        return None
+    u = dict(row)
+    u["status"] = _status_label(u.get("sub_product"), u.get("sub_active"))
+    # Admins always have full access; customers need an active, non-expired sub.
+    u["has_access"] = (u["role"] == "admin") or bool(u.get("sub_active"))
+    return u
 
 
 def create_user(c, username, password, role="customer", email=None):
@@ -137,6 +174,99 @@ def count_users(c):
     c.execute("SELECT count(*) AS n FROM proc.app_user")
     row = c.fetchone()
     return row["n"] if row else 0
+
+
+def list_users_with_subscription(c):
+    """All users + their current grant, for the admin UI. `status` derived like
+    load_user; `sub_id` lets the admin edit/extend that exact grant."""
+    c.execute(f"""
+        SELECT {_UCOLS},
+               s.id           AS sub_id,
+               s.product_code AS sub_product,
+               s.expires_at   AS sub_expires_at,
+               COALESCE(s.expires_at > now(), false) AS sub_active
+        FROM proc.app_user u
+        LEFT JOIN LATERAL (
+            SELECT id, product_code, expires_at
+            FROM proc.user_subscription
+            WHERE user_id = u.id
+            ORDER BY expires_at DESC
+            LIMIT 1
+        ) s ON true
+        ORDER BY u.role, lower(u.username)
+    """)
+    out = []
+    for r in c.fetchall():
+        d = dict(r)
+        d["status"] = _status_label(d.get("sub_product"), d.get("sub_active"))
+        out.append(d)
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# products & subscriptions
+# --------------------------------------------------------------------------- #
+def product_list(c):
+    c.execute("SELECT code, name, default_period_days, is_active "
+              "FROM proc.product ORDER BY default_period_days")
+    return c.fetchall()
+
+
+def set_product_default_days(c, code, days):
+    days = int(days)
+    if days <= 0:
+        raise ValueError("period must be a positive number of days")
+    c.execute("UPDATE proc.product SET default_period_days = %s WHERE code = %s",
+              (days, code))
+
+
+def current_subscription(c, uid):
+    """The user's current grant (greatest expires_at) joined to its product."""
+    c.execute("""
+        SELECT s.id, s.product_code, p.name AS product_name,
+               s.started_at, s.expires_at, s.granted_by,
+               (s.expires_at > now()) AS active
+        FROM proc.user_subscription s
+        JOIN proc.product p ON p.code = s.product_code
+        WHERE s.user_id = %s
+        ORDER BY s.expires_at DESC
+        LIMIT 1
+    """, (uid,))
+    return c.fetchone()
+
+
+def grant_product(c, uid, product_code, granted_by=None, period_days=None):
+    """Grant `product_code` to user `uid`, expiring `period_days` (or the
+    product default) from now. Returns the new subscription row."""
+    c.execute("SELECT default_period_days FROM proc.product "
+              "WHERE code = %s AND is_active", (product_code,))
+    prod = c.fetchone()
+    if not prod:
+        raise ValueError("unknown or inactive product")
+    days = int(period_days) if period_days else int(prod["default_period_days"])
+    if days <= 0:
+        raise ValueError("period must be a positive number of days")
+    c.execute("""
+        INSERT INTO proc.user_subscription (user_id, product_code, expires_at, granted_by)
+        VALUES (%s, %s, now() + (%s * interval '1 day'), %s)
+        RETURNING id, product_code, started_at, expires_at
+    """, (uid, product_code, days, granted_by))
+    return c.fetchone()
+
+
+def set_subscription_expiry(c, sub_id, expires_at):
+    """Set an absolute expiry (admin edit)."""
+    c.execute("UPDATE proc.user_subscription SET expires_at = %s WHERE id = %s",
+              (expires_at, sub_id))
+
+
+def extend_subscription(c, sub_id, days):
+    """Add `days` to a grant, extending from the later of its current expiry or
+    now (so extending an already-expired grant starts from today)."""
+    days = int(days)
+    c.execute("""UPDATE proc.user_subscription
+                 SET expires_at = greatest(expires_at, now()) + (%s * interval '1 day')
+                 WHERE id = %s""", (days, sub_id))
 
 
 # --------------------------------------------------------------------------- #

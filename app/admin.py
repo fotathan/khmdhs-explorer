@@ -246,8 +246,10 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
 
     def _users_ctx(request, error=None, ok=None):
         with cursor() as c:
-            users = _auth.list_users(c)
-        return {"users": users, "error": error, "ok": ok, "admin_tab": "users"}
+            users = _auth.list_users_with_subscription(c)
+            products = _auth.product_list(c)
+        return {"users": users, "products": products,
+                "error": error, "ok": ok, "admin_tab": "users"}
 
     @router.get("/users", response_class=HTMLResponse)
     def admin_users(request: Request):
@@ -327,6 +329,68 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 request, "admin_users.html",
                 _users_ctx(request, error=str(e)), status_code=400)
         return RedirectResponse("/admin/users?ok=password", status_code=303)
+
+    # ---- subscriptions / products ------------------------------------- #
+    @router.post("/users/{uid}/grant")
+    async def admin_users_grant(uid: int, request: Request):
+        """Grant a product (test/paid) to a customer, optionally overriding the
+        default period. New grant becomes the current one (greatest expires_at)."""
+        form = await request.form()
+        product = form.get("product") or ""
+        days_raw = (form.get("days") or "").strip()
+        try:
+            period_days = int(days_raw) if days_raw else None
+            with cursor() as c:
+                _auth.grant_product(c, uid, product,
+                                    granted_by=_self_uid(request),
+                                    period_days=period_days)
+        except (ValueError, TypeError) as e:
+            return templates.TemplateResponse(
+                request, "admin_users.html",
+                _users_ctx(request, error=str(e) or "Μη έγκυρη ανάθεση."),
+                status_code=400)
+        return RedirectResponse("/admin/users?ok=granted", status_code=303)
+
+    @router.post("/users/{uid}/subscription")
+    async def admin_users_subscription(uid: int, request: Request):
+        """Edit the customer's CURRENT grant: extend by N days, or set an
+        absolute expiry date. Requires an existing grant (grant first)."""
+        form = await request.form()
+        extend_days = (form.get("extend_days") or "").strip()
+        expires_at = (form.get("expires_at") or "").strip()
+        with cursor() as c:
+            sub = _auth.current_subscription(c, uid)
+            if not sub:
+                return templates.TemplateResponse(
+                    request, "admin_users.html",
+                    _users_ctx(request, error="Δεν υπάρχει ενεργό προϊόν — αναθέστε πρώτα."),
+                    status_code=400)
+            try:
+                if extend_days:
+                    _auth.extend_subscription(c, sub["id"], int(extend_days))
+                elif expires_at:
+                    # <input type="date"> → include the whole chosen day.
+                    _auth.set_subscription_expiry(c, sub["id"], expires_at + " 23:59:59")
+            except (ValueError, TypeError):
+                return templates.TemplateResponse(
+                    request, "admin_users.html",
+                    _users_ctx(request, error="Μη έγκυρη ημερομηνία/διάρκεια."),
+                    status_code=400)
+        return RedirectResponse("/admin/users?ok=subscription", status_code=303)
+
+    @router.post("/products/{code}")
+    async def admin_product_default(code: str, request: Request):
+        """Edit a product's default grant length (affects future grants)."""
+        form = await request.form()
+        try:
+            with cursor() as c:
+                _auth.set_product_default_days(c, code, form.get("days") or "0")
+        except (ValueError, TypeError) as e:
+            return templates.TemplateResponse(
+                request, "admin_users.html",
+                _users_ctx(request, error=str(e) or "Μη έγκυρη διάρκεια."),
+                status_code=400)
+        return RedirectResponse("/admin/users?ok=product", status_code=303)
 
     @router.get("/collection", response_class=HTMLResponse)
     def admin_collection(request: Request):
