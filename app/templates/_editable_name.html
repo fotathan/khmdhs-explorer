@@ -25,11 +25,13 @@
 {% else %}
   <h1 class="detail-title" style="display:flex; align-items:center; gap:10px;">
     <span>{{ name }}</span>
+    {% if is_admin %}
     <button type="button" title="{{ t('Επεξεργασία ονόματος') }}"
             hx-get="/{{ kind }}/{{ ident }}/name-edit"
             hx-target="#entity-name" hx-swap="outerHTML"
             style="border:0; background:transparent; cursor:pointer; font-size:14px;
                    color:var(--ink-3); padding:2px 4px; line-height:1;">✎</button>
+    {% endif %}
     {% if edited %}<span class="meta" style="font-size:11px; color:var(--ok);">{{ t("αποθηκεύτηκε") }}</span>{% endif %}
   </h1>
 {% endif %}

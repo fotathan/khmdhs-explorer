@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{{ t("Χρήστες") }} · {{ t("Διαχείριση") }}{% endblock %}
+{% block content %}
+
+{% include "_admin_tabs.html" %}
+
+<div class="detail-h">
+  <div class="kicker">{{ t("Διαχείριση") }}</div>
+  <h1 class="detail-title">{{ t("Χρήστες") }}</h1>
+  <div class="detail-sub">{{ t("Λογαριασμοί και ρόλοι. Admin = πλήρης πρόσβαση + διαχείριση· Customer = πλήρης ανάγνωση χωρίς επεξεργασία/διαχείριση.") }}</div>
+</div>
+
+{% if error %}<div class="u-flash u-err">{{ error | t }}</div>{% endif %}
+{% if ok %}<div class="u-flash u-ok">{{ t("✓ Αποθηκεύτηκε.") }}</div>{% endif %}
+
+<div class="detail-grid">
+  <div>
+    <div class="section-h">{{ t("Λογαριασμοί") }}</div>
+    <table class="notices">
+      <thead><tr>
+        <th>{{ t("Όνομα χρήστη") }}</th><th>Email</th><th>{{ t("Ρόλος") }}</th>
+        <th>{{ t("Κατάσταση") }}</th><th>{{ t("Τελευταία σύνδεση") }}</th><th></th>
+      </tr></thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td><strong>{{ u.username }}</strong></td>
+          <td class="meta">{{ u.email or '—' }}</td>
+          <td>
+            <form method="post" action="/admin/users/{{ u.id }}/role" style="display:inline">
+              <select name="role" onchange="this.form.submit()" style="font-size:12px;">
+                <option value="customer" {% if u.role=='customer' %}selected{% endif %}>customer</option>
+                <option value="admin" {% if u.role=='admin' %}selected{% endif %}>admin</option>
+              </select>
+            </form>
+          </td>
+          <td>
+            {% if u.is_active %}<span class="pill" style="color:var(--ok)">{{ t("ενεργός") }}</span>
+            {% else %}<span class="pill cancel">{{ t("ανενεργός") }}</span>{% endif %}
+          </td>
+          <td class="meta">{{ u.last_login_at.strftime('%Y-%m-%d %H:%M') if u.last_login_at else '—' }}</td>
+          <td style="white-space:nowrap;">
+            <form method="post" action="/admin/users/{{ u.id }}/active" style="display:inline"
+                  onsubmit="return confirm('{{ t('Αλλαγή κατάστασης;') }}');">
+              <input type="hidden" name="active" value="{{ '0' if u.is_active else '1' }}">
+              <button type="submit" class="u-mini">{{ t("απενεργοποίηση") if u.is_active else t("ενεργοποίηση") }}</button>
+            </form>
+            <button type="button" class="u-mini" onclick="document.getElementById('pw-{{ u.id }}').style.display='inline-flex'">{{ t("νέος κωδικός") }}</button>
+            <form id="pw-{{ u.id }}" method="post" action="/admin/users/{{ u.id }}/password"
+                  style="display:none; gap:4px; align-items:center; margin-top:4px;">
+              <input type="password" name="password" placeholder="{{ t('νέος κωδικός') }}" minlength="8" required style="font-size:12px; padding:3px 6px;">
+              <button type="submit" class="u-mini">OK</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <aside>
+    <div class="section-h">{{ t("Νέος χρήστης") }}</div>
+    <form method="post" action="/admin/users" class="u-new">
+      <label>{{ t("Όνομα χρήστη") }}<input type="text" name="username" required></label>
+      <label>Email<input type="email" name="email"></label>
+      <label>{{ t("Κωδικός") }}<input type="password" name="password" minlength="8" required></label>
+      <label>{{ t("Ρόλος") }}
+        <select name="role">
+          <option value="customer">customer</option>
+          <option value="admin">admin</option>
+        </select>
+      </label>
+      <button type="submit" class="u-btn">{{ t("Δημιουργία") }}</button>
+    </form>
+  </aside>
+</div>
+
+<style>
+  .u-flash{padding:9px 14px;border-radius:8px;font-size:13px;margin:14px 0;}
+  .u-err{background:#fdeceb;border:1px solid #f4c7c3;color:#b3261e;}
+  .u-ok{background:#eaf6ef;border:1px solid #b7e0c7;color:#1a7f47;}
+  .u-mini{background:none;border:0;color:var(--accent);cursor:pointer;font-size:11px;padding:0 4px;text-decoration:underline;}
+  .u-new{display:flex;flex-direction:column;gap:11px;}
+  .u-new label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);}
+  .u-new input,.u-new select{padding:8px 10px;border:1px solid var(--rule);border-radius:8px;font-size:13px;}
+  .u-btn{background:var(--ink);color:var(--paper);border:0;padding:10px;border-radius:8px;font-size:12px;
+    letter-spacing:.08em;text-transform:uppercase;cursor:pointer;margin-top:2px;}
+</style>
+{% endblock %}

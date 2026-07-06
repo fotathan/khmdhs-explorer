@@ -21,11 +21,17 @@
       {% for m in merge_info.members %}<code>{{ m.org_id }}</code>{% if not loop.last %} · {% endif %}{% endfor %}
     </div>
     {% endif %}
+    {% if is_admin %}
     <div style="margin-top:8px;">
       <a href="/admin/authority/{{ a.org_id }}/edit" hx-boost="false"
          style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--accent);">{{ t("επεξεργασία στοιχείων ›") }}</a>
     </div>
+    {% endif %}
   </div>
+
+  {% if gated %}
+  {% include "_register_cta.html" %}
+  {% else %}
 
   {% if a.identifier or a.orgdb_id or a.street_address or a.contact_email or a.contact_phone or a.contact_fax or a.contact_url %}
   <div class="panel">
@@ -147,5 +153,7 @@
     <div class="empty">{{ t("Δεν υπάρχουν δεδομένα CPV.") }}</div>
     {% endif %}
   </div>
+
+  {% endif %}{# /gated #}
 </main>
 {% endblock %}

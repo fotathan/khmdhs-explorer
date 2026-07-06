@@ -12,7 +12,7 @@
 <div class="gemi-block" style="margin:0 0 22px; padding:14px 16px; border:1px solid var(--rule); border-radius:8px; background:var(--paper-2);">
   <div class="section-h" style="margin-top:0; display:flex; align-items:center; gap:10px;">
     <span>{{ t("Στοιχεία μητρώου ΓΕΜΗ") }}</span>
-    {% if gemi_refresh_url %}
+    {% if gemi_refresh_url and is_admin %}
     <button type="button"
             hx-post="{{ gemi_refresh_url }}"
             hx-target="#gemi-block" hx-swap="outerHTML"

@@ -13,3 +13,4 @@ python-multipart==0.0.29
 xlrd==2.0.2
 httpx
 nh3>=0.2.17,<0.3   # HTML sanitiser for curator-authored full_text_html
+itsdangerous>=2.0

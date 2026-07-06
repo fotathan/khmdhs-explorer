@@ -47,6 +47,10 @@
     </div>
   </div>
 
+  {% if gated %}
+  {% include "_register_cta.html" %}
+  {% else %}
+
   <div class="act-grid">
     <!-- ===== MAIN COLUMN ===== -->
     <div>
@@ -219,7 +223,7 @@
       {% if n.full_text %}
       <div class="panel">
         <h3 class="panel-h">{{ t("Πλήρες κείμενο") }}
-          <a href="/admin/act/{{ n.adam }}/edit?tab=fulltext" style="font-weight:400;font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;float:right;">{{ t("επεξεργασία ›") }}</a>
+          {% if is_admin %}<a href="/admin/act/{{ n.adam }}/edit?tab=fulltext" style="font-weight:400;font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;float:right;">{{ t("επεξεργασία ›") }}</a>{% endif %}
         </h3>
         <details>
           <summary style="cursor:pointer;font-size:13px;color:var(--ink-2);">{{ n.full_text | length }} {{ t("χαρακτήρες") }}{% if n.full_text_extracted_at %} · {{ n.full_text_extracted_at.strftime('%d/%m/%Y') }}{% endif %} — {{ t("προβολή") }}</summary>
@@ -265,7 +269,7 @@
 
       <div class="sidecard">
         <div class="sidecard-h">{{ t("Σημειώσεις ομάδας") }}
-          <a href="/admin/act/{{ n.adam }}/edit?tab=fields">{{ t("επεξεργασία ›") }}</a>
+          {% if is_admin %}<a href="/admin/act/{{ n.adam }}/edit?tab=fields">{{ t("επεξεργασία ›") }}</a>{% endif %}
         </div>
         {% if annotation and (annotation.note or annotation.tags or annotation.flag) %}
           {% if annotation.flag %}
@@ -318,5 +322,7 @@
       {% endif %}
     </aside>
   </div>
+
+  {% endif %}{# /gated #}
 </main>
 {% endblock %}

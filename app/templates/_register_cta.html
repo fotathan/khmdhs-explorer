@@ -1,0 +1,32 @@
+{# _register_cta.html — freemium teaser call-to-action.
+   Rendered to ANONYMOUS visitors in place of pagination (list pages) and
+   below-the-fold detail content (act / authority / contractor pages). The
+   server also enforces the cap (page clamped to 1, gated data never queried),
+   so this is the visible half of a server-side rule, not the whole rule.
+   Self-contained styles so it renders identically under base.html and
+   beta_base.html. #}
+<div class="reg-cta">
+  <div class="reg-cta-body">
+    <div class="reg-cta-icon">✦</div>
+    <h3 class="reg-cta-title">{{ t("Εγγραφείτε για να δείτε περισσότερα") }}</h3>
+    <p class="reg-cta-text">{{ t("Δημιουργήστε δωρεάν λογαριασμό για πλήρη πρόσβαση: πλοήγηση σε όλες τις σελίδες αποτελεσμάτων και πλήρη στοιχεία πράξεων, αναθετουσών και αναδόχων.") }}</p>
+    <div class="reg-cta-actions">
+      <a class="reg-cta-btn" href="/register?next={{ request.url.path | urlencode }}">{{ t("Εγγραφή") }}</a>
+      <a class="reg-cta-link" href="/login?next={{ request.url.path | urlencode }}">{{ t("Έχετε ήδη λογαριασμό; Σύνδεση") }}</a>
+    </div>
+  </div>
+</div>
+<style>
+  .reg-cta{margin:24px 0;padding:2px;border-radius:14px;
+    background:linear-gradient(135deg,var(--accent),var(--brand-2,#003158));}
+  .reg-cta-body{background:var(--paper,#fff);border-radius:12px;padding:30px 24px;text-align:center;}
+  .reg-cta-icon{font-size:24px;color:var(--accent);line-height:1;margin-bottom:8px;}
+  .reg-cta-title{margin:0 0 6px;font-size:18px;color:var(--ink);}
+  .reg-cta-text{margin:0 auto 18px;max-width:460px;font-size:13.5px;color:var(--ink-2);line-height:1.55;}
+  .reg-cta-actions{display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap;}
+  .reg-cta-btn{background:var(--accent);color:#fff;padding:10px 24px;border-radius:9px;
+    font-size:13px;font-weight:600;letter-spacing:.02em;text-decoration:none;}
+  .reg-cta-btn:hover{background:var(--accent-2,#8a0c28);}
+  .reg-cta-link{color:var(--accent);font-size:12.5px;text-decoration:none;}
+  .reg-cta-link:hover{text-decoration:underline;}
+</style>

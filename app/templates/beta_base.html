@@ -44,6 +44,10 @@
   .mast-nav a{color:var(--ink-2);padding:7px 13px;border-radius:8px;transition:background .12s,color .12s;}
   .mast-nav a:hover{background:var(--paper-2);color:var(--ink);}
   .mast-nav a.on{background:var(--accent-soft);color:var(--accent-2);font-weight:600;}
+  .acct-user{font-size:12px;color:var(--ink);font-weight:600;padding:7px 6px 7px 12px;border-left:1px solid var(--rule);margin-left:4px;}
+  .acct-link{font-size:12px;}
+  .acct-cta{background:var(--accent);color:#fff !important;font-weight:600;}
+  .acct-cta:hover{background:var(--accent-2);}
 
   .hero{background:var(--paper);border-bottom:1px solid var(--rule);}
   .hero-in{max-width:1340px;margin:0 auto;padding:0 40px 26px;}
@@ -295,8 +299,15 @@
         <a href="/contractors" {% if nav_active=='contractors' %}class="on"{% endif %}>{{ t("Ανάδοχοι") }}</a>
         <a href="/explore" {% if nav_active=='explore' %}class="on"{% endif %}>{{ t("Σύνοψη") }}</a>
         <a href="/analytics" {% if nav_active=='analytics' %}class="on"{% endif %}>{{ t("Στατιστικά") }}</a>
-        <a href="/admin" {% if nav_active=='admin' %}class="on"{% endif %}>{{ t("Διαχείριση") }}</a>
+        {% if is_admin %}<a href="/admin" {% if nav_active=='admin' %}class="on"{% endif %}>{{ t("Διαχείριση") }}</a>{% endif %}
         {% include "_lang_select.html" %}
+        {% if is_authenticated %}
+          <span class="acct-user" title="{{ user.role }}">{{ user.username }}</span>
+          <a href="/logout" class="acct-link">{{ t("Αποσύνδεση") }}</a>
+        {% else %}
+          <a href="/login" class="acct-link">{{ t("Σύνδεση") }}</a>
+          <a href="/register" class="acct-link acct-cta">{{ t("Εγγραφή") }}</a>
+        {% endif %}
       </nav>
     </div>
   </div>

@@ -835,6 +835,42 @@ def cmd_diavgeia_catchup(args):
     return totals
 
 
+def cmd_create_user(args):
+    """Create an application account (proc.app_user) — used to bootstrap the
+    first admin on a fresh DB / prod, before the /admin/users UI is reachable.
+    Password is read from --password or prompted (hidden). Hashing/validation
+    reuse app/auth.py."""
+    import getpass
+    _app = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app")
+    if _app not in sys.path:
+        sys.path.insert(0, _app)
+    try:
+        from app.auth import hash_password, username_ok, password_ok
+    except ImportError:
+        from auth import hash_password, username_ok, password_ok
+
+    username = (args.username or "").strip()
+    role = args.role
+    if not username_ok(username):
+        sys.exit("invalid username (3–40 chars: letters, digits, . _ - @)")
+    if role not in ("admin", "customer"):
+        sys.exit("role must be admin|customer")
+    pw = args.password or getpass.getpass("Password: ")
+    if not password_ok(pw):
+        sys.exit("password must be 8–200 characters")
+    email = (args.email or "").strip() or None
+    with Database() as db:
+        if db.query("SELECT 1 FROM proc.app_user WHERE lower(username)=lower(%s)",
+                    (username,)):
+            sys.exit(f"user {username!r} already exists")
+        db.execute(
+            "INSERT INTO proc.app_user (username, email, password_hash, role) "
+            "VALUES (%s,%s,%s,%s)",
+            (username, email, hash_password(pw), role))
+        db.commit()
+    print(f"created {role} account: {username}")
+
+
 def cmd_stats(args):
     with Database() as db:
         rows = db.query("""
@@ -1011,6 +1047,14 @@ def main():
                           help="report-only table extraction over a job's acts")
     p_et.add_argument("--job", required=True, help="proc.table_extract_job id")
     p_et.set_defaults(func=cmd_extract_tables)
+
+    p_uc = sub.add_parser("create-user",
+                          help="create an app account (bootstrap the first admin)")
+    p_uc.add_argument("--username", required=True)
+    p_uc.add_argument("--role", default="admin", choices=["admin", "customer"])
+    p_uc.add_argument("--email")
+    p_uc.add_argument("--password", help="omit to be prompted (hidden input)")
+    p_uc.set_defaults(func=cmd_create_user)
 
     p_st = sub.add_parser("stats", help="print row counts")
     p_st.set_defaults(func=cmd_stats)

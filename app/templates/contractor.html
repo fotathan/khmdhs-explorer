@@ -19,7 +19,7 @@
   <span style="font-family:var(--mono); font-size:11px;">
     {% for m in merge_info.members %}{{ m.vat }}{% if not loop.last %} · {% endif %}{% endfor %}
   </span>
-  <a href="/admin/merge/contractor?focus={{ merge_info.canonical_key }}" style="color:var(--accent); margin-left:6px;">{{ t("διαχείριση ›") }}</a>
+  {% if is_admin %}<a href="/admin/merge/contractor?focus={{ merge_info.canonical_key }}" style="color:var(--accent); margin-left:6px;">{{ t("διαχείριση ›") }}</a>{% endif %}
 </div>
 {% endif %}
 

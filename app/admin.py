@@ -235,6 +235,99 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         # The admin landing defaults to the acts-management tab.
         return RedirectResponse(url="/admin/acts", status_code=303)
 
+    # ------------------------------------------------------------------ #
+    # User management (admin-only — the whole /admin prefix is already RBAC-
+    # gated to admins by the app's AuthMiddleware; these routes are the UI).
+    # ------------------------------------------------------------------ #
+    try:
+        from app import auth as _auth
+    except ImportError:
+        import auth as _auth
+
+    def _users_ctx(request, error=None, ok=None):
+        with cursor() as c:
+            users = _auth.list_users(c)
+        return {"users": users, "error": error, "ok": ok, "admin_tab": "users"}
+
+    @router.get("/users", response_class=HTMLResponse)
+    def admin_users(request: Request):
+        return templates.TemplateResponse(request, "admin_users.html",
+                                          _users_ctx(request))
+
+    @router.post("/users")
+    async def admin_users_create(request: Request):
+        form = await request.form()
+        username = (form.get("username") or "").strip()
+        email = (form.get("email") or "").strip() or None
+        password = form.get("password") or ""
+        role = form.get("role") or "customer"
+        try:
+            with cursor() as c:
+                if _auth.get_by_username(c, username):
+                    raise ValueError("Το όνομα χρήστη χρησιμοποιείται ήδη.")
+                _auth.create_user(c, username, password, role=role, email=email)
+            return RedirectResponse("/admin/users?ok=created", status_code=303)
+        except ValueError as e:
+            return templates.TemplateResponse(
+                request, "admin_users.html",
+                _users_ctx(request, error=str(e)), status_code=400)
+        except Exception:
+            return templates.TemplateResponse(
+                request, "admin_users.html",
+                _users_ctx(request, error="Το όνομα χρήστη ή το email χρησιμοποιείται ήδη."),
+                status_code=409)
+
+    def _self_uid(request):
+        u = getattr(request.state, "user", None)
+        return u.get("id") if u else None
+
+    @router.post("/users/{uid}/role")
+    async def admin_users_role(uid: int, request: Request):
+        form = await request.form()
+        role = form.get("role") or "customer"
+        # Guard: don't let an admin strip their OWN admin (lock-out) or demote
+        # the last remaining admin.
+        with cursor() as c:
+            if role != "admin":
+                c.execute("SELECT count(*) AS n FROM proc.app_user WHERE role='admin' AND is_active")
+                n_admins = c.fetchone()["n"]
+                if uid == _self_uid(request) or n_admins <= 1:
+                    return templates.TemplateResponse(
+                        request, "admin_users.html",
+                        _users_ctx(request, error="Δεν μπορείτε να αφαιρέσετε τον τελευταίο διαχειριστή."),
+                        status_code=400)
+            _auth.set_role(c, uid, role)
+        return RedirectResponse("/admin/users?ok=role", status_code=303)
+
+    @router.post("/users/{uid}/active")
+    async def admin_users_active(uid: int, request: Request):
+        form = await request.form()
+        active = (form.get("active") == "1")
+        with cursor() as c:
+            if not active:
+                c.execute("SELECT count(*) AS n FROM proc.app_user WHERE role='admin' AND is_active")
+                n_admins = c.fetchone()["n"]
+                if uid == _self_uid(request) or n_admins <= 1:
+                    return templates.TemplateResponse(
+                        request, "admin_users.html",
+                        _users_ctx(request, error="Δεν μπορείτε να απενεργοποιήσετε τον εαυτό σας/τον τελευταίο διαχειριστή."),
+                        status_code=400)
+            _auth.set_active(c, uid, active)
+        return RedirectResponse("/admin/users?ok=active", status_code=303)
+
+    @router.post("/users/{uid}/password")
+    async def admin_users_password(uid: int, request: Request):
+        form = await request.form()
+        pw = form.get("password") or ""
+        try:
+            with cursor() as c:
+                _auth.set_password(c, uid, pw)
+        except ValueError as e:
+            return templates.TemplateResponse(
+                request, "admin_users.html",
+                _users_ctx(request, error=str(e)), status_code=400)
+        return RedirectResponse("/admin/users?ok=password", status_code=303)
+
     @router.get("/collection", response_class=HTMLResponse)
     def admin_collection(request: Request):
         """Συλλογή Δεδομένων tab — backfill launcher + job history."""

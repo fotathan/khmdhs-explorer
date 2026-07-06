@@ -912,52 +912,194 @@ def set_lang(lang: str = "el", next: str = "/"):
     return resp
 
 # ---------------------------------------------------------------------------- #
-# Optional HTTP Basic Auth gate (for the deployed, private instance).
-#   Enabled ONLY when APP_PASSWORD is set in the environment. Locally (no env
-#   var) the app is wide open, so your laptop workflow is unchanged.
-#   - Single shared password; username is whatever APP_USERNAME says (default
-#     "team"), so the browser prompt looks normal.
-#   - Constant-time comparison to avoid timing attacks.
-#   - /healthz is exempt so the host's health checks don't need credentials.
+# Authentication & authorization (replaces the old shared-password Basic gate).
+#   Signed-cookie sessions carry the logged-in user; three runtime tiers:
+#     anonymous (no session) · customer (full read) · admin (full + /admin).
+#   RBAC: everything under /admin and /tables (except /tables/public, the
+#   published-table view) requires an admin — this middleware is the REAL
+#   enforcement; template hiding is cosmetic. Set SECRET_KEY in prod; a dev
+#   default keeps local dev going. request.state.user is the resolved account.
 # ---------------------------------------------------------------------------- #
-import base64
-import secrets as _secrets
+from urllib.parse import quote as _quote
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response as _Response
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.responses import Response as _Response, RedirectResponse as _Redirect
 
-_APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
-_APP_USERNAME = os.environ.get("APP_USERNAME", "team")
+try:
+    from app import auth as _auth
+except ImportError:
+    import auth as _auth
+
+_SECRET_KEY = os.environ.get("SECRET_KEY", "dev-insecure-key-change-in-prod")
+# Cookie is Secure (https-only) in prod; default on when SECRET_KEY is set.
+_SESSION_SECURE = os.environ.get(
+    "SESSION_SECURE", "1" if os.environ.get("SECRET_KEY") else "0") == "1"
 
 
-class BasicAuthMiddleware(BaseHTTPMiddleware):
+def _auth_context(request):
+    """Expose the account/tier to EVERY template (edit affordances, teaser)."""
+    u = getattr(request.state, "user", None)
+    role = u.get("role") if u else None
+    return {"user": u, "is_authenticated": u is not None,
+            "is_admin": role == "admin", "tier": role or "anonymous"}
+
+
+templates.context_processors.append(_auth_context)
+
+
+def _is_anonymous(request: Request) -> bool:
+    """True when nobody is logged in — the freemium *teaser* tier.
+
+    Teaser rule (Phase 2): anonymous callers may browse and filter, but the
+    paginated list routes are clamped to page 1 and the detail pages are
+    truncated to their top section, with a register CTA replacing the rest.
+    customer/admin get the full view. Enforced SERVER-SIDE here (so page-2
+    URLs and the JSON representation can't bypass it), plus a cosmetic CTA in
+    the templates keyed off the injected `tier`."""
+    return getattr(request.state, "user", None) is None
+
+
+def _is_admin_path(path: str) -> bool:
+    if path.startswith("/admin"):
+        return True
+    if path.startswith("/tables") and not path.startswith("/tables/public"):
+        return True
+    # Inline entity-edit affordances live under the public /authority/ and
+    # /contractor/ trees (so they can't be blocked by a prefix), but they mutate
+    # data — the display-name editor and the ΓΕΜΗ refresh. Admin-only, enforced
+    # here (defense in depth) on top of hiding the buttons in the templates.
+    if path.endswith(("/name-edit", "/name-cancel", "/gemi-refresh")):
+        return True
+    return False
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
-        # Auth disabled if no password configured (local dev).
-        if not _APP_PASSWORD:
-            return await call_next(request)
-        # Let liveness checks through unauthenticated.
-        if request.url.path == "/healthz":
-            return await call_next(request)
-
-        header = request.headers.get("authorization", "")
-        ok = False
-        if header.startswith("Basic "):
+        # Resolve the session to a live account on EVERY request (DB-backed, so
+        # deactivation / role changes take effect immediately, not on re-login).
+        request.state.user = None
+        uid = _auth.session_uid(request)
+        if uid:
             try:
-                raw = base64.b64decode(header[6:]).decode("utf-8", "replace")
-                user, _, pw = raw.partition(":")
-                # compare_digest on both fields; both must match.
-                ok = (_secrets.compare_digest(user, _APP_USERNAME)
-                      and _secrets.compare_digest(pw, _APP_PASSWORD))
+                with cursor() as c:
+                    u = _auth.load_user(c, uid)
+                if u:
+                    request.state.user = dict(u)
+                else:
+                    request.session.clear()   # gone or deactivated
             except Exception:
-                ok = False
-        if not ok:
-            return _Response(
-                "Authentication required.", status_code=401,
-                headers={"WWW-Authenticate": 'Basic realm="Procurement Explorer"'},
-            )
+                request.state.user = None
+        # RBAC: admin-only areas.
+        if _is_admin_path(request.url.path):
+            if (request.state.user or {}).get("role") != "admin":
+                wants_json = "application/json" in request.headers.get("accept", "")
+                if request.state.user is None and not wants_json:
+                    return _Redirect(f"/login?next={_quote(request.url.path)}",
+                                     status_code=303)
+                return _Response("Forbidden — admin access required.",
+                                 status_code=403)
         return await call_next(request)
 
 
-app.add_middleware(BasicAuthMiddleware)
+# Order matters: SessionMiddleware is added LAST so it's OUTERMOST and populates
+# request.session before AuthMiddleware reads it.
+app.add_middleware(AuthMiddleware)
+app.add_middleware(
+    SessionMiddleware, secret_key=_SECRET_KEY, session_cookie="khmdhs_session",
+    same_site="lax", https_only=_SESSION_SECURE, max_age=14 * 24 * 3600)
+
+
+def _safe_next(nxt: str) -> str:
+    """Only allow same-site relative redirects (defeat open-redirect)."""
+    return nxt if nxt and nxt.startswith("/") and not nxt.startswith("//") else "/"
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_form(request: Request, next: str = "/"):
+    if getattr(request.state, "user", None):
+        return _Redirect(_safe_next(next), status_code=303)
+    return templates.TemplateResponse(request, "login.html",
+                                      {"next": next, "error": None})
+
+
+@app.post("/login")
+async def login_submit(request: Request):
+    form = await request.form()
+    username = (form.get("username") or "").strip()
+    password = form.get("password") or ""
+    next_url = form.get("next") or "/"
+    ip = request.client.host if request.client else "?"
+    key = f"{username.lower()}|{ip}"
+    blocked = _auth.throttle_blocked(key)
+    if blocked:
+        return templates.TemplateResponse(
+            request, "login.html",
+            {"next": next_url,
+             "error": "Πολλές αποτυχημένες προσπάθειες — δοκιμάστε αργότερα."},
+            status_code=429)
+    ok, user = False, None
+    with cursor() as c:
+        u = _auth.get_by_username(c, username)
+        if u and u.get("is_active") and _auth.verify_password(password, u["password_hash"]):
+            ok, user = True, dict(u)
+            _auth.touch_last_login(c, u["id"])
+    if not ok:
+        _auth.throttle_fail(key)
+        return templates.TemplateResponse(
+            request, "login.html",
+            {"next": next_url, "error": "Λάθος όνομα χρήστη ή κωδικός."},
+            status_code=401)
+    _auth.throttle_reset(key)
+    _auth.login_session(request, user)
+    return _Redirect(_safe_next(next_url), status_code=303)
+
+
+@app.get("/logout")
+def logout(request: Request):
+    _auth.logout_session(request)
+    return _Redirect("/", status_code=303)
+
+
+@app.get("/register", response_class=HTMLResponse)
+def register_form(request: Request):
+    if getattr(request.state, "user", None):
+        return _Redirect("/", status_code=303)
+    return templates.TemplateResponse(request, "register.html",
+                                      {"error": None, "values": {}})
+
+
+@app.post("/register")
+async def register_submit(request: Request):
+    form = await request.form()
+    username = (form.get("username") or "").strip()
+    email = (form.get("email") or "").strip()
+    password = form.get("password") or ""
+    password2 = form.get("password2") or ""
+    values = {"username": username, "email": email}
+
+    def err(msg, code=400):
+        return templates.TemplateResponse(
+            request, "register.html",
+            {"error": msg, "values": values}, status_code=code)
+
+    if not _auth.username_ok(username):
+        return err("Μη έγκυρο όνομα χρήστη (3–40 χαρακτήρες: γράμματα, αριθμοί, . _ - @).")
+    if not _auth.password_ok(password):
+        return err("Ο κωδικός πρέπει να έχει 8–200 χαρακτήρες.")
+    if password != password2:
+        return err("Οι κωδικοί δεν ταιριάζουν.")
+    with cursor() as c:
+        if _auth.get_by_username(c, username):
+            return err("Το όνομα χρήστη χρησιμοποιείται ήδη.", 409)
+        try:
+            user = dict(_auth.create_user(c, username, password,
+                                          role="customer", email=email or None))
+        except ValueError as e:
+            return err(str(e))
+        except Exception:  # unique email etc.
+            return err("Το όνομα χρήστη ή το email χρησιμοποιείται ήδη.", 409)
+    _auth.login_session(request, user)
+    return _Redirect("/", status_code=303)
 
 if os.path.isdir(os.path.join(APP_DIR, "static")):
     app.mount("/static", StaticFiles(directory=os.path.join(APP_DIR, "static")),
@@ -1262,6 +1404,12 @@ def home(request: Request,
     surprise.
     """
     params = _params_from(request)
+    # Freemium teaser: anonymous callers are capped to the first page (both the
+    # HTML pager and the JSON page param), so pagination past page 1 requires an
+    # account. The template swaps the pager for a register CTA.
+    gated = _is_anonymous(request)
+    if gated:
+        page = 1
     offset = (page - 1) * per_page
     rows, agg = run_search(params, per_page, offset)
     total_pages = max(1, (agg["n"] + per_page - 1) // per_page)
@@ -1279,6 +1427,9 @@ def home(request: Request,
             "total_count": agg["n"],
             "total_value": float(agg["total_value"]) if agg["total_value"] else 0.0,
             "page": page, "per_page": per_page,
+            # anonymous callers are capped to page 1; flag it so a JSON client
+            # knows there is more behind registration rather than assuming EOF.
+            "gated": gated,
         })
 
     ctx = {
@@ -1559,6 +1710,20 @@ def act_detail(adam: str, request: Request):
                  "referrers": referrers, "successors": successors},
             )
 
+        if _is_anonymous(request):
+            # Freemium teaser: anonymous callers see only the hero (title,
+            # authority, amounts, publication date); every below-the-fold panel
+            # is replaced by a register CTA in the template. Skip the (expensive)
+            # detail queries entirely so the gated data is never sent — not just
+            # hidden client-side.
+            return templates.TemplateResponse(
+                request, "beta_act.html",
+                {"n": notice, "gated": True,
+                 "line_items": [], "operators": [], "act_cpvs": [],
+                 "attachments": [], "act_categories": [], "downstream": [],
+                 "incoming": [], "annotation": None, "excluded_reason": None,
+                 "has_extended_fields": False, "nav_active": "search"})
+
         # Line items + their CPVs (some types use objectDetails, others
         # objectDetailsList; ingester normalises both into act_object_detail).
         # Aggregate as parallel arrays of (code, description) so the template
@@ -1712,7 +1877,7 @@ def act_detail(adam: str, request: Request):
 
     return templates.TemplateResponse(
         request, "beta_act.html",
-        {"n": notice,
+        {"n": notice, "gated": False,
          "line_items": line_items,
          "operators": operators,
          "act_cpvs": act_cpvs,
@@ -1850,6 +2015,8 @@ def authority_index(request: Request,
     across all member org_ids, search matches any member's name.
     """
     q = q.strip()
+    if _is_anonymous(request):   # freemium teaser: no pagination for anonymous
+        page = 1
     offset = (page - 1) * per_page
     order = {"activity": "n_acts DESC NULLS LAST",
              "name": "name ASC", "name_desc": "name DESC"}.get(sort,
@@ -1931,6 +2098,8 @@ def contractor_index(request: Request,
     summed across ALL member VATs, and search matches ANY member's name/VAT.
     """
     q = q.strip()
+    if _is_anonymous(request):   # freemium teaser: no pagination for anonymous
+        page = 1
     offset = (page - 1) * per_page
     order = {"activity": "n_acts DESC NULLS LAST",
              "name": "name ASC", "name_desc": "name DESC"}.get(sort,
@@ -2056,6 +2225,17 @@ def authority_detail(org_id: str, request: Request,
                 "n": len(member_rows),
             }
 
+        if _is_anonymous(request):
+            # Freemium teaser: header + merge banner only, then a register CTA.
+            # Skip the totals/act-list/CPV queries entirely for anonymous.
+            return templates.TemplateResponse(
+                request, "beta_authority.html",
+                {"a": auth, "merge_info": merge_info, "gated": True,
+                 "by_type": [], "top_cpv": [], "acts": [], "total": 0,
+                 "type_filter": type, "grand_total": 0, "grand_value": 0,
+                 "page": 1, "per_page": per_page, "total_pages": 1,
+                 "nav_active": "authorities"})
+
         # Aggregates per act type (always — regardless of the type filter, so the
         # user sees the full picture and can switch tabs).
         c.execute("""
@@ -2132,7 +2312,7 @@ def authority_detail(org_id: str, request: Request,
 
     return templates.TemplateResponse(
         request, "beta_authority.html",
-        {"a": auth, "by_type": by_type, "top_cpv": top_cpv,
+        {"a": auth, "gated": False, "by_type": by_type, "top_cpv": top_cpv,
          "acts": acts, "total": total, "type_filter": type, "merge_info": merge_info,
          "grand_total": grand_total, "grand_value": grand_value,
          "page": page, "per_page": per_page, "total_pages": total_pages,
@@ -2195,6 +2375,19 @@ def contractor_detail(vat: str, request: Request,
                             for r in member_rows],
                 "n": len(member_rows),
             }
+
+        if _is_anonymous(request):
+            # Freemium teaser: header + merge banner only, then a register CTA.
+            # Skip the totals/buyers/act-list/ΓΕΜΗ queries entirely for anonymous.
+            return templates.TemplateResponse(
+                request, "beta_contractor.html",
+                {"op": op, "merge_info": merge_info, "gated": True,
+                 "by_type": [], "top_buyers": [], "top_cpv": [], "acts": [],
+                 "total": 0, "gemi": None,
+                 "gemi_refresh_url": f"/contractor/{op['vat_number']}/gemi-refresh",
+                 "grand_total": 0, "grand_value": 0,
+                 "page": 1, "per_page": per_page, "total_pages": 1,
+                 "nav_active": "contractors"})
 
         # Aggregates per act type (mostly payment/contract for winners).
         c.execute("""
@@ -2312,7 +2505,7 @@ def contractor_detail(vat: str, request: Request,
 
     return templates.TemplateResponse(
         request, "beta_contractor.html",
-        {"op": op, "by_type": by_type, "top_buyers": top_buyers,
+        {"op": op, "gated": False, "by_type": by_type, "top_buyers": top_buyers,
          "top_cpv": top_cpv,
          "acts": acts, "total": total, "merge_info": merge_info,
          "gemi": gemi,

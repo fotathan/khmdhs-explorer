@@ -57,6 +57,9 @@
   </div>
   {% endfor %}
 
+  {% if tier == 'anonymous' %}
+    {% if total_pages > 1 %}{% include "_register_cta.html" %}{% endif %}
+  {% else %}
   <div class="pager">
     {% if page > 1 %}
       <a hx-get="/?{% for k,v in request.query_params.multi_items() if k != 'page' %}{{k}}={{v|urlencode}}&{% endfor %}page={{ page-1 }}"
@@ -71,6 +74,7 @@
          hx-target="#results" hx-include="#filters">{{ t("επόμ. ›") }}</a>
     {% else %}<span class="disabled">{{ t("επόμ. ›") }}</span>{% endif %}
   </div>
+  {% endif %}
 {% else %}
   <div class="empty">{{ t("Καμία πράξη δεν αντιστοιχεί στα φίλτρα. Δοκιμάστε να χαλαρώσετε τα κριτήρια.") }}</div>
 {% endif %}

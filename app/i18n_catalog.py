@@ -1135,11 +1135,56 @@ _ATTACHMENTS = {
         "Files are stored locally; their text (and that of any zipped files) becomes searchable from the main search.",
 }
 
+_AUTH = {
+    "Σύνδεση": "Sign in",
+    "Εγγραφή": "Register",
+    "Αποσύνδεση": "Sign out",
+    "Όνομα χρήστη": "Username",
+    "Κωδικός": "Password",
+    "Δεν έχετε λογαριασμό;": "Don't have an account?",
+    "Έχετε ήδη λογαριασμό;": "Already have an account?",
+    "Email (προαιρετικό)": "Email (optional)",
+    "Επιβεβαίωση κωδικού": "Confirm password",
+    "Δημιουργία λογαριασμού": "Create account",
+    "Δημιουργήστε δωρεάν λογαριασμό για πλήρη πρόσβαση σε αναζήτηση, σελιδοποίηση και αναλυτικές πράξεις.":
+        "Create a free account for full access to search, pagination and full act detail.",
+    "Λάθος όνομα χρήστη ή κωδικός.": "Wrong username or password.",
+    "Πολλές αποτυχημένες προσπάθειες — δοκιμάστε αργότερα.": "Too many failed attempts — try again later.",
+    "Μη έγκυρο όνομα χρήστη (3–40 χαρακτήρες: γράμματα, αριθμοί, . _ - @).":
+        "Invalid username (3–40 chars: letters, digits, . _ - @).",
+    "Ο κωδικός πρέπει να έχει 8–200 χαρακτήρες.": "Password must be 8–200 characters.",
+    "Οι κωδικοί δεν ταιριάζουν.": "Passwords don't match.",
+    "Το όνομα χρήστη χρησιμοποιείται ήδη.": "Username already taken.",
+    "Το όνομα χρήστη ή το email χρησιμοποιείται ήδη.": "Username or email already in use.",
+    "Χρήστες": "Users",
+    "Λογαριασμοί και ρόλοι. Admin = πλήρης πρόσβαση + διαχείριση· Customer = πλήρης ανάγνωση χωρίς επεξεργασία/διαχείριση.":
+        "Accounts and roles. Admin = full access + management; Customer = full read, no editing/management.",
+    "Λογαριασμοί": "Accounts",
+    "Τελευταία σύνδεση": "Last login",
+    "ενεργός": "active",
+    "ανενεργός": "inactive",
+    "Αλλαγή κατάστασης;": "Change status?",
+    "απενεργοποίηση": "deactivate",
+    "ενεργοποίηση": "activate",
+    "νέος κωδικός": "new password",
+    "Νέος χρήστης": "New user",
+    "Δημιουργία": "Create",
+    "Δεν μπορείτε να αφαιρέσετε τον τελευταίο διαχειριστή.": "You can't remove the last admin.",
+    "Δεν μπορείτε να απενεργοποιήσετε τον εαυτό σας/τον τελευταίο διαχειριστή.":
+        "You can't deactivate yourself / the last admin.",
+    # Freemium teaser CTA (anonymous visitors).
+    "Εγγραφείτε για να δείτε περισσότερα": "Register to see more",
+    "Δημιουργήστε δωρεάν λογαριασμό για πλήρη πρόσβαση: πλοήγηση σε όλες τις σελίδες αποτελεσμάτων και πλήρη στοιχεία πράξεων, αναθετουσών και αναδόχων.":
+        "Create a free account for full access: browse every page of results and see the full detail of acts, authorities and contractors.",
+    "Έχετε ήδη λογαριασμό; Σύνδεση": "Already have an account? Sign in",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
-             _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS):
+             _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
+             _AUTH):
     UI_EN.update(_grp)
