@@ -792,18 +792,22 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         cpvs = _as_list(cpv, split=True)
         q = q.strip()
         if q:
-            # Substring keyword filter over title (+ ΑΔΑΜ), now with -exclude:
-            # positive part matched as before; each -term excluded via NOT LIKE.
-            _match = ("(translate(proc.f_unaccent(lower(a.title)),'ς','σ') "
-                      "LIKE translate(proc.f_unaccent(lower(%s)),'ς','σ') "
-                      "OR a.adam ILIKE %s)")
+            # Keyword filter over the TITLE (substring), the ΑΔΑΜ, AND the
+            # document full text — a.search_tsv is the combined title+full_text
+            # tsvector the public search uses (Greek-stemmed, GIN-indexed). The
+            # title LIKE keeps partial/substring matching; search_tsv adds
+            # full-text. A -term excludes across title + full text.
+            nt = "translate(proc.f_unaccent(lower(a.title)),'ς','σ')"
+            np = "translate(proc.f_unaccent(lower(%s)),'ς','σ')"
             pos, negs = _split_admin_q(q)
             if pos:
-                where.append(_match)
-                args += [f"%{pos}%", f"%{pos}%"]
+                where.append(f"({nt} LIKE {np} OR a.adam ILIKE %s "
+                             f"OR a.search_tsv @@ websearch_to_tsquery('greek', %s))")
+                args += [f"%{pos}%", f"%{pos}%", pos]
             for neg in negs:
-                where.append("NOT " + _match)
-                args += [f"%{neg}%", f"%{neg}%"]
+                where.append(f"NOT ({nt} LIKE {np} "
+                             f"OR a.search_tsv @@ websearch_to_tsquery('greek', %s))")
+                args += [f"%{neg}%", neg]
             desc.append(f"αναζήτηση «{q}»")
         if external_id.strip():
             where.append("a.external_id ILIKE %s")
