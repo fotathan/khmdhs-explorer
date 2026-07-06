@@ -7,7 +7,10 @@
 #   DATABASE_URL  — from Supabase: Project Settings → Database → Connection
 #                   string → URI (use the "Connection pooler" / port 6543 URI
 #                   for serverless-style web apps).
-#   APP_PASSWORD  — the shared login password you choose.
+#   SECRET_KEY    — random key that signs the session cookies (accounts / auth).
+#                   Generate with: python3 -c "import secrets; print(secrets.token_hex(32))"
+#                   MUST be set before/with the auth deploy — without it the app
+#                   falls back to an insecure built-in key and sessions are forgeable.
 # ---------------------------------------------------------------------------- #
 services:
   - type: web
@@ -18,7 +21,5 @@ services:
     envVars:
       - key: DATABASE_URL
         sync: false            # set in dashboard (secret)
-      - key: APP_PASSWORD
-        sync: false            # set in dashboard (secret)
-      - key: APP_USERNAME
-        value: team            # not secret; change if you like
+      - key: SECRET_KEY
+        sync: false            # set in dashboard (secret) — signs session cookies
