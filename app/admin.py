@@ -82,6 +82,25 @@ def _clean_number(s):
     return str(int(v)) if v == int(v) else str(v)   # whole → int (safe for int cols)
 
 
+def _split_admin_q(raw):
+    """Split the admin acts keyword box into (positive_string, [negative_terms]).
+
+    A token prefixed with '-' (a word or a -"quoted phrase") is a negative term
+    to EXCLUDE; everything else is the positive substring to match. Quotes are
+    stripped (this box is substring-matched, not tokenised). Mirrors the public
+    search's -exclude, adapted for the title/ΑΔΑΜ substring filter.
+      "καθαριοτητα -νοσοκομεια" -> ("καθαριοτητα", ["νοσοκομεια"])
+      "-νοσοκομεια"            -> ("", ["νοσοκομεια"])   # bare exclusion
+    """
+    pos, neg = [], []
+    for m in re.finditer(r'(-?)("(?:[^"]*)"|\S+)', raw or ""):
+        tok = m.group(2)
+        if len(tok) >= 2 and tok[0] == '"' and tok[-1] == '"':
+            tok = tok[1:-1]
+        (neg if m.group(1) == "-" else pos).append(tok)
+    return " ".join(pos).strip(), [t for t in neg if t.strip()]
+
+
 def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
     router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -773,10 +792,19 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         cpvs = _as_list(cpv, split=True)
         q = q.strip()
         if q:
-            where.append("(translate(proc.f_unaccent(lower(a.title)),'ς','σ') "
-                         "LIKE translate(proc.f_unaccent(lower(%s)),'ς','σ') "
-                         "OR a.adam ILIKE %s)")
-            args += [f"%{q}%", f"%{q}%"]; desc.append(f"αναζήτηση «{q}»")
+            # Substring keyword filter over title (+ ΑΔΑΜ), now with -exclude:
+            # positive part matched as before; each -term excluded via NOT LIKE.
+            _match = ("(translate(proc.f_unaccent(lower(a.title)),'ς','σ') "
+                      "LIKE translate(proc.f_unaccent(lower(%s)),'ς','σ') "
+                      "OR a.adam ILIKE %s)")
+            pos, negs = _split_admin_q(q)
+            if pos:
+                where.append(_match)
+                args += [f"%{pos}%", f"%{pos}%"]
+            for neg in negs:
+                where.append("NOT " + _match)
+                args += [f"%{neg}%", f"%{neg}%"]
+            desc.append(f"αναζήτηση «{q}»")
         if external_id.strip():
             where.append("a.external_id ILIKE %s")
             args.append(f"%{external_id.strip()}%"); desc.append("external id")
