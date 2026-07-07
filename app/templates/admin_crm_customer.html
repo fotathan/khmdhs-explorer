@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}{{ cust.full_name or cust.username }} · CRM{% endblock %}
+{% block content %}
+{% set STATUS_LABELS = {
+  'tester': 'Δοκιμαστής', 'subscriber': 'Συνδρομητής',
+  'expired_tester': 'Ληγμένος δοκιμαστής', 'expired_subscriber': 'Ληγμένη συνδρομή',
+  'none': 'Χωρίς πρόσβαση'} %}
+
+{% include "_admin_tabs.html" %}
+
+<p style="margin:8px 0 0;"><a class="back" href="/admin/crm" hx-boost="false">{{ t("‹ πίσω στο CRM") }}</a></p>
+
+<div class="detail-h">
+  <div class="kicker">CRM · {{ t("Πελάτης") }} · <code>{{ cust.username }}</code></div>
+  <h1 class="detail-title">{{ profile.full_name or cust.username }}</h1>
+  <div class="detail-sub">
+    <span class="sub-badge sub-{{ cust.status }}">{{ STATUS_LABELS.get(cust.status, cust.status) | t }}</span>
+    {% if cust.sub_expires_at %} · {{ t("λήγει") }} {{ cust.sub_expires_at.strftime('%Y-%m-%d') }}{% endif %}
+    {% if cust.email %} · {{ cust.email }}{% endif %}
+    {% if not cust.is_active %} · <span style="color:var(--accent);">{{ t("ανενεργός") }}</span>{% endif %}
+  </div>
+</div>
+
+{% if error %}<div class="u-flash u-err">{{ error | t }}</div>{% endif %}
+{% if ok %}<div class="u-flash u-ok">{{ t("✓ Αποθηκεύτηκε.") }}</div>{% endif %}
+
+<div class="detail-grid">
+  <div>
+    <div class="section-h">{{ t("Στοιχεία πελάτη") }}</div>
+    <form method="post" action="/admin/crm/{{ cust.id }}/profile" class="crm-form">
+      <div class="crm-group">{{ t("Επικοινωνία") }}</div>
+      <label>{{ t("Ονοματεπώνυμο") }}<input type="text" name="full_name" value="{{ profile.full_name or '' }}"></label>
+      <label>Email<input type="email" name="email" value="{{ cust.email or '' }}"></label>
+      <label>{{ t("Τηλέφωνο") }}<input type="text" name="phone" value="{{ profile.phone or '' }}"></label>
+      <label>{{ t("Κινητό") }}<input type="text" name="mobile" value="{{ profile.mobile or '' }}"></label>
+      <label>{{ t("Θέση/Ρόλος") }}<input type="text" name="job_title" value="{{ profile.job_title or '' }}"></label>
+
+      <div class="crm-group">{{ t("Εταιρεία") }}</div>
+      <label>{{ t("Επωνυμία εταιρείας") }}<input type="text" name="company" value="{{ profile.company or '' }}"></label>
+      <label>{{ t("ΑΦΜ") }}<input type="text" name="vat_number" value="{{ profile.vat_number or '' }}"></label>
+      <label>{{ t("Κλάδος") }}<input type="text" name="industry" value="{{ profile.industry or '' }}"></label>
+
+      <div class="crm-group">{{ t("Τοποθεσία") }}</div>
+      <label>{{ t("Χώρα") }}<input type="text" name="country" value="{{ profile.country or '' }}"></label>
+      <label>{{ t("Πόλη") }}<input type="text" name="city" value="{{ profile.city or '' }}"></label>
+      <label>{{ t("Διεύθυνση") }}<input type="text" name="address" value="{{ profile.address or '' }}"></label>
+
+      <div class="crm-group">{{ t("CRM") }}</div>
+      <label>{{ t("Πηγή/Προέλευση") }}<input type="text" name="lead_source" value="{{ profile.lead_source or '' }}"></label>
+      <label>{{ t("Σημειώσεις/Περιγραφή") }}<textarea name="about" rows="3">{{ profile.about or '' }}</textarea></label>
+
+      <button type="submit" class="u-btn">{{ t("Αποθήκευση προφίλ") }}</button>
+    </form>
+
+    <div class="section-h" style="margin-top:28px;">{{ t("Ιστορικό συνδρομών") }}</div>
+    {% if history %}
+    <table class="notices">
+      <thead><tr>
+        <th>{{ t("Προϊόν") }}</th><th>{{ t("Έναρξη") }}</th><th>{{ t("Λήξη") }}</th>
+        <th>{{ t("Κατάσταση") }}</th><th>{{ t("Ανάθεση από") }}</th>
+      </tr></thead>
+      <tbody>
+        {% for h in history %}
+        <tr>
+          <td><strong>{{ h.product_name | t }}</strong></td>
+          <td class="meta">{{ h.started_at.strftime('%Y-%m-%d') if h.started_at else '—' }}</td>
+          <td class="meta">{{ h.expires_at.strftime('%Y-%m-%d') if h.expires_at else '—' }}</td>
+          <td>{% if h.active %}<span class="sub-badge sub-tester">{{ t("ενεργή") }}</span>
+              {% else %}<span class="sub-badge sub-none">{{ t("έληξε") }}</span>{% endif %}</td>
+          <td class="meta">{{ h.granted_by_name or t("εγγραφή") }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="meta" style="font-style:italic;">{{ t("Καμία συνδρομή.") }}</div>
+    {% endif %}
+  </div>
+
+  <aside>
+    <div class="section-h">{{ t("Ανάθεση προϊόντος") }}</div>
+    <form method="post" action="/admin/crm/{{ cust.id }}/grant" class="crm-side">
+      <select name="product">
+        {% for p in products %}<option value="{{ p.code }}">{{ p.name | t }}</option>{% endfor %}
+      </select>
+      <input type="number" name="days" min="1" placeholder="{{ t('ημέρες') }}"
+             title="{{ t('Προαιρετικό — παρακάμπτει την προεπιλογή') }}">
+      <button type="submit" class="u-mini">{{ t("ανάθεση") }}</button>
+    </form>
+
+    {% if current %}
+    <div class="section-h" style="margin-top:20px;">{{ t("Τρέχουσα συνδρομή") }}</div>
+    <div class="detail-sub" style="margin:0 0 8px;">{{ current.product_name | t }} · {{ t("λήγει") }} {{ current.expires_at.strftime('%Y-%m-%d') }}</div>
+    <form method="post" action="/admin/crm/{{ cust.id }}/subscription" class="crm-side">
+      <input type="date" name="expires_at" required>
+      <button type="submit" class="u-mini">{{ t("ορισμός λήξης") }}</button>
+    </form>
+    <form method="post" action="/admin/crm/{{ cust.id }}/subscription" class="crm-side">
+      <input type="number" name="extend_days" min="1" placeholder="{{ t('ημέρες') }}">
+      <button type="submit" class="u-mini">{{ t("παράταση") }}</button>
+    </form>
+    {% endif %}
+  </aside>
+</div>
+
+<style>
+  .u-flash{padding:9px 14px;border-radius:8px;font-size:13px;margin:14px 0;}
+  .u-err{background:#fdeceb;border:1px solid #f4c7c3;color:#b3261e;}
+  .u-ok{background:#eaf6ef;border:1px solid #b7e0c7;color:#1a7f47;}
+  .u-mini{background:none;border:0;color:var(--accent);cursor:pointer;font-size:11px;padding:0 4px;text-decoration:underline;}
+  .u-btn{background:var(--ink);color:var(--paper);border:0;padding:11px;border-radius:8px;font-size:12px;
+    letter-spacing:.08em;text-transform:uppercase;cursor:pointer;margin-top:8px;}
+  .crm-form{display:flex;flex-direction:column;gap:10px;max-width:520px;}
+  .crm-form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);}
+  .crm-form input,.crm-form textarea{padding:8px 10px;border:1px solid var(--rule);border-radius:8px;font-size:13px;font-family:var(--sans);}
+  .crm-group{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-top:12px;}
+  .crm-group:first-child{margin-top:0;}
+  .crm-side{display:flex;gap:5px;align-items:center;margin-top:6px;flex-wrap:wrap;}
+  .crm-side select,.crm-side input{font-size:12px;padding:5px 7px;border:1px solid var(--rule);border-radius:6px;}
+  .crm-side input[type=number]{width:70px;}
+  .sub-badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;}
+  .sub-tester{background:#eaf6ef;color:#1a7f47;}
+  .sub-subscriber{background:#e8f0fb;color:#1a4f9c;}
+  .sub-expired_tester,.sub-expired_subscriber{background:#fdeceb;color:#b3261e;}
+  .sub-none{background:var(--rule);color:var(--ink-3);}
+</style>
+{% endblock %}

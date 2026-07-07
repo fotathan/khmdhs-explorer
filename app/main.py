@@ -1124,6 +1124,14 @@ except ImportError:
     from admin import make_router as _make_admin_router   # fallback if run with --app-dir=app
 app.include_router(_make_admin_router(templates, cursor))
 
+# CRM admin area (customers, profiles, segments) — mounted under /admin/crm, so
+# it inherits the same admin-only gating from AuthMiddleware.
+try:
+    from app.crm import make_crm_router as _make_crm_router
+except ImportError:
+    from crm import make_crm_router as _make_crm_router
+app.include_router(_make_crm_router(templates, cursor))
+
 # Tender-table extraction UI (separate module, mounted under /tables). Gated by
 # the TABLES_ENABLED env flag so the deployed Render copy can carry the feature
 # turned off until the public conversation happens for real — locally it

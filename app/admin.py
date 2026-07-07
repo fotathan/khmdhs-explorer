@@ -245,11 +245,10 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         import auth as _auth
 
     def _users_ctx(request, error=None, ok=None):
+        # Admins only — customers live in the CRM (/admin/crm).
         with cursor() as c:
-            users = _auth.list_users_with_subscription(c)
-            products = _auth.product_list(c)
-        return {"users": users, "products": products,
-                "error": error, "ok": ok, "admin_tab": "users"}
+            users = _auth.list_admins(c)
+        return {"users": users, "error": error, "ok": ok, "admin_tab": "users"}
 
     @router.get("/users", response_class=HTMLResponse)
     def admin_users(request: Request):

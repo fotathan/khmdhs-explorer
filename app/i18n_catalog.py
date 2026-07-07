@@ -1213,6 +1213,48 @@ _PRODUCTS = {
         "Your trial or subscription has ended. Contact the administrator to renew full access.",
 }
 
+# CRM (Phase 1): admins/customers split, customer profiles, segments.
+_CRM = {
+    "Διαχειριστές": "Administrators",
+    "Λογαριασμοί διαχειριστών (πλήρης πρόσβαση + διαχείριση). Οι πελάτες διαχειρίζονται στο CRM.":
+        "Administrator accounts (full access + management). Customers are managed in the CRM.",
+    "Πελάτες": "Customers",
+    "Πελάτης": "Customer",
+    "Όλοι οι πελάτες με βάση την κατάσταση συνδρομής. Επιλέξτε πελάτη για λεπτομέρειες.":
+        "All customers by subscription status. Select a customer for details.",
+    "Κανένας πελάτης σε αυτή την κατηγορία.": "No customers in this category.",
+    # segment tab labels
+    "Συνδρομητές": "Subscribers",
+    "Δοκιμαστές": "Trial users",
+    "Ληγμένες συνδρομές": "Expired subscriptions",
+    "Ληγμένοι δοκιμαστές": "Expired trials",
+    # customer detail / profile fields
+    "‹ πίσω στο CRM": "‹ back to CRM",
+    "Στοιχεία πελάτη": "Customer details",
+    "Ονοματεπώνυμο": "Full name",
+    "Κινητό": "Mobile",
+    "Θέση/Ρόλος": "Position/Role",
+    "Εταιρεία": "Company",
+    "Επωνυμία εταιρείας": "Company name",
+    "Κλάδος": "Industry",
+    "Πηγή/Προέλευση": "Lead source",
+    "Σημειώσεις/Περιγραφή": "Notes/Description",
+    "Αποθήκευση προφίλ": "Save profile",
+    "Το email χρησιμοποιείται ήδη ή είναι μη έγκυρο.":
+        "That email is already in use or invalid.",
+    # subscription history + grant controls
+    "Ιστορικό συνδρομών": "Subscription history",
+    "Προϊόν": "Product",
+    "Ανάθεση από": "Granted by",
+    "ενεργή": "active",
+    "έληξε": "expired",
+    "εγγραφή": "signup",
+    "Καμία συνδρομή.": "No subscriptions.",
+    "Ανάθεση προϊόντος": "Grant product",
+    "Τρέχουσα συνδρομή": "Current subscription",
+    "παράταση": "extend",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
@@ -1220,5 +1262,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
              _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
-             _AUTH, _PRODUCTS):
+             _AUTH, _PRODUCTS, _CRM):
     UI_EN.update(_grp)

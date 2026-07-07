@@ -1,17 +1,13 @@
 {% extends "base.html" %}
-{% block title %}{{ t("Χρήστες") }} · {{ t("Διαχείριση") }}{% endblock %}
+{% block title %}{{ t("Διαχειριστές") }} · {{ t("Διαχείριση") }}{% endblock %}
 {% block content %}
-{% set STATUS_LABELS = {
-  'tester': 'Δοκιμαστής', 'subscriber': 'Συνδρομητής',
-  'expired_tester': 'Ληγμένος δοκιμαστής', 'expired_subscriber': 'Ληγμένη συνδρομή',
-  'none': 'Χωρίς πρόσβαση'} %}
 
 {% include "_admin_tabs.html" %}
 
 <div class="detail-h">
   <div class="kicker">{{ t("Διαχείριση") }}</div>
-  <h1 class="detail-title">{{ t("Χρήστες") }}</h1>
-  <div class="detail-sub">{{ t("Λογαριασμοί και ρόλοι. Admin = πλήρης πρόσβαση + διαχείριση· Customer = πλήρης ανάγνωση χωρίς επεξεργασία/διαχείριση.") }}</div>
+  <h1 class="detail-title">{{ t("Διαχειριστές") }}</h1>
+  <div class="detail-sub">{{ t("Λογαριασμοί διαχειριστών (πλήρης πρόσβαση + διαχείριση). Οι πελάτες διαχειρίζονται στο CRM.") }}</div>
 </div>
 
 {% if error %}<div class="u-flash u-err">{{ error | t }}</div>{% endif %}
@@ -23,8 +19,7 @@
     <table class="notices">
       <thead><tr>
         <th>{{ t("Όνομα χρήστη") }}</th><th>Email</th><th>{{ t("Ρόλος") }}</th>
-        <th>{{ t("Κατάσταση") }}</th><th>{{ t("Πρόσβαση / Προϊόν") }}</th>
-        <th>{{ t("Τελευταία σύνδεση") }}</th><th></th>
+        <th>{{ t("Κατάσταση") }}</th><th>{{ t("Τελευταία σύνδεση") }}</th><th></th>
       </tr></thead>
       <tbody>
         {% for u in users %}
@@ -34,36 +29,14 @@
           <td>
             <form method="post" action="/admin/users/{{ u.id }}/role" style="display:inline">
               <select name="role" onchange="this.form.submit()" style="font-size:12px;">
-                <option value="customer" {% if u.role=='customer' %}selected{% endif %}>customer</option>
                 <option value="admin" {% if u.role=='admin' %}selected{% endif %}>admin</option>
+                <option value="customer" {% if u.role=='customer' %}selected{% endif %}>customer</option>
               </select>
             </form>
           </td>
           <td>
             {% if u.is_active %}<span class="pill" style="color:var(--ok)">{{ t("ενεργός") }}</span>
             {% else %}<span class="pill cancel">{{ t("ανενεργός") }}</span>{% endif %}
-          </td>
-          <td>
-            {% if u.role == 'admin' %}
-              <span class="meta">{{ t("πλήρης (διαχειριστής)") }}</span>
-            {% else %}
-              <span class="sub-badge sub-{{ u.status }}">{{ STATUS_LABELS.get(u.status, u.status) | t }}</span>
-              {% if u.sub_expires_at %}<div class="meta">{{ t("λήγει") }} {{ u.sub_expires_at.strftime('%Y-%m-%d') }}</div>{% endif %}
-              <form method="post" action="/admin/users/{{ u.id }}/grant" class="sub-form">
-                <select name="product">
-                  {% for p in products %}<option value="{{ p.code }}">{{ p.name | t }}</option>{% endfor %}
-                </select>
-                <input type="number" name="days" min="1" placeholder="{{ t('ημέρες') }}"
-                       title="{{ t('Προαιρετικό — παρακάμπτει την προεπιλογή') }}">
-                <button type="submit" class="u-mini">{{ t("ανάθεση") }}</button>
-              </form>
-              {% if u.sub_id %}
-              <form method="post" action="/admin/users/{{ u.id }}/subscription" class="sub-form">
-                <input type="date" name="expires_at" required>
-                <button type="submit" class="u-mini">{{ t("ορισμός λήξης") }}</button>
-              </form>
-              {% endif %}
-            {% endif %}
           </td>
           <td class="meta">{{ u.last_login_at.strftime('%Y-%m-%d %H:%M') if u.last_login_at else '—' }}</td>
           <td style="white-space:nowrap;">
@@ -93,23 +66,12 @@
       <label>{{ t("Κωδικός") }}<input type="password" name="password" minlength="8" required></label>
       <label>{{ t("Ρόλος") }}
         <select name="role">
-          <option value="customer">customer</option>
           <option value="admin">admin</option>
+          <option value="customer">customer</option>
         </select>
       </label>
       <button type="submit" class="u-btn">{{ t("Δημιουργία") }}</button>
     </form>
-
-    <div class="section-h" style="margin-top:26px;">{{ t("Προϊόντα") }}</div>
-    <div class="detail-sub" style="margin:0 0 10px;">{{ t("Προεπιλεγμένη διάρκεια νέων αναθέσεων (ημέρες).") }}</div>
-    {% for p in products %}
-    <form method="post" action="/admin/products/{{ p.code }}" class="u-prod">
-      <span class="u-prod-name">{{ p.name | t }}</span>
-      <input type="number" name="days" min="1" value="{{ p.default_period_days }}">
-      <span class="meta">{{ t("ημέρες") }}</span>
-      <button type="submit" class="u-mini">{{ t("Αποθήκευση") }}</button>
-    </form>
-    {% endfor %}
   </aside>
 </div>
 
@@ -123,16 +85,5 @@
   .u-new input,.u-new select{padding:8px 10px;border:1px solid var(--rule);border-radius:8px;font-size:13px;}
   .u-btn{background:var(--ink);color:var(--paper);border:0;padding:10px;border-radius:8px;font-size:12px;
     letter-spacing:.08em;text-transform:uppercase;cursor:pointer;margin-top:2px;}
-  .sub-badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;}
-  .sub-tester{background:#eaf6ef;color:#1a7f47;}
-  .sub-subscriber{background:#e8f0fb;color:#1a4f9c;}
-  .sub-expired_tester,.sub-expired_subscriber{background:#fdeceb;color:#b3261e;}
-  .sub-none{background:var(--rule);color:var(--ink-3);}
-  .sub-form{display:flex;gap:4px;align-items:center;margin-top:6px;flex-wrap:wrap;}
-  .sub-form select,.sub-form input{font-size:11px;padding:3px 5px;border:1px solid var(--rule);border-radius:6px;}
-  .sub-form input[type=number]{width:64px;}
-  .u-prod{display:flex;gap:6px;align-items:center;margin-bottom:8px;}
-  .u-prod-name{font-size:12px;font-weight:600;min-width:96px;}
-  .u-prod input{width:72px;padding:6px 8px;border:1px solid var(--rule);border-radius:8px;font-size:13px;}
 </style>
 {% endblock %}

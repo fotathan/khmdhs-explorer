@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}CRM · {{ t("Διαχείριση") }}{% endblock %}
+{% block content %}
+{% set STATUS_LABELS = {
+  'tester': 'Δοκιμαστής', 'subscriber': 'Συνδρομητής',
+  'expired_tester': 'Ληγμένος δοκιμαστής', 'expired_subscriber': 'Ληγμένη συνδρομή',
+  'none': 'Χωρίς πρόσβαση'} %}
+{% set SEG_LABELS = {
+  'all': 'Όλοι', 'subscriber': 'Συνδρομητές', 'tester': 'Δοκιμαστές',
+  'expired_subscriber': 'Ληγμένες συνδρομές', 'expired_tester': 'Ληγμένοι δοκιμαστές',
+  'none': 'Χωρίς πρόσβαση'} %}
+
+{% include "_admin_tabs.html" %}
+
+<div class="detail-h">
+  <div class="kicker">{{ t("Διαχείριση") }}</div>
+  <h1 class="detail-title">CRM · {{ t("Πελάτες") }}</h1>
+  <div class="detail-sub">{{ t("Όλοι οι πελάτες με βάση την κατάσταση συνδρομής. Επιλέξτε πελάτη για λεπτομέρειες.") }}</div>
+</div>
+
+<div class="crm-segments">
+  {% for s in segments %}
+  <a href="/admin/crm?segment={{ s }}" class="crm-seg {% if segment==s %}on{% endif %}">
+    {{ SEG_LABELS.get(s, s) | t }}<span class="crm-seg-n">{{ counts.get(s, 0) }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+<div class="detail-grid">
+  <div>
+    {% if customers %}
+    <table class="notices">
+      <thead><tr>
+        <th>{{ t("Πελάτης") }}</th><th>{{ t("Κατάσταση") }}</th>
+        <th>{{ t("Λήξη") }}</th><th>{{ t("Τελευταία σύνδεση") }}</th>
+      </tr></thead>
+      <tbody>
+        {% for u in customers %}
+        <tr>
+          <td>
+            <a href="/admin/crm/{{ u.id }}"><strong>{{ u.full_name or u.username }}</strong></a>
+            <div class="meta">{{ u.email or '—' }}{% if u.company %} · {{ u.company }}{% endif %}
+              {% if not u.is_active %} · <span style="color:var(--accent);">{{ t("ανενεργός") }}</span>{% endif %}</div>
+          </td>
+          <td><span class="sub-badge sub-{{ u.status }}">{{ STATUS_LABELS.get(u.status, u.status) | t }}</span></td>
+          <td class="meta">{{ u.sub_expires_at.strftime('%Y-%m-%d') if u.sub_expires_at else '—' }}</td>
+          <td class="meta">{{ u.last_login_at.strftime('%Y-%m-%d %H:%M') if u.last_login_at else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty" style="padding:24px 0;color:var(--ink-3);font-style:italic;">{{ t("Κανένας πελάτης σε αυτή την κατηγορία.") }}</div>
+    {% endif %}
+  </div>
+
+  <aside>
+    <div class="section-h">{{ t("Προϊόντα") }}</div>
+    <div class="detail-sub" style="margin:0 0 10px;">{{ t("Προεπιλεγμένη διάρκεια νέων αναθέσεων (ημέρες).") }}</div>
+    {% for p in products %}
+    <form method="post" action="/admin/products/{{ p.code }}" class="u-prod">
+      <span class="u-prod-name">{{ p.name | t }}</span>
+      <input type="number" name="days" min="1" value="{{ p.default_period_days }}">
+      <span class="meta">{{ t("ημέρες") }}</span>
+      <button type="submit" class="u-mini">{{ t("Αποθήκευση") }}</button>
+    </form>
+    {% endfor %}
+  </aside>
+</div>
+
+<style>
+  .crm-segments{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 22px;}
+  .crm-seg{display:inline-flex;align-items:center;gap:7px;text-decoration:none;
+    font-size:12.5px;font-weight:600;color:var(--ink-2);border:1px solid var(--rule);
+    border-radius:20px;padding:6px 13px;}
+  .crm-seg:hover{border-color:var(--accent);color:var(--accent);}
+  .crm-seg.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .crm-seg-n{font-size:11px;background:rgba(0,0,0,.08);border-radius:9px;padding:0 6px;}
+  .crm-seg.on .crm-seg-n{background:rgba(255,255,255,.25);}
+  .sub-badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;}
+  .sub-tester{background:#eaf6ef;color:#1a7f47;}
+  .sub-subscriber{background:#e8f0fb;color:#1a4f9c;}
+  .sub-expired_tester,.sub-expired_subscriber{background:#fdeceb;color:#b3261e;}
+  .sub-none{background:var(--rule);color:var(--ink-3);}
+  .u-mini{background:none;border:0;color:var(--accent);cursor:pointer;font-size:11px;padding:0 4px;text-decoration:underline;}
+  .u-prod{display:flex;gap:6px;align-items:center;margin-bottom:8px;}
+  .u-prod-name{font-size:12px;font-weight:600;min-width:96px;}
+  .u-prod input{width:72px;padding:6px 8px;border:1px solid var(--rule);border-radius:8px;font-size:13px;}
+</style>
+{% endblock %}

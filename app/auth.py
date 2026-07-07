@@ -269,6 +269,131 @@ def extend_subscription(c, sub_id, days):
                  WHERE id = %s""", (days, sub_id))
 
 
+def subscription_history(c, uid):
+    """All grants for a user, newest first, with product + granter names — the
+    CRM customer page's product history."""
+    c.execute("""
+        SELECT s.id, s.product_code, p.name AS product_name,
+               s.started_at, s.expires_at, s.created_at,
+               s.granted_by, g.username AS granted_by_name,
+               (s.expires_at > now()) AS active
+        FROM proc.user_subscription s
+        JOIN proc.product p ON p.code = s.product_code
+        LEFT JOIN proc.app_user g ON g.id = s.granted_by
+        WHERE s.user_id = %s
+        ORDER BY s.expires_at DESC, s.created_at DESC
+    """, (uid,))
+    return c.fetchall()
+
+
+# --------------------------------------------------------------------------- #
+# CRM: admins/customers split, segments, editable profile
+# --------------------------------------------------------------------------- #
+# The subscription status as a SQL expression (mirror of _status_label), so the
+# CRM can filter/group by it. `s` is the current-subscription lateral alias.
+_SEG_CASE = """CASE
+    WHEN s.product_code IS NULL THEN 'none'
+    WHEN s.product_code = 'paid' AND s.expires_at > now() THEN 'subscriber'
+    WHEN s.product_code = 'paid' THEN 'expired_subscriber'
+    WHEN s.expires_at > now() THEN 'tester'
+    ELSE 'expired_tester'
+END"""
+
+_CUR_SUB_JOIN = """
+    LEFT JOIN LATERAL (
+        SELECT product_code, expires_at
+        FROM proc.user_subscription
+        WHERE user_id = u.id
+        ORDER BY expires_at DESC LIMIT 1
+    ) s ON true
+"""
+
+# Admin-editable CRM profile columns (kept in one place so routes/templates and
+# the upsert stay in sync).
+PROFILE_FIELDS = ("full_name", "phone", "mobile", "job_title",
+                  "company", "vat_number", "industry",
+                  "country", "city", "address",
+                  "lead_source", "about")
+
+
+def list_admins(c):
+    c.execute(f"SELECT {_COLS} FROM proc.app_user "
+              f"WHERE role = 'admin' ORDER BY lower(username)")
+    return c.fetchall()
+
+
+def customer_segment_counts(c):
+    """{status: n} across all customers, plus an 'all' total — for the CRM
+    segment tabs."""
+    c.execute(f"""
+        SELECT {_SEG_CASE} AS status, count(*) AS n
+        FROM proc.app_user u {_CUR_SUB_JOIN}
+        WHERE u.role = 'customer'
+        GROUP BY 1
+    """)
+    counts = {r["status"]: r["n"] for r in c.fetchall()}
+    counts["all"] = sum(counts.values())
+    return counts
+
+
+def list_customers(c, segment="all"):
+    """Customers with derived status + a little profile context, optionally
+    filtered to one segment (status value, or 'all')."""
+    c.execute(f"""
+        SELECT u.id, u.username, u.email, u.is_active,
+               u.created_at, u.last_login_at,
+               s.product_code AS sub_product, s.expires_at AS sub_expires_at,
+               {_SEG_CASE} AS status,
+               p.full_name, p.company
+        FROM proc.app_user u {_CUR_SUB_JOIN}
+        LEFT JOIN proc.customer_profile p ON p.user_id = u.id
+        WHERE u.role = 'customer'
+        ORDER BY lower(coalesce(p.full_name, u.username))
+    """)
+    rows = [dict(r) for r in c.fetchall()]
+    if segment and segment != "all":
+        rows = [r for r in rows if r["status"] == segment]
+    return rows
+
+
+def get_customer(c, uid):
+    """One customer account + derived status (None if not a customer)."""
+    c.execute(f"""
+        SELECT u.id, u.username, u.email, u.role, u.is_active,
+               u.created_at, u.last_login_at,
+               s.product_code AS sub_product, s.expires_at AS sub_expires_at,
+               {_SEG_CASE} AS status
+        FROM proc.app_user u {_CUR_SUB_JOIN}
+        WHERE u.id = %s AND u.role = 'customer'
+    """, (uid,))
+    return c.fetchone()
+
+
+def get_profile(c, uid):
+    c.execute("SELECT * FROM proc.customer_profile WHERE user_id = %s", (uid,))
+    return c.fetchone()
+
+
+def upsert_profile(c, uid, values: dict, updated_by=None):
+    """Insert/update the customer's profile row from a dict of PROFILE_FIELDS."""
+    cols = list(PROFILE_FIELDS)
+    vals = [(values.get(k) or None) for k in cols]
+    set_clause = ", ".join(f"{k} = EXCLUDED.{k}" for k in cols)
+    placeholders = ", ".join(["%s"] * len(cols))
+    c.execute(f"""
+        INSERT INTO proc.customer_profile (user_id, {", ".join(cols)}, updated_at, updated_by)
+        VALUES (%s, {placeholders}, now(), %s)
+        ON CONFLICT (user_id) DO UPDATE
+          SET {set_clause}, updated_at = now(), updated_by = EXCLUDED.updated_by
+    """, [uid] + vals + [updated_by])
+
+
+def set_email(c, uid, email):
+    """Update a customer's contact email (unique index may raise — caller guards)."""
+    c.execute("UPDATE proc.app_user SET email = %s WHERE id = %s",
+              ((email or "").strip() or None, uid))
+
+
 # --------------------------------------------------------------------------- #
 # session (Starlette request.session)
 # --------------------------------------------------------------------------- #
