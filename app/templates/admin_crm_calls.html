@@ -1,0 +1,54 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ t("Κλήσεις") }} · CRM{% endblock %}
+{% block admin_content %}
+{% set CALL_LABELS = {
+  'planned': 'Προγραμματισμένη', 'held': 'Πραγματοποιήθηκε', 'not_held': 'Δεν έγινε',
+  'not_answered': 'Αναπάντητη', 'cancelled': 'Ακυρώθηκε'} %}
+
+<div class="detail-h">
+  <div class="kicker">CRM</div>
+  <h1 class="detail-title">{{ t("Κλήσεις") }}</h1>
+  <div class="detail-sub">{{ t("Όλες οι κλήσεις σε όλους τους πελάτες.") }}</div>
+</div>
+
+<form method="get" action="/admin/crm/calls" class="crm-filter">
+  <input type="search" name="q" value="{{ f.q }}" placeholder="{{ t('Αναζήτηση') }}…">
+  <select name="status">
+    <option value="">{{ t("Όλες") }}</option>
+    {% for s in statuses %}<option value="{{ s }}" {% if f.status==s %}selected{% endif %}>{{ CALL_LABELS[s] | t }}</option>{% endfor %}
+  </select>
+  <select name="assigned_to">
+    <option value="">{{ t("Υπεύθυνος") }}</option>
+    {% for a in admins %}<option value="{{ a.id }}" {% if f.assigned_to == (a.id|string) %}selected{% endif %}>{{ a.username }}</option>{% endfor %}
+  </select>
+  <label class="crm-frange">{{ t("Από") }}<input type="date" name="from" value="{{ f.date_from }}"></label>
+  <label class="crm-frange">{{ t("Έως") }}<input type="date" name="to" value="{{ f.date_to }}"></label>
+  <button type="submit" class="crm-fbtn">{{ t("Αναζήτηση") }}</button>
+  <a href="/admin/crm/calls" class="crm-fclear">{{ t("καθαρισμός") }}</a>
+</form>
+
+{% if rows %}
+<table class="notices">
+  <thead><tr>
+    <th>{{ t("Πελάτης") }}</th><th>{{ t("Θέμα") }}</th><th>{{ t("Κατάσταση") }}</th>
+    <th>{{ t("Προγρ.") }}</th><th>{{ t("Υπεύθυνος") }}</th>
+  </tr></thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td><a href="/admin/crm/{{ r.user_id }}"><strong>{{ r.customer_name or r.customer_username }}</strong></a>
+        {% if r.customer_company %}<div class="meta">{{ r.customer_company }}</div>{% endif %}</td>
+      <td>{{ '↗' if r.direction=='outgoing' else '↙' }} {{ r.subject or t("(χωρίς θέμα)") }}
+        {% if r.outcome %}<div class="meta">{{ r.outcome }}</div>{% endif %}</td>
+      <td><span class="sub-badge st-{{ r.status }}">{{ CALL_LABELS[r.status] | t }}</span></td>
+      <td class="meta">{{ r.scheduled_at.strftime('%Y-%m-%d') if r.scheduled_at else '—' }}</td>
+      <td class="meta">{{ r.assigned_name or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<div class="meta" style="margin-top:8px;">{{ rows|length }} {{ t("αποτελέσματα") }}{% if rows|length >= 200 %} · {{ t("εμφανίζονται τα πρώτα 200") }}{% endif %}</div>
+{% else %}
+<div class="act-empty" style="color:var(--ink-3);font-style:italic;">{{ t("Καμία κλήση.") }}</div>
+{% endif %}
+{% endblock %}

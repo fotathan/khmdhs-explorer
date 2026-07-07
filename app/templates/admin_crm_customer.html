@@ -1,6 +1,6 @@
-{% extends "base.html" %}
+{% extends "admin_base.html" %}
 {% block title %}{{ cust.full_name or cust.username }} · CRM{% endblock %}
-{% block content %}
+{% block admin_content %}
 {% set STATUS_LABELS = {
   'tester': 'Δοκιμαστής', 'subscriber': 'Συνδρομητής',
   'expired_tester': 'Ληγμένος δοκιμαστής', 'expired_subscriber': 'Ληγμένη συνδρομή',
@@ -11,7 +11,6 @@
 {% set TASK_LABELS = {'open': 'Ανοιχτή', 'done': 'Ολοκληρωμένη', 'cancelled': 'Ακυρώθηκε'} %}
 {% set DIR_LABELS = {'outgoing': 'Εξερχόμενη', 'incoming': 'Εισερχόμενη'} %}
 
-{% include "_admin_tabs.html" %}
 
 <p style="margin:8px 0 0;"><a class="back" href="/admin/crm" hx-boost="false">{{ t("‹ πίσω στο CRM") }}</a></p>
 

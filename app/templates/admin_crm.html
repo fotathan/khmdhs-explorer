@@ -1,6 +1,6 @@
-{% extends "base.html" %}
+{% extends "admin_base.html" %}
 {% block title %}CRM · {{ t("Διαχείριση") }}{% endblock %}
-{% block content %}
+{% block admin_content %}
 {% set STATUS_LABELS = {
   'tester': 'Δοκιμαστής', 'subscriber': 'Συνδρομητής',
   'expired_tester': 'Ληγμένος δοκιμαστής', 'expired_subscriber': 'Ληγμένη συνδρομή',
@@ -10,7 +10,6 @@
   'expired_subscriber': 'Ληγμένες συνδρομές', 'expired_tester': 'Ληγμένοι δοκιμαστές',
   'none': 'Χωρίς πρόσβαση'} %}
 
-{% include "_admin_tabs.html" %}
 
 <div class="detail-h">
   <div class="kicker">{{ t("Διαχείριση") }}</div>
@@ -18,9 +17,16 @@
   <div class="detail-sub">{{ t("Όλοι οι πελάτες με βάση την κατάσταση συνδρομής. Επιλέξτε πελάτη για λεπτομέρειες.") }}</div>
 </div>
 
+<form method="get" action="/admin/crm" class="crm-filter">
+  <input type="hidden" name="segment" value="{{ segment }}">
+  <input type="search" name="q" value="{{ q }}" placeholder="{{ t('Αναζήτηση (όνομα / email / εταιρεία / ΑΦΜ)') }}…">
+  <button type="submit" class="crm-fbtn">{{ t("Αναζήτηση") }}</button>
+  {% if q %}<a href="/admin/crm?segment={{ segment }}" class="crm-fclear">{{ t("καθαρισμός") }}</a>{% endif %}
+</form>
+
 <div class="crm-segments">
   {% for s in segments %}
-  <a href="/admin/crm?segment={{ s }}" class="crm-seg {% if segment==s %}on{% endif %}">
+  <a href="/admin/crm?segment={{ s }}{% if q %}&q={{ q|urlencode }}{% endif %}" class="crm-seg {% if segment==s %}on{% endif %}">
     {{ SEG_LABELS.get(s, s) | t }}<span class="crm-seg-n">{{ counts.get(s, 0) }}</span>
   </a>
   {% endfor %}

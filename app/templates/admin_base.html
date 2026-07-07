@@ -1,0 +1,73 @@
+{# admin_base.html — shared admin console layout: a grouped left side-nav +
+   content area. Admin pages extend this instead of base.html and fill
+   {% block admin_content %}. The active item is marked from `admin_tab`. #}
+{% extends "base.html" %}
+{% block content %}
+{% set NAV = [
+  ('CRM', [
+    ('crm',            '/admin/crm',                'Πελάτες'),
+    ('crm-calls',      '/admin/crm/calls',          'Κλήσεις'),
+    ('crm-tasks',      '/admin/crm/tasks',          'Εργασίες'),
+    ('crm-notes',      '/admin/crm/notes',          'Σημειώσεις'),
+  ]),
+  ('Διαχείριση Δεδομένων', [
+    ('collection',        '/admin/collection',        'Συλλογή Δεδομένων'),
+    ('acts',              '/admin/acts',              'Διαχείριση Πράξεων'),
+    ('curate',            '/admin/curate',            'Επιμέλεια Σημειώσεων'),
+    ('merge-contractor',  '/admin/merge/contractor',  'Ενοποίηση Αναδόχων'),
+    ('merge-authority',   '/admin/merge/authority',   'Ενοποίηση Αρχών'),
+  ]),
+  ('Διαχείριση Πύλης', [
+    ('users',          '/admin/users',              'Διαχειριστές'),
+  ]),
+] %}
+<div class="admin-shell">
+  <nav class="admin-side">
+    {% for group, items in NAV %}
+    <div class="admin-navgroup">
+      <div class="admin-navhead">{{ group | t }}</div>
+      {% for tab, href, label in items %}
+      <a href="{{ href }}" class="admin-navlink {% if admin_tab == tab %}on{% endif %}">{{ label | t }}</a>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </nav>
+  <div class="admin-main">
+    {% block admin_content %}{% endblock %}
+  </div>
+</div>
+<style>
+  .admin-shell{display:grid;grid-template-columns:210px 1fr;gap:36px;margin-top:20px;align-items:start;}
+  .admin-side{position:sticky;top:96px;display:flex;flex-direction:column;gap:20px;}
+  .admin-navgroup{display:flex;flex-direction:column;gap:2px;}
+  .admin-navhead{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-3);margin:0 0 6px 10px;}
+  .admin-navlink{display:block;text-decoration:none;font-size:13px;font-weight:500;color:var(--ink-2);
+    padding:7px 10px;border-radius:8px;border-left:2px solid transparent;line-height:1.25;}
+  .admin-navlink:hover{background:var(--paper-2);color:var(--accent);}
+  .admin-navlink.on{background:var(--accent-soft,rgba(180,16,52,.08));color:var(--accent);
+    font-weight:700;border-left-color:var(--accent);}
+  .admin-main{min-width:0;}
+  /* shared CRM bits (badges + activity filter bar) */
+  .sub-badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;}
+  .sub-tester,.st-held,.st-done,.st-open{background:#eaf6ef;color:#1a7f47;}
+  .sub-subscriber,.st-planned{background:#e8f0fb;color:#1a4f9c;}
+  .sub-expired_tester,.sub-expired_subscriber,.st-not_held,.st-not_answered,.st-cancelled{background:#fdeceb;color:#b3261e;}
+  .sub-none{background:var(--rule);color:var(--ink-3);}
+  .crm-filter{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 18px;}
+  .crm-filter input,.crm-filter select{font-size:12.5px;padding:7px 9px;border:1px solid var(--rule);border-radius:8px;font-family:var(--sans);}
+  .crm-filter input[type=search]{min-width:220px;}
+  .crm-filter .crm-frange{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-3);}
+  .crm-fbtn{background:var(--ink);color:var(--paper);border:0;padding:8px 14px;border-radius:8px;font-size:12px;cursor:pointer;}
+  .crm-fclear{font-size:12px;color:var(--ink-3);text-decoration:underline;}
+  @media (max-width:900px){
+    .admin-shell{grid-template-columns:1fr;gap:16px;}
+    .admin-side{position:static;top:auto;flex-direction:row;flex-wrap:wrap;gap:6px 14px;
+      padding-bottom:14px;border-bottom:1px solid var(--rule);}
+    .admin-navgroup{flex-direction:row;flex-wrap:wrap;align-items:center;gap:4px;}
+    .admin-navhead{margin:0 4px 0 0;}
+    .admin-navlink{padding:5px 9px;border-left:0;}
+    .admin-navlink.on{border-left:0;}
+  }
+</style>
+{% endblock %}

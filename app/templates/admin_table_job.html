@@ -1,10 +1,9 @@
-{% extends "base.html" %}
+{% extends "admin_base.html" %}
 {% block title %}{{ t("Εξαγωγή πινάκων · εκτέλεση #") }}{{ job.id }}{% endblock %}
-{% block content %}
+{% block admin_content %}
 
 {% if is_active and alive %}<meta http-equiv="refresh" content="6">{% endif %}
 
-{% include "_admin_tabs.html" %}
 
 <p style="margin:6px 0 0;"><a class="back" href="/admin/acts" hx-boost="false">{{ t("‹ πίσω στη Διαχείριση Πράξεων") }}</a></p>
 

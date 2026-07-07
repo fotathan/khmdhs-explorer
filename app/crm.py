@@ -42,6 +42,19 @@ def _vat_candidates(vat):
     return list(cands)
 
 
+def _filters(request):
+    """Read the shared activity-search query params into the search_* kwargs
+    (maps ?from/?to to date_from/date_to)."""
+    qp = request.query_params
+    return {
+        "q": (qp.get("q") or "").strip(),
+        "status": (qp.get("status") or "").strip(),
+        "assigned_to": (qp.get("assigned_to") or "").strip(),
+        "date_from": (qp.get("from") or "").strip(),
+        "date_to": (qp.get("to") or "").strip(),
+    }
+
+
 def find_contractor_by_vat(c, vat):
     """The procurement contractor whose VAT matches this customer's ΑΦΜ, or
     None. Indexed lookup via = ANY(candidates)."""
@@ -62,15 +75,47 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
         return u.get("id") if u else None
 
     @router.get("", response_class=HTMLResponse)
-    def crm_list(request: Request, segment: str = "all"):
+    def crm_list(request: Request, segment: str = "all", q: str = ""):
         if segment not in SEGMENTS:
             segment = "all"
+        q = (q or "").strip()
         with cursor() as c:
-            counts = _auth.customer_segment_counts(c)
-            customers = _auth.list_customers(c, segment)
+            counts = _auth.customer_segment_counts(c, q=q)
+            customers = _auth.list_customers(c, segment, q=q)
         return templates.TemplateResponse(request, "admin_crm.html", {
             "customers": customers, "counts": counts, "segment": segment,
-            "segments": SEGMENTS, "admin_tab": "crm"})
+            "segments": SEGMENTS, "q": q, "admin_tab": "crm"})
+
+    # ---- cross-customer activity lists (declared before /{uid}) -------- #
+    @router.get("/calls", response_class=HTMLResponse)
+    def crm_calls(request: Request):
+        f = _filters(request)
+        with cursor() as c:
+            rows = _auth.search_calls(c, **f)
+            admins = _auth.admin_options(c)
+        return templates.TemplateResponse(request, "admin_crm_calls.html", {
+            "rows": rows, "admins": admins, "f": f,
+            "statuses": _auth.CALL_STATUSES, "admin_tab": "crm-calls"})
+
+    @router.get("/tasks", response_class=HTMLResponse)
+    def crm_tasks(request: Request):
+        f = _filters(request)
+        with cursor() as c:
+            rows = _auth.search_tasks(c, **f)
+            admins = _auth.admin_options(c)
+        return templates.TemplateResponse(request, "admin_crm_tasks.html", {
+            "rows": rows, "admins": admins, "f": f,
+            "statuses": _auth.TASK_STATUSES, "admin_tab": "crm-tasks"})
+
+    @router.get("/notes", response_class=HTMLResponse)
+    def crm_notes(request: Request):
+        f = _filters(request)
+        f.pop("status", None)   # notes have no status
+        with cursor() as c:
+            rows = _auth.search_notes(c, **f)
+            admins = _auth.admin_options(c)
+        return templates.TemplateResponse(request, "admin_crm_notes.html", {
+            "rows": rows, "admins": admins, "f": f, "admin_tab": "crm-notes"})
 
     def _customer_ctx(request, uid, error=None, ok=None):
         with cursor() as c:

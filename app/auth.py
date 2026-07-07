@@ -322,23 +322,37 @@ def list_admins(c):
     return c.fetchall()
 
 
-def customer_segment_counts(c):
-    """{status: n} across all customers, plus an 'all' total — for the CRM
-    segment tabs."""
+def _customer_q_clause(q):
+    """(sql, args) matching a free-text customer search over username / email /
+    profile name / company / ΑΦΜ. Empty when q is blank."""
+    q = (q or "").strip()
+    if not q:
+        return "", []
+    like = f"%{q}%"
+    sql = ("(u.username ILIKE %s OR u.email ILIKE %s OR p.full_name ILIKE %s "
+           "OR p.company ILIKE %s OR p.vat_number ILIKE %s)")
+    return " AND " + sql, [like, like, like, like, like]
+
+
+def customer_segment_counts(c, q=None):
+    """{status: n} across customers (optionally within a search), plus 'all'."""
+    qsql, qargs = _customer_q_clause(q)
     c.execute(f"""
         SELECT {_SEG_CASE} AS status, count(*) AS n
         FROM proc.app_user u {_CUR_SUB_JOIN}
-        WHERE u.role = 'customer'
+        LEFT JOIN proc.customer_profile p ON p.user_id = u.id
+        WHERE u.role = 'customer'{qsql}
         GROUP BY 1
-    """)
+    """, qargs)
     counts = {r["status"]: r["n"] for r in c.fetchall()}
     counts["all"] = sum(counts.values())
     return counts
 
 
-def list_customers(c, segment="all"):
+def list_customers(c, segment="all", q=None):
     """Customers with derived status + a little profile context, optionally
-    filtered to one segment (status value, or 'all')."""
+    filtered to one segment (status value, or 'all') and/or a free-text query."""
+    qsql, qargs = _customer_q_clause(q)
     c.execute(f"""
         SELECT u.id, u.username, u.email, u.is_active,
                u.created_at, u.last_login_at,
@@ -347,9 +361,9 @@ def list_customers(c, segment="all"):
                p.full_name, p.company
         FROM proc.app_user u {_CUR_SUB_JOIN}
         LEFT JOIN proc.customer_profile p ON p.user_id = u.id
-        WHERE u.role = 'customer'
+        WHERE u.role = 'customer'{qsql}
         ORDER BY lower(coalesce(p.full_name, u.username))
-    """)
+    """, qargs)
     rows = [dict(r) for r in c.fetchall()]
     if segment and segment != "all":
         rows = [r for r in rows if r["status"] == segment]
@@ -512,6 +526,111 @@ def set_task_status(c, task_id, status, outcome=None):
                       outcome = COALESCE(NULLIF(%s, ''), outcome),
                       completed_at = {completed}
                   WHERE id = %s""", (status, outcome, task_id))
+
+
+# ---- cross-customer activity search (CRM aggregate pages) ---- #
+def _act_filters(where, args, q, q_cols, status, statuses, assigned_to,
+                 date_from, date_to, date_expr):
+    """Shared filter builder for the call/task/note search queries. Mutates
+    `where`/`args`. `q_cols` are the entity text columns to OR into the free-text
+    match (customer name/company are always added)."""
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        cols = list(q_cols) + ["u.username", "p.full_name", "p.company"]
+        where.append("(" + " OR ".join(f"{c2} ILIKE %s" for c2 in cols) + ")")
+        args += [like] * len(cols)
+    if status and status in statuses:
+        where.append("x.status = %s")
+        args.append(status)
+    aid = _as_uid(assigned_to)
+    if aid:
+        where.append("x.assigned_to = %s")
+        args.append(aid)
+    if date_from and date_from.strip():
+        where.append(f"{date_expr} >= %s::date")
+        args.append(date_from.strip())
+    if date_to and date_to.strip():
+        where.append(f"{date_expr} < (%s::date + 1)")
+        args.append(date_to.strip())
+
+
+_ACT_CUSTOMER_JOIN = """
+    FROM proc.{table} x
+    JOIN proc.app_user u ON u.id = x.user_id
+    LEFT JOIN proc.customer_profile p ON p.user_id = x.user_id
+    LEFT JOIN proc.app_user asg ON asg.id = x.assigned_to
+"""
+
+
+def search_calls(c, q=None, status=None, assigned_to=None,
+                 date_from=None, date_to=None, limit=200):
+    where, args = ["1=1"], []
+    _act_filters(where, args, q, ["x.subject", "x.outcome"],
+                 status, CALL_STATUSES, assigned_to, date_from, date_to,
+                 "coalesce(x.scheduled_at, x.created_at)")
+    c.execute(f"""
+        SELECT x.id, x.user_id, x.subject, x.direction, x.status,
+               x.scheduled_at, x.outcome, x.created_at,
+               u.username AS customer_username, p.full_name AS customer_name,
+               p.company AS customer_company, asg.username AS assigned_name
+        {_ACT_CUSTOMER_JOIN.format(table="customer_call")}
+        WHERE {' AND '.join(where)}
+        ORDER BY coalesce(x.scheduled_at, x.created_at) DESC
+        LIMIT {int(limit)}
+    """, args)
+    return c.fetchall()
+
+
+def search_tasks(c, q=None, status=None, assigned_to=None,
+                 date_from=None, date_to=None, limit=200):
+    where, args = ["1=1"], []
+    _act_filters(where, args, q, ["x.subject", "x.body", "x.outcome"],
+                 status, TASK_STATUSES, assigned_to, date_from, date_to,
+                 "coalesce(x.due_at, x.created_at)")
+    c.execute(f"""
+        SELECT x.id, x.user_id, x.subject, x.body, x.status, x.due_at,
+               x.outcome, x.created_at, x.completed_at,
+               u.username AS customer_username, p.full_name AS customer_name,
+               p.company AS customer_company, asg.username AS assigned_name
+        {_ACT_CUSTOMER_JOIN.format(table="customer_task")}
+        WHERE {' AND '.join(where)}
+        ORDER BY (x.status = 'open') DESC, coalesce(x.due_at, x.created_at) DESC
+        LIMIT {int(limit)}
+    """, args)
+    return c.fetchall()
+
+
+def search_notes(c, q=None, assigned_to=None, date_from=None, date_to=None, limit=200):
+    """Notes have no status/assignee; `assigned_to` filters by author instead."""
+    where, args = ["1=1"], []
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        cols = ["x.body", "u.username", "p.full_name", "p.company"]
+        where.append("(" + " OR ".join(f"{c2} ILIKE %s" for c2 in cols) + ")")
+        args += [like] * len(cols)
+    aid = _as_uid(assigned_to)
+    if aid:
+        where.append("x.author_id = %s")
+        args.append(aid)
+    if date_from and date_from.strip():
+        where.append("x.created_at >= %s::date")
+        args.append(date_from.strip())
+    if date_to and date_to.strip():
+        where.append("x.created_at < (%s::date + 1)")
+        args.append(date_to.strip())
+    c.execute(f"""
+        SELECT x.id, x.user_id, x.body, x.created_at,
+               u.username AS customer_username, p.full_name AS customer_name,
+               p.company AS customer_company, a.username AS author
+        FROM proc.customer_note x
+        JOIN proc.app_user u ON u.id = x.user_id
+        LEFT JOIN proc.customer_profile p ON p.user_id = x.user_id
+        LEFT JOIN proc.app_user a ON a.id = x.author_id
+        WHERE {' AND '.join(where)}
+        ORDER BY x.created_at DESC
+        LIMIT {int(limit)}
+    """, args)
+    return c.fetchall()
 
 
 # --------------------------------------------------------------------------- #

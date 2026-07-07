@@ -1,0 +1,45 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ t("Σημειώσεις") }} · CRM{% endblock %}
+{% block admin_content %}
+
+<div class="detail-h">
+  <div class="kicker">CRM</div>
+  <h1 class="detail-title">{{ t("Σημειώσεις") }}</h1>
+  <div class="detail-sub">{{ t("Όλες οι σημειώσεις σε όλους τους πελάτες.") }}</div>
+</div>
+
+<form method="get" action="/admin/crm/notes" class="crm-filter">
+  <input type="search" name="q" value="{{ f.q }}" placeholder="{{ t('Αναζήτηση') }}…">
+  <select name="assigned_to">
+    <option value="">{{ t("Συντάκτης") }}</option>
+    {% for a in admins %}<option value="{{ a.id }}" {% if f.assigned_to == (a.id|string) %}selected{% endif %}>{{ a.username }}</option>{% endfor %}
+  </select>
+  <label class="crm-frange">{{ t("Από") }}<input type="date" name="from" value="{{ f.date_from }}"></label>
+  <label class="crm-frange">{{ t("Έως") }}<input type="date" name="to" value="{{ f.date_to }}"></label>
+  <button type="submit" class="crm-fbtn">{{ t("Αναζήτηση") }}</button>
+  <a href="/admin/crm/notes" class="crm-fclear">{{ t("καθαρισμός") }}</a>
+</form>
+
+{% if rows %}
+<table class="notices">
+  <thead><tr>
+    <th>{{ t("Πελάτης") }}</th><th>{{ t("Σημείωση") }}</th>
+    <th>{{ t("Συντάκτης") }}</th><th>{{ t("Ημ/νία") }}</th>
+  </tr></thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td><a href="/admin/crm/{{ r.user_id }}"><strong>{{ r.customer_name or r.customer_username }}</strong></a>
+        {% if r.customer_company %}<div class="meta">{{ r.customer_company }}</div>{% endif %}</td>
+      <td>{{ r.body }}</td>
+      <td class="meta">{{ r.author or '—' }}</td>
+      <td class="meta">{{ r.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<div class="meta" style="margin-top:8px;">{{ rows|length }} {{ t("αποτελέσματα") }}{% if rows|length >= 200 %} · {{ t("εμφανίζονται τα πρώτα 200") }}{% endif %}</div>
+{% else %}
+<div class="act-empty" style="color:var(--ink-3);font-style:italic;">{{ t("Καμία σημείωση.") }}</div>
+{% endif %}
+{% endblock %}

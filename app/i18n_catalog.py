@@ -1289,6 +1289,22 @@ _CRM2 = {
     "Δεν βρέθηκε ανάδοχος με αυτό το ΑΦΜ.": "No contractor found with this VAT.",
 }
 
+# Admin console: grouped side-nav + CRM aggregate/search pages.
+_CRMNAV = {
+    "CRM": "CRM",
+    "Διαχείριση Δεδομένων": "Data Management",
+    "Διαχείριση Πύλης": "Portal Administration",
+    "Υπεύθυνος": "Assignee",
+    "Συντάκτης": "Author",
+    "Προγρ.": "Sched.",
+    "αποτελέσματα": "results",
+    "εμφανίζονται τα πρώτα 200": "showing first 200",
+    "Όλες οι κλήσεις σε όλους τους πελάτες.": "All calls across customers.",
+    "Όλες οι εργασίες σε όλους τους πελάτες.": "All tasks across customers.",
+    "Όλες οι σημειώσεις σε όλους τους πελάτες.": "All notes across customers.",
+    "Αναζήτηση (όνομα / email / εταιρεία / ΑΦΜ)": "Search (name / email / company / VAT)",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
@@ -1296,5 +1312,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
              _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
-             _AUTH, _PRODUCTS, _CRM, _CRM2):
+             _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMNAV):
     UI_EN.update(_grp)
