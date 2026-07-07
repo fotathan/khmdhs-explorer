@@ -54,9 +54,17 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
             history = _auth.subscription_history(c, uid)
             products = _auth.product_list(c)
             current = _auth.current_subscription(c, uid)
+            notes = _auth.list_notes(c, uid)
+            calls = _auth.list_calls(c, uid)
+            tasks = _auth.list_tasks(c, uid)
+            admins = _auth.admin_options(c)
         return {"cust": cust, "profile": profile or {}, "history": history,
                 "products": products, "current": current,
                 "fields": _auth.PROFILE_FIELDS,
+                "notes": notes, "calls": calls, "tasks": tasks, "admins": admins,
+                "call_directions": _auth.CALL_DIRECTIONS,
+                "call_statuses": _auth.CALL_STATUSES,
+                "task_statuses": _auth.TASK_STATUSES,
                 "error": error, "ok": ok, "admin_tab": "crm"}
 
     @router.get("/{uid}", response_class=HTMLResponse)
@@ -129,5 +137,78 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
                     _customer_ctx(request, uid, error="Μη έγκυρη ημερομηνία/διάρκεια."),
                     status_code=400)
         return RedirectResponse(f"/admin/crm/{uid}?ok=subscription", status_code=303)
+
+    # ---- activities: notes / calls / tasks --------------------------- #
+    def _ensure_customer(c, uid):
+        if not _auth.get_customer(c, uid):
+            raise HTTPException(404, "customer not found")
+
+    @router.post("/{uid}/note")
+    async def crm_note(uid: int, request: Request):
+        form = await request.form()
+        try:
+            with cursor() as c:
+                _ensure_customer(c, uid)
+                _auth.add_note(c, uid, form.get("body"), _admin_uid(request))
+        except HTTPException:
+            raise
+        except ValueError:
+            return RedirectResponse(f"/admin/crm/{uid}", status_code=303)
+        return RedirectResponse(f"/admin/crm/{uid}?ok=note", status_code=303)
+
+    @router.post("/{uid}/call")
+    async def crm_call(uid: int, request: Request):
+        form = await request.form()
+        with cursor() as c:
+            _ensure_customer(c, uid)
+            _auth.add_call(c, uid,
+                           subject=form.get("subject"),
+                           direction=form.get("direction"),
+                           status=form.get("status"),
+                           scheduled_at=form.get("scheduled_at"),
+                           outcome=form.get("outcome"),
+                           assigned_to=form.get("assigned_to"),
+                           created_by=_admin_uid(request))
+        return RedirectResponse(f"/admin/crm/{uid}?ok=call", status_code=303)
+
+    @router.post("/{uid}/call/{cid}/status")
+    async def crm_call_status(uid: int, cid: int, request: Request):
+        form = await request.form()
+        try:
+            with cursor() as c:
+                _auth.set_call_status(c, cid, form.get("status"), form.get("outcome"))
+        except ValueError:
+            pass
+        return RedirectResponse(f"/admin/crm/{uid}?ok=call", status_code=303)
+
+    @router.post("/{uid}/task")
+    async def crm_task(uid: int, request: Request):
+        form = await request.form()
+        try:
+            with cursor() as c:
+                _ensure_customer(c, uid)
+                _auth.add_task(c, uid,
+                               subject=form.get("subject"),
+                               body=form.get("body"),
+                               status=form.get("status"),
+                               due_at=form.get("due_at"),
+                               outcome=form.get("outcome"),
+                               assigned_to=form.get("assigned_to"),
+                               created_by=_admin_uid(request))
+        except HTTPException:
+            raise
+        except ValueError:
+            return RedirectResponse(f"/admin/crm/{uid}", status_code=303)
+        return RedirectResponse(f"/admin/crm/{uid}?ok=task", status_code=303)
+
+    @router.post("/{uid}/task/{tid}/status")
+    async def crm_task_status(uid: int, tid: int, request: Request):
+        form = await request.form()
+        try:
+            with cursor() as c:
+                _auth.set_task_status(c, tid, form.get("status"), form.get("outcome"))
+        except ValueError:
+            pass
+        return RedirectResponse(f"/admin/crm/{uid}?ok=task", status_code=303)
 
     return router

@@ -5,6 +5,11 @@
   'tester': 'Δοκιμαστής', 'subscriber': 'Συνδρομητής',
   'expired_tester': 'Ληγμένος δοκιμαστής', 'expired_subscriber': 'Ληγμένη συνδρομή',
   'none': 'Χωρίς πρόσβαση'} %}
+{% set CALL_LABELS = {
+  'planned': 'Προγραμματισμένη', 'held': 'Πραγματοποιήθηκε', 'not_held': 'Δεν έγινε',
+  'not_answered': 'Αναπάντητη', 'cancelled': 'Ακυρώθηκε'} %}
+{% set TASK_LABELS = {'open': 'Ανοιχτή', 'done': 'Ολοκληρωμένη', 'cancelled': 'Ακυρώθηκε'} %}
+{% set DIR_LABELS = {'outgoing': 'Εξερχόμενη', 'incoming': 'Εισερχόμενη'} %}
 
 {% include "_admin_tabs.html" %}
 
@@ -103,6 +108,101 @@
   </aside>
 </div>
 
+<div class="crm-activity">
+  <!-- ===== NOTES ===== -->
+  <section class="act-sec">
+    <div class="section-h">{{ t("Σημειώσεις") }}</div>
+    <form method="post" action="/admin/crm/{{ cust.id }}/note" class="act-add">
+      <textarea name="body" rows="2" required placeholder="{{ t('Νέα σημείωση…') }}"></textarea>
+      <button type="submit" class="u-mini">{{ t("Προσθήκη") }}</button>
+    </form>
+    {% if notes %}
+    <ul class="act-list">
+      {% for n in notes %}
+      <li>
+        <div class="act-body">{{ n.body }}</div>
+        <div class="act-meta">{{ n.created_at.strftime('%Y-%m-%d %H:%M') }}{% if n.author %} · {{ n.author }}{% endif %}</div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<div class="act-empty">{{ t("Καμία σημείωση.") }}</div>{% endif %}
+  </section>
+
+  <!-- ===== CALLS ===== -->
+  <section class="act-sec">
+    <div class="section-h">{{ t("Κλήσεις") }}</div>
+    <form method="post" action="/admin/crm/{{ cust.id }}/call" class="act-add act-form">
+      <input type="text" name="subject" placeholder="{{ t('Θέμα') }}">
+      <select name="direction">{% for d in call_directions %}<option value="{{ d }}">{{ DIR_LABELS[d] | t }}</option>{% endfor %}</select>
+      <select name="status">{% for s in call_statuses %}<option value="{{ s }}">{{ CALL_LABELS[s] | t }}</option>{% endfor %}</select>
+      <input type="date" name="scheduled_at" title="{{ t('Προγραμματισμός') }}">
+      <select name="assigned_to"><option value="">{{ t('— ανάθεση —') }}</option>{% for a in admins %}<option value="{{ a.id }}">{{ a.username }}</option>{% endfor %}</select>
+      <input type="text" name="outcome" placeholder="{{ t('Έκβαση') }}">
+      <button type="submit" class="u-mini">{{ t("Προσθήκη") }}</button>
+    </form>
+    {% if calls %}
+    <ul class="act-list">
+      {% for k in calls %}
+      <li>
+        <div class="act-body">
+          <span class="call-dir">{{ '↗' if k.direction=='outgoing' else '↙' }}</span>
+          <strong>{{ k.subject or t('(χωρίς θέμα)') }}</strong>
+          <span class="act-badge st-{{ k.status }}">{{ CALL_LABELS[k.status] | t }}</span>
+        </div>
+        <div class="act-meta">
+          {% if k.scheduled_at %}{{ t('προγρ.') }} {{ k.scheduled_at.strftime('%Y-%m-%d') }} · {% endif %}
+          {% if k.assigned_name %}{{ t('υπεύθυνος') }}: {{ k.assigned_name }} · {% endif %}
+          {{ k.created_at.strftime('%Y-%m-%d') }}{% if k.created_name %} · {{ k.created_name }}{% endif %}
+        </div>
+        {% if k.outcome %}<div class="act-out">{{ k.outcome }}</div>{% endif %}
+        <form method="post" action="/admin/crm/{{ cust.id }}/call/{{ k.id }}/status" class="act-status">
+          <select name="status">{% for s in call_statuses %}<option value="{{ s }}" {% if s==k.status %}selected{% endif %}>{{ CALL_LABELS[s] | t }}</option>{% endfor %}</select>
+          <input type="text" name="outcome" placeholder="{{ t('Έκβαση') }}">
+          <button type="submit" class="u-mini">{{ t('ενημέρωση') }}</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<div class="act-empty">{{ t("Καμία κλήση.") }}</div>{% endif %}
+  </section>
+
+  <!-- ===== TASKS ===== -->
+  <section class="act-sec">
+    <div class="section-h">{{ t("Εργασίες") }}</div>
+    <form method="post" action="/admin/crm/{{ cust.id }}/task" class="act-add act-form">
+      <input type="text" name="subject" required placeholder="{{ t('Τίτλος') }}">
+      <input type="date" name="due_at" title="{{ t('Προθεσμία') }}">
+      <select name="assigned_to"><option value="">{{ t('— ανάθεση —') }}</option>{% for a in admins %}<option value="{{ a.id }}">{{ a.username }}</option>{% endfor %}</select>
+      <input type="text" name="body" placeholder="{{ t('Περιγραφή') }}">
+      <button type="submit" class="u-mini">{{ t("Προσθήκη") }}</button>
+    </form>
+    {% if tasks %}
+    <ul class="act-list">
+      {% for tk in tasks %}
+      <li class="{% if tk.status=='done' %}is-done{% elif tk.status=='cancelled' %}is-cancelled{% endif %}">
+        <div class="act-body">
+          <strong>{{ tk.subject }}</strong>
+          <span class="act-badge st-{{ tk.status }}">{{ TASK_LABELS[tk.status] | t }}</span>
+        </div>
+        <div class="act-meta">
+          {% if tk.due_at %}{{ t('προθεσμία') }} {{ tk.due_at.strftime('%Y-%m-%d') }} · {% endif %}
+          {% if tk.assigned_name %}{{ t('υπεύθυνος') }}: {{ tk.assigned_name }} · {% endif %}
+          {{ tk.created_at.strftime('%Y-%m-%d') }}
+        </div>
+        {% if tk.body %}<div class="act-out">{{ tk.body }}</div>{% endif %}
+        {% if tk.outcome %}<div class="act-out">✓ {{ tk.outcome }}</div>{% endif %}
+        <form method="post" action="/admin/crm/{{ cust.id }}/task/{{ tk.id }}/status" class="act-status">
+          <select name="status">{% for s in task_statuses %}<option value="{{ s }}" {% if s==tk.status %}selected{% endif %}>{{ TASK_LABELS[s] | t }}</option>{% endfor %}</select>
+          <input type="text" name="outcome" placeholder="{{ t('Έκβαση') }}">
+          <button type="submit" class="u-mini">{{ t('ενημέρωση') }}</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<div class="act-empty">{{ t("Καμία εργασία.") }}</div>{% endif %}
+  </section>
+</div>
+
 <style>
   .u-flash{padding:9px 14px;border-radius:8px;font-size:13px;margin:14px 0;}
   .u-err{background:#fdeceb;border:1px solid #f4c7c3;color:#b3261e;}
@@ -123,5 +223,29 @@
   .sub-subscriber{background:#e8f0fb;color:#1a4f9c;}
   .sub-expired_tester,.sub-expired_subscriber{background:#fdeceb;color:#b3261e;}
   .sub-none{background:var(--rule);color:var(--ink-3);}
+  /* activities */
+  .crm-activity{display:grid;grid-template-columns:1fr 1fr 1fr;gap:28px;margin-top:36px;}
+  @media (max-width:1100px){.crm-activity{grid-template-columns:1fr;}}
+  .act-sec{min-width:0;}
+  .act-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:14px;}
+  .act-add textarea{flex:1;min-width:100%;padding:8px 10px;border:1px solid var(--rule);border-radius:8px;font-size:13px;font-family:var(--sans);}
+  .act-form input,.act-form select{font-size:12px;padding:6px 8px;border:1px solid var(--rule);border-radius:6px;}
+  .act-form input[type=text]{flex:1;min-width:120px;}
+  .act-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;}
+  .act-list li{border:1px solid var(--rule);border-radius:8px;padding:10px 12px;background:var(--paper);}
+  .act-list li.is-done{opacity:.6;}
+  .act-list li.is-cancelled{opacity:.5;text-decoration:line-through;}
+  .act-body{font-size:13.5px;color:var(--ink);display:flex;gap:7px;align-items:baseline;flex-wrap:wrap;}
+  .act-meta{font-size:11px;color:var(--ink-3);margin-top:4px;}
+  .act-out{font-size:12.5px;color:var(--ink-2);margin-top:5px;font-style:italic;}
+  .act-empty{font-size:13px;color:var(--ink-3);font-style:italic;}
+  .call-dir{color:var(--accent);font-weight:700;}
+  .act-badge{font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px;background:var(--rule);color:var(--ink-2);text-transform:uppercase;letter-spacing:.03em;}
+  .st-held,.st-done{background:#eaf6ef;color:#1a7f47;}
+  .st-planned,.st-open{background:#e8f0fb;color:#1a4f9c;}
+  .st-not_held,.st-not_answered,.st-cancelled{background:#fdeceb;color:#b3261e;}
+  .act-status{display:flex;gap:5px;align-items:center;margin-top:8px;flex-wrap:wrap;}
+  .act-status select,.act-status input{font-size:11px;padding:4px 6px;border:1px solid var(--rule);border-radius:6px;}
+  .act-status input[type=text]{flex:1;min-width:90px;}
 </style>
 {% endblock %}

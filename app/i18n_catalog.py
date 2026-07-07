@@ -1255,6 +1255,37 @@ _CRM = {
     "παράταση": "extend",
 }
 
+# CRM Phase 2: notes / calls / tasks.
+_CRM2 = {
+    "Κλήσεις": "Calls",
+    "Εργασίες": "Tasks",
+    "Νέα σημείωση…": "New note…",
+    "Προσθήκη": "Add",
+    "Θέμα": "Subject",
+    "Ακυρώθηκε": "Cancelled",
+    "ενημέρωση": "update",
+    "Έκβαση": "Outcome",
+    "υπεύθυνος": "owner",
+    "— ανάθεση —": "— assign —",
+    "προθεσμία": "due",
+    "προγρ.": "sched.",
+    "Προγραμματισμός": "Schedule",
+    "Καμία κλήση.": "No calls.",
+    "Καμία εργασία.": "No tasks.",
+    "(χωρίς θέμα)": "(no subject)",
+    # call direction + statuses
+    "Εξερχόμενη": "Outgoing",
+    "Εισερχόμενη": "Incoming",
+    "Προγραμματισμένη": "Planned",
+    "Πραγματοποιήθηκε": "Held",
+    "Δεν έγινε": "Not held",
+    "Αναπάντητη": "No answer",
+    # task statuses + deadline
+    "Ανοιχτή": "Open",
+    "Ολοκληρωμένη": "Done",
+    "Προθεσμία": "Deadline",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
@@ -1262,5 +1293,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
              _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
-             _AUTH, _PRODUCTS, _CRM):
+             _AUTH, _PRODUCTS, _CRM, _CRM2):
     UI_EN.update(_grp)

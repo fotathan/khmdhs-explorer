@@ -395,6 +395,126 @@ def set_email(c, uid, email):
 
 
 # --------------------------------------------------------------------------- #
+# CRM activities: notes / calls / tasks (Phase 2)
+# --------------------------------------------------------------------------- #
+CALL_DIRECTIONS = ("outgoing", "incoming")
+CALL_STATUSES = ("planned", "held", "not_held", "not_answered", "cancelled")
+TASK_STATUSES = ("open", "done", "cancelled")
+
+
+def admin_options(c):
+    """Active admins for the assignee dropdowns."""
+    c.execute("SELECT id, username FROM proc.app_user "
+              "WHERE role = 'admin' AND is_active ORDER BY lower(username)")
+    return c.fetchall()
+
+
+def _nullable(v):
+    v = (v or "").strip() if isinstance(v, str) else v
+    return v or None
+
+
+def _as_uid(v):
+    try:
+        return int(v) if v not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+# ---- notes ---- #
+def add_note(c, uid, body, author_id):
+    body = (body or "").strip()
+    if not body:
+        raise ValueError("empty note")
+    c.execute("INSERT INTO proc.customer_note (user_id, body, author_id) "
+              "VALUES (%s, %s, %s)", (uid, body, author_id))
+
+
+def list_notes(c, uid):
+    c.execute("""SELECT n.id, n.body, n.created_at, a.username AS author
+                 FROM proc.customer_note n
+                 LEFT JOIN proc.app_user a ON a.id = n.author_id
+                 WHERE n.user_id = %s ORDER BY n.created_at DESC""", (uid,))
+    return c.fetchall()
+
+
+# ---- calls ---- #
+def add_call(c, uid, subject, direction, status, scheduled_at, outcome,
+             assigned_to, created_by):
+    if direction not in CALL_DIRECTIONS:
+        direction = "outgoing"
+    if status not in CALL_STATUSES:
+        status = "planned"
+    c.execute("""INSERT INTO proc.customer_call
+                 (user_id, subject, direction, status, scheduled_at, outcome,
+                  assigned_to, created_by)
+                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+              (uid, _nullable(subject), direction, status, _nullable(scheduled_at),
+               _nullable(outcome), _as_uid(assigned_to), created_by))
+
+
+def list_calls(c, uid):
+    c.execute("""SELECT k.id, k.subject, k.direction, k.status, k.scheduled_at,
+                        k.outcome, k.created_at,
+                        asg.username AS assigned_name, cr.username AS created_name
+                 FROM proc.customer_call k
+                 LEFT JOIN proc.app_user asg ON asg.id = k.assigned_to
+                 LEFT JOIN proc.app_user cr  ON cr.id  = k.created_by
+                 WHERE k.user_id = %s
+                 ORDER BY coalesce(k.scheduled_at, k.created_at) DESC""", (uid,))
+    return c.fetchall()
+
+
+def set_call_status(c, call_id, status, outcome=None):
+    if status not in CALL_STATUSES:
+        raise ValueError("invalid call status")
+    c.execute("""UPDATE proc.customer_call
+                 SET status = %s,
+                     outcome = COALESCE(NULLIF(%s, ''), outcome),
+                     updated_at = now()
+                 WHERE id = %s""", (status, outcome, call_id))
+
+
+# ---- tasks ---- #
+def add_task(c, uid, subject, body, status, due_at, outcome, assigned_to, created_by):
+    subject = (subject or "").strip()
+    if not subject:
+        raise ValueError("empty subject")
+    if status not in TASK_STATUSES:
+        status = "open"
+    c.execute("""INSERT INTO proc.customer_task
+                 (user_id, subject, body, status, due_at, outcome,
+                  assigned_to, created_by)
+                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+              (uid, subject, _nullable(body), status, _nullable(due_at),
+               _nullable(outcome), _as_uid(assigned_to), created_by))
+
+
+def list_tasks(c, uid):
+    c.execute("""SELECT t.id, t.subject, t.body, t.status, t.due_at, t.outcome,
+                        t.created_at, t.completed_at,
+                        asg.username AS assigned_name, cr.username AS created_name
+                 FROM proc.customer_task t
+                 LEFT JOIN proc.app_user asg ON asg.id = t.assigned_to
+                 LEFT JOIN proc.app_user cr  ON cr.id  = t.created_by
+                 WHERE t.user_id = %s
+                 ORDER BY (t.status = 'open') DESC,
+                          coalesce(t.due_at, t.created_at) ASC""", (uid,))
+    return c.fetchall()
+
+
+def set_task_status(c, task_id, status, outcome=None):
+    if status not in TASK_STATUSES:
+        raise ValueError("invalid task status")
+    completed = "now()" if status == "done" else "NULL"
+    c.execute(f"""UPDATE proc.customer_task
+                  SET status = %s,
+                      outcome = COALESCE(NULLIF(%s, ''), outcome),
+                      completed_at = {completed}
+                  WHERE id = %s""", (status, outcome, task_id))
+
+
+# --------------------------------------------------------------------------- #
 # session (Starlette request.session)
 # --------------------------------------------------------------------------- #
 def login_session(request, user):
