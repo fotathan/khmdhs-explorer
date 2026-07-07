@@ -1284,6 +1284,9 @@ _CRM2 = {
     "Ανοιχτή": "Open",
     "Ολοκληρωμένη": "Done",
     "Προθεσμία": "Deadline",
+    # ΑΦΜ -> contractor link
+    "Συνδεδεμένος ανάδοχος": "Linked contractor",
+    "Δεν βρέθηκε ανάδοχος με αυτό το ΑΦΜ.": "No contractor found with this VAT.",
 }
 
 # Merge into one flat catalog. Later groups override earlier ones on key clash

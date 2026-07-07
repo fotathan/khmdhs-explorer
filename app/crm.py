@@ -27,6 +27,33 @@ SEGMENTS = ("all", "subscriber", "tester",
             "expired_subscriber", "expired_tester", "none")
 
 
+def _vat_candidates(vat):
+    """Normalised forms of an ΑΦΜ to match against proc.economic_operator,
+    whose Greek VATs are stored zero-padded to 9 digits (some with an EL
+    prefix). Covers raw / EL-stripped / zero-padded / unpadded variants."""
+    v = (vat or "").strip().upper().replace(" ", "")
+    if not v:
+        return []
+    core = v[2:] if v.startswith("EL") else v
+    cands = {v, core}
+    if core.isdigit():
+        cands |= {core.zfill(9), core.lstrip("0") or "0",
+                  "EL" + core.zfill(9), "EL" + core}
+    return list(cands)
+
+
+def find_contractor_by_vat(c, vat):
+    """The procurement contractor whose VAT matches this customer's ΑΦΜ, or
+    None. Indexed lookup via = ANY(candidates)."""
+    cands = _vat_candidates(vat)
+    if not cands:
+        return None
+    c.execute("""SELECT vat_number, name, is_greek_vat
+                 FROM proc.economic_operator
+                 WHERE vat_number = ANY(%s) LIMIT 1""", (cands,))
+    return c.fetchone()
+
+
 def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
     router = APIRouter(prefix="/admin/crm", tags=["crm"])
 
@@ -58,9 +85,13 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
             calls = _auth.list_calls(c, uid)
             tasks = _auth.list_tasks(c, uid)
             admins = _auth.admin_options(c)
+            # Link the customer's ΑΦΜ to a procurement contractor, if one matches.
+            pvat = profile["vat_number"] if profile and profile.get("vat_number") else None
+            linked_contractor = find_contractor_by_vat(c, pvat) if pvat else None
         return {"cust": cust, "profile": profile or {}, "history": history,
                 "products": products, "current": current,
                 "fields": _auth.PROFILE_FIELDS,
+                "linked_contractor": linked_contractor, "profile_vat": pvat,
                 "notes": notes, "calls": calls, "tasks": tasks, "admins": admins,
                 "call_directions": _auth.CALL_DIRECTIONS,
                 "call_statuses": _auth.CALL_STATUSES,

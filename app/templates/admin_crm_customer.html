@@ -43,6 +43,14 @@
       <div class="crm-group">{{ t("Εταιρεία") }}</div>
       <label>{{ t("Επωνυμία εταιρείας") }}<input type="text" name="company" value="{{ profile.company or '' }}"></label>
       <label>{{ t("ΑΦΜ") }}<input type="text" name="vat_number" value="{{ profile.vat_number or '' }}"></label>
+      {% if profile_vat %}
+        {% if linked_contractor %}
+        <div class="crm-link">🔗 {{ t("Συνδεδεμένος ανάδοχος") }}:
+          <a href="/contractor/{{ linked_contractor.vat_number }}" target="_blank" rel="noopener">{{ linked_contractor.name or linked_contractor.vat_number }}</a></div>
+        {% else %}
+        <div class="crm-link crm-link-none">{{ t("Δεν βρέθηκε ανάδοχος με αυτό το ΑΦΜ.") }}</div>
+        {% endif %}
+      {% endif %}
       <label>{{ t("Κλάδος") }}<input type="text" name="industry" value="{{ profile.industry or '' }}"></label>
 
       <div class="crm-group">{{ t("Τοποθεσία") }}</div>
@@ -215,6 +223,9 @@
   .crm-form input,.crm-form textarea{padding:8px 10px;border:1px solid var(--rule);border-radius:8px;font-size:13px;font-family:var(--sans);}
   .crm-group{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-top:12px;}
   .crm-group:first-child{margin-top:0;}
+  .crm-link{font-size:12px;margin:-4px 0 2px;}
+  .crm-link a{color:var(--accent);font-weight:600;}
+  .crm-link-none{color:var(--ink-3);font-style:italic;}
   .crm-side{display:flex;gap:5px;align-items:center;margin-top:6px;flex-wrap:wrap;}
   .crm-side select,.crm-side input{font-size:12px;padding:5px 7px;border:1px solid var(--rule);border-radius:6px;}
   .crm-side input[type=number]{width:70px;}
