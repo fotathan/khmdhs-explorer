@@ -1303,6 +1303,8 @@ _CRMNAV = {
     "Όλες οι εργασίες σε όλους τους πελάτες.": "All tasks across customers.",
     "Όλες οι σημειώσεις σε όλους τους πελάτες.": "All notes across customers.",
     "Αναζήτηση (όνομα / email / εταιρεία / ΑΦΜ)": "Search (name / email / company / VAT)",
+    "Η προηγούμενη συνδρομή έληξε αυτόματα — μόνο ένα ενεργό προϊόν ανά πελάτη.":
+        "The previous subscription was expired automatically — only one active product per customer.",
 }
 
 # Merge into one flat catalog. Later groups override earlier ones on key clash

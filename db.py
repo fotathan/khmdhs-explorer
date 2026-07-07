@@ -889,6 +889,9 @@ def cmd_grant_product(args):
         days = args.days or int(prod[0][0])
         if days <= 0:
             sys.exit("period must be a positive number of days")
+        # One product active at a time: expire any current grant first.
+        db.execute("UPDATE proc.user_subscription SET expires_at = now() "
+                   "WHERE user_id = %s AND expires_at > now()", (uid,))
         db.execute(
             "INSERT INTO proc.user_subscription (user_id, product_code, expires_at, granted_by) "
             "VALUES (%s, %s, now() + (%s * interval '1 day'), NULL)",

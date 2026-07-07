@@ -117,7 +117,7 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
         return templates.TemplateResponse(request, "admin_crm_notes.html", {
             "rows": rows, "admins": admins, "f": f, "admin_tab": "crm-notes"})
 
-    def _customer_ctx(request, uid, error=None, ok=None):
+    def _customer_ctx(request, uid, error=None, ok=None, warn=None):
         with cursor() as c:
             cust = _auth.get_customer(c, uid)
             if not cust:
@@ -141,13 +141,15 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 "call_directions": _auth.CALL_DIRECTIONS,
                 "call_statuses": _auth.CALL_STATUSES,
                 "task_statuses": _auth.TASK_STATUSES,
-                "error": error, "ok": ok, "admin_tab": "crm"}
+                "error": error, "ok": ok, "warn": warn, "admin_tab": "crm"}
 
     @router.get("/{uid}", response_class=HTMLResponse)
-    def crm_customer(uid: int, request: Request, ok: str = None):
+    def crm_customer(uid: int, request: Request, ok: str = None, expired: str = None):
+        warn = ("Η προηγούμενη συνδρομή έληξε αυτόματα — μόνο ένα ενεργό προϊόν ανά πελάτη."
+                if expired else None)
         return templates.TemplateResponse(
             request, "admin_crm_customer.html",
-            _customer_ctx(request, uid, ok=ok))
+            _customer_ctx(request, uid, ok=ok, warn=warn))
 
     @router.post("/{uid}/profile")
     async def crm_profile_save(uid: int, request: Request):
@@ -179,15 +181,16 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
         try:
             period_days = int(days_raw) if days_raw else None
             with cursor() as c:
-                _auth.grant_product(c, uid, product,
-                                    granted_by=_admin_uid(request),
-                                    period_days=period_days)
+                _, n_expired = _auth.grant_product(c, uid, product,
+                                                   granted_by=_admin_uid(request),
+                                                   period_days=period_days)
         except (ValueError, TypeError):
             return templates.TemplateResponse(
                 request, "admin_crm_customer.html",
                 _customer_ctx(request, uid, error="Μη έγκυρη ανάθεση."),
                 status_code=400)
-        return RedirectResponse(f"/admin/crm/{uid}?ok=granted", status_code=303)
+        suffix = "&expired=1" if n_expired else ""
+        return RedirectResponse(f"/admin/crm/{uid}?ok=granted{suffix}", status_code=303)
 
     @router.post("/{uid}/subscription")
     async def crm_subscription(uid: int, request: Request):

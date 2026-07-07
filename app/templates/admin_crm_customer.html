@@ -26,6 +26,7 @@
 </div>
 
 {% if error %}<div class="u-flash u-err">{{ error | t }}</div>{% endif %}
+{% if warn %}<div class="u-flash u-warn">⚠ {{ warn | t }}</div>{% endif %}
 {% if ok %}<div class="u-flash u-ok">{{ t("✓ Αποθηκεύτηκε.") }}</div>{% endif %}
 
 <div class="detail-grid">
@@ -214,6 +215,7 @@
   .u-flash{padding:9px 14px;border-radius:8px;font-size:13px;margin:14px 0;}
   .u-err{background:#fdeceb;border:1px solid #f4c7c3;color:#b3261e;}
   .u-ok{background:#eaf6ef;border:1px solid #b7e0c7;color:#1a7f47;}
+  .u-warn{background:#fff5e6;border:1px solid #f3d9a6;color:#9a6a12;}
   .u-mini{background:none;border:0;color:var(--accent);cursor:pointer;font-size:11px;padding:0 4px;text-decoration:underline;}
   .u-btn{background:var(--ink);color:var(--paper);border:0;padding:11px;border-radius:8px;font-size:12px;
     letter-spacing:.08em;text-transform:uppercase;cursor:pointer;margin-top:8px;}

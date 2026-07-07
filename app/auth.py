@@ -237,7 +237,9 @@ def current_subscription(c, uid):
 
 def grant_product(c, uid, product_code, granted_by=None, period_days=None):
     """Grant `product_code` to user `uid`, expiring `period_days` (or the
-    product default) from now. Returns the new subscription row."""
+    product default) from now. Enforces ONE active product at a time: any
+    currently-active grant is expired first. Returns
+    (new_subscription_row, n_expired)."""
     c.execute("SELECT default_period_days FROM proc.product "
               "WHERE code = %s AND is_active", (product_code,))
     prod = c.fetchone()
@@ -246,12 +248,18 @@ def grant_product(c, uid, product_code, granted_by=None, period_days=None):
     days = int(period_days) if period_days else int(prod["default_period_days"])
     if days <= 0:
         raise ValueError("period must be a positive number of days")
+    # One product active at a time: expire any current (non-expired) grant so
+    # the new one becomes the sole active subscription.
+    c.execute("""UPDATE proc.user_subscription SET expires_at = now()
+                 WHERE user_id = %s AND expires_at > now()
+                 RETURNING id""", (uid,))
+    n_expired = len(c.fetchall())
     c.execute("""
         INSERT INTO proc.user_subscription (user_id, product_code, expires_at, granted_by)
         VALUES (%s, %s, now() + (%s * interval '1 day'), %s)
         RETURNING id, product_code, started_at, expires_at
     """, (uid, product_code, days, granted_by))
-    return c.fetchone()
+    return c.fetchone(), n_expired
 
 
 def set_subscription_expiry(c, sub_id, expires_at):
