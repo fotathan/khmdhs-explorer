@@ -43,7 +43,7 @@
       <div class="fgroup">
         <div class="fgroup-h">{{ t("Πηγή δεδομένων") }}</div>
         <div class="chips">
-          {% for code, label in [('khmdhs', 'ΚΗΜΔΗΣ'), ('diavgeia', t('Διαύγεια'))] %}
+          {% for code, label in [('khmdhs', 'ΚΗΜΔΗΣ'), ('diavgeia', t('Διαύγεια')), ('ted', 'TED')] %}
           <label class="chip {% if code in sel_src %}on{% endif %}">
             <input type="checkbox" name="source" value="{{ code }}" {% if code in sel_src %}checked{% endif %}>{{ label }}
           </label>

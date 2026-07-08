@@ -1357,6 +1357,9 @@ _INTERCONNECT = {
     "Αφαίρεση αυτής της πράξης από την ομάδα;": "Remove this act from the group?",
     "Διασυνδεδεμένες πράξεις": "Interconnected acts",
     "σχετικές ›": "related ›",
+    # TED source
+    "Προκήρυξη στο TED": "Notice on TED",
+    "Η προκήρυξη στην πύλη TED": "The notice on the TED portal",
 }
 
 # Merge into one flat catalog. Later groups override earlier ones on key clash

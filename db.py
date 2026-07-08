@@ -835,6 +835,73 @@ def cmd_diavgeia_catchup(args):
     return totals
 
 
+# --------------------------------------------------------------------------- #
+# TED (third source) — mirrors the Diavgeia commands.
+# --------------------------------------------------------------------------- #
+def cmd_ted_backfill(args):
+    """Backfill TED notices (Search API, ITERATION) for a buyer-country over a
+    publication-date range → proc.ted_notice, windowed in proc.ted_ingest_window.
+    Projects a digest into procurement_act unless --skip-project."""
+    import ted_ingest as ti
+    start = dt.date.fromisoformat(args.start)
+    end = dt.date.fromisoformat(args.end) if args.end else dt.date.today()
+    with Database() as db:
+        client, repo = ti.TedClient(), ti.TedRepository(db)
+        print(f"\n=== TED {args.country}: {start} .. {end}"
+              f"{' (resume)' if args.resume else ''} ===")
+        s = ti.ingest_country(client, repo, args.country, start, end, resume=args.resume)
+        if not args.skip_project:
+            print("\n=== projecting into procurement_act (app-facing) ===")
+            n = ti.project_all(db)
+            print(f"  {n} TED notices present; digest projected into procurement_act")
+    print(f"\nTED backfill complete. windows={s['windows']} done={s['done']} "
+          f"skipped={s['skipped']} errored={s['errored']} notices={s['notices']}")
+    if s["errored"]:
+        print("  (errored windows recorded status='error' in proc.ted_ingest_window; "
+              "re-run with --resume to retry them.)")
+    return s
+
+
+def cmd_ted_catchup(args):
+    """Incremental TED fetch since last run: start = (watermark − overlap), end =
+    today. No prior history requires an explicit --start."""
+    import ted_ingest as ti
+    end = dt.date.today()
+    overlap = dt.timedelta(days=args.overlap_days)
+    explicit_start = dt.date.fromisoformat(args.start) if args.start else None
+    with Database() as db:
+        client, repo = ti.TedClient(), ti.TedRepository(db)
+        wm = ti.watermark(db, args.country)
+        if wm is not None:
+            start, origin = wm - overlap, f"watermark {wm} − {args.overlap_days}d"
+        elif explicit_start is not None:
+            start, origin = explicit_start, "--start (no prior history)"
+        else:
+            sys.exit("TED never backfilled and no --start given. "
+                     "Run ted-backfill first, or pass --start.")
+        if start > end:
+            start = end
+        print(f"\n=== catching up TED {args.country}: {start} .. {end}  ({origin}) ===")
+        s = ti.ingest_country(client, repo, args.country, start, end, resume=False)
+        if not args.skip_project:
+            m = ti.project_all(db)
+            print(f"  projected; {m} TED notices present")
+        wm2 = ti.watermark(db, args.country)
+        print(f"  new watermark: {wm2 if wm2 else '—'}")
+    print(f"\nTED catch-up complete. windows={s['windows']} done={s['done']} "
+          f"skipped={s['skipped']} errored={s['errored']}")
+    return s
+
+
+def cmd_ted_project(args):
+    """Project TED notices into proc.procurement_act (idempotent; never touches
+    origin='authored')."""
+    import ted_ingest as ti
+    with Database() as db:
+        n = ti.project_all(db)
+        print(f"projected — {n} TED notices present in proc.ted_notice / procurement_act.")
+
+
 def cmd_create_user(args):
     """Create an application account (proc.app_user) — used to bootstrap the
     first admin on a fresh DB / prod, before the /admin/users UI is reachable.
@@ -927,6 +994,16 @@ def cmd_stats(args):
                     "diavgeia_related"):
             (n,) = db.query(f"SELECT count(*) FROM proc.{tbl}")[0]
             print(f"  {tbl:24s} {n:>12,}")
+
+        # TED source (skip quietly if the migration hasn't been applied).
+        try:
+            (n,) = db.query("SELECT count(*) FROM proc.ted_notice")[0]
+        except Exception:
+            db.rollback()
+            return
+        print(f"\nted_notice {n:>26,}")
+        (nc,) = db.query("SELECT count(*) FROM proc.ted_notice_cpv")[0]
+        print(f"  ted_notice_cpv {nc:>18,}")
 
 
 def cmd_progress(args):
@@ -1071,6 +1148,31 @@ def main():
     p_dcu.add_argument("--start", help="YYYY-MM-DD; used only for types that have "
                        "never been backfilled (no watermark)")
     p_dcu.set_defaults(func=cmd_diavgeia_catchup)
+
+    p_tbf = sub.add_parser("ted-backfill",
+                           help="harvest TED notices (Search API, ITERATION) for a "
+                                "publication-date range")
+    p_tbf.add_argument("--start", required=True, help="YYYY-MM-DD (publication date)")
+    p_tbf.add_argument("--end", help="YYYY-MM-DD (default: today)")
+    p_tbf.add_argument("--country", default="GRC", help="TED buyer-country (default: GRC)")
+    p_tbf.add_argument("--resume", action="store_true",
+                       help="skip windows already marked 'done'")
+    p_tbf.add_argument("--skip-project", action="store_true",
+                       help="don't project into procurement_act (defer to ted-project)")
+    p_tbf.set_defaults(func=cmd_ted_backfill)
+
+    p_tcu = sub.add_parser("ted-catchup",
+                           help="incremental TED fetch since last run (watermark − overlap)")
+    p_tcu.add_argument("--country", default="GRC")
+    p_tcu.add_argument("--overlap-days", type=int, default=7,
+                       help="re-fetch this many days before the watermark (default: 7)")
+    p_tcu.add_argument("--start", help="YYYY-MM-DD; used only if no prior history")
+    p_tcu.add_argument("--skip-project", action="store_true")
+    p_tcu.set_defaults(func=cmd_ted_catchup)
+
+    p_tp = sub.add_parser("ted-project",
+                          help="project TED notices into procurement_act (idempotent)")
+    p_tp.set_defaults(func=cmd_ted_project)
 
     p_et = sub.add_parser("extract-tables",
                           help="report-only table extraction over a job's acts")

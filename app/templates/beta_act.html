@@ -9,7 +9,7 @@
   <div class="act-hero">
     <div class="badges">
       <span class="card-type t-{{ atype }}">{{ type_label_el }}</span>
-      {% if n.data_source == 'diavgeia' %}<span class="src-badge src-diavgeia">{{ t("Διαύγεια") }}</span>{% endif %}
+      {% if n.data_source == 'diavgeia' %}<span class="src-badge src-diavgeia">{{ t("Διαύγεια") }}</span>{% elif n.data_source == 'ted' %}<span class="src-badge src-ted">TED</span>{% endif %}
       {% if n.cancelled %}<span class="pill cancel">{{ t("ακυρωμένη") }}</span>{% endif %}
       {% if n.is_modified %}<span class="pill amend">{{ t("ορθή επανάληψη") }}</span>{% endif %}
       {% if excluded_reason == 'over_threshold' %}
@@ -57,7 +57,7 @@
       <div class="panel">
         <h3 class="panel-h">{{ t("Στοιχεία πράξης") }}</h3>
         <dl class="facts">
-          <dt>{{ "ΑΔΑ" if n.data_source == 'diavgeia' else "ΑΔΑΜ" }}</dt><dd><code>{{ n.adam }}</code></dd>
+          <dt>{{ "ΑΔΑ" if n.data_source == 'diavgeia' else ("TED" if n.data_source == 'ted' else "ΑΔΑΜ") }}</dt><dd><code>{{ n.adam }}</code></dd>
           <dt>{{ t("Τύπος") }}</dt><dd>{{ type_label_el }}</dd>
           {% if n.signed_date %}<dt>{{ t("Υπογραφή") }}</dt><dd>{{ n.signed_date.strftime('%d/%m/%Y') }}</dd>{% endif %}
 
@@ -245,9 +245,10 @@
         {% set doc_url = source_doc_url(n) %}
         {% if doc_url %}
         {% set is_diavgeia = n.data_source == 'diavgeia' %}
+        {% set is_ted = n.data_source == 'ted' %}
         <a class="action-link" href="{{ doc_url }}" target="_blank" rel="noopener">
           <span class="ico">↗</span>
-          <span><span class="at">{{ t("Έγγραφο στη Διαύγεια") if is_diavgeia else t("Έγγραφο στο ΚΗΜΔΗΣ") }}</span><span class="ad">{{ t("Η πράξη στη Διαύγεια") if is_diavgeia else t("Το επίσημο PDF της πράξης") }}</span></span>
+          <span><span class="at">{% if is_ted %}{{ t("Προκήρυξη στο TED") }}{% elif is_diavgeia %}{{ t("Έγγραφο στη Διαύγεια") }}{% else %}{{ t("Έγγραφο στο ΚΗΜΔΗΣ") }}{% endif %}</span><span class="ad">{% if is_ted %}{{ t("Η προκήρυξη στην πύλη TED") }}{% elif is_diavgeia %}{{ t("Η πράξη στη Διαύγεια") }}{% else %}{{ t("Το επίσημο PDF της πράξης") }}{% endif %}</span></span>
         </a>
         {% endif %}
 
