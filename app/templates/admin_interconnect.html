@@ -1,0 +1,120 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ t("Διασύνδεση Πράξεων") }} · {{ t("Διαχείριση") }}{% endblock %}
+{% block admin_content %}
+
+<div class="detail-h">
+  <div class="kicker">{{ t("Διαχείριση Δεδομένων") }}</div>
+  <h1 class="detail-title">{{ t("Διασύνδεση Πράξεων") }}</h1>
+  <div class="detail-sub">{{ t("Συσχέτιση πράξεων του ίδιου διαγωνισμού με βάση βαθμολογία εμπιστοσύνης από ρυθμιζόμενες συνθήκες.") }}</div>
+</div>
+
+{% if ok == 'rules' %}<div class="ic-flash ic-ok">{{ t("✓ Αποθηκεύτηκε.") }}</div>{% endif %}
+{% if ok and ok.startswith('scan_') %}<div class="ic-flash ic-ok">{{ t("✓ Δημιουργήθηκαν ομάδες:") }} {{ ok[5:] }}</div>{% endif %}
+
+<div class="detail-grid">
+  <div>
+    <form method="get" action="/admin/interconnect" class="crm-filter">
+      <input type="search" name="q" value="{{ q }}" placeholder="{{ t('Εύρεση πράξης (ΑΔΑΜ ή τίτλος)') }}…">
+      <button type="submit" class="crm-fbtn">{{ t("Αναζήτηση") }}</button>
+    </form>
+
+    {% if found is not none %}
+    <div class="section-h">{{ t("Αποτελέσματα") }}</div>
+    {% if found %}
+    <table class="notices">
+      <thead><tr><th>ΑΔΑΜ</th><th>{{ t("Τίτλος") }}</th><th>{{ t("Τύπος") }}</th></tr></thead>
+      <tbody>
+        {% for r in found %}
+        <tr>
+          <td><a href="/admin/interconnect/act/{{ r.adam }}"><span class="adam">{{ r.adam }}</span></a></td>
+          <td><a href="/admin/interconnect/act/{{ r.adam }}">{{ r.title or '—' }}</a></td>
+          <td class="meta">{{ r.type | type_label }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="ic-empty">{{ t("Καμία πράξη.") }}</div>{% endif %}
+    {% endif %}
+
+    {% if scan_rows is defined %}
+    <div class="section-h" style="margin-top:24px;">{{ t("Προεπισκόπηση σάρωσης") }}</div>
+    {% if scan_rows %}
+    <div class="detail-sub" style="margin:0 0 10px;">{{ t("Ζεύγη με κοινό αναγνωριστικό + ίδια αναθέτουσα, βαθμολογία ≥ auto_min.") }}</div>
+    <table class="notices">
+      <thead><tr><th>{{ t("Σκορ") }}</th><th>{{ t("Πράξη Α") }}</th><th>{{ t("Πράξη Β") }}</th></tr></thead>
+      <tbody>
+        {% for p in scan_rows %}
+        <tr>
+          <td><span class="ic-score">{{ p.score }}</span></td>
+          <td><a href="/admin/interconnect/act/{{ p.a }}"><span class="adam">{{ p.a }}</span></a><div class="meta">{{ (p.a_title or '')[:60] }}</div></td>
+          <td><a href="/admin/interconnect/act/{{ p.b }}"><span class="adam">{{ p.b }}</span></a><div class="meta">{{ (p.b_title or '')[:60] }}</div></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <form method="post" action="/admin/interconnect/scan" style="margin-top:12px;"
+          onsubmit="return confirm('{{ t('Δημιουργία ομάδων για όλα τα ζεύγη;') }}');">
+      <input type="hidden" name="apply" value="1">
+      <button type="submit" class="ic-btn">{{ t("Εφαρμογή σάρωσης") }} ({{ scan_rows|length }})</button>
+    </form>
+    {% else %}<div class="ic-empty">{{ t("Δεν βρέθηκαν ζεύγη για αυτόματη ομαδοποίηση.") }}</div>{% endif %}
+    {% endif %}
+
+    <div class="section-h" style="margin-top:24px;">{{ t("Ομάδες διασύνδεσης") }}</div>
+    {% if groups %}
+    <table class="notices">
+      <thead><tr><th>#</th><th>{{ t("Πράξεις") }}</th><th>{{ t("Διπλότυπα") }}</th><th>{{ t("Δείγμα") }}</th></tr></thead>
+      <tbody>
+        {% for g in groups %}
+        <tr>
+          <td><a href="/admin/interconnect/group/{{ g.id }}">#{{ g.id }}</a></td>
+          <td class="val">{{ g.n }}</td>
+          <td class="val">{{ g.n_dup or 0 }}</td>
+          <td><a href="/admin/interconnect/group/{{ g.id }}">{{ (g.sample_title or '—')[:60] }}</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="ic-empty">{{ t("Καμία ομάδα ακόμη.") }}</div>{% endif %}
+  </div>
+
+  <aside>
+    <div class="section-h">{{ t("Συνθήκες & βάρη") }}</div>
+    <form method="post" action="/admin/interconnect/rules" class="ic-rules">
+      {% for r in rules %}
+      <div class="ic-rule">
+        <label class="ic-rule-on"><input type="checkbox" name="a_{{ r.code }}" {% if r.is_active %}checked{% endif %}> {{ r.label | t }}</label>
+        <input type="number" name="w_{{ r.code }}" min="0" max="100" value="{{ r.weight }}" title="{{ t('βάρος') }}">
+      </div>
+      {% endfor %}
+      <div class="ic-thresh">
+        <label>review_min<input type="number" name="review_min" min="0" max="100" value="{{ settings.review_min }}"></label>
+        <label>auto_min<input type="number" name="auto_min" min="0" max="100" value="{{ settings.auto_min }}"></label>
+        <label>max_shared<input type="number" name="max_shared" min="1" value="{{ settings.max_shared }}"></label>
+      </div>
+      <button type="submit" class="ic-btn">{{ t("Αποθήκευση") }}</button>
+    </form>
+
+    <div class="section-h" style="margin-top:22px;">{{ t("Σάρωση") }}</div>
+    <div class="detail-sub" style="margin:0 0 8px;">{{ t("Εντοπισμός ζευγών υψηλής εμπιστοσύνης για αυτόματη ομαδοποίηση.") }}</div>
+    <form method="post" action="/admin/interconnect/scan">
+      <button type="submit" class="ic-btn ic-btn-ghost">{{ t("Προεπισκόπηση σάρωσης") }}</button>
+    </form>
+  </aside>
+</div>
+
+<style>
+  .ic-flash{padding:9px 14px;border-radius:8px;font-size:13px;margin:14px 0;background:#eaf6ef;border:1px solid #b7e0c7;color:#1a7f47;}
+  .ic-empty{font-size:13px;color:var(--ink-3);font-style:italic;padding:8px 0;}
+  .ic-score{display:inline-block;font-weight:700;font-size:12px;color:#fff;background:var(--accent);border-radius:9px;padding:2px 8px;}
+  .ic-btn{background:var(--ink);color:var(--paper);border:0;padding:9px 14px;border-radius:8px;font-size:12px;cursor:pointer;}
+  .ic-btn-ghost{background:none;border:1px solid var(--rule);color:var(--ink);}
+  .ic-rules{display:flex;flex-direction:column;gap:8px;}
+  .ic-rule{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .ic-rule-on{font-size:12.5px;color:var(--ink-2);display:flex;align-items:center;gap:6px;}
+  .ic-rule input[type=number]{width:56px;padding:5px 6px;border:1px solid var(--rule);border-radius:6px;font-size:12px;}
+  .ic-thresh{display:flex;flex-direction:column;gap:6px;margin:10px 0;padding-top:10px;border-top:1px solid var(--rule);}
+  .ic-thresh label{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink-3);}
+  .ic-thresh input{width:64px;padding:5px 6px;border:1px solid var(--rule);border-radius:6px;font-size:12px;}
+</style>
+{% endblock %}

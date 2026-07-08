@@ -234,6 +234,7 @@
       <td class="meta" style="letter-spacing:0; text-transform:none;">{{ r.source_status or '—' }}</td>
       <td style="text-align:center;">{% if r.has_attachments %}<span title="{{ t('έχει συνημμένα') }}">📎</span>{% endif %}</td>
       <td>
+        <a class="back" href="/admin/interconnect/act/{{ r.adam }}" hx-boost="false" style="font-size:11px;display:block;margin-bottom:3px;">{{ t("σχετικές ›") }}</a>
         {% if r.origin == 'authored' %}
           <a class="back" href="/admin/act/{{ r.adam }}/edit?tab=fields" hx-boost="false" style="font-size:11px;">{{ t("επεξεργασία ›") }}</a>
         {% else %}

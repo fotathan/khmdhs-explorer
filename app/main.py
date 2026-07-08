@@ -930,6 +930,11 @@ try:
 except ImportError:
     import auth as _auth
 
+try:
+    from app import interconnect as _interconnect
+except ImportError:
+    import interconnect as _interconnect
+
 _SECRET_KEY = os.environ.get("SECRET_KEY", "dev-insecure-key-change-in-prod")
 # Cookie is Secure (https-only) in prod; default on when SECRET_KEY is set.
 _SESSION_SECURE = os.environ.get(
@@ -1131,6 +1136,14 @@ try:
 except ImportError:
     from crm import make_crm_router as _make_crm_router
 app.include_router(_make_crm_router(templates, cursor))
+
+# Act Interconnection admin area (condition-scored relating) — under
+# /admin/interconnect, same admin-only gating.
+try:
+    from app.interconnect import make_interconnect_router as _make_ic_router
+except ImportError:
+    from interconnect import make_interconnect_router as _make_ic_router
+app.include_router(_make_ic_router(templates, cursor))
 
 # Tender-table extraction UI (separate module, mounted under /tables). Gated by
 # the TABLES_ENABLED env flag so the deployed Render copy can carry the feature
@@ -1895,9 +1908,18 @@ def act_detail(adam: str, request: Request):
                          WHERE adam=%s ORDER BY id""", (adam,))
             attachments = c.fetchall()
 
+    # Interconnection group (curated overlay) — read-only panel of related acts.
+    interconnect_group = None
+    try:
+        with cursor() as c:
+            interconnect_group = _interconnect.group_panel(c, adam)
+    except Exception:
+        interconnect_group = None
+
     return templates.TemplateResponse(
         request, "beta_act.html",
         {"n": notice, "gated": False,
+         "interconnect_group": interconnect_group,
          "line_items": line_items,
          "operators": operators,
          "act_cpvs": act_cpvs,

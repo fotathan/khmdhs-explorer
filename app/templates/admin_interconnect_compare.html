@@ -1,0 +1,58 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ t("Σύγκριση") }} · CRM{% endblock %}
+{% block admin_content %}
+
+<p style="margin:6px 0 0;"><a class="back" href="/admin/interconnect/act/{{ a }}" hx-boost="false">{{ t("‹ πίσω") }}</a></p>
+
+<div class="detail-h">
+  <div class="kicker">{{ t("Διασύνδεση Πράξεων") }}</div>
+  <h1 class="detail-title" style="font-size:20px;">{{ t("Σύγκριση πράξεων") }}</h1>
+  <div class="detail-sub">
+    {{ t("Βαθμολογία εμπιστοσύνης") }}:
+    <span class="ic-score {% if cmp.score>=90 %}hi{% elif cmp.score>=60 %}mid{% endif %}">{{ cmp.score }}</span>
+    {% for s in cmp.signals %}<span class="ic-chip">{{ s }}</span>{% endfor %}
+  </div>
+</div>
+
+<table class="notices ic-cmp">
+  <thead><tr>
+    <th></th>
+    <th><span class="adam">{{ a }}</span></th>
+    <th><span class="adam">{{ b }}</span></th>
+  </tr></thead>
+  <tbody>
+    {% for r in cmp.rows %}
+    <tr class="{% if r.differs %}ic-diff{% endif %}">
+      <td class="meta">{{ r.label | t }}</td>
+      <td>{% if r.label == 'Τύπος' %}{{ r.a | type_label }}{% else %}{{ r.a if r.a is not none else '—' }}{% endif %}</td>
+      <td>{% if r.label == 'Τύπος' %}{{ r.b | type_label }}{% else %}{{ r.b if r.b is not none else '—' }}{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="ic-actions">
+  <form method="post" action="/admin/interconnect/relate" style="display:inline">
+    <input type="hidden" name="a" value="{{ a }}"><input type="hidden" name="b" value="{{ b }}">
+    <input type="hidden" name="back" value="/admin/interconnect/compare?a={{ a }}&b={{ b }}">
+    <button type="submit" class="ic-btn">{{ t("Σχέτιση πράξεων") }}</button>
+  </form>
+  <form method="post" action="/admin/interconnect/duplicate" style="display:inline"
+        onsubmit="return confirm('{{ t('Σήμανση της Β ως διπλότυπο της Α;') }}');">
+    <input type="hidden" name="adam" value="{{ b }}"><input type="hidden" name="original" value="{{ a }}">
+    <input type="hidden" name="back" value="/admin/interconnect/compare?a={{ a }}&b={{ b }}">
+    <button type="submit" class="ic-btn ic-btn-ghost">{{ t("Β = διπλότυπο της Α") }}</button>
+  </form>
+</div>
+
+<style>
+  .ic-score{display:inline-block;font-weight:700;font-size:12px;color:#fff;background:var(--ink-3);border-radius:9px;padding:2px 8px;}
+  .ic-score.hi{background:#1a7f47;} .ic-score.mid{background:#c98a1a;}
+  .ic-chip{display:inline-block;font-size:10.5px;background:var(--rule);color:var(--ink-2);border-radius:8px;padding:1px 7px;margin-left:4px;}
+  .ic-cmp td{vertical-align:top;font-size:13px;}
+  .ic-cmp tr.ic-diff td{background:#eef4ff;}
+  .ic-actions{display:flex;gap:12px;margin-top:18px;}
+  .ic-btn{background:var(--ink);color:var(--paper);border:0;padding:10px 16px;border-radius:8px;font-size:12px;cursor:pointer;}
+  .ic-btn-ghost{background:none;border:1px solid var(--rule);color:var(--ink);}
+</style>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ t("Ομάδα") }} #{{ gid }} · {{ t("Διασύνδεση") }}{% endblock %}
+{% block admin_content %}
+{% set back = '/admin/interconnect/group/' ~ gid %}
+
+<p style="margin:6px 0 0;"><a class="back" href="/admin/interconnect" hx-boost="false">{{ t("‹ Διασύνδεση Πράξεων") }}</a></p>
+
+<div class="detail-h">
+  <div class="kicker">{{ t("Διασύνδεση Πράξεων") }}</div>
+  <h1 class="detail-title">{{ t("Ομάδα") }} #{{ gid }}</h1>
+  <div class="detail-sub">{{ members|length }} {{ t("πράξεις") }} · {{ t("ο κύκλος ζωής ενός διαγωνισμού") }}</div>
+</div>
+
+{% if ok %}<div class="ic-flash ic-ok">{{ t("✓ Αποθηκεύτηκε.") }}</div>{% endif %}
+
+<table class="notices">
+  <thead><tr>
+    <th>{{ t("Τύπος") }}</th><th>{{ t("Τίτλος") }}</th><th>{{ t("Ημ/νία") }}</th>
+    <th>{{ t("Αξία") }}</th><th></th>
+  </tr></thead>
+  <tbody>
+    {% for m in members %}
+    <tr {% if m.is_duplicate %}style="opacity:.65;"{% endif %}>
+      <td class="meta">{{ m.type | type_label }}</td>
+      <td>
+        <a href="/admin/interconnect/act/{{ m.adam }}"><strong>{{ m.title or '—' }}</strong></a>
+        {% if m.is_duplicate %}<span class="ic-dup">DUP</span>{% endif %}
+        <div class="meta"><span class="adam">{{ m.adam }}</span>{% if m.authority_name %} · {{ m.authority_name }}{% endif %}</div>
+      </td>
+      <td class="meta">{{ (m.submission_date or m.signed_date).strftime('%Y-%m-%d') if (m.submission_date or m.signed_date) else '—' }}</td>
+      <td class="val">{% if m.total_cost_with_vat %}€ {{ "{:,.0f}".format(m.total_cost_with_vat).replace(",", ".") }}{% else %}—{% endif %}</td>
+      <td style="white-space:nowrap;">
+        {% if m.is_duplicate %}
+        <form method="post" action="/admin/interconnect/unduplicate" style="display:inline">
+          <input type="hidden" name="adam" value="{{ m.adam }}"><input type="hidden" name="back" value="{{ back }}">
+          <button type="submit" class="ic-mini">{{ t("άρση διπλότυπου") }}</button>
+        </form>
+        {% else %}
+        <form method="post" action="/admin/interconnect/duplicate" style="display:flex;gap:3px;align-items:center;">
+          <input type="hidden" name="adam" value="{{ m.adam }}"><input type="hidden" name="back" value="{{ back }}">
+          <select name="original" style="font-size:11px;">
+            {% for o in members if o.adam != m.adam %}<option value="{{ o.adam }}">{{ (o.title or o.adam)[:24] }}</option>{% endfor %}
+          </select>
+          <button type="submit" class="ic-mini">{{ t("διπλότυπο →") }}</button>
+        </form>
+        {% endif %}
+        <form method="post" action="/admin/interconnect/remove" style="display:inline"
+              onsubmit="return confirm('{{ t('Αφαίρεση από την ομάδα;') }}');">
+          <input type="hidden" name="adam" value="{{ m.adam }}"><input type="hidden" name="back" value="{{ back }}">
+          <button type="submit" class="ic-mini">{{ t("αφαίρεση") }}</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<style>
+  .ic-flash{padding:9px 14px;border-radius:8px;font-size:13px;margin:14px 0;background:#eaf6ef;border:1px solid #b7e0c7;color:#1a7f47;}
+  .ic-mini{background:none;border:0;color:var(--accent);cursor:pointer;font-size:11px;padding:0 4px;text-decoration:underline;}
+  .ic-dup{font-size:10px;font-weight:700;color:#b3261e;background:#fdeceb;border-radius:6px;padding:0 5px;margin-left:5px;}
+</style>
+{% endblock %}

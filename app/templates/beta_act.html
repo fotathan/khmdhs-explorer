@@ -320,6 +320,21 @@
         </ul>
       </div>
       {% endif %}
+
+      {% if interconnect_group %}
+      <div class="sidecard">
+        <div class="sidecard-h">{{ t("Διασυνδεδεμένες πράξεις") }}</div>
+        <ul class="timeline">
+          {% for m in interconnect_group.members %}
+          <li class="{{ m.type or '' }}">
+            <div class="tl-type">{{ m.type | type_label }}{% if m.is_duplicate %} · <span style="color:var(--warn);">{{ t("διπλότυπο") }}</span>{% endif %}</div>
+            <a class="tl-title" href="/act/{{ m.adam }}">{{ m.title or m.adam }}</a>
+            <div class="tl-meta">{{ m.adam }}{% if m.submission_date %} · {{ m.submission_date.strftime('%d/%m/%Y') }}{% endif %}</div>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
     </aside>
   </div>
 

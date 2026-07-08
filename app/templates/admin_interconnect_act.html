@@ -1,0 +1,97 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ t("Διασύνδεση") }} · {{ act.adam }}{% endblock %}
+{% block admin_content %}
+{% set SIG = {'contract_number':'αρ. σύμβασης','protocol_number':'αρ. πρωτ.','commitment_no':'αρ. δέσμ.','authority':'ίδια αναθέτουσα'} %}
+{% set back = '/admin/interconnect/act/' ~ act.adam %}
+
+<p style="margin:6px 0 0;"><a class="back" href="/admin/interconnect" hx-boost="false">{{ t("‹ Διασύνδεση Πράξεων") }}</a></p>
+
+<div class="detail-h">
+  <div class="kicker">{{ act.type | type_label }} · <span class="adam">{{ act.adam }}</span></div>
+  <h1 class="detail-title" style="font-size:20px;">{{ act.title or '—' }}</h1>
+  <div class="detail-sub">
+    {% if act.authority_name %}{{ act.authority_name }}{% endif %}
+    {% if act.contract_number %} · {{ t("αρ. σύμβασης") }} {{ act.contract_number }}{% endif %}
+    · <a href="/act/{{ act.adam }}" target="_blank" rel="noopener">{{ t("προβολή πράξης ›") }}</a>
+  </div>
+</div>
+
+{% if ok %}<div class="ic-flash ic-ok">{{ t("✓ Αποθηκεύτηκε.") }}</div>{% endif %}
+
+<div class="detail-grid">
+  <div>
+    <div class="section-h">{{ t("Υποψήφιες σχετικές πράξεις") }}</div>
+    {% if candidates %}
+    <table class="notices">
+      <thead><tr><th>{{ t("Σκορ") }}</th><th>{{ t("Πράξη") }}</th><th>{{ t("Συνθήκες") }}</th><th></th></tr></thead>
+      <tbody>
+        {% for c in candidates %}
+        <tr>
+          <td><span class="ic-score {% if c.score>=90 %}hi{% elif c.score>=60 %}mid{% endif %}">{{ c.score }}</span></td>
+          <td>
+            <a href="/admin/interconnect/act/{{ c.adam }}"><strong>{{ c.title or '—' }}</strong></a>
+            <div class="meta">{{ c.type | type_label }} · <span class="adam">{{ c.adam }}</span>
+              {% if c.already_linked %} · <span class="ic-note">{{ t("ήδη επίσημα συνδεδεμένη") }}</span>{% endif %}
+              {% if c.grouped %} · <span class="ic-note">{{ t("σε ομάδα") }} #{{ c.grouped }}</span>{% endif %}</div>
+          </td>
+          <td>{% for s in c.signals %}<span class="ic-chip">{{ SIG.get(s, s) | t }}</span>{% endfor %}</td>
+          <td style="white-space:nowrap;">
+            <a class="back" href="/admin/interconnect/compare?a={{ act.adam }}&b={{ c.adam }}" style="font-size:11px;">{{ t("σύγκριση") }}</a>
+            <form method="post" action="/admin/interconnect/relate" style="display:inline">
+              <input type="hidden" name="a" value="{{ act.adam }}"><input type="hidden" name="b" value="{{ c.adam }}">
+              <input type="hidden" name="back" value="{{ back }}">
+              <button type="submit" class="ic-mini">{{ t("σχέτιση") }}</button>
+            </form>
+            <form method="post" action="/admin/interconnect/duplicate" style="display:inline"
+                  onsubmit="return confirm('{{ t('Σήμανση της υποψήφιας ως διπλότυπο αυτής της πράξης;') }}');">
+              <input type="hidden" name="adam" value="{{ c.adam }}"><input type="hidden" name="original" value="{{ act.adam }}">
+              <input type="hidden" name="back" value="{{ back }}">
+              <button type="submit" class="ic-mini">{{ t("διπλότυπο") }}</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="ic-empty">{{ t("Δεν βρέθηκαν υποψήφιες πράξεις (κοινό αναγνωριστικό) πάνω από το όριο. Μπορείτε να συγκρίνετε χειροκίνητα οποιαδήποτε πράξη.") }}</div>
+    {% endif %}
+  </div>
+
+  <aside>
+    <div class="section-h">{{ t("Ομάδα διασύνδεσης") }}</div>
+    {% if group_id %}
+    <div class="detail-sub" style="margin:0 0 8px;">{{ t("Ομάδα") }} <a href="/admin/interconnect/group/{{ group_id }}">#{{ group_id }}</a></div>
+    <ul class="ic-members">
+      {% for m in members %}
+      <li>
+        <a href="/admin/interconnect/act/{{ m.adam }}">{{ m.title or m.adam }}</a>
+        {% if m.is_duplicate %}<span class="ic-dup">DUP</span>{% endif %}
+        <div class="meta">{{ m.type | type_label }}</div>
+      </li>
+      {% endfor %}
+    </ul>
+    <form method="post" action="/admin/interconnect/remove"
+          onsubmit="return confirm('{{ t('Αφαίρεση αυτής της πράξης από την ομάδα;') }}');">
+      <input type="hidden" name="adam" value="{{ act.adam }}"><input type="hidden" name="back" value="{{ back }}">
+      <button type="submit" class="ic-mini">{{ t("αφαίρεση από ομάδα") }}</button>
+    </form>
+    {% else %}
+    <div class="ic-empty">{{ t("Η πράξη δεν ανήκει σε ομάδα.") }}</div>
+    {% endif %}
+  </aside>
+</div>
+
+<style>
+  .ic-flash{padding:9px 14px;border-radius:8px;font-size:13px;margin:14px 0;background:#eaf6ef;border:1px solid #b7e0c7;color:#1a7f47;}
+  .ic-empty{font-size:13px;color:var(--ink-3);font-style:italic;padding:8px 0;}
+  .ic-score{display:inline-block;font-weight:700;font-size:12px;color:#fff;background:var(--ink-3);border-radius:9px;padding:2px 8px;}
+  .ic-score.hi{background:#1a7f47;} .ic-score.mid{background:#c98a1a;}
+  .ic-chip{display:inline-block;font-size:10.5px;background:var(--rule);color:var(--ink-2);border-radius:8px;padding:1px 7px;margin:0 3px 3px 0;}
+  .ic-note{color:var(--ink-3);font-style:italic;}
+  .ic-mini{background:none;border:0;color:var(--accent);cursor:pointer;font-size:11px;padding:0 4px;text-decoration:underline;}
+  .ic-members{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px;}
+  .ic-members li{font-size:13px;}
+  .ic-dup{font-size:10px;font-weight:700;color:#b3261e;background:#fdeceb;border-radius:6px;padding:0 5px;margin-left:5px;}
+</style>
+{% endblock %}

@@ -1307,6 +1307,58 @@ _CRMNAV = {
         "The previous subscription was expired automatically — only one active product per customer.",
 }
 
+# Act Interconnection (condition-scored relating of related/duplicate acts).
+_INTERCONNECT = {
+    "Διασύνδεση Πράξεων": "Act interconnection",
+    "Διασύνδεση": "Interconnection",
+    "Συσχέτιση πράξεων του ίδιου διαγωνισμού με βάση βαθμολογία εμπιστοσύνης από ρυθμιζόμενες συνθήκες.":
+        "Relate acts of the same tender by a confidence score from configurable conditions.",
+    "✓ Δημιουργήθηκαν ομάδες:": "✓ Groups created:",
+    "Εύρεση πράξης (ΑΔΑΜ ή τίτλος)": "Find an act (ΑΔΑΜ or title)",
+    "Προεπισκόπηση σάρωσης": "Scan preview",
+    "Ζεύγη με κοινό αναγνωριστικό + ίδια αναθέτουσα, βαθμολογία ≥ auto_min.":
+        "Pairs sharing an identifier + the same authority, score ≥ auto_min.",
+    "Σκορ": "Score",
+    "Πράξη Α": "Act A", "Πράξη Β": "Act B", "Πράξη": "Act",
+    "Δημιουργία ομάδων για όλα τα ζεύγη;": "Create groups for all pairs?",
+    "Εφαρμογή σάρωσης": "Apply scan",
+    "Δεν βρέθηκαν ζεύγη για αυτόματη ομαδοποίηση.": "No pairs found for auto-grouping.",
+    "Ομάδες διασύνδεσης": "Interconnection groups",
+    "Διπλότυπα": "Duplicates", "Δείγμα": "Sample",
+    "Καμία ομάδα ακόμη.": "No groups yet.",
+    "Συνθήκες & βάρη": "Conditions & weights", "βάρος": "weight",
+    "Σάρωση": "Scan",
+    "Εντοπισμός ζευγών υψηλής εμπιστοσύνης για αυτόματη ομαδοποίηση.":
+        "Find high-confidence pairs to auto-group.",
+    "Αριθμός πρωτοκόλλου": "Protocol number", "Αριθμός δέσμευσης": "Commitment number",
+    "Ίδια αναθέτουσα": "Same authority",
+    "‹ Διασύνδεση Πράξεων": "‹ Act interconnection",
+    "αρ. σύμβασης": "contract no.", "αρ. πρωτ.": "protocol no.", "αρ. δέσμ.": "commitment no.",
+    "ίδια αναθέτουσα": "same authority",
+    "προβολή πράξης ›": "view act ›",
+    "Υποψήφιες σχετικές πράξεις": "Candidate related acts",
+    "Συνθήκες": "Conditions",
+    "ήδη επίσημα συνδεδεμένη": "already officially linked", "σε ομάδα": "in group",
+    "σύγκριση": "compare", "σχέτιση": "relate", "διπλότυπο": "duplicate",
+    "Σήμανση της υποψήφιας ως διπλότυπο αυτής της πράξης;":
+        "Mark the candidate as a duplicate of this act?",
+    "Δεν βρέθηκαν υποψήφιες πράξεις (κοινό αναγνωριστικό) πάνω από το όριο. Μπορείτε να συγκρίνετε χειροκίνητα οποιαδήποτε πράξη.":
+        "No candidate acts (shared identifier) above the threshold. You can compare any act manually.",
+    "Ομάδα διασύνδεσης": "Interconnection group", "Ομάδα": "Group",
+    "αφαίρεση από ομάδα": "remove from group",
+    "Η πράξη δεν ανήκει σε ομάδα.": "This act is not in a group.",
+    "Σύγκριση": "Comparison", "Σύγκριση πράξεων": "Compare acts",
+    "Βαθμολογία εμπιστοσύνης": "Confidence score", "Σχέτιση πράξεων": "Relate acts",
+    "Σήμανση της Β ως διπλότυπο της Α;": "Mark B as a duplicate of A?",
+    "Β = διπλότυπο της Α": "B = duplicate of A",
+    "ο κύκλος ζωής ενός διαγωνισμού": "one tender's lifecycle",
+    "άρση διπλότυπου": "clear duplicate", "διπλότυπο →": "duplicate →",
+    "Αφαίρεση από την ομάδα;": "Remove from the group?", "αφαίρεση": "remove",
+    "Αφαίρεση αυτής της πράξης από την ομάδα;": "Remove this act from the group?",
+    "Διασυνδεδεμένες πράξεις": "Interconnected acts",
+    "σχετικές ›": "related ›",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
@@ -1314,5 +1366,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
              _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
-             _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMNAV):
+             _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMNAV, _INTERCONNECT):
     UI_EN.update(_grp)
