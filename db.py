@@ -842,18 +842,30 @@ def cmd_ted_backfill(args):
     """Backfill TED notices (Search API, ITERATION) for a buyer-country over a
     publication-date range → proc.ted_notice, windowed in proc.ted_ingest_window.
     Projects a digest into procurement_act unless --skip-project."""
+    if getattr(args, "fulltext", False):
+        os.environ["EXTRACT_FULLTEXT"] = "1"
     import ted_ingest as ti
+    if getattr(args, "fulltext", False):
+        ti.EXTRACT_FULLTEXT = True          # in case the module was already imported
     start = dt.date.fromisoformat(args.start)
     end = dt.date.fromisoformat(args.end) if args.end else dt.date.today()
     with Database() as db:
-        client, repo = ti.TedClient(), ti.TedRepository(db)
-        print(f"\n=== TED {args.country}: {start} .. {end}"
-              f"{' (resume)' if args.resume else ''} ===")
-        s = ti.ingest_country(client, repo, args.country, start, end, resume=args.resume)
-        if not args.skip_project:
-            print("\n=== projecting into procurement_act (app-facing) ===")
-            n = ti.project_all(db)
-            print(f"  {n} TED notices present; digest projected into procurement_act")
+        final_status = "done"
+        try:
+            client, repo = ti.TedClient(), ti.TedRepository(db)
+            print(f"\n=== TED {args.country}: {start} .. {end}"
+                  f"{' (resume)' if args.resume else ''}"
+                  f"{' +fulltext' if ti.EXTRACT_FULLTEXT else ''} ===")
+            s = ti.ingest_country(client, repo, args.country, start, end, resume=args.resume)
+            if not args.skip_project:
+                print("\n=== projecting into procurement_act (app-facing) ===")
+                n = ti.project_all(db)
+                print(f"  {n} TED notices present; digest projected into procurement_act")
+        except BaseException:
+            final_status = "error"
+            raise
+        finally:
+            _finalize_job(db, final_status)   # no-op unless launched via admin
     print(f"\nTED backfill complete. windows={s['windows']} done={s['done']} "
           f"skipped={s['skipped']} errored={s['errored']} notices={s['notices']}")
     if s["errored"]:
@@ -900,6 +912,27 @@ def cmd_ted_project(args):
     with Database() as db:
         n = ti.project_all(db)
         print(f"projected — {n} TED notices present in proc.ted_notice / procurement_act.")
+
+
+def cmd_ted_fulltext_backfill(args):
+    """Fetch + store full text for TED notices ALREADY imported without it
+    (parse each notice's eForms XML). Bounded by --limit, resumable; projects the
+    text into procurement_act. TED counterpart of diavgeia-fulltext-backfill."""
+    import ted_ingest as ti
+    with Database() as db:
+        final_status = "done"
+        try:
+            client, repo = ti.TedClient(), ti.TedRepository(db)
+            n = ti.fulltext_pass(client, repo, limit=args.limit)
+            print(f"TED full text: {n['extracted']} extracted, {n['empty']} empty "
+                  f"(of {n['seen']} tried)")
+            m = ti.project_all(db)
+            print(f"  projected; {m} TED notices present")
+        except BaseException:
+            final_status = "error"
+            raise
+        finally:
+            _finalize_job(db, final_status)   # no-op unless launched via admin
 
 
 def cmd_create_user(args):
@@ -1157,9 +1190,19 @@ def main():
     p_tbf.add_argument("--country", default="GRC", help="TED buyer-country (default: GRC)")
     p_tbf.add_argument("--resume", action="store_true",
                        help="skip windows already marked 'done'")
+    p_tbf.add_argument("--fulltext", action="store_true",
+                       help="also fetch + parse each notice's XML for its "
+                            "description + full text (slower, more requests)")
     p_tbf.add_argument("--skip-project", action="store_true",
                        help="don't project into procurement_act (defer to ted-project)")
     p_tbf.set_defaults(func=cmd_ted_backfill)
+
+    p_tft = sub.add_parser("ted-fulltext-backfill",
+                           help="fetch full text for TED notices already imported "
+                                "without it (parse the eForms XML)")
+    p_tft.add_argument("--limit", type=int, default=5000,
+                       help="max notices per run (default: 5000)")
+    p_tft.set_defaults(func=cmd_ted_fulltext_backfill)
 
     p_tcu = sub.add_parser("ted-catchup",
                            help="incremental TED fetch since last run (watermark − overlap)")

@@ -14,6 +14,8 @@
     text-transform:uppercase; padding:5px 11px; border-radius:6px; color:#fff; white-space:nowrap;}
   .src-tag.khmdhs{background:var(--accent);}
   .src-tag.diavgeia{background:#a0246b;}
+  .src-card.ted .src-card-h{background:#e8f0fb;}
+  .src-tag.ted{background:#1a4f9c;}
   .src-name{font-size:15px; font-weight:600; color:var(--ink); line-height:1.2;}
   .src-role{font-size:12px; color:var(--ink-2); margin-top:2px;}
   .src-card-body{padding:18px;}
@@ -194,6 +196,63 @@
 
       </div>
     </div>
+
+    {# ───────────────────────── TED ───────────────────────── #}
+    <div class="src-card ted">
+      <div class="src-card-h">
+        <span class="src-tag ted">TED</span>
+        <div>
+          <div class="src-name">TED</div>
+          <div class="src-role">{{ t("Τρίτη πηγή · ted.europa.eu") }}</div>
+        </div>
+      </div>
+      <div class="src-card-body">
+
+        <div class="fn-block">
+          <div class="fn-h">{{ t("Νέα συλλογή") }}</div>
+          <p class="fn-desc">{{ t("Άντληση προκηρύξεων από το TED (EU) με βάση την ημερομηνία δημοσίευσης. Μετά την άντληση, εντάσσονται αυτόματα στην εφαρμογή.") }}</p>
+          <form method="post" action="/admin/jobs/ted">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-bottom:12px;">
+              <div class="field"><label>{{ t("από") }}</label><input type="date" name="date_from" value="{{ default_start }}" required></div>
+              <div class="field"><label>{{ t("έως") }}</label><input type="date" name="date_to" value="{{ today }}"></div>
+            </div>
+            <div class="field" style="max-width:170px;">
+              <label>{{ t("χώρα αγοραστή") }}</label>
+              <input type="text" name="country" value="GRC" maxlength="3" style="text-transform:uppercase;">
+            </div>
+            <div class="field">
+              <label style="display:inline-flex; align-items:flex-start; gap:8px; cursor:pointer;">
+                <input type="checkbox" name="extract_fulltext" value="1" style="margin-top:3px;">
+                <span style="font-size:13px; letter-spacing:0; text-transform:none; color:var(--ink);">
+                  <strong>{{ t("Εξαγωγή πλήρους κειμένου") }}</strong> — {{ t("για κάθε προκήρυξη, αντλεί το XML από το TED και αποθηκεύει τη σύνοψη και το πλήρες κείμενο.") }}
+                  <span style="display:block; color:var(--warn); margin-top:3px;">
+                    {{ t("Πιο αργό & με πολλές λήψεις από το TED. Συμπληρώνει μόνο όσες δεν έχουν ήδη κείμενο.") }}
+                  </span>
+                </span>
+              </label>
+            </div>
+            <button type="submit" class="run-btn">{{ t("Εκκίνηση συλλογής TED") }}</button>
+          </form>
+        </div>
+
+        <div class="fn-block">
+          <div class="fn-h">{{ t("Μαζική εξαγωγή πλήρους κειμένου") }}</div>
+          <p class="fn-desc">
+            {{ t('Για προκηρύξεις TED που <strong>υπάρχουν ήδη</strong> στη βάση αλλά δεν έχουν πλήρες κείμενο. Αντλεί το XML από το TED & αποθηκεύει το κείμενο σε παρτίδες (resumable — μπορείτε να το ξανατρέξετε για να συνεχίσει).') | safe }}
+            <span class="warn">{{ t('Αφορά την <strong>τοπική</strong> βάση (εκεί που τρέχει ο server). Για την παραγωγή, χρησιμοποιήστε το <code>ingest.sh</code> από το terminal.') | safe }}</span>
+          </p>
+          <form method="post" action="/admin/jobs/ted-fulltext">
+            <div class="field" style="max-width:220px;">
+              <label>{{ t("όριο ανά εκτέλεση") }}</label>
+              <input type="number" name="limit" value="5000" min="1" step="100">
+              <div class="meta" style="margin-top:4px;">{{ t("Πόσες προκηρύξεις θα επιχειρηθούν αυτή τη φορά.") }}</div>
+            </div>
+            <button type="submit" class="run-btn">{{ t("Εκκίνηση εξαγωγής κειμένου TED") }}</button>
+          </form>
+        </div>
+
+      </div>
+    </div>
     {% endif %}
 
     <div class="section-h">{{ t("Πρόσφατες εκτελέσεις") }}</div>
@@ -293,6 +352,33 @@
           {% for r in diavgeia_summary %}
             <tr>
               <td><strong style="font-size:13px;">{{ r.act_type | type_label }}</strong></td>
+              <td class="val">{{ r.windows }}</td>
+              <td class="val">{{ r.done_n or 0 }}</td>
+              <td class="val" style="{% if r.error_n %}color:var(--accent);{% endif %}">{{ r.error_n or 0 }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="meta" style="padding-top:0; border-top:0;">
+                {{ t("κάλυψη") }} {{ r.covered_from }} → {{ r.covered_to }}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+
+    {% if ted_summary %}
+      <div class="section-h" style="margin-top:24px;">{{ t("Κάλυψη TED") }}</div>
+      <table class="lines">
+        <thead><tr>
+          <th>{{ t("Χώρα") }}</th>
+          <th style="text-align:right;">{{ t("Παράθυρα") }}</th>
+          <th style="text-align:right;">OK</th>
+          <th style="text-align:right;">{{ t("Σφάλμα") }}</th>
+        </tr></thead>
+        <tbody>
+          {% for r in ted_summary %}
+            <tr>
+              <td><strong style="font-size:13px;">{{ r.act_type }}</strong></td>
               <td class="val">{{ r.windows }}</td>
               <td class="val">{{ r.done_n or 0 }}</td>
               <td class="val" style="{% if r.error_n %}color:var(--accent);{% endif %}">{{ r.error_n or 0 }}</td>

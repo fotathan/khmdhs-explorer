@@ -19,10 +19,16 @@ from __future__ import annotations
 import datetime as dt
 import os
 import time
+import xml.etree.ElementTree as ET
 
 import requests
 
 from khmdhs_ingest import RateLimiter, windows, _as_jsonb
+
+# Opt-in full-text extraction (mirror khmdhs/diavgeia EXTRACT_FULLTEXT). When on,
+# the backfill also fetches each notice's eForms XML and stores its description +
+# body on proc.ted_notice (projected into procurement_act.full_text).
+EXTRACT_FULLTEXT = os.environ.get("EXTRACT_FULLTEXT", "0") == "1"
 
 TED_SEARCH_URL = "https://api.ted.europa.eu/v3/notices/search"
 TED_RATE_PER_MIN = int(os.environ.get("TED_RATE_PER_MIN", "60"))
@@ -168,6 +174,22 @@ class TedClient:
                 time.sleep(BACKOFF_BASE * (2 ** attempt))
         return {}
 
+    def get_xml(self, url: str) -> str:
+        """GET a notice XML document (rate-limited, retried)."""
+        for attempt in range(MAX_RETRIES):
+            self.limiter.wait()
+            try:
+                r = self.session.get(url, timeout=60)
+                if r.status_code in (429, 500, 502, 503, 504):
+                    raise requests.HTTPError(f"HTTP {r.status_code}")
+                r.raise_for_status()
+                return r.text
+            except requests.RequestException:
+                if attempt == MAX_RETRIES - 1:
+                    raise
+                time.sleep(BACKOFF_BASE * (2 ** attempt))
+        return ""
+
     def iterate(self, query: str):
         """Yield every notice matching `query` via ITERATION mode (no 15k cap)."""
         token = None
@@ -191,6 +213,53 @@ def _query(country: str, date_from: dt.date, date_to: dt.date) -> str:
     return (f"buyer-country={country} "
             f"AND publication-date>={date_from:%Y%m%d} "
             f"AND publication-date<={date_to:%Y%m%d}")
+
+
+# --------------------------------------------------------------------------- #
+# full text — parse the eForms/UBL XML (stdlib, namespace-agnostic)
+# --------------------------------------------------------------------------- #
+def _localname(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1]
+
+
+def parse_fulltext(xml_text: str):
+    """(summary, full_text) from a TED notice XML. summary = the top-level
+    ProcurementProject's Greek description (Συνοπτική Παρουσίαση); full_text =
+    every Greek (ELL) Description/Note joined, summary first."""
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        return None, None
+    summary = None
+    for pp in root.findall("{*}ProcurementProject"):     # top-level, not lots
+        for d in pp.iter():
+            if _localname(d.tag) == "Description" and d.get("languageID") == "ELL" \
+                    and (d.text or "").strip():
+                summary = d.text.strip()
+                break
+        if summary:
+            break
+    seen, parts = set(), []
+    if summary:
+        parts.append(summary)
+        seen.add(summary)
+    for el in root.iter():
+        if _localname(el.tag) in ("Description", "Note") and el.get("languageID") == "ELL":
+            t = (el.text or "").strip()
+            if t and t not in seen:
+                seen.add(t)
+                parts.append(t)
+    return summary, ("\n\n".join(parts) if parts else None)
+
+
+def fetch_fulltext(client, xml_url: str):
+    """Fetch + parse a notice's full text; (None, None) on any failure."""
+    if not xml_url:
+        return None, None
+    try:
+        return parse_fulltext(client.get_xml(xml_url))
+    except Exception:      # noqa: BLE001 — treat as "tried, empty"
+        return None, None
 
 
 # --------------------------------------------------------------------------- #
@@ -233,6 +302,12 @@ class TedRepository:
                           VALUES (%s,%s,%s) ON CONFLICT DO NOTHING""",
                        (n["publication_number"], cpv[:10], i))
 
+    def set_fulltext(self, pub, summary, full_text):
+        """Store extracted text (or mark 'tried' with NULLs so re-runs skip)."""
+        self.db.execute("""UPDATE proc.ted_notice
+                           SET description=%s, full_text=%s, full_text_extracted_at=now()
+                           WHERE publication_number=%s""", (summary, full_text, pub))
+
 
 # --------------------------------------------------------------------------- #
 # orchestration — windowed, resumable (mirrors diavgeia ingest_type)
@@ -247,6 +322,25 @@ def watermark(db, country):
     rows = db.query("""SELECT max(date_to) FROM proc.ted_ingest_window
                        WHERE country=%s AND status='done'""", (country,))
     return rows[0][0] if rows and rows[0][0] else None
+
+
+def fulltext_pass(client, repo, limit=5000):
+    """Fetch + store full text for notices ALREADY imported without it (never
+    tried: full_text NULL and full_text_extracted_at NULL). Bounded, resumable."""
+    db = repo.db
+    rows = db.query("""SELECT publication_number, xml_url FROM proc.ted_notice
+                       WHERE full_text IS NULL AND full_text_extracted_at IS NULL
+                         AND xml_url IS NOT NULL
+                       ORDER BY publication_date DESC NULLS LAST
+                       LIMIT %s""", (int(limit),))
+    n = {"seen": 0, "extracted": 0, "empty": 0}
+    for pub, xml_url in rows:
+        n["seen"] += 1
+        summary, ft = fetch_fulltext(client, xml_url)
+        repo.set_fulltext(pub, summary, ft)
+        n["extracted" if ft else "empty"] += 1
+        db.commit()
+    return n
 
 
 def ingest_country(client, repo, country, start, end, *, resume=True):
@@ -276,6 +370,9 @@ def ingest_country(client, repo, country, start, end, *, resume=True):
                 m = map_notice(raw)
                 if m:
                     repo.upsert_notice(m)
+                    if EXTRACT_FULLTEXT and m.get("xml_url"):
+                        ft_summary, ft_body = fetch_fulltext(client, m["xml_url"])
+                        repo.set_fulltext(m["publication_number"], ft_summary, ft_body)
                     n += 1
             db.execute("""UPDATE proc.ted_ingest_window SET status='done', notices=%s,
                           finished_at=now() WHERE country=%s AND date_from=%s AND date_to=%s""",
@@ -332,6 +429,7 @@ def project_all(db) -> int:
         INSERT INTO proc.procurement_act
           (adam, type, data_source, origin, external_id, title, submission_date,
            signed_date, budget, total_cost_without_vat, source_url, authority_id,
+           full_text, full_text_source, full_text_extracted_at,
            raw_json, ingested_at)
         SELECT 'TED:'||t.publication_number, ({_PROJECT_TYPE_SQL})::proc.act_type,
                'ted', 'import', t.publication_number, t.title, t.publication_date,
@@ -339,6 +437,9 @@ def project_all(db) -> int:
                t.html_url,
                CASE WHEN t.buyer_name IS NOT NULL
                     THEN 'TED:'||left(md5(lower(t.buyer_name)), 16) END,
+               t.full_text,
+               CASE WHEN t.full_text IS NOT NULL THEN 'ted' END,
+               t.full_text_extracted_at,
                t.raw_json, now()
         FROM proc.ted_notice t
         ON CONFLICT (adam) DO UPDATE SET
@@ -346,6 +447,9 @@ def project_all(db) -> int:
            submission_date=EXCLUDED.submission_date, signed_date=EXCLUDED.signed_date,
            budget=EXCLUDED.budget, total_cost_without_vat=EXCLUDED.total_cost_without_vat,
            source_url=EXCLUDED.source_url, authority_id=EXCLUDED.authority_id,
+           full_text=COALESCE(EXCLUDED.full_text, proc.procurement_act.full_text),
+           full_text_source=COALESCE(EXCLUDED.full_text_source, proc.procurement_act.full_text_source),
+           full_text_extracted_at=COALESCE(EXCLUDED.full_text_extracted_at, proc.procurement_act.full_text_extracted_at),
            raw_json=EXCLUDED.raw_json, ingested_at=now()
         WHERE proc.procurement_act.origin <> 'authored'
     """)

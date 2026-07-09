@@ -1360,6 +1360,21 @@ _INTERCONNECT = {
     # TED source
     "Προκήρυξη στο TED": "Notice on TED",
     "Η προκήρυξη στην πύλη TED": "The notice on the TED portal",
+    # TED admin Data-Collection panel
+    "Τρίτη πηγή · ted.europa.eu": "Third source · ted.europa.eu",
+    "Άντληση προκηρύξεων από το TED (EU) με βάση την ημερομηνία δημοσίευσης. Μετά την άντληση, εντάσσονται αυτόματα στην εφαρμογή.":
+        "Fetch TED (EU) notices by publication date. After harvest they are projected into the app automatically.",
+    "χώρα αγοραστή": "buyer country",
+    "για κάθε προκήρυξη, αντλεί το XML από το TED και αποθηκεύει τη σύνοψη και το πλήρες κείμενο.":
+        "for each notice, fetches the TED XML and stores the summary and full text.",
+    "Πιο αργό & με πολλές λήψεις από το TED. Συμπληρώνει μόνο όσες δεν έχουν ήδη κείμενο.":
+        "Slower & many downloads from TED. Only fills notices without text yet.",
+    "Εκκίνηση συλλογής TED": "Start TED collection",
+    "Για προκηρύξεις TED που <strong>υπάρχουν ήδη</strong> στη βάση αλλά δεν έχουν πλήρες κείμενο. Αντλεί το XML από το TED & αποθηκεύει το κείμενο σε παρτίδες (resumable — μπορείτε να το ξανατρέξετε για να συνεχίσει).":
+        "For TED notices <strong>already</strong> in the database but without full text. Fetches the TED XML & stores the text in batches (resumable — re-run to continue).",
+    "Πόσες προκηρύξεις θα επιχειρηθούν αυτή τη φορά.": "How many notices to attempt this run.",
+    "Εκκίνηση εξαγωγής κειμένου TED": "Start TED text extraction",
+    "Κάλυψη TED": "TED coverage",
 }
 
 # Merge into one flat catalog. Later groups override earlier ones on key clash

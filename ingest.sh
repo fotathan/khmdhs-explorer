@@ -68,7 +68,7 @@ Usage:
 
   KHMDHS commands : backfill | catchup | fulltext-backfill
   Diavgeia commands: diavgeia-backfill | diavgeia-catchup | diavgeia-resolve | diavgeia-project
-  TED commands     : ted-backfill | ted-catchup | ted-project
+  TED commands     : ted-backfill | ted-catchup | ted-project | ted-fulltext-backfill
                      (--types notice award contract; windows on issue date.
                       backfill auto-runs resolve + project; project surfaces
                       decisions in the web app via procurement_act)
@@ -99,8 +99,8 @@ case "$TARGET" in
 esac
 
 case "$COMMAND" in
-  backfill|catchup|fulltext-backfill|diavgeia-backfill|diavgeia-catchup|diavgeia-resolve|diavgeia-project|ted-backfill|ted-catchup|ted-project) ;;
-  *) die "second argument must be one of: backfill, catchup, fulltext-backfill, diavgeia-backfill, diavgeia-catchup, diavgeia-resolve, diavgeia-project, ted-backfill, ted-catchup, ted-project (got '$COMMAND')";;
+  backfill|catchup|fulltext-backfill|diavgeia-backfill|diavgeia-catchup|diavgeia-resolve|diavgeia-project|ted-backfill|ted-catchup|ted-project|ted-fulltext-backfill) ;;
+  *) die "second argument must be one of: backfill, catchup, fulltext-backfill, diavgeia-backfill, diavgeia-catchup, diavgeia-resolve, diavgeia-project, ted-backfill, ted-catchup, ted-project, ted-fulltext-backfill (got '$COMMAND')";;
 esac
 
 # ---- pull out our custom --fulltext flag before passing the rest to db.py ---

@@ -192,6 +192,16 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                                  WHERE decision_type = ANY(%s)
                                    AND date_from >= %s AND date_to <= %s""",
                               (uids, r["date_from"], r["date_to"]))
+                elif r["source"] == "ted":
+                    country = (r["types"] or ["GRC"])[0]
+                    c.execute("""SELECT
+                                   count(*) AS total,
+                                   count(*) FILTER (WHERE status IN ('pending','running')) AS unfinished,
+                                   count(*) FILTER (WHERE status='error') AS errored
+                                 FROM proc.ted_ingest_window
+                                 WHERE country = %s
+                                   AND date_from >= %s AND date_to <= %s""",
+                              (country, r["date_from"], r["date_to"]))
                 else:
                     c.execute("""SELECT
                                    count(*) AS total,
@@ -432,10 +442,25 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 # Diavgeia window table absent (e.g. an environment without the
                 # diavgeia migration) — just show no Diavgeia coverage.
                 diavgeia_summary = []
+            # TED coverage roll-up, keyed by country.
+            ted_summary = []
+            try:
+                c.execute("""SELECT country AS act_type,
+                                    count(*) AS windows,
+                                    sum(CASE WHEN status='done' THEN 1 ELSE 0 END) AS done_n,
+                                    sum(CASE WHEN status='error' THEN 1 ELSE 0 END) AS error_n,
+                                    min(date_from) AS covered_from,
+                                    max(date_to) AS covered_to
+                             FROM proc.ted_ingest_window
+                             GROUP BY country ORDER BY country""")
+                ted_summary = c.fetchall()
+            except Exception:
+                ted_summary = []
         return templates.TemplateResponse(
             request, "admin_index.html",
             {"jobs": jobs, "window_summary": window_summary,
              "diavgeia_summary": diavgeia_summary,
+             "ted_summary": ted_summary,
              "running_now": any_running(),
              "act_types": ACT_TYPES,
              "diavgeia_types": DIAVGEIA_TYPE_NAMES,
@@ -741,6 +766,127 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
 
         return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
 
+    @router.post("/jobs/ted")
+    def admin_start_ted_job(request: Request,
+                            date_from: str = Form(...),
+                            date_to: str = Form(""),
+                            country: str = Form("GRC"),
+                            extract_fulltext: str = Form(default="")):
+        """Spawn a TED harvest (db.py ted-backfill) over a publication-date range.
+        Parallel to the KHMDHS/Diavgeia launchers: harvests notices, projects into
+        procurement_act, and (optional) extracts full text from each notice XML.
+        Tracked with source='ted' so the job page / cancel / monitoring work."""
+        try:
+            df = dt.date.fromisoformat(date_from)
+            dtt = dt.date.fromisoformat(date_to) if date_to else dt.date.today()
+        except ValueError:
+            raise HTTPException(400, "invalid date (expected YYYY-MM-DD)")
+        if dtt < df:
+            raise HTTPException(400, "date_to must be on or after date_from")
+        country = (country or "GRC").strip().upper()[:3] or "GRC"
+
+        reconcile_stale()
+        if any_running():
+            raise HTTPException(409,
+                "another backfill is already running; cancel it or wait for it to finish")
+
+        root = project_root()
+        cmd = [sys.executable, os.path.join(root, "db.py"), "ted-backfill",
+               "--start", df.isoformat(), "--end", dtt.isoformat(),
+               "--country", country]
+
+        with cursor() as c:
+            c.execute("""INSERT INTO proc.ingest_job
+                         (status, types, date_from, date_to, resume, source)
+                         VALUES ('running', %s, %s, %s, %s, 'ted')
+                         RETURNING id""", ([country], df, dtt, False))
+            job_id = c.fetchone()["id"]
+        log_path = os.path.join(LOG_DIR, f"job-{job_id}.log")
+
+        fulltext_flag = bool(extract_fulltext)
+        job_env = {**os.environ}
+        if fulltext_flag:                       # ted_ingest reads EXTRACT_FULLTEXT
+            job_env["EXTRACT_FULLTEXT"] = "1"
+        else:
+            job_env.pop("EXTRACT_FULLTEXT", None)
+        job_env["INGEST_JOB_ID"] = str(job_id)
+
+        log_fh = open(log_path, "w")
+        log_fh.write(f"# TED backfill job {job_id}: country={country} "
+                     f"{df.isoformat()}..{dtt.isoformat()} "
+                     f"extract_fulltext={fulltext_flag}\n\n")
+        log_fh.flush()
+        try:
+            proc = subprocess.Popen(
+                cmd, stdout=log_fh, stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL, start_new_session=True,
+                cwd=root, env=job_env,
+            )
+        except Exception as e:
+            with cursor() as c:
+                c.execute("""UPDATE proc.ingest_job
+                             SET status='error', last_error=%s, finished_at=now()
+                             WHERE id=%s""", (f"spawn failed: {e!r}", job_id))
+            log_fh.close()
+            raise HTTPException(500, f"failed to launch subprocess: {e!r}")
+
+        with cursor() as c:
+            c.execute("""UPDATE proc.ingest_job SET pid=%s, log_path=%s
+                         WHERE id=%s""", (proc.pid, log_path, job_id))
+        return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
+
+    @router.post("/jobs/ted-fulltext")
+    def admin_start_ted_fulltext_job(request: Request,
+                                     limit: str = Form(default="5000")):
+        """Mass full-text extraction over TED notices already imported without it
+        (db.py ted-fulltext-backfill). Tracked as a source='ted' job."""
+        try:
+            lim = max(1, int(limit))
+        except ValueError:
+            lim = 5000
+
+        reconcile_stale()
+        if any_running():
+            raise HTTPException(409,
+                "another job is already running; cancel it or wait for it to finish")
+
+        root = project_root()
+        cmd = [sys.executable, os.path.join(root, "db.py"),
+               "ted-fulltext-backfill", "--limit", str(lim)]
+
+        today = dt.date.today()
+        with cursor() as c:
+            c.execute("""INSERT INTO proc.ingest_job
+                         (status, types, date_from, date_to, resume, source)
+                         VALUES ('running', %s, %s, %s, %s, 'ted')
+                         RETURNING id""", (["GRC"], today, today, False))
+            job_id = c.fetchone()["id"]
+        log_path = os.path.join(LOG_DIR, f"job-{job_id}.log")
+
+        job_env = {**os.environ}
+        job_env["INGEST_JOB_ID"] = str(job_id)
+        log_fh = open(log_path, "w")
+        log_fh.write(f"# TED full-text backfill job {job_id}: limit={lim}\n\n")
+        log_fh.flush()
+        try:
+            proc = subprocess.Popen(
+                cmd, stdout=log_fh, stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL, start_new_session=True,
+                cwd=root, env=job_env,
+            )
+        except Exception as e:
+            with cursor() as c:
+                c.execute("""UPDATE proc.ingest_job
+                             SET status='error', last_error=%s, finished_at=now()
+                             WHERE id=%s""", (f"spawn failed: {e!r}", job_id))
+            log_fh.close()
+            raise HTTPException(500, f"failed to launch subprocess: {e!r}")
+
+        with cursor() as c:
+            c.execute("""UPDATE proc.ingest_job SET pid=%s, log_path=%s
+                         WHERE id=%s""", (proc.pid, log_path, job_id))
+        return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
+
     @router.get("/jobs/{job_id}", response_class=HTMLResponse)
     def admin_job_detail(job_id: int, request: Request,
                          ftf: str = Query("all")):
@@ -777,6 +923,22 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                                AND date_from >= %s AND date_to <= %s
                              GROUP BY status""",
                           (uids, job["date_from"], job["date_to"]))
+                counts = {r["status"]: r["count"] for r in c.fetchall()}
+            elif job["source"] == "ted":
+                country = (job["types"] or ["GRC"])[0]
+                c.execute("""SELECT country AS act_type, date_from, date_to, status,
+                                    last_error, started_at, finished_at
+                             FROM proc.ted_ingest_window
+                             WHERE country = %s
+                               AND date_from >= %s AND date_to <= %s
+                             ORDER BY date_from""",
+                          (country, job["date_from"], job["date_to"]))
+                windows = c.fetchall()
+                c.execute("""SELECT status, count(*) FROM proc.ted_ingest_window
+                             WHERE country = %s
+                               AND date_from >= %s AND date_to <= %s
+                             GROUP BY status""",
+                          (country, job["date_from"], job["date_to"]))
                 counts = {r["status"]: r["count"] for r in c.fetchall()}
             else:
                 # Detailed window progress for the act types this job touches,
