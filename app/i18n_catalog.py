@@ -1442,6 +1442,8 @@ _HELP = {
     "Σύνδεση & εγγραφή": "Signing in & registering",
     "Η": "The",
     "δημιουργεί λογαριασμό πελάτη.": "creates a customer account.",
+    "δημιουργεί λογαριασμό πελάτη — αλλά η δημόσια εγγραφή είναι κλειστή από προεπιλογή (ρυθμιζόμενη: ανοιχτή / με πρόσκληση / κλειστή)· διαφορετικά οι διαχειριστές δημιουργούν λογαριασμούς.":
+        "creates a customer account — but public sign-up is closed by default (configurable: open / invite / closed); otherwise admins create accounts.",
     "Σύνδεση / αποσύνδεση": "Sign in / out",
     "στο": "at",
     "και": "and",
