@@ -209,12 +209,7 @@
   <div class="mast-row">
     <a href="/" class="mast-title">{{ t("Δημόσιες ") }}<em>{{ t("Συμβάσεις") }}</em></a>
     <span class="mast-meta">
-      <a href="/">{{ t("Πράξεις") }}</a>
-      <a href="/explore">{{ t("Σύνοψη") }}</a>
-      <a href="/analytics">{{ t("Αναλυτικά") }}</a>
-      <a href="/authorities">{{ t("Αρχές") }}</a>
-      <a href="/contractors">{{ t("Ανάδοχοι") }}</a>
-      {% if is_admin %}<a href="/admin">{{ t("Διαχείριση") }}</a>{% endif %}
+      {% include "_topnav.html" %}
       {% include "_lang_select.html" %}
       {% if is_authenticated %}
         <span class="acct-user" title="{{ user.role }}">{{ user.username }}</span>

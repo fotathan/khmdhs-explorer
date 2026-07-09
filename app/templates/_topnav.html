@@ -1,0 +1,10 @@
+{# Shared top-nav page links. Included by BOTH mastheads (beta_base.html and
+   base.html / admin pages) so the horizontal menu is identical everywhere.
+   Language switch + account controls stay in each masthead. #}
+<a href="/" {% if nav_active=='search' %}class="on"{% endif %}>{{ t("Πράξεις") }}</a>
+<a href="/authorities" {% if nav_active=='authorities' %}class="on"{% endif %}>{{ t("Αναθέτουσες") }}</a>
+<a href="/contractors" {% if nav_active=='contractors' %}class="on"{% endif %}>{{ t("Ανάδοχοι") }}</a>
+<a href="/explore" {% if nav_active=='explore' %}class="on"{% endif %}>{{ t("Σύνοψη") }}</a>
+<a href="/analytics" {% if nav_active=='analytics' %}class="on"{% endif %}>{{ t("Στατιστικά") }}</a>
+{% if is_admin %}<a href="/help" {% if nav_active=='help' %}class="on"{% endif %}>{{ t("Βοήθεια") }}</a>{% endif %}
+{% if is_admin %}<a href="/admin" {% if nav_active=='admin' %}class="on"{% endif %}>{{ t("Διαχείριση") }}</a>{% endif %}
