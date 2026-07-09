@@ -61,3 +61,4 @@ interconnect_migration.sql
 ted_migration.sql
 ted_fulltext_migration.sql
 admin_audit_migration.sql
+migrations/20260709201920_app_runtime_least_privilege_role_grants.sql
