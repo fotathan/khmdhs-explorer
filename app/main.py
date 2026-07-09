@@ -33,6 +33,7 @@ from typing import Optional
 
 import psycopg
 from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
 from fastapi import FastAPI, Request, Query, HTTPException, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -266,44 +267,51 @@ templates.env.filters["vname"] = _vname
 
 
 # ---------------------------------------------------------------------------- #
-# DB pool (single long-lived connection, dict rows). For higher load you'd swap
-# in psycopg_pool; one connection is fine for an internal tool.
+# DB connection pool (psycopg_pool). Replaces the old single shared connection,
+# which serialised — and could corrupt — under concurrent requests: uvicorn runs
+# sync route handlers in a threadpool, so several could touch one connection at
+# once. Each request now checks out its own connection and returns it on exit.
+#
+#  * prepare_threshold=None — no server-side prepared statements; required behind
+#    Supabase's transaction pooler (port 6543), where consecutive statements can
+#    land on different physical connections ("prepared statement _pg3_N already
+#    exists"). Harmless on a direct connection (local dev).
+#  * statement_timeout — a best-effort guard against runaway queries tying up a
+#    connection. Behind the transaction pooler a session SET may not persist, so
+#    for GUARANTEED enforcement also set it at the DB role level
+#    (ALTER ROLE <app_role> SET statement_timeout = '15s').
+#  * check_connection on checkout — a dead/idle-dropped pooler connection is
+#    replaced instead of handed out, preserving the old reconnect-on-stale
+#    behaviour. Sizes/timeouts are env-tunable.
 # ---------------------------------------------------------------------------- #
-_conn: Optional[psycopg.Connection] = None
+_POOL_MIN = int(os.environ.get("DB_POOL_MIN", "1"))
+_POOL_MAX = int(os.environ.get("DB_POOL_MAX", "10"))
+_POOL_TIMEOUT = float(os.environ.get("DB_POOL_TIMEOUT", "20"))
+_STMT_TIMEOUT_MS = int(os.environ.get("DB_STATEMENT_TIMEOUT_MS", "15000"))
 
-def conn() -> psycopg.Connection:
-    global _conn
-    if _conn is None or _conn.closed:
-        # prepare_threshold=None disables psycopg3's automatic prepared
-        # statements. Required when connecting through a transaction-mode
-        # connection pooler (e.g. Supabase port 6543 / PgBouncer): there,
-        # consecutive queries can land on different physical connections, so
-        # server-side prepared statements collide ("prepared statement _pg3_N
-        # already exists"). Disabling them keeps the app pooler-safe. Harmless
-        # against a direct connection (local dev).
-        _conn = psycopg.connect(DATABASE_URL, row_factory=dict_row,
-                                autocommit=True, prepare_threshold=None)
-    return _conn
+
+def _configure_conn(c: psycopg.Connection) -> None:
+    if _STMT_TIMEOUT_MS > 0:
+        with c.cursor() as cur:
+            cur.execute(f"SET statement_timeout = {_STMT_TIMEOUT_MS}")  # int, injection-safe
+
+
+_pool = ConnectionPool(
+    DATABASE_URL, min_size=_POOL_MIN, max_size=_POOL_MAX, timeout=_POOL_TIMEOUT,
+    name="khmdhs", open=False, configure=_configure_conn,
+    check=ConnectionPool.check_connection,
+    kwargs={"row_factory": dict_row, "autocommit": True, "prepare_threshold": None},
+)
+_pool.open()
+
 
 @contextmanager
 def cursor():
-    """Yield a cursor on the shared connection. If the connection has gone
-    stale (pooler dropped it, or it's in a broken state after an error),
-    reconnect once and retry — so a single dead connection doesn't cause a
-    run of 500s until the next restart."""
-    global _conn
-    try:
-        with conn().cursor() as cur:
-            yield cur
-    except psycopg.OperationalError:
-        # Connection likely dropped by the pooler; force a fresh one.
-        try:
-            if _conn is not None and not _conn.closed:
-                _conn.close()
-        except Exception:
-            pass
-        _conn = None
-        with conn().cursor() as cur:
+    """Check out a pooled connection for the block, yield a cursor on it
+    (autocommit, dict rows), and return it to the pool on exit. Reconnection and
+    dead-connection replacement are handled by the pool itself."""
+    with _pool.connection() as c:
+        with c.cursor() as cur:
             yield cur
 
 
