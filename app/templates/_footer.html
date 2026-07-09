@@ -1,0 +1,22 @@
+{# Shared site footer — data disclaimer + trust/legal links. Included by both
+   mastheads' base templates so it appears site-wide. #}
+<footer class="site-footer">
+  <div class="site-footer-in">
+    <p class="sf-disclaimer">{{ t("Τα δεδομένα προέρχονται από επίσημες δημόσιες πηγές (ΚΗΜΔΗΣ, Διαύγεια, TED) και ενδέχεται να περιέχουν σφάλματα ή καθυστερήσεις. Δεν αποτελούν επίσημο ή αυθεντικό αντίγραφο· για επίσημη χρήση ανατρέξτε στην αρχική πηγή.") }}</p>
+    <nav class="sf-links" aria-label="{{ t('Υποσέλιδο') }}">
+      <a href="/data-sources">{{ t("Πηγές & δεδομένα") }}</a>
+      <a href="/privacy">{{ t("Πολιτική απορρήτου") }}</a>
+      <a href="/terms">{{ t("Όροι χρήσης") }}</a>
+    </nav>
+  </div>
+</footer>
+<style>
+  .site-footer{border-top:1px solid var(--rule,#e6e8ec);margin-top:44px;background:var(--paper,#fff);}
+  .site-footer-in{max-width:1340px;margin:0 auto;padding:20px 40px;display:flex;gap:18px;
+    justify-content:space-between;align-items:center;flex-wrap:wrap;}
+  .sf-disclaimer{margin:0;font-size:12px;color:var(--ink-3,#9aa0aa);max-width:74ch;line-height:1.5;}
+  .sf-links{display:flex;gap:16px;font-size:12.5px;flex-wrap:wrap;}
+  .sf-links a{color:var(--ink-2,#5b626d);}
+  .sf-links a:hover{color:var(--accent,#b41034);}
+  @media(max-width:560px){.site-footer-in{padding:16px 18px;}}
+</style>

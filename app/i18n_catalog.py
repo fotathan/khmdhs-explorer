@@ -1615,6 +1615,49 @@ _HELP = {
     "Τελευταία ενημέρωση": "Last updated",
 }
 
+
+# Trust / legal footer pages (data_sources, privacy, terms) + footer.
+_LEGAL = {
+    "Τα δεδομένα προέρχονται από επίσημες δημόσιες πηγές (ΚΗΜΔΗΣ, Διαύγεια, TED) και ενδέχεται να περιέχουν σφάλματα ή καθυστερήσεις. Δεν αποτελούν επίσημο ή αυθεντικό αντίγραφο· για επίσημη χρήση ανατρέξτε στην αρχική πηγή.": "Data comes from official public sources (KHMDHS, Diavgeia, TED) and may contain errors or delays. It is not an official or authentic copy — for official use, consult the original source.",
+    "Πηγές & δεδομένα": "Sources & data",
+    "Πολιτική απορρήτου": "Privacy policy",
+    "Όροι χρήσης": "Terms of use",
+    "Υποσέλιδο": "Footer",
+    "Προσχέδιο — ενδεικτικό κείμενο που πρέπει να ελεγχθεί και να οριστικοποιηθεί (ιδανικά από νομικό σύμβουλο) πριν από τη δημόσια/εμπορική χρήση.": "Draft — placeholder text that must be reviewed and finalised (ideally by legal counsel) before public/commercial use.",
+    "Η εφαρμογή συγκεντρώνει δεδομένα ελληνικών δημόσιων συμβάσεων από επίσημες πηγές και τα παρουσιάζει με ενιαίο τρόπο. Δεν είναι επίσημος φορέας ούτε υποκαθιστά τις πηγές.": "The app aggregates Greek public-procurement data from official sources and presents it uniformly. It is not an official body and does not replace the sources.",
+    "Πηγές": "Sources",
+    "Κεντρικό Ηλεκτρονικό Μητρώο Δημοσίων Συμβάσεων: η κύρια πηγή (αιτήματα, προκηρύξεις, αποτελέσματα, συμβάσεις, πληρωμές).": "Central Electronic Registry of Public Procurement: the primary source (requests, notices, results, contracts, payments).",
+    "αποφάσεις διαφάνειας και κατάλογος φορέων, για εμπλουτισμό των αναθετουσών αρχών.": "transparency decisions and an organisation directory, used to enrich contracting authorities.",
+    "Tenders Electronic Daily: προκηρύξεις και αποτελέσματα επιπέδου ΕΕ για Έλληνες αγοραστές.": "Tenders Electronic Daily: EU-level notices and results for Greek buyers.",
+    "Γενικό Εμπορικό Μητρώο: εμπλουτισμός στοιχείων αναδόχων/αρχών μέσω ΑΦΜ.": "General Commercial Registry: enriches contractor/authority details by VAT number (Tax ID).",
+    "Επικαιροποίηση": "Freshness",
+    "Τα δεδομένα εισάγονται περιοδικά, όχι σε πραγματικό χρόνο. Κάθε πράξη φέρει σήμα πηγής και σχετικές ημερομηνίες (δημοσίευση, υπογραφή, εισαγωγή). Ενδέχεται να υπάρχει καθυστέρηση μεταξύ της επίσημης δημοσίευσης και της εμφάνισης εδώ.": "Data is ingested periodically, not in real time. Each act shows a source badge and relevant dates (publication, signing, ingestion). There may be a delay between official publication and its appearance here.",
+    "Ακρίβεια & περιορισμοί": "Accuracy & limitations",
+    "Τα δεδομένα αναπαράγονται όπως δημοσιεύονται από τις επίσημες πηγές και ενδέχεται να περιέχουν σφάλματα, ελλείψεις ή ασυνέπειες προερχόμενες από την πηγή. Ορισμένες προφανώς εσφαλμένες τιμές (π.χ. διόγκωση ~1000×) επισημαίνονται και εξαιρούνται από τα στατιστικά.": "Data is reproduced as published by the official sources and may contain errors, omissions or inconsistencies originating from the source. Some obviously wrong values (e.g. ~1000× inflation) are flagged and excluded from the statistics.",
+    "Τα δεδομένα δεν αποτελούν επίσημο ή αυθεντικό αντίγραφο. Για κάθε επίσημη ή νομική χρήση, ανατρέξτε απευθείας στην αρχική πηγή": "The data is not an official or authentic copy. For any official or legal use, consult the original source directly",
+    "(ο σύνδεσμος προς το επίσημο έγγραφο υπάρχει σε κάθε σελίδα πράξης).": "(a link to the official document is on every act page).",
+    "Επιμελημένα στοιχεία": "Curated data",
+    "Οι διαχειριστές ενδέχεται να προσθέτουν σημειώσεις, διορθώσεις ή εμπλουτισμό (π.χ. από ΓΕΜΗ). Αυτά διακρίνονται από τα πρωτότυπα πεδία της πηγής και δεν αλλοιώνουν το επίσημο έγγραφο.": "Administrators may add notes, corrections or enrichment (e.g. from GEMI). These are distinguished from the original source fields and do not alter the official document.",
+    "Αναφορά σφαλμάτων": "Reporting errors",
+    "Για αναφορά ανακρίβειας, επικοινωνήστε στο: [συμπληρώστε email/φόρμα επικοινωνίας].": "To report an inaccuracy, contact: [add email / contact form].",
+    "Ποια δεδομένα συλλέγουμε": "What data we collect",
+    "Για λογαριασμούς χρηστών: όνομα χρήστη, προαιρετικά email, και τεχνικά δεδομένα χρήσης (π.χ. αρχεία καταγραφής, IP για ασφάλεια/έλεγχο). Οι κωδικοί αποθηκεύονται με hash, ποτέ σε απλό κείμενο.": "For user accounts: username, optional email, and technical usage data (e.g. logs, IP for security/audit). Passwords are stored hashed, never in plain text.",
+    "Πώς τα χρησιμοποιούμε": "How we use it",
+    "Για παροχή πρόσβασης, ασφάλεια, υποστήριξη και βελτίωση της υπηρεσίας. [Συμπληρώστε: νομική βάση επεξεργασίας, τυχόν επεξεργαστές/τρίτοι, cookies.]": "To provide access, security, support and to improve the service. [Add: legal basis for processing, any processors/third parties, cookies.]",
+    "Διατήρηση & δικαιώματά σας": "Retention & your rights",
+    "Έχετε δικαίωμα πρόσβασης, διόρθωσης, εξαγωγής και διαγραφής των δεδομένων του λογαριασμού σας. [Συμπληρώστε: περίοδος διατήρησης και διαδικασία άσκησης δικαιωμάτων GDPR.]": "You have the right to access, correct, export and delete your account data. [Add: retention period and the process for exercising GDPR rights.]",
+    "Υπεύθυνος επεξεργασίας / επικοινωνία: [συμπληρώστε στοιχεία].": "Data controller / contact: [add details].",
+    "Η υπηρεσία": "The service",
+    "Η υπηρεσία παρέχει πρόσβαση σε συγκεντρωμένα δεδομένα δημόσιων συμβάσεων. Παρέχεται «ως έχει», χωρίς εγγύηση ακρίβειας, πληρότητας ή διαθεσιμότητας των δεδομένων — δείτε τη σελίδα Πηγές & δεδομένα.": "The service provides access to aggregated public-procurement data. It is provided \"as is\", with no warranty as to the accuracy, completeness or availability of the data — see the Sources & data page.",
+    "Αποδεκτή χρήση": "Acceptable use",
+    "Δεν επιτρέπεται κατάχρηση, αυτοματοποιημένη μαζική άντληση πέραν των επιτρεπόμενων ορίων, ή χρήση που παραβιάζει δικαιώματα τρίτων ή τη νομοθεσία. [Συμπληρώστε ειδικότερους όρους.]": "Abuse, automated bulk scraping beyond permitted limits, or use that violates third-party rights or the law is not allowed. [Add more specific terms.]",
+    "Συνδρομές & πληρωμές": "Subscriptions & payments",
+    "[Συμπληρώστε: όροι συνδρομής, τιμολόγηση, ανανέωση, ακύρωση, επιστροφές.]": "[Add: subscription terms, pricing, renewal, cancellation, refunds.]",
+    "Ευθύνη & εφαρμοστέο δίκαιο": "Liability & governing law",
+    "[Συμπληρώστε: περιορισμός ευθύνης, αποζημίωση, εφαρμοστέο δίκαιο και δικαιοδοσία.]": "[Add: limitation of liability, indemnity, governing law and jurisdiction.]",
+    "Επικοινωνία: [συμπληρώστε στοιχεία].": "Contact: [add details].",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
@@ -1622,5 +1665,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
              _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
-             _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMNAV, _INTERCONNECT, _HELP):
+             _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL):
     UI_EN.update(_grp)

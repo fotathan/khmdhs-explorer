@@ -1583,6 +1583,24 @@ def help_page(request: Request):
                                       {"nav_active": "help"})
 
 
+# Public trust / legal pages (linked from the site footer). data-sources is real
+# provenance info; privacy/terms are DRAFT placeholders to be finalised (draft=True
+# shows a banner) — see the templates.
+@app.get("/data-sources", response_class=HTMLResponse)
+def data_sources_page(request: Request):
+    return templates.TemplateResponse(request, "data_sources.html", {})
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy_page(request: Request):
+    return templates.TemplateResponse(request, "privacy.html", {"draft": True})
+
+
+@app.get("/terms", response_class=HTMLResponse)
+def terms_page(request: Request):
+    return templates.TemplateResponse(request, "terms.html", {"draft": True})
+
+
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request,
          page: int = Query(1, ge=1),
