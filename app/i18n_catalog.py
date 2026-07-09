@@ -1381,6 +1381,19 @@ _INTERCONNECT = {
 
 # User manual / help page (beta_help.html). Greek-source keys -> English.
 _HELP = {
+    "Τι καλύπτει η αναζήτηση": "What search covers",
+    "Η μία μπάρα αναζήτησης ταιριάζει ταυτόχρονα τον τίτλο, το πλήρες κείμενο, τους δημοσιευμένους εξαχθέντες πίνακες και τα ανεβασμένα συνημμένα μιας πράξης (όπου είναι ενεργά). Έτσι μια λέξη που υπάρχει μόνο μέσα σε έναν πίνακα ή ένα συνημμένο εξακολουθεί να βρίσκει την πράξη.":
+        "The single search box matches an act's title, full text, published extracted tables, and uploaded attachments (where enabled) — all at once. So a word that appears only inside a table or an attachment still finds the act.",
+    "Μια φιλική ταξινόμηση δύο επιπέδων, παραγόμενη αυτόματα από τους κωδικούς CPV των ειδών μιας πράξης — επιλέξτε ολόκληρη κατηγορία ή υποκατηγορία χωρίς να ξέρετε κωδικούς CPV.":
+        "A friendly two-level taxonomy generated automatically from an act's line-item CPV codes — pick a whole category or a subcategory without knowing CPV codes.",
+    "Παράγονται από τους κωδικούς CPV της πράξης· κάθε κατηγορία/υποκατηγορία οδηγεί σε αναζήτηση όλων των σχετικών πράξεων.":
+        "Derived from the act's CPV codes; each category/subcategory links to a search for all related acts.",
+    "Από κείμενο σε πεδία": "From text to fields",
+    "Στον επεξεργαστή πράξης, επιλέγοντας κείμενο μέσα στο πλήρες κείμενο εμφανίζεται ένα μικρό μενού: διαλέξτε ένα δομημένο πεδίο και η επιλογή αντιγράφεται αυτόματα εκεί — γρήγορη συμπλήρωση χωρίς αντιγραφή-επικόλληση.":
+        "In the act editor, selecting text inside the full text pops up a small menu: choose a structured field and the selection is copied straight into it — quick fill-in without copy-paste.",
+    "Αναζητήσιμο": "Searchable",
+    "Μόλις δημοσιευτεί μια εξαγωγή, το περιεχόμενο των κελιών της γίνεται αυτόματα αναζητήσιμο: μια λέξη-κλειδί στην κύρια αναζήτηση βρίσκει την πράξη μέσω του πίνακα. Το ίδιο ισχύει για τα ανεβασμένα συνημμένα μιας πράξης (όπου η δυνατότητα είναι ενεργή) — το κείμενό τους ευρετηριάζεται και είναι αναζητήσιμο.":
+        "Once an extraction is published, its cell content becomes automatically searchable: a keyword in the main search finds the act via the table. The same holds for an act's uploaded attachments (where the feature is enabled) — their text is indexed and searchable.",
     "Εγχειρίδιο χρήσης": "User manual",
     "Οδηγός του Εξερευνητή": "The Explorer guide",
     "Τι κάνει η εφαρμογή και πώς να τη χρησιμοποιήσετε — αναζήτηση πράξεων, ανάγνωση ενός διαγωνισμού από άκρη σε άκρη, παρακολούθηση αρχών και αναδόχων, και η κονσόλα διαχείρισης.": "What the app does and how to use it — searching acts, reading a tender end to end, tracking authorities and contractors, and the admin console.",
