@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import os
 import re
+import secrets
 from contextlib import contextmanager
 from datetime import date
 from typing import Optional
@@ -34,7 +35,7 @@ from typing import Optional
 import psycopg
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
-from fastapi import FastAPI, Request, Query, HTTPException, Form
+from fastapi import FastAPI, Request, Query, HTTPException, Form, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -905,6 +906,50 @@ def lookups() -> dict:
 # ---------------------------------------------------------------------------- #
 # App + routes
 # ---------------------------------------------------------------------------- #
+# ---------------------------------------------------------------------------- #
+# CSRF protection (synchronizer token). A per-session token lives in the signed
+# session cookie (set in AuthMiddleware) and is exposed to templates. Every
+# unsafe request must echo it back — via the X-CSRF-Token header (HTMX + fetch,
+# see _csrf.html) or a `csrf_token` form field (plain forms). Enforced here as a
+# global dependency so it also covers the mounted admin/crm/interconnect/tables
+# routers. Defense-in-depth on top of the SameSite=Lax session cookie.
+#   * Safe methods (GET/HEAD/OPTIONS) are never checked.
+#   * /login and /register are exempt: pre-auth, and already guarded by
+#     SameSite=Lax; checking them risks a first-request lockout.
+#   * The form-field path reuses FastAPI's cached request.form(), so it does not
+#     consume the body from the route (and only parses when the header is absent
+#     and the body is actually a form — never for JSON or to buffer uploads
+#     needlessly).
+# ---------------------------------------------------------------------------- #
+_CSRF_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
+_CSRF_EXEMPT = ("/login", "/register")
+
+
+async def csrf_protect(request: Request) -> None:
+    if request.method in _CSRF_SAFE_METHODS:
+        return
+    path = request.url.path
+    if any(path == p or path.startswith(p + "/") for p in _CSRF_EXEMPT):
+        return
+    expected = None
+    try:
+        expected = request.session.get("csrf")
+    except Exception:      # no session (shouldn't happen behind SessionMiddleware)
+        expected = None
+    submitted = request.headers.get("X-CSRF-Token")
+    if not submitted:
+        ctype = request.headers.get("content-type", "")
+        if ctype.startswith(("application/x-www-form-urlencoded", "multipart/form-data")):
+            try:
+                form = await request.form()
+                submitted = form.get("csrf_token")
+            except Exception:      # noqa: BLE001
+                submitted = None
+    if not (expected and submitted and
+            secrets.compare_digest(str(submitted), str(expected))):
+        raise HTTPException(status_code=403, detail="CSRF token missing or invalid")
+
+
 # API docs (/docs, /redoc, /openapi.json) are OFF by default — they publish the
 # whole route + schema surface, which we don't want exposed on a private tool.
 # Set ENABLE_DOCS=1 (e.g. local dev) to turn them back on.
@@ -914,6 +959,7 @@ app = FastAPI(
     docs_url="/docs" if _DOCS else None,
     redoc_url="/redoc" if _DOCS else None,
     openapi_url="/openapi.json" if _DOCS else None,
+    dependencies=[Depends(csrf_protect)],
 )
 
 
@@ -981,8 +1027,13 @@ def _auth_context(request):
     u = getattr(request.state, "user", None)
     role = u.get("role") if u else None
     has_access = bool(u and u.get("has_access"))
+    try:
+        csrf = request.session.get("csrf", "")
+    except Exception:
+        csrf = ""
     return {"user": u, "is_authenticated": u is not None,
             "is_admin": role == "admin", "tier": role or "anonymous",
+            "csrf_token": csrf,
             # subscription-aware fields for the teaser CTA / status badges:
             "status": (u.get("status") if u else "anonymous"),
             "has_access": has_access,
@@ -1028,6 +1079,10 @@ def _is_admin_path(path: str) -> bool:
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
+        # Ensure a CSRF token exists in the (signed) session; templates read it
+        # and every unsafe request must echo it back (see csrf_protect).
+        if not request.session.get("csrf"):
+            request.session["csrf"] = secrets.token_urlsafe(32)
         # Resolve the session to a live account on EVERY request (DB-backed, so
         # deactivation / role changes take effect immediately, not on re-login).
         request.state.user = None
