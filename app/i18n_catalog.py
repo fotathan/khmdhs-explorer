@@ -1618,6 +1618,13 @@ _HELP = {
 
 # Trust / legal footer pages (data_sources, privacy, terms) + footer.
 _LEGAL = {
+    "Προέλευση δεδομένων": "Data provenance",
+    "Επικαιροποίηση πηγής": "Source updated",
+    "Εισαγωγή": "Ingested",
+    "Επιμέλεια": "Curated",
+    "διαχειριστής": "administrator",
+    "Δεδομένα από επίσημη πηγή, όχι αυθεντικό αντίγραφο.": "Data from an official source, not an authentic copy.",
+    "Περισσότερα": "More",
     "Τα δεδομένα προέρχονται από επίσημες δημόσιες πηγές (ΚΗΜΔΗΣ, Διαύγεια, TED) και ενδέχεται να περιέχουν σφάλματα ή καθυστερήσεις. Δεν αποτελούν επίσημο ή αυθεντικό αντίγραφο· για επίσημη χρήση ανατρέξτε στην αρχική πηγή.": "Data comes from official public sources (KHMDHS, Diavgeia, TED) and may contain errors or delays. It is not an official or authentic copy — for official use, consult the original source.",
     "Πηγές & δεδομένα": "Sources & data",
     "Πολιτική απορρήτου": "Privacy policy",

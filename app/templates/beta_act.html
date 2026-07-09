@@ -269,6 +269,26 @@
       </div>
 
       <div class="sidecard">
+        <div class="sidecard-h">{{ t("Προέλευση δεδομένων") }}</div>
+        <dl class="prov">
+          <dt>{{ t("Πηγή") }}</dt>
+          <dd>{% if n.data_source=='ted' %}TED{% elif n.data_source=='diavgeia' %}{{ t("Διαύγεια") }}{% else %}{{ t("ΚΗΜΔΗΣ") }}{% endif %}</dd>
+          {% if n.last_update_date %}<dt>{{ t("Επικαιροποίηση πηγής") }}</dt><dd>{{ n.last_update_date.strftime('%Y-%m-%d') }}</dd>{% endif %}
+          {% if n.ingested_at %}<dt>{{ t("Εισαγωγή") }}</dt><dd>{{ n.ingested_at.strftime('%Y-%m-%d') }}</dd>{% endif %}
+          {% if n.last_edited_at %}<dt>{{ t("Επιμέλεια") }}</dt><dd>{{ n.last_edited_by or t("διαχειριστής") }} · {{ n.last_edited_at.strftime('%Y-%m-%d') }}</dd>{% endif %}
+        </dl>
+        <p class="prov-note">{{ t("Δεδομένα από επίσημη πηγή, όχι αυθεντικό αντίγραφο.") }} <a href="/data-sources">{{ t("Περισσότερα") }}</a></p>
+        <style>
+          .prov{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:0 0 10px;font-size:12.5px;}
+          .prov dt{color:var(--ink-3);font-family:var(--mono);font-size:10px;text-transform:uppercase;
+            letter-spacing:.04em;padding-top:2px;white-space:nowrap;}
+          .prov dd{margin:0;color:var(--ink);}
+          .prov-note{margin:0;font-size:11.5px;color:var(--ink-3);line-height:1.5;}
+          .prov-note a{color:var(--accent);}
+        </style>
+      </div>
+
+      <div class="sidecard">
         <div class="sidecard-h">{{ t("Σημειώσεις ομάδας") }}
           {% if is_admin %}<a href="/admin/act/{{ n.adam }}/edit?tab=fields">{{ t("επεξεργασία ›") }}</a>{% endif %}
         </div>

@@ -1875,6 +1875,9 @@ def act_detail(adam: str, request: Request):
                    a.raw_json,
                    a.full_text, a.full_text_html,
                    a.full_text_extracted_at, a.full_text_source,
+                   -- provenance (shown in the "data provenance" sidecard)
+                   a.ingested_at, a.last_update_date,
+                   a.last_edited_at, a.last_edited_by, a.source_url,
                    -- extended multi-source fields (authored / non-KHMDHS acts)
                    a.divided_into_lots, a.is_framework_agreement,
                    a.type_of_bid_required, a.alternative_offers_allowed,
