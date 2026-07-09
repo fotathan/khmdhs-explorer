@@ -4,6 +4,10 @@
 <div class="auth-wrap">
   <div class="auth-card">
     <h1>{{ t("Εγγραφή") }}</h1>
+    {% if closed %}
+    <p class="auth-lead">{{ t("Η δημιουργία λογαριασμών γίνεται με πρόσκληση. Επικοινωνήστε με τον διαχειριστή για πρόσβαση.") }}</p>
+    <p class="auth-alt">{{ t("Έχετε ήδη λογαριασμό;") }} <a href="/login">{{ t("Σύνδεση") }}</a></p>
+    {% else %}
     <p class="auth-lead">{{ t("Δημιουργήστε δωρεάν λογαριασμό για πλήρη πρόσβαση σε αναζήτηση, σελιδοποίηση και αναλυτικές πράξεις.") }}</p>
     {% if error %}<div class="auth-error">{{ error | t }}</div>{% endif %}
     <form method="post" action="/register">
@@ -19,9 +23,15 @@
       <label>{{ t("Επιβεβαίωση κωδικού") }}
         <input type="password" name="password2" autocomplete="new-password" required minlength="8">
       </label>
+      {% if invite_required %}
+      <label>{{ t("Κωδικός πρόσκλησης") }}
+        <input type="text" name="invite" autocomplete="off" required>
+      </label>
+      {% endif %}
       <button type="submit" class="auth-btn">{{ t("Δημιουργία λογαριασμού") }}</button>
     </form>
     <p class="auth-alt">{{ t("Έχετε ήδη λογαριασμό;") }} <a href="/login">{{ t("Σύνδεση") }}</a></p>
+    {% endif %}
   </div>
 </div>
 <style>

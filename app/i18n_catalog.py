@@ -1142,6 +1142,10 @@ _AUTH = {
     "Αποσύνδεση": "Sign out",
     "Όνομα χρήστη": "Username",
     "Κωδικός": "Password",
+    "Η δημιουργία λογαριασμών γίνεται με πρόσκληση. Επικοινωνήστε με τον διαχειριστή για πρόσβαση.":
+        "Accounts are created by invitation. Please contact the administrator for access.",
+    "Κωδικός πρόσκλησης": "Invitation code",
+    "Μη έγκυρος κωδικός πρόσκλησης.": "Invalid invitation code.",
     "Δεν έχετε λογαριασμό;": "Don't have an account?",
     "Έχετε ήδη λογαριασμό;": "Already have an account?",
     "Email (προαιρετικό)": "Email (optional)",

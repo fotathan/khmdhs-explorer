@@ -897,7 +897,16 @@ def lookups() -> dict:
 # ---------------------------------------------------------------------------- #
 # App + routes
 # ---------------------------------------------------------------------------- #
-app = FastAPI(title="Greek Procurement Explorer", version="0.1.0")
+# API docs (/docs, /redoc, /openapi.json) are OFF by default — they publish the
+# whole route + schema surface, which we don't want exposed on a private tool.
+# Set ENABLE_DOCS=1 (e.g. local dev) to turn them back on.
+_DOCS = os.environ.get("ENABLE_DOCS", "0") == "1"
+app = FastAPI(
+    title="Greek Procurement Explorer", version="0.1.0",
+    docs_url="/docs" if _DOCS else None,
+    redoc_url="/redoc" if _DOCS else None,
+    openapi_url="/openapi.json" if _DOCS else None,
+)
 
 
 @app.get("/set-lang")
@@ -935,10 +944,28 @@ try:
 except ImportError:
     import interconnect as _interconnect
 
-_SECRET_KEY = os.environ.get("SECRET_KEY", "dev-insecure-key-change-in-prod")
+# SECRET_KEY signs the session cookies; a known/default value makes admin
+# sessions forgeable. Require it in production and fail closed rather than boot
+# with the insecure fallback. Production is detected via Render's own RENDER
+# env var (set on every Render service) or an explicit APP_ENV=production.
+_IS_PROD = bool(os.environ.get("RENDER") or
+                os.environ.get("APP_ENV", "").lower() == "production")
+_SECRET_KEY = os.environ.get("SECRET_KEY")
+if not _SECRET_KEY:
+    if _IS_PROD:
+        _sys.exit("FATAL: SECRET_KEY is required in production (it signs session "
+                  "cookies; without it sessions are forgeable). Set SECRET_KEY in "
+                  "the environment and redeploy.")
+    _SECRET_KEY = "dev-insecure-key-change-in-prod"   # local dev only
 # Cookie is Secure (https-only) in prod; default on when SECRET_KEY is set.
 _SESSION_SECURE = os.environ.get(
     "SESSION_SECURE", "1" if os.environ.get("SECRET_KEY") else "0") == "1"
+
+# Public self-service sign-up is CLOSED by default (safest for a pilot; admins
+# still create accounts directly via /admin/users or db.py). Set REGISTRATION_MODE
+# to "open" (anyone) or "invite" (requires the REGISTRATION_INVITE_CODE below).
+_REGISTRATION_MODE = os.environ.get("REGISTRATION_MODE", "closed").strip().lower()
+_INVITE_CODE = os.environ.get("REGISTRATION_INVITE_CODE", "")
 
 
 def _auth_context(request):
@@ -1082,23 +1109,37 @@ def logout(request: Request):
 def register_form(request: Request):
     if getattr(request.state, "user", None):
         return _Redirect("/", status_code=303)
-    return templates.TemplateResponse(request, "register.html",
-                                      {"error": None, "values": {}})
+    if _REGISTRATION_MODE == "closed":
+        return templates.TemplateResponse(
+            request, "register.html", {"closed": True}, status_code=403)
+    return templates.TemplateResponse(
+        request, "register.html",
+        {"error": None, "values": {}, "invite_required": _REGISTRATION_MODE == "invite"})
 
 
 @app.post("/register")
 async def register_submit(request: Request):
+    if _REGISTRATION_MODE == "closed":
+        return templates.TemplateResponse(
+            request, "register.html", {"closed": True}, status_code=403)
     form = await request.form()
     username = (form.get("username") or "").strip()
     email = (form.get("email") or "").strip()
     password = form.get("password") or ""
     password2 = form.get("password2") or ""
     values = {"username": username, "email": email}
+    invite_required = _REGISTRATION_MODE == "invite"
 
     def err(msg, code=400):
         return templates.TemplateResponse(
             request, "register.html",
-            {"error": msg, "values": values}, status_code=code)
+            {"error": msg, "values": values, "invite_required": invite_required},
+            status_code=code)
+
+    # Invite mode: a matching, non-empty code is mandatory.
+    if invite_required and (not _INVITE_CODE or
+                            (form.get("invite") or "").strip() != _INVITE_CODE):
+        return err("Μη έγκυρος κωδικός πρόσκλησης.", 403)
 
     if not _auth.username_ok(username):
         return err("Μη έγκυρο όνομα χρήστη (3–40 χαρακτήρες: γράμματα, αριθμοί, . _ - @).")
