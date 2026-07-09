@@ -1222,6 +1222,24 @@ def healthz():
         return c.fetchone()
 
 
+@app.get("/version")
+def version():
+    """Deployed build marker — makes infra-only deploys (no visible route
+    change) externally verifiable. RENDER_GIT_COMMIT is set by Render to the
+    deployed commit SHA; 'dev' locally. Also reports pool sizing + a live DB
+    check so this doubles as a richer health probe."""
+    out = {"commit": os.environ.get("RENDER_GIT_COMMIT", "dev"),
+           "pool": {"min": _POOL_MIN, "max": _POOL_MAX}}
+    try:
+        with cursor() as c:
+            c.execute("SELECT 1")
+            c.fetchone()
+        out["db"] = "ok"
+    except Exception:      # noqa: BLE001 — report, don't raise
+        out["db"] = "error"
+    return out
+
+
 @app.get("/api/cpv-suggest", response_class=HTMLResponse)
 def cpv_suggest(request: Request, term: str = Query(""), wild: int = Query(1)):
     """Autosuggest for the CPV filter. As the user types a code prefix (e.g.
