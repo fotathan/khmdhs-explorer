@@ -1618,6 +1618,17 @@ _HELP = {
 
 # Trust / legal footer pages (data_sources, privacy, terms) + footer.
 _LEGAL = {
+    "Ο λογαριασμός μου": "My account",
+    "Τα δεδομένα σας": "Your data",
+    "Κατεβάστε όλα τα προσωπικά δεδομένα που τηρούμε για τον λογαριασμό σας σε μορφή JSON.": "Download all the personal data we hold for your account, in JSON format.",
+    "Λήψη των δεδομένων μου (JSON)": "Download my data (JSON)",
+    "Διαγραφή λογαριασμού": "Delete account",
+    "Η διαγραφή είναι οριστική και αφαιρεί τον λογαριασμό σας και τα σχετικά προσωπικά δεδομένα (συνδρομές, προφίλ, σημειώσεις). Δεν μπορεί να αναιρεθεί.": "Deletion is permanent and removes your account and related personal data (subscriptions, profile, notes). It cannot be undone.",
+    "Οριστική διαγραφή του λογαριασμού σας;": "Permanently delete your account?",
+    "Κατανοώ ότι η ενέργεια είναι μη αναστρέψιμη.": "I understand this action is irreversible.",
+    "Διαγραφή του λογαριασμού μου": "Delete my account",
+    "Οι λογαριασμοί διαχειριστών διαχειρίζονται από τη Διαχείριση.": "Admin accounts are managed in Administration.",
+    "Επιβεβαιώστε ότι κατανοείτε πως η ενέργεια είναι μη αναστρέψιμη.": "Confirm that you understand this action is irreversible.",
     "Προέλευση δεδομένων": "Data provenance",
     "Επικαιροποίηση πηγής": "Source updated",
     "Εισαγωγή": "Ingested",

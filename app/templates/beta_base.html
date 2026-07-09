@@ -299,7 +299,7 @@
         {% include "_topnav.html" %}
         {% include "_lang_select.html" %}
         {% if is_authenticated %}
-          <span class="acct-user" title="{{ user.role }}">{{ user.username }}</span>
+          <a href="/account" class="acct-user" title="{{ t('Ο λογαριασμός μου') }}">{{ user.username }}</a>
           <a href="/logout" class="acct-link">{{ t("Αποσύνδεση") }}</a>
         {% else %}
           <a href="/login" class="acct-link">{{ t("Σύνδεση") }}</a>

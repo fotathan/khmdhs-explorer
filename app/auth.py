@@ -687,3 +687,38 @@ def throttle_fail(key):
 
 def throttle_reset(key):
     _FAILS.pop(key, None)
+
+
+# --------------------------------------------------------------------------- #
+# Self-service account data (GDPR: access / erasure)
+# --------------------------------------------------------------------------- #
+def export_account(c, uid):
+    """Every piece of personal data held for a user, for self-service export.
+    Excludes the password hash."""
+    c.execute("""SELECT id, username, email, role, is_active, created_at, last_login_at
+                 FROM proc.app_user WHERE id = %s""", (uid,))
+    account = c.fetchone()
+    c.execute("""SELECT id, product_code, started_at, expires_at, created_at
+                 FROM proc.user_subscription WHERE user_id = %s ORDER BY created_at""", (uid,))
+    subs = c.fetchall()
+    c.execute("""SELECT full_name, phone, mobile, job_title, company, vat_number,
+                        industry, country, city, address, lead_source, about, updated_at
+                 FROM proc.customer_profile WHERE user_id = %s""", (uid,))
+    profile = c.fetchone()
+    c.execute("""SELECT id, body, created_at FROM proc.customer_note
+                 WHERE user_id = %s ORDER BY created_at""", (uid,))
+    notes = c.fetchall()
+    c.execute("""SELECT id, subject, direction, status, scheduled_at, outcome, created_at
+                 FROM proc.customer_call WHERE user_id = %s ORDER BY created_at""", (uid,))
+    calls = c.fetchall()
+    c.execute("""SELECT id, subject, body, status, due_at, outcome, created_at, completed_at
+                 FROM proc.customer_task WHERE user_id = %s ORDER BY created_at""", (uid,))
+    tasks = c.fetchall()
+    return {"account": account, "subscriptions": subs, "profile": profile,
+            "notes": notes, "calls": calls, "tasks": tasks}
+
+
+def delete_account(c, uid):
+    """Hard-delete the user. FKs cascade their subscriptions, profile, notes,
+    calls and tasks; admin audit rows keep a username snapshot (user_id → NULL)."""
+    c.execute("DELETE FROM proc.app_user WHERE id = %s", (uid,))

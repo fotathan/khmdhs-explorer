@@ -1601,6 +1601,60 @@ def terms_page(request: Request):
     return templates.TemplateResponse(request, "terms.html", {"draft": True})
 
 
+# --- Self-service account (GDPR: access / export / erasure) ------------------ #
+@app.get("/account", response_class=HTMLResponse)
+def account_page(request: Request):
+    u = getattr(request.state, "user", None)
+    if not u:
+        return _Redirect("/login?next=/account", status_code=303)
+    sub = None
+    try:
+        with cursor() as c:
+            sub = _auth.current_subscription(c, u["id"])
+    except Exception:      # noqa: BLE001 — subscription is optional decoration
+        sub = None
+    return templates.TemplateResponse(request, "account.html",
+                                      {"acct": u, "subscription": sub})
+
+
+@app.post("/account/export")
+def account_export(request: Request):
+    u = getattr(request.state, "user", None)
+    if not u:
+        raise HTTPException(status_code=401)
+    with cursor() as c:
+        data = _auth.export_account(c, u["id"])
+    import json as _json
+    body = _json.dumps(data, default=str, ensure_ascii=False, indent=2)
+    return _Response(body, media_type="application/json",
+                     headers={"Content-Disposition":
+                              f'attachment; filename="account-{u["username"]}.json"'})
+
+
+@app.post("/account/delete")
+async def account_delete(request: Request):
+    u = getattr(request.state, "user", None)
+    if not u:
+        return _Redirect("/login", status_code=303)
+    # Admin accounts are managed in /admin/users (and FKs like granted_by would
+    # block a self-delete anyway); refuse here.
+    if u.get("role") == "admin":
+        return templates.TemplateResponse(
+            request, "account.html",
+            {"acct": u, "error": "Οι λογαριασμοί διαχειριστών διαχειρίζονται από τη Διαχείριση."},
+            status_code=403)
+    form = await request.form()
+    if not form.get("confirm"):
+        return templates.TemplateResponse(
+            request, "account.html",
+            {"acct": u, "error": "Επιβεβαιώστε ότι κατανοείτε πως η ενέργεια είναι μη αναστρέψιμη."},
+            status_code=400)
+    with cursor() as c:
+        _auth.delete_account(c, u["id"])
+    _auth.logout_session(request)
+    return _Redirect("/?account_deleted=1", status_code=303)
+
+
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request,
          page: int = Query(1, ge=1),
