@@ -1,0 +1,45 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ t("Αρχείο ενεργειών") }} · {{ t("Εξερευνητής") }}{% endblock %}
+{% block admin_content %}
+<div class="page-head">
+  <h1>{{ t("Αρχείο ενεργειών διαχείρισης") }}</h1>
+  <div class="sub">{{ t("Οι πιο πρόσφατες ενέργειες που αλλάζουν δεδομένα — ποιος, τι, πότε και από πού.") }} · {{ rows|length }}</div>
+</div>
+
+<div style="overflow-x:auto;">
+<table class="dtable" style="min-width:640px;">
+  <thead><tr>
+    <th>{{ t("Ώρα") }}</th>
+    <th>{{ t("Χρήστης") }}</th>
+    <th>{{ t("Μέθοδος") }}</th>
+    <th>{{ t("Διαδρομή") }}</th>
+    <th>{{ t("Κατάσταση") }}</th>
+    <th>IP</th>
+  </tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td style="white-space:nowrap;">{{ r.at.strftime('%Y-%m-%d %H:%M') if r.at else '' }}</td>
+      <td>{{ r.username or '—' }}</td>
+      <td><code>{{ r.method }}</code></td>
+      <td><code style="word-break:break-all;">{{ r.path }}</code></td>
+      <td><span class="stbadge s{{ (r.status_code // 100) if r.status_code else 0 }}">{{ r.status_code or '—' }}</span></td>
+      <td style="font-family:var(--mono);font-size:12px;color:var(--ink-3);">{{ r.ip or '' }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" style="color:var(--ink-3);">{{ t("Καμία ενέργεια ακόμη.") }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<style>
+  .stbadge{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:600;
+    padding:2px 8px;border-radius:999px;}
+  .stbadge.s2{background:#e6f3ec;color:#1f8a63;}   /* 2xx ok */
+  .stbadge.s3{background:#e8f0fb;color:#1a4f9c;}   /* 3xx redirect */
+  .stbadge.s4{background:#fdeceb;color:#b3261e;}   /* 4xx rejected */
+  .stbadge.s5{background:#fdeceb;color:#b3261e;}   /* 5xx error */
+  .stbadge.s0{background:var(--paper-2);color:var(--ink-3);}
+</style>
+{% endblock %}

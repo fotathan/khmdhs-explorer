@@ -1077,6 +1077,25 @@ def _is_admin_path(path: str) -> bool:
     return False
 
 
+def _audit(request, status_code: int) -> None:
+    """Record one state-changing admin request to proc.admin_action. Best-effort:
+    auditing must never break or slow-fail a request, so all errors are swallowed."""
+    try:
+        u = getattr(request.state, "user", None) or {}
+        xff = request.headers.get("x-forwarded-for", "")
+        ip = (xff.split(",")[0].strip() if xff
+              else (request.client.host if request.client else None))
+        with cursor() as c:
+            c.execute(
+                """INSERT INTO proc.admin_action
+                   (user_id, username, method, path, status_code, ip)
+                   VALUES (%s,%s,%s,%s,%s,%s)""",
+                (u.get("id"), u.get("username"), request.method,
+                 request.url.path[:512], status_code, ip))
+    except Exception:      # noqa: BLE001 — never let auditing affect the response
+        pass
+
+
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         # Ensure a CSRF token exists in the (signed) session; templates read it
@@ -1097,16 +1116,27 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     request.session.clear()   # gone or deactivated
             except Exception:
                 request.state.user = None
+        # Audit every state-changing request to an admin surface — including
+        # attempts rejected below (non-admin) or by CSRF (403 from the route).
+        is_admin_mut = (request.method not in _CSRF_SAFE_METHODS
+                        and _is_admin_path(request.url.path))
         # RBAC: admin-only areas.
         if _is_admin_path(request.url.path):
             if (request.state.user or {}).get("role") != "admin":
                 wants_json = "application/json" in request.headers.get("accept", "")
                 if request.state.user is None and not wants_json:
-                    return _Redirect(f"/login?next={_quote(request.url.path)}",
+                    resp = _Redirect(f"/login?next={_quote(request.url.path)}",
                                      status_code=303)
-                return _Response("Forbidden — admin access required.",
-                                 status_code=403)
-        return await call_next(request)
+                else:
+                    resp = _Response("Forbidden — admin access required.",
+                                     status_code=403)
+                if is_admin_mut:
+                    _audit(request, resp.status_code)
+                return resp
+        response = await call_next(request)
+        if is_admin_mut:
+            _audit(request, response.status_code)
+        return response
 
 
 # Order matters: SessionMiddleware is added LAST so it's OUTERMOST and populates

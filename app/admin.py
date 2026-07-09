@@ -265,6 +265,18 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         return templates.TemplateResponse(request, "admin_users.html",
                                           _users_ctx(request))
 
+    @router.get("/audit", response_class=HTMLResponse)
+    def admin_audit(request: Request, limit: int = Query(200, ge=1, le=1000)):
+        """Recent admin actions (who changed what, when, from where)."""
+        with cursor() as c:
+            c.execute("""SELECT at, username, method, path, status_code, ip
+                         FROM proc.admin_action
+                         ORDER BY at DESC LIMIT %s""", (limit,))
+            rows = c.fetchall()
+        return templates.TemplateResponse(
+            request, "admin_audit.html",
+            {"rows": rows, "limit": limit, "admin_tab": "audit"})
+
     @router.post("/users")
     async def admin_users_create(request: Request):
         form = await request.form()

@@ -18,6 +18,17 @@ _NAV = {
     "Σύνοψη": "Summary",
     "Στατιστικά": "Analytics",
     "Βοήθεια": "Help",
+    "Αρχείο ενεργειών": "Audit log",
+    "Αρχείο ενεργειών διαχείρισης": "Admin audit log",
+    "Οι πιο πρόσφατες ενέργειες που αλλάζουν δεδομένα — ποιος, τι, πότε και από πού.":
+        "The most recent state-changing actions — who, what, when and from where.",
+    "Χρήστης": "User",
+    "Μέθοδος": "Method",
+    "Διαδρομή": "Path",
+    "Καμία ενέργεια ακόμη.": "No actions yet.",
+    "Το": "The",
+    "(Αρχείο ενεργειών) καταγράφει κάθε ενέργεια που αλλάζει δεδομένα — ποιος, τι, πότε, από ποια IP και με ποιο αποτέλεσμα — συμπεριλαμβανομένων των απορριφθεισών προσπαθειών.":
+        "(Audit log) records every state-changing action — who, what, when, from which IP and with what outcome — including rejected attempts.",
     "Διαχείριση": "Administration",
     "KHMDHS · Εξερευνητής": "KHMDHS · Explorer",
     "Γλώσσα": "Language",
