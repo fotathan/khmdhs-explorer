@@ -976,6 +976,10 @@ def _is_gated(request: Request) -> bool:
 def _is_admin_path(path: str) -> bool:
     if path.startswith("/admin"):
         return True
+    # The in-app user manual is admin-only for now (a slimmer customer version
+    # may live here later). Gate it like the rest of the admin surface.
+    if path == "/help":
+        return True
     if path.startswith("/tables") and not path.startswith("/tables/public"):
         return True
     # Inline entity-edit affordances live under the public /authority/ and
@@ -1416,6 +1420,15 @@ def analytics(request: Request):
 
     data["nav_active"] = "analytics"
     return templates.TemplateResponse(request, "beta_analytics.html", data)
+
+
+@app.get("/help", response_class=HTMLResponse)
+def help_page(request: Request):
+    """In-app user manual (beta_help.html). Admin-only for now (enforced by
+    _is_admin_path / AuthMiddleware); a slimmer customer version may live here
+    later. Documents the app's functionality — keep it in sync with features."""
+    return templates.TemplateResponse(request, "beta_help.html",
+                                      {"nav_active": "help"})
 
 
 @app.get("/", response_class=HTMLResponse)
