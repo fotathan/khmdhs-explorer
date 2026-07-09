@@ -222,42 +222,198 @@ def _localname(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
-def parse_fulltext(xml_text: str):
-    """(summary, full_text) from a TED notice XML. summary = the top-level
-    ProcurementProject's Greek description (Συνοπτική Παρουσίαση); full_text =
-    every Greek (ELL) Description/Note joined, summary first."""
+def _txt(el) -> str:
+    return (el.text or "").strip() if el is not None else ""
+
+
+def _pick(el, path: str) -> str:
+    """First text at `path` under `el`, preferring the Greek (ELL) variant."""
+    if el is None:
+        return ""
+    cands = el.findall(path)
+    for c in cands:
+        if c.get("languageID") in (None, "ELL") and (c.text or "").strip():
+            return c.text.strip()
+    for c in cands:
+        if (c.text or "").strip():
+            return c.text.strip()
+    return ""
+
+
+# eForms code-list → Greek (the handful worth resolving; the rest are noise for
+# a searchable blob). CPV/NUTS resolve from proc.cpv_code / proc.nuts_code.
+_NATURE = {"supplies": "Αγαθά", "services": "Υπηρεσίες", "works": "Έργα"}
+_STATUS = {"selec-w": "Επιλέχθηκε ανάδοχος", "selec-nw": "Δεν επιλέχθηκε ανάδοχος",
+           "clos-nw": "Κλειστή, χωρίς ανάδοχο", "open-nw": "Ανοικτή, χωρίς ανάδοχο"}
+_UNIT = {"YEAR": "Έτη", "MONTH": "Μήνες", "WEEK": "Εβδομάδες", "DAY": "Ημέρες"}
+
+
+def load_label_maps(db):
+    """CPV (8-digit → Greek) and NUTS (code → Greek) label dicts, loaded once
+    per pass so parse_fulltext can render TED's resolved labels."""
+    cpv, nuts = {}, {}
+    try:
+        for k, v in db.query("SELECT left(cpv_code,8), description FROM proc.cpv_code"):
+            if k:
+                cpv.setdefault(k, v)
+    except Exception:      # noqa: BLE001 — labels are best-effort
+        pass
+    try:
+        for k, v in db.query("SELECT nuts_code, label FROM proc.nuts_code"):
+            nuts[k] = v
+    except Exception:      # noqa: BLE001
+        pass
+    return cpv, nuts
+
+
+def parse_fulltext(xml_text: str, cpv_labels: dict | None = None,
+                   nuts_labels: dict | None = None):
+    """Render (summary, full_text) from a TED eForms/UBL notice XML.
+
+    eForms keeps almost everything in *typed* fields (codes, amounts, party
+    names), not prose — so a plain Description/Note scrape captures next to
+    nothing. This walks the structured tree (project → lots → results →
+    organizations), resolving CPV/NUTS codes to Greek labels, then appends any
+    remaining Greek prose so call-for-tenders bodies survive too.
+
+    summary = the Συνοπτική Παρουσίαση header (title + CPV/NUTS/value/nature);
+    full_text = that plus per-lot detail, per-lot results, and the organization
+    directory (which names every winner) — a searchable mirror of TED's view.
+    """
+    cpv_labels = cpv_labels or {}
+    nuts_labels = nuts_labels or {}
     try:
         root = ET.fromstring(xml_text)
     except ET.ParseError:
         return None, None
-    summary = None
-    for pp in root.findall("{*}ProcurementProject"):     # top-level, not lots
-        for d in pp.iter():
-            if _localname(d.tag) == "Description" and d.get("languageID") == "ELL" \
-                    and (d.text or "").strip():
-                summary = d.text.strip()
-                break
-        if summary:
-            break
-    seen, parts = set(), []
-    if summary:
-        parts.append(summary)
-        seen.add(summary)
+
+    def cpv_lbl(c): return cpv_labels.get((c or "")[:8], "")
+    def nuts_lbl(c): return nuts_labels.get((c or "").strip(), "")
+
+    def amount(el):
+        if el is None or not _txt(el):
+            return ""
+        return f"{_txt(el)} {el.get('currencyID') or ''}".strip()
+
+    def render_purpose(pp, indent=""):
+        out = []
+        c = _txt(pp.find(".//{*}MainCommodityClassification/{*}ItemClassificationCode")) \
+            or _txt(pp.find(".//{*}ItemClassificationCode"))
+        if c:
+            out.append(f"{indent}CPV: {c} {cpv_lbl(c)}".rstrip())
+        nature = _txt(pp.find(".//{*}ProcurementTypeCode"))
+        if nature:
+            out.append(f"{indent}Είδος σύμβασης: {_NATURE.get(nature, nature)}")
+        nuts = _txt(pp.find(".//{*}RealizedLocation//{*}CountrySubentityCode")) \
+            or _txt(pp.find(".//{*}CountrySubentityCode"))
+        if nuts:
+            out.append(f"{indent}Τόπος (NUTS): {nuts} {nuts_lbl(nuts)}".rstrip())
+        v = amount(pp.find(".//{*}EstimatedOverallContractAmount"))
+        if v:
+            out.append(f"{indent}Εκτιμώμενη αξία (χωρίς ΦΠΑ): {v}")
+        dm = pp.find(".//{*}PlannedPeriod/{*}DurationMeasure")
+        if dm is not None and _txt(dm):
+            unit = _UNIT.get(dm.get("unitCode"), dm.get("unitCode") or "")
+            out.append(f"{indent}Διάρκεια: {_txt(dm)} {unit}".rstrip())
+        return out
+
+    # header — the top-level ProcurementProject (Συνοπτική Παρουσίαση)
+    top = root.find("{*}ProcurementProject")
+    header, title = [], ""
+    if top is not None:
+        title = _pick(top, "{*}Name") or _pick(top, "{*}Description")
+        if title:
+            header.append(title)
+        d = _pick(top, "{*}Description")
+        if d and d != title:
+            header.append(d)
+        header += render_purpose(top)
+    summary = "\n".join(header).strip() or None
+
+    # lots
+    lot_lines = []
+    for lot in root.findall("{*}ProcurementProjectLot"):
+        lid = _txt(lot.find("{*}ID"))
+        pp = lot.find("{*}ProcurementProject")
+        nm = _pick(pp, "{*}Name") if pp is not None else ""
+        lot_lines.append(f"\n{lid}: {nm}".rstrip())
+        if pp is not None:
+            dd = _pick(pp, "{*}Description")
+            if dd and dd != nm:
+                lot_lines.append("  " + dd)
+            lot_lines += render_purpose(pp, indent="  ")
+        crit = _pick(lot, ".//{*}AwardingCriterion//{*}Description") \
+            or _pick(lot, ".//{*}AwardingCriterion//{*}CalculationExpression")
+        if crit:
+            lot_lines.append(f"  Κριτήριο ανάθεσης: {crit}")
+
+    # results (award notices)
+    res_lines = []
+    for lr in root.iter():
+        if _localname(lr.tag) != "LotResult":
+            continue
+        lot_ref = _txt(lr.find(".//{*}TenderLot/{*}ID"))
+        status = _txt(lr.find("{*}TenderResultCode"))
+        mx = amount(lr.find(".//{*}MaximumValueAmount"))
+        parts = []
+        if status:
+            parts.append(_STATUS.get(status, status))
+        if mx:
+            parts.append(f"μέγιστη αξία {mx}")
+        if parts:
+            res_lines.append(f"  {lot_ref or 'Αποτέλεσμα'}: " + " · ".join(parts))
+    if res_lines:
+        res_lines.insert(0, "\nΑποτελέσματα")
+
+    # organizations (buyer + every winner/tenderer, by name)
+    org_lines = []
+    for org in root.iter():
+        if _localname(org.tag) != "Organization":
+            continue
+        comp = org.find("{*}Company")
+        if comp is None:
+            continue
+        nm = _pick(comp, ".//{*}PartyName/{*}Name")
+        if not nm:
+            continue
+        bits = [nm]
+        cid = _txt(comp.find(".//{*}PartyLegalEntity/{*}CompanyID"))
+        if cid:
+            bits.append(f"Αρ. καταχ.: {cid}")
+        city = _txt(comp.find(".//{*}PostalAddress/{*}CityName"))
+        if city:
+            bits.append(city)
+        email = _txt(comp.find(".//{*}Contact/{*}ElectronicMail"))
+        if email:
+            bits.append(email)
+        org_lines.append("  " + " · ".join(bits))
+    if org_lines:
+        org_lines.insert(0, "\nΟργανισμοί")
+
+    parts = ([summary] if summary else []) + lot_lines + res_lines + org_lines
+    structured = "\n".join(parts).strip()
+
+    # catch-all: any Greek prose Description/Note not already captured, so
+    # prose-rich call-for-tenders keep their body text.
+    extra = []
     for el in root.iter():
-        if _localname(el.tag) in ("Description", "Note") and el.get("languageID") == "ELL":
-            t = (el.text or "").strip()
-            if t and t not in seen:
-                seen.add(t)
-                parts.append(t)
-    return summary, ("\n\n".join(parts) if parts else None)
+        if _localname(el.tag) in ("Description", "Note") and el.get("languageID") in (None, "ELL"):
+            tx = (el.text or "").strip()
+            if len(tx) > 40 and tx not in structured and tx not in "\n".join(extra):
+                extra.append(tx)
+    if extra:
+        structured = (structured + "\n\nΠρόσθετες πληροφορίες\n" + "\n".join(extra)).strip()
+
+    return summary, (structured or None)
 
 
-def fetch_fulltext(client, xml_url: str):
+def fetch_fulltext(client, xml_url: str, cpv_labels: dict | None = None,
+                   nuts_labels: dict | None = None):
     """Fetch + parse a notice's full text; (None, None) on any failure."""
     if not xml_url:
         return None, None
     try:
-        return parse_fulltext(client.get_xml(xml_url))
+        return parse_fulltext(client.get_xml(xml_url), cpv_labels, nuts_labels)
     except Exception:      # noqa: BLE001 — treat as "tried, empty"
         return None, None
 
@@ -333,10 +489,11 @@ def fulltext_pass(client, repo, limit=5000):
                          AND xml_url IS NOT NULL
                        ORDER BY publication_date DESC NULLS LAST
                        LIMIT %s""", (int(limit),))
+    cpv_labels, nuts_labels = load_label_maps(db)
     n = {"seen": 0, "extracted": 0, "empty": 0}
     for pub, xml_url in rows:
         n["seen"] += 1
-        summary, ft = fetch_fulltext(client, xml_url)
+        summary, ft = fetch_fulltext(client, xml_url, cpv_labels, nuts_labels)
         repo.set_fulltext(pub, summary, ft)
         n["extracted" if ft else "empty"] += 1
         db.commit()
@@ -349,6 +506,7 @@ def ingest_country(client, repo, country, start, end, *, resume=True):
     all_windows = list(windows(start, end, size_days=WINDOW_DAYS))
     summary["windows"] = len(all_windows)
     done = _done_windows(db, country) if resume else set()
+    cpv_labels, nuts_labels = load_label_maps(db) if EXTRACT_FULLTEXT else ({}, {})
 
     for w_from, w_to in all_windows:
         db.execute("""INSERT INTO proc.ted_ingest_window (country, date_from, date_to, status)
@@ -371,7 +529,8 @@ def ingest_country(client, repo, country, start, end, *, resume=True):
                 if m:
                     repo.upsert_notice(m)
                     if EXTRACT_FULLTEXT and m.get("xml_url"):
-                        ft_summary, ft_body = fetch_fulltext(client, m["xml_url"])
+                        ft_summary, ft_body = fetch_fulltext(
+                            client, m["xml_url"], cpv_labels, nuts_labels)
                         repo.set_fulltext(m["publication_number"], ft_summary, ft_body)
                     n += 1
             db.execute("""UPDATE proc.ted_ingest_window SET status='done', notices=%s,
