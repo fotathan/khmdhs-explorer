@@ -65,7 +65,12 @@ class Database:
         self.dsn = dsn or os.environ.get("DATABASE_URL")
         # If no DSN, psycopg reads standard PG* env vars (PGHOST, PGDATABASE...).
         if _DRIVER == "psycopg3":
-            self.conn = psycopg.connect(self.dsn) if self.dsn else psycopg.connect()
+            # prepare_threshold=None disables server-side prepared statements:
+            # Supabase's transaction pooler can route consecutive statements to
+            # different physical backends, so a prepared statement made on one
+            # isn't found on the next ("prepared statement _pg3_0 does not exist").
+            self.conn = (psycopg.connect(self.dsn, prepare_threshold=None)
+                         if self.dsn else psycopg.connect(prepare_threshold=None))
         else:
             self.conn = psycopg2.connect(self.dsn) if self.dsn else psycopg2.connect()
         self.conn.autocommit = autocommit
