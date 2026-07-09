@@ -28,7 +28,7 @@ from __future__ import annotations
 import os
 import re
 import secrets
-from contextlib import contextmanager
+from contextlib import contextmanager, asynccontextmanager
 from datetime import date
 from typing import Optional
 
@@ -950,6 +950,18 @@ async def csrf_protect(request: Request) -> None:
         raise HTTPException(status_code=403, detail="CSRF token missing or invalid")
 
 
+@asynccontextmanager
+async def _lifespan(_app):
+    # Close the DB pool on shutdown so its background maintenance thread is
+    # stopped cleanly, instead of ConnectionPool.__del__ trying to join it at
+    # interpreter finalization (noisy "cannot join thread at shutdown" trace).
+    yield
+    try:
+        _pool.close()
+    except Exception:      # noqa: BLE001 — best-effort on the way out
+        pass
+
+
 # API docs (/docs, /redoc, /openapi.json) are OFF by default — they publish the
 # whole route + schema surface, which we don't want exposed on a private tool.
 # Set ENABLE_DOCS=1 (e.g. local dev) to turn them back on.
@@ -960,6 +972,7 @@ app = FastAPI(
     redoc_url="/redoc" if _DOCS else None,
     openapi_url="/openapi.json" if _DOCS else None,
     dependencies=[Depends(csrf_protect)],
+    lifespan=_lifespan,
 )
 
 
