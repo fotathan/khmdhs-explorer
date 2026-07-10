@@ -59,10 +59,12 @@
           {% set val = act.get(name) %}
           <div class="field {% if kind in ('textarea', 'nuts') %}field-wide{% endif %}">
             {% if kind == 'bool' %}
-              <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; text-transform:none; letter-spacing:0;">
-                <input type="checkbox" name="{{ name }}" value="1" {% if val %}checked{% endif %}>
-                {{ label | t }}
-              </label>
+              <label>{{ label | t }}</label>
+              <select name="{{ name }}">
+                <option value="" {% if val is none %}selected{% endif %}>{{ "Δεν προσδιορίζεται" | t }}</option>
+                <option value="1" {% if val is not none and val %}selected{% endif %}>{{ "Ναι" | t }}</option>
+                <option value="0" {% if val is not none and not val %}selected{% endif %}>{{ "Όχι" | t }}</option>
+              </select>
             {% else %}
               <label>{{ label | t }}</label>
               {% if kind == 'textarea' %}

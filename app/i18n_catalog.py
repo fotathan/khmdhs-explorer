@@ -1750,6 +1750,7 @@ _SEARCH_PROFILES = {
     "π.χ. Προφίλ πελάτη Χ": "e.g. Customer X profile",
     "Προφίλ πύλης αναφοράς": "Reference portal profile",
     "Καθαρισμός φίλτρων": "Clear filters",
+    "Δεν προσδιορίζεται": "Not specified",
     "Προφίλ": "Profile",
     "Αφαίρεση επισήμανσης": "Dismiss",
     "Αποθηκευμένες αναζητήσεις (προφίλ αναζήτησης)": "Saved searches (search profiles)",

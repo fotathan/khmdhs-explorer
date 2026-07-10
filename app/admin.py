@@ -1412,7 +1412,9 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         for name, kind in kinds.items():
             raw = (form.get(name) or "").strip()
             if kind == "bool":
-                data[name] = (name in form)  # checkbox present => True
+                # Tri-state: "" (Not specified) => NULL, "1" => True, "0" => False.
+                # NULL means the source never stated it — distinct from an explicit No.
+                data[name] = None if raw == "" else (raw == "1")
             elif kind in ("number",):
                 # Accept any pasted/typed money format and store the DB-ready
                 # numeric string (safety net behind the form's paste cleaner).
