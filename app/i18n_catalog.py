@@ -199,6 +199,8 @@ _ACT = {
     "Αξία (με ΦΠΑ)": "Value (incl. VAT)",
     "Είδη / Αντικείμενο": "Items / Object",
     "Περιγραφή": "Description",
+    "Τόπος παράδοσης / εκτέλεσης": "Place of delivery / execution",
+    "Τόπος εκτέλεσης": "Place of execution",
     "Ποσότητα": "Quantity",
     "Δεν υπάρχουν καταχωρισμένα είδη.": "No items recorded.",
     "Κωδικοί CPV": "CPV codes",

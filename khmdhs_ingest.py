@@ -586,12 +586,20 @@ class Repository:
                 """INSERT INTO proc.act_object_detail
                      (adam, line_no, short_description, quantity, unit_code,
                       cost_without_vat, vat_rate, currency_code,
-                      green_contract_code, good_services_code, budget_code)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                      green_contract_code, good_services_code, budget_code,
+                      delivery_address, delivery_city, delivery_street,
+                      delivery_postal_code, delivery_country, city_of_construction)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                           %s,%s,%s,%s,%s,%s) RETURNING id""",
                 (adam, i, od.get("shortDescription"), od.get("quantity"),
                  kv_key(od, "type"), od.get("costWithoutVAT"), od.get("vat"),
                  kv_key(od, "currency"), kv_key(od, "greenContracts"),
-                 kv_key(od, "goodServices"), od.get("budgetCode")))
+                 kv_key(od, "goodServices"), od.get("budgetCode"),
+                 # per-line delivery / realisation address (contract/payment acts).
+                 # countryOfDelivery is a {key,value}; kv_key keeps the ISO key.
+                 kv_key(od, "addressForDelivery"), kv_key(od, "city"),
+                 kv_key(od, "streetNumber"), kv_key(od, "postalCode"),
+                 kv_key(od, "countryOfDelivery"), kv_key(od, "cityOfConstruction")))
             for cpv in od.get("cpvs") or []:
                 code = cpv.get("key") if isinstance(cpv, dict) else cpv
                 if not code:

@@ -154,7 +154,7 @@
         <h3 class="panel-h">{{ t("Είδη / Αντικείμενο") }}</h3>
         {% if line_items %}
         <table class="dtable">
-          <thead><tr><th>{{ t("Περιγραφή") }}</th><th>CPV</th><th class="val">{{ t("Ποσότητα") }}</th><th class="val">{{ t("Αξία (χωρίς ΦΠΑ)") }}</th></tr></thead>
+          <thead><tr><th>{{ t("Περιγραφή") }}</th><th>CPV</th><th>{{ t("Τόπος παράδοσης / εκτέλεσης") }}</th><th class="val">{{ t("Ποσότητα") }}</th><th class="val">{{ t("Αξία (χωρίς ΦΠΑ)") }}</th></tr></thead>
           <tbody>
             {% for li in line_items %}
             <tr>
@@ -164,6 +164,13 @@
                 <div style="margin-bottom:3px;line-height:1.35;"><code class="adam">{{ c.code }}</code>{% if c.desc %} <span style="font-size:12px;color:var(--ink-2);">{{ c.desc }}</span>{% endif %}</div>
                 {% endfor %}
                 {% if not li.cpvs %}—{% endif %}
+              </td>
+              <td style="font-size:12.5px; line-height:1.4;">
+                {% set place = [li.delivery_street, li.delivery_city, li.delivery_postal_code, li.delivery_country] | select | list %}
+                {% if place %}{{ place | join(', ') }}{% endif %}
+                {% if li.delivery_address %}{% if place %}<br>{% endif %}<span style="color:var(--ink-2);">{{ li.delivery_address }}</span>{% endif %}
+                {% if li.city_of_construction %}<br><span style="color:var(--ink-2);">{{ t("Τόπος εκτέλεσης") }}: {{ li.city_of_construction }}</span>{% endif %}
+                {% if not place and not li.delivery_address and not li.city_of_construction %}—{% endif %}
               </td>
               <td class="val">{{ li.quantity if li.quantity is not none else '—' }} {% if li.unit_name %}{{ li.unit_name }}{% elif li.unit_code %}{{ li.unit_code }}{% endif %}</td>
               <td class="val">

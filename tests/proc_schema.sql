@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict a9M5wOf21R4bJjdRSuDCdSMuHH0H4QeqgEBNgxCaZILVIyq6b8m6ipJl1yhZiHG
+\restrict z4cQ2qS6k78fajvNOsH8831ANjyjCBYPrdwpAlr9cYaM4w5xOCbaI64sqTouvwE
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Homebrew)
@@ -498,7 +498,13 @@ CREATE TABLE proc.act_object_detail (
     currency_code text,
     green_contract_code text,
     good_services_code text,
-    budget_code text
+    budget_code text,
+    delivery_address text,
+    delivery_city text,
+    delivery_street text,
+    delivery_postal_code text,
+    delivery_country text,
+    city_of_construction text
 );
 
 
@@ -4103,5 +4109,5 @@ ALTER TABLE ONLY proc.user_subscription
 -- PostgreSQL database dump complete
 --
 
-\unrestrict a9M5wOf21R4bJjdRSuDCdSMuHH0H4QeqgEBNgxCaZILVIyq6b8m6ipJl1yhZiHG
+\unrestrict z4cQ2qS6k78fajvNOsH8831ANjyjCBYPrdwpAlr9cYaM4w5xOCbaI64sqTouvwE
 

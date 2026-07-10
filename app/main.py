@@ -2375,6 +2375,8 @@ def act_detail(adam: str, request: Request):
                    (proc.resolved_item_cost(od.adam, od.line_no, od.cost_without_vat)
                        IS DISTINCT FROM od.cost_without_vat) AS cost_corrected,
                    od.vat_rate, od.currency_code,
+                   od.delivery_address, od.delivery_city, od.delivery_street,
+                   od.delivery_postal_code, od.delivery_country, od.city_of_construction,
                    coalesce(
                      array_agg(jsonb_build_object('code', c.cpv_code,
                                                   'desc', {_desc_col(lang, "c")})
