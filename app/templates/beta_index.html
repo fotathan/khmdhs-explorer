@@ -361,5 +361,21 @@
       menu.classList.remove('loading'); menu.open=false;
     });
   });
+
+  // Save search profile: capture the LIVE filter URL at submit time. HTMX
+  // (hx-push-url) keeps window.location in sync as filters change, but the hidden
+  // params_qs field is only server-rendered on a full page load — so a profile
+  // saved after tweaking the panel (adding CPV, categories, …) would otherwise
+  // store a stale querystring. Read the current URL on submit instead.
+  var spSaveForm=document.querySelector('.sp-save form');
+  if(spSaveForm){
+    spSaveForm.addEventListener('submit', function(){
+      var qs=window.location.search.replace(/^\?/, '');
+      var pq=spSaveForm.querySelector('input[name=params_qs]');
+      var nx=spSaveForm.querySelector('input[name=next]');
+      if(pq) pq.value=qs;
+      if(nx) nx.value=qs ? ('/?'+qs) : '/';
+    });
+  }
 </script>
 {% endblock %}

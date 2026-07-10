@@ -85,6 +85,37 @@ def test_admin_can_save_and_apply(client):
     assert "q=test" in loc and "type=notice" in loc
 
 
+def test_save_form_syncs_live_url_js(client):
+    """The save form must read the live URL (window.location.search) into
+    params_qs on submit — otherwise filters added via the panel after page load
+    (CPV, categories, …) are lost. Guard the client-side sync ships."""
+    make_user("sp_livejs", "goodpassword1", role="admin")
+    login(client, "sp_livejs", "goodpassword1")
+    html = client.get("/", follow_redirects=False).text
+    assert "window.location.search" in html
+    assert "input[name=params_qs]" in html
+
+
+def test_save_captures_cpv_and_cat(client):
+    """End-to-end: a profile saved with CPV + category params round-trips."""
+    make_user("sp_cpvcat", "goodpassword1", role="admin")
+    login(client, "sp_cpvcat", "goodpassword1")
+    tok = get_csrf(client)
+    client.post("/search-profiles",
+                data={"name": "cpvcat", "scope": "portal",
+                      "params_qs": "type=notice&cpv=33100000-1&cat=health&nuts=EL30",
+                      "csrf_token": tok},
+                follow_redirects=False)
+    from app import auth as _auth
+    with connect() as c:
+        cur = c.cursor()
+        cur.execute("SELECT params FROM proc.search_profile WHERE name='cpvcat'")
+        params = cur.fetchone()["params"]
+    assert params["cpv"] == ["33100000-1"]
+    assert params["cat"] == ["health"]
+    assert params["type"] == ["notice"] and params["nuts"] == ["EL30"]
+
+
 def test_save_requires_filters_or_reference(client):
     make_user("sp_empty", "goodpassword1", role="admin")
     login(client, "sp_empty", "goodpassword1")
