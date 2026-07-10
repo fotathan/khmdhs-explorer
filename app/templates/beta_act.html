@@ -88,7 +88,15 @@
 
           {% if n.contract_type_code %}<dt>{{ t("Είδος σύμβασης") }}</dt><dd>{{ n.contract_type_code | contract_type_label }}</dd>{% endif %}
           {% if n.procedure_type_code %}<dt>{{ t("Διαδικασία") }}</dt><dd>{{ n.procedure_type_code | procedure_type_label }}</dd>{% endif %}
+          {% if n.award_procedure_code %}<dt>{{ t("Αιτιολόγηση διαδικασίας") }}</dt><dd>{{ n.award_procedure_code | code_label('award_procedure') }}</dd>{% endif %}
           {% if n.criteria_code %}<dt>{{ t("Κριτήριο") }}</dt><dd>{{ n.criteria_code | assign_criteria_label }}</dd>{% endif %}
+          {% if n.legal_context_code %}<dt>{{ t("Νομικό πλαίσιο") }}</dt><dd>{{ n.legal_context_code | code_label('legal_context') }}</dd>{% endif %}
+          {% if n.notice_type_code %}<dt>{{ t("Τύπος προκήρυξης") }}</dt><dd>{{ n.notice_type_code | code_label('notice_type') }}</dd>{% endif %}
+          {% if n.conducting_proceedings_code %}<dt>{{ t("Τρόπος διεξαγωγής") }}</dt><dd>{{ n.conducting_proceedings_code | code_label('conducting_proceedings') }}</dd>{% endif %}
+          {% if n.digital_platform_code %}<dt>{{ t("Ψηφιακή πλατφόρμα") }}</dt><dd>{{ n.digital_platform_code | code_label('digital_platform') }}</dd>{% endif %}
+          {% if n.contracting_authority_activity_code %}<dt>{{ t("Δραστηριότητα αναθέτουσας") }}</dt><dd>{{ n.contracting_authority_activity_code | code_label('authority_activity') }}</dd>{% endif %}
+          {% if n.contract_duration %}<dt>{{ t("Διάρκεια σύμβασης") }}</dt><dd>{{ n.contract_duration }}{% if n.contract_duration_unit %} {{ n.contract_duration_unit | code_label('duration_unit') }}{% endif %}</dd>{% endif %}
+          {% if n.offers_valid_time %}<dt>{{ t("Ισχύς προσφορών") }}</dt><dd>{{ n.offers_valid_time }}{% if n.offers_valid_time_unit %} {{ n.offers_valid_time_unit | code_label('duration_unit') }}{% endif %}</dd>{% endif %}
           {% if n.nuts_code %}<dt>{{ t("Τόπος εκτέλεσης") }}</dt><dd>{{ n.nuts_label or '' }} <code>{{ n.nuts_code }}</code></dd>{% endif %}
           {% if n.bidding_website %}<dt>{{ t("Πλατφόρμα") }}</dt><dd><a href="{{ n.bidding_website }}" target="_blank" rel="noopener" style="color:var(--accent);">{{ n.bidding_website }}</a></dd>{% endif %}
           {% if n.cancellation_reason %}<dt>{{ t("Αιτία ακύρωσης") }}</dt><dd>{{ n.cancellation_reason }}</dd>{% endif %}

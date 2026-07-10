@@ -261,6 +261,23 @@ templates.env.filters["procedure_type_label"] = _procedure_type_label
 templates.env.filters["assign_criteria_label"] = _assign_criteria_label
 
 
+# Generic code->label resolver backed by proc.code_list (seeded from the official
+# KHMDHS docs). Usage in templates: {{ code | code_label('legal_context') }}.
+# CODE_LISTS is populated once the DB pool is open (see _load_code_lists below);
+# until then it's empty and the filter returns the raw code.
+CODE_LISTS: dict = {}
+templates.env.globals["CODE_LISTS"] = CODE_LISTS
+
+
+def _code_label_impl(code, domain):
+    if code is None or code == "":
+        return "—"
+    return CODE_LISTS.get(domain, {}).get(str(code), code)
+
+
+templates.env.filters["code_label"] = _code_label_impl
+
+
 # {{ obj | vname }} — a category/subcategory dict's name in the active language
 # (name_en when EN and present, else the Greek name). For the cached filter
 # lookups that carry both columns.
@@ -323,6 +340,26 @@ def cursor():
     with _pool.connection() as c:
         with c.cursor() as cur:
             yield cur
+
+
+def _load_code_lists():
+    """Populate CODE_LISTS from proc.code_list (once, at startup), then fold the
+    hardcoded dicts in so nothing regresses if the seed is missing."""
+    try:
+        with cursor() as c:
+            c.execute("SELECT domain, code, label_el FROM proc.code_list "
+                      "WHERE label_el IS NOT NULL")
+            for r in c.fetchall():
+                CODE_LISTS.setdefault(r["domain"], {})[str(r["code"])] = r["label_el"]
+    except Exception:      # noqa: BLE001 — resolution just falls back to raw codes
+        pass
+    for _dom, _hard in (("contract_type", CONTRACT_TYPES),
+                        ("procedure_type", PROCEDURE_TYPES),
+                        ("criteria", ASSIGN_CRITERIA), ("type", TYPE_LABELS)):
+        CODE_LISTS.setdefault(_dom, {}).update(_hard)
+
+
+_load_code_lists()
 
 
 # ---------------------------------------------------------------------------- #
@@ -2282,6 +2319,10 @@ def act_detail(adam: str, request: Request):
                    a.type AS act_type,
                    a.budget, a.total_cost_without_vat,
                    a.criteria_code, a.legal_context_code, a.notice_type_code,
+                   a.conducting_proceedings_code, a.digital_platform_code,
+                   a.contracting_authority_activity_code, a.award_procedure_code,
+                   a.contract_duration, a.contract_duration_unit,
+                   a.offers_valid_time, a.offers_valid_time_unit,
                    a.framework_agreement_adam, a.bidding_website,
                    a.amended_adam, a.cancellation_reason, a.cancellation_date,
                    -- contract-specific

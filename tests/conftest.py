@@ -63,6 +63,14 @@ def _schema():
     if not TEST_DB:
         pytest.skip("set TEST_DATABASE_URL (or DATABASE_URL) to a throwaway DB to run DB tests")
     _build_schema()
+    # Reference-data seeds (the schema-only snapshot carries no data). Apply any
+    # *seed*.sql migration so lookup tables (e.g. proc.code_list) are present.
+    import glob
+    for path in sorted(glob.glob(str(ROOT / "migrations" / "*seed*.sql"))):
+        r = subprocess.run(["psql", TEST_DB, "-v", "ON_ERROR_STOP=1", "-q", "-f", path],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            raise RuntimeError(f"seed {path} failed:\n{r.stderr[-2000:]}")
     from tests.helpers import connect
     with connect() as c:      # seed the static product catalogue (snapshot has no data)
         c.execute("INSERT INTO proc.product (code, name, default_period_days) "

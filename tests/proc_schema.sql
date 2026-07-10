@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict vcUraPG3kSC0xSLent9KCQdxAqRy6L2SodqueFvG4ErTWsCoVfbggg1gcfuj7Y5
+\restrict ezqhQADKNQKwgCqIR8dfsOpOXiS67Qq9ej0oI83zXCeoHA6quvyuYCfWdEImsPR
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Homebrew)
@@ -2949,6 +2949,13 @@ ALTER TABLE ONLY proc.user_subscription
 
 
 --
+-- Name: code_list_domain_code_uidx; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE UNIQUE INDEX code_list_domain_code_uidx ON proc.code_list USING btree (domain, code);
+
+
+--
 -- Name: idx_cpv_cat_map_cat; Type: INDEX; Schema: proc; Owner: -
 --
 
@@ -4110,5 +4117,5 @@ ALTER TABLE ONLY proc.user_subscription
 -- PostgreSQL database dump complete
 --
 
-\unrestrict vcUraPG3kSC0xSLent9KCQdxAqRy6L2SodqueFvG4ErTWsCoVfbggg1gcfuj7Y5
+\unrestrict ezqhQADKNQKwgCqIR8dfsOpOXiS67Qq9ej0oI83zXCeoHA6quvyuYCfWdEImsPR
 
