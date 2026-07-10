@@ -280,7 +280,8 @@
               </div>
             </td>
             <td>
-              {% if j.status == 'running' %}<span class="pill" style="color:var(--ok);">{{ t("σε εξέλιξη") }}</span>
+              {% if j.status == 'queued' %}<span class="pill" style="color:var(--ink-2);">{{ t("σε αναμονή") }}</span>
+              {% elif j.status == 'running' %}<span class="pill" style="color:var(--ok);">{{ t("σε εξέλιξη") }}</span>
               {% elif j.status == 'done' %}<span class="meta">{{ t("ολοκληρώθηκε") }}</span>
               {% elif j.status == 'cancelled' %}<span class="pill cancel">{{ t("ακυρώθηκε") }}</span>
               {% elif j.status == 'error' %}<span class="pill cancel">{{ t("σφάλμα") }}</span>

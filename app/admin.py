@@ -4,39 +4,41 @@ admin.py — backfill launcher and job management UI.
 What it provides
 ----------------
   GET  /admin                  — launcher form + recent jobs
-  POST /admin/jobs             — start a new backfill (subprocess), redirect to detail
-  GET  /admin/jobs/{id}        — one job's live status (auto-refreshing if running)
-  POST /admin/jobs/{id}/cancel — terminate the subprocess for a running job
-  GET  /admin/jobs/{id}/log    — tail of the subprocess stdout/stderr
+  POST /admin/jobs             — ENQUEUE a new backfill, redirect to detail
+  GET  /admin/jobs/{id}        — one job's live status (auto-refreshing if active)
+  POST /admin/jobs/{id}/cancel — request cancellation of a queued/running job
 
 Design notes
 ------------
-* Backfills are long-running; we don't block the request. We spawn `db.py
-  backfill` as a detached subprocess and return immediately. The job is
-  tracked in proc.ingest_job (pid + status + params); fine-grained per-window
-  progress is read from proc.ingest_window which the runner already writes.
-* Only ONE running backfill at a time. The API itself is rate-limited so
-  concurrency wouldn't help; and serial runs keep semantics clean (no two
-  writers for the same window).
-* If uvicorn is restarted, jobs survive (they're detached subprocesses). We
-  detect "stale" rows (status='running' but PID is gone) and surface them
-  honestly rather than showing them as still running.
+* Backfills are long-running; the web process does NOT run them. Each launcher
+  ENQUEUES a job — a proc.ingest_job / proc.table_extract_job row with
+  status='queued', the db.py argv in `command`, and per-run overrides in
+  `job_env`. A separate worker (worker.py; an inline daemon thread in local dev)
+  claims it, runs `db.py <command>`, streams stdout into `log_text`, and bumps
+  `heartbeat_at`. This keeps heavy work off the web dyno and survives a web
+  deploy/restart (the job runs in a different process/container).
+* Only ONE ingest job (and one table job) at a time: a queued OR running row
+  blocks a new launch. Serial runs keep semantics clean (no two writers per
+  window) and the KHMDHS API is rate-limited anyway.
+* Liveness is the worker's heartbeat, not a local PID. reconcile_stale() flips a
+  'running' row whose heartbeat has gone quiet (crashed worker / killed
+  container) to done/error/stale, inferred from the per-window rows.
+* Cancel is a flag (cancel_requested) the worker observes — the web process
+  can't signal a child it doesn't own.
 """
 from __future__ import annotations
 
 import datetime as dt
 import os
 import re
-import signal
-import subprocess
 import sys
 from urllib.parse import unquote
-from typing import Optional
 
 from fastapi import (APIRouter, File, Form, HTTPException, Query, Request,
                      UploadFile, status)
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
+from psycopg.types.json import Json
 
 
 # ---------------------------------------------------------------------------- #
@@ -104,10 +106,6 @@ def _split_admin_q(raw):
 def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
     router = APIRouter(prefix="/admin", tags=["admin"])
 
-    # Where the subprocess writes its logs (one file per job).
-    LOG_DIR = os.environ.get("KHMDHS_LOG_DIR", "/tmp/khmdhs-jobs")
-    os.makedirs(LOG_DIR, exist_ok=True)
-
     ACT_TYPES = ["request", "notice", "auction", "contract", "payment"]
 
     # Diavgeia decision types the admin panel can harvest. Keys are the readable
@@ -135,50 +133,31 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
     # ------------------------------------------------------------------ #
     # Helpers
     # ------------------------------------------------------------------ #
-    def pid_alive(pid: Optional[int]) -> bool:
-        """Whether a launched backfill PID is still genuinely running.
-
-        Backfills are spawned detached but stay children of this web process,
-        so a finished one becomes a <defunct> zombie until reaped — and
-        os.kill(zombie, 0) SUCCEEDS, which used to make a completed job look
-        like it was still running forever (page kept auto-refreshing, new jobs
-        stayed blocked). So we first try a non-blocking reap: if it has exited
-        we collect it here and report not-alive."""
-        if not pid:
-            return False
-        try:
-            reaped, _ = os.waitpid(pid, os.WNOHANG)
-            if reaped == pid:
-                return False        # exited just now and reaped → finished
-            if reaped == 0:
-                return True         # still our running child
-        except ChildProcessError:
-            pass                    # not our child (e.g. after a web restart)
-        except OSError:
-            pass
-        try:
-            os.kill(pid, 0)         # signal 0 = no-op probe
-            return True
-        except ProcessLookupError:
-            return False
-        except PermissionError:
-            return True             # process exists but is owned by another user
+    # A 'running' job whose worker hasn't heartbeat within this window is
+    # considered dead (crashed worker / killed container). The worker beats
+    # every ~5s, so 120s is many missed beats — no false positives under load.
+    STALE_SECONDS = int(os.environ.get("JOB_STALE_SECONDS", "120"))
 
     def reconcile_stale():
-        """Move jobs out of 'running' once their detached subprocess is gone.
+        """Move jobs out of 'running' once their worker is gone.
 
-        The runner records its own terminal status on a clean exit; this is the
-        safety net for runs that were killed/crashed before doing so (and for
-        jobs that predate that runner change). We infer the outcome from the
-        per-window rows the runner did write: every window finished ⇒ 'done'
+        Liveness is the worker's heartbeat (no local PID any more — the job runs
+        in a different process/container). The db.py runner records its own
+        terminal status on a clean exit; this is the safety net for runs whose
+        worker crashed/was killed before finalising. We infer the outcome from
+        the per-window rows the runner did write: every window finished ⇒ 'done'
         (or 'error' if any errored); work still unfinished or no windows ever
         registered ⇒ 'stale'. Called on every admin page load — cheap."""
         with cursor() as c:
-            c.execute("""SELECT id, pid, types, date_from, date_to, source
-                         FROM proc.ingest_job WHERE status='running'""")
+            c.execute("""SELECT id, types, date_from, date_to, source,
+                                (heartbeat_at IS NOT NULL
+                                 AND heartbeat_at > now() - make_interval(secs => %s))
+                                AS live
+                         FROM proc.ingest_job WHERE status='running'""",
+                      (STALE_SECONDS,))
             rows = c.fetchall()
             for r in rows:
-                if pid_alive(r["pid"]):
+                if r["live"]:
                     continue
                 # Which window table holds this job's progress depends on source.
                 if r["source"] == "diavgeia":
@@ -224,18 +203,50 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                           (new_status, r["id"]))
 
     def any_running() -> bool:
+        """True if a job is queued or running — we keep one ingest job at a time,
+        so a queued job (not yet claimed) also blocks a new launch. reconcile_stale
+        runs first, so a dead 'running' row won't block forever."""
         with cursor() as c:
-            c.execute("""SELECT id, pid FROM proc.ingest_job
-                         WHERE status='running'""")
-            for r in c.fetchall():
-                if pid_alive(r["pid"]):
-                    return True
-        return False
+            c.execute("""SELECT 1 FROM proc.ingest_job
+                         WHERE status IN ('queued', 'running') LIMIT 1""")
+            return c.fetchone() is not None
 
-    def project_root() -> str:
-        """Find the directory containing db.py (parent of app/)."""
-        here = os.path.dirname(os.path.abspath(__file__))
-        return os.path.dirname(here)
+    # SQL fragment: is this job's worker still beating? Aliased AS live; select
+    # it alongside the row so the template's status/refresh logic has it without
+    # a Python tz comparison.
+    _LIVE_SQL = ("(heartbeat_at IS NOT NULL AND "
+                 "heartbeat_at > now() - make_interval(secs => %s)) AS live")
+
+    def job_log_tail(job, n=4096):
+        """Last ~n chars of a job's output. Reads log_text (worker-streamed);
+        falls back to the legacy per-job log file for rows created before the
+        worker migration."""
+        lt = job.get("log_text")
+        if lt:
+            return lt[-n:]
+        p = job.get("log_path")
+        if p and os.path.exists(p):
+            try:
+                with open(p, "rb") as f:
+                    f.seek(0, 2)
+                    size = f.tell()
+                    f.seek(max(0, size - n))
+                    return f.read().decode("utf-8", "replace")
+            except Exception:
+                pass
+        return ""
+
+    def enqueue_ingest_command(c, job_id, command, job_env, header):
+        """Attach the db.py argv + per-run env to an already-inserted ingest_job
+        row and mark it queued. The worker (worker.py; inline thread in local
+        dev) claims it, runs `db.py <command>`, and streams output into log_text.
+        No subprocess is spawned by the web process — that's the whole point."""
+        env = {"INGEST_JOB_ID": str(job_id), **(job_env or {})}
+        c.execute("""UPDATE proc.ingest_job
+                     SET status='queued', command=%s, job_env=%s,
+                         log_text=%s, queued_at=now()
+                     WHERE id=%s""",
+                  (command, Json(env), header, job_id))
 
     # ------------------------------------------------------------------ #
     # Routes
@@ -502,76 +513,34 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         resume_flag = bool(resume)
         fulltext_flag = bool(extract_fulltext)
 
-        # Refuse if another backfill is already running. The reconcile call
-        # ensures we don't get blocked by a stale 'running' row.
+        # Refuse if another backfill is already queued/running. The reconcile
+        # call ensures we're not blocked by a dead 'running' row.
         reconcile_stale()
         if any_running():
             raise HTTPException(409,
                 "another backfill is already running; cancel it or wait for it to finish")
 
-        # Build the subprocess command. We invoke the same db.py CLI you use
-        # from the shell, with the same flags — keeps one code path.
-        root = project_root()
-        cmd = [sys.executable, os.path.join(root, "db.py"), "backfill",
-               "--start", df.isoformat(), "--end", dtt.isoformat(),
-               "--types", *chosen]
+        # The db.py argv the worker will run (same CLI you use from the shell).
+        # No interpreter/path prefix — the worker prepends `python db.py`.
+        command = ["backfill", "--start", df.isoformat(), "--end", dtt.isoformat(),
+                   "--types", *chosen]
         if resume_flag:
-            cmd.append("--resume")
+            command.append("--resume")
+        # Full-text extraction is per-run: khmdhs_ingest reads EXTRACT_FULLTEXT
+        # (defaults off, so a plain backfill stays fast).
+        job_env = {"EXTRACT_FULLTEXT": "1"} if fulltext_flag else {}
+        header = (f"# backfill job: types={chosen} "
+                  f"{df.isoformat()}..{dtt.isoformat()} resume={resume_flag} "
+                  f"extract_fulltext={fulltext_flag}\n\n")
 
-        # Insert the job row FIRST, get its id, then open the log file using
-        # that id so the log path is deterministic.
+        # Insert the row, then enqueue (attach command + env, mark 'queued').
         with cursor() as c:
             c.execute("""INSERT INTO proc.ingest_job
                          (status, types, date_from, date_to, resume)
-                         VALUES ('running', %s, %s, %s, %s) RETURNING id""",
+                         VALUES ('queued', %s, %s, %s, %s) RETURNING id""",
                       (chosen, df, dtt, resume_flag))
             job_id = c.fetchone()["id"]
-        log_path = os.path.join(LOG_DIR, f"job-{job_id}.log")
-
-        # Spawn DETACHED: own process group, stdout/stderr to the log file.
-        # On POSIX this means uvicorn restarting won't kill the backfill, and
-        # we can later signal the whole group with os.killpg().
-        # Subprocess environment: inherit everything (incl. DATABASE_URL), and
-        # turn on full-text extraction for THIS run only if the toggle was set.
-        # khmdhs_ingest reads EXTRACT_FULLTEXT; it defaults off otherwise, so a
-        # plain backfill stays fast.
-        job_env = {**os.environ}
-        if fulltext_flag:
-            job_env["EXTRACT_FULLTEXT"] = "1"
-        else:
-            job_env.pop("EXTRACT_FULLTEXT", None)
-        # Tell the runner its job id so it writes per-act rows to
-        # proc.ingest_act_log (the job page's transparency log).
-        job_env["INGEST_JOB_ID"] = str(job_id)
-
-        log_fh = open(log_path, "w")
-        # Record what this run is doing at the top of its own log, so the job
-        # detail page shows whether full-text extraction was on.
-        log_fh.write(
-            f"# backfill job {job_id}: types={chosen} "
-            f"{df.isoformat()}..{dtt.isoformat()} resume={resume_flag} "
-            f"extract_fulltext={fulltext_flag}\n\n")
-        log_fh.flush()
-        try:
-            proc = subprocess.Popen(
-                cmd,
-                stdout=log_fh, stderr=subprocess.STDOUT,
-                stdin=subprocess.DEVNULL,
-                start_new_session=True,             # detach process group
-                cwd=root,
-                env=job_env,                         # inherit + optional fulltext
-            )
-        except Exception as e:
-            with cursor() as c:
-                c.execute("""UPDATE proc.ingest_job
-                             SET status='error', last_error=%s, finished_at=now()
-                             WHERE id=%s""", (f"spawn failed: {e!r}", job_id))
-            log_fh.close()
-            raise HTTPException(500, f"failed to launch subprocess: {e!r}")
-
-        with cursor() as c:
-            c.execute("""UPDATE proc.ingest_job SET pid=%s, log_path=%s
-                         WHERE id=%s""", (proc.pid, log_path, job_id))
+            enqueue_ingest_command(c, job_id, command, job_env, header)
 
         return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
 
@@ -597,40 +566,17 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             raise HTTPException(409,
                 "another job is already running; cancel it or wait for it to finish")
 
-        root = project_root()
-        cmd = [sys.executable, os.path.join(root, "db.py"), "fulltext-backfill",
-               "--types", *chosen, "--limit", str(lim)]
+        command = ["fulltext-backfill", "--types", *chosen, "--limit", str(lim)]
+        header = f"# full-text backfill job: types={chosen} limit={lim}\n\n"
 
         today = dt.date.today()
         with cursor() as c:
             c.execute("""INSERT INTO proc.ingest_job
                          (status, types, date_from, date_to, resume)
-                         VALUES ('running', %s, %s, %s, %s) RETURNING id""",
+                         VALUES ('queued', %s, %s, %s, %s) RETURNING id""",
                       (chosen, today, today, False))
             job_id = c.fetchone()["id"]
-        log_path = os.path.join(LOG_DIR, f"job-{job_id}.log")
-
-        log_fh = open(log_path, "w")
-        log_fh.write(f"# full-text backfill job {job_id}: types={chosen} "
-                     f"limit={lim}\n\n")
-        log_fh.flush()
-        try:
-            proc = subprocess.Popen(
-                cmd, stdout=log_fh, stderr=subprocess.STDOUT,
-                stdin=subprocess.DEVNULL, start_new_session=True,
-                cwd=root, env={**os.environ},
-            )
-        except Exception as e:
-            with cursor() as c:
-                c.execute("""UPDATE proc.ingest_job
-                             SET status='error', last_error=%s, finished_at=now()
-                             WHERE id=%s""", (f"spawn failed: {e!r}", job_id))
-            log_fh.close()
-            raise HTTPException(500, f"failed to launch subprocess: {e!r}")
-
-        with cursor() as c:
-            c.execute("""UPDATE proc.ingest_job SET pid=%s, log_path=%s
-                         WHERE id=%s""", (proc.pid, log_path, job_id))
+            enqueue_ingest_command(c, job_id, command, {}, header)
 
         return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
 
@@ -663,59 +609,27 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             raise HTTPException(409,
                 "another backfill is already running; cancel it or wait for it to finish")
 
-        root = project_root()
-        cmd = [sys.executable, os.path.join(root, "db.py"), "diavgeia-backfill",
-               "--start", df.isoformat(), "--end", dtt.isoformat(),
-               "--types", *chosen]
+        fulltext_flag = bool(extract_fulltext)
+        command = ["diavgeia-backfill", "--start", df.isoformat(),
+                   "--end", dtt.isoformat(), "--types", *chosen]
         if resume_flag:
-            cmd.append("--resume")
+            command.append("--resume")
+        # Opt-in full-text: fetch + parse each handled act's Diavgeia document and
+        # store its text (post-projection pass). diavgeia_ingest reads
+        # EXTRACT_FULLTEXT, same as the KHMDHS harvest.
+        job_env = {"EXTRACT_FULLTEXT": "1"} if fulltext_flag else {}
+        header = (f"# diavgeia backfill job: types={chosen} "
+                  f"{df.isoformat()}..{dtt.isoformat()} resume={resume_flag} "
+                  f"extract_fulltext={fulltext_flag}\n\n")
 
         with cursor() as c:
             c.execute("""INSERT INTO proc.ingest_job
                          (status, types, date_from, date_to, resume, source)
-                         VALUES ('running', %s, %s, %s, %s, 'diavgeia')
+                         VALUES ('queued', %s, %s, %s, %s, 'diavgeia')
                          RETURNING id""",
                       (chosen, df, dtt, resume_flag))
             job_id = c.fetchone()["id"]
-        log_path = os.path.join(LOG_DIR, f"job-{job_id}.log")
-
-        fulltext_flag = bool(extract_fulltext)
-        job_env = {**os.environ}
-        # Opt-in full-text: fetch + parse each handled act's Diavgeia document and
-        # store its text (post-projection pass). diavgeia_ingest reads
-        # EXTRACT_FULLTEXT, same as the KHMDHS harvest.
-        if fulltext_flag:
-            job_env["EXTRACT_FULLTEXT"] = "1"
-        else:
-            job_env.pop("EXTRACT_FULLTEXT", None)
-        job_env["INGEST_JOB_ID"] = str(job_id)
-
-        log_fh = open(log_path, "w")
-        log_fh.write(
-            f"# diavgeia backfill job {job_id}: types={chosen} "
-            f"{df.isoformat()}..{dtt.isoformat()} resume={resume_flag} "
-            f"extract_fulltext={fulltext_flag}\n\n")
-        log_fh.flush()
-        try:
-            proc = subprocess.Popen(
-                cmd,
-                stdout=log_fh, stderr=subprocess.STDOUT,
-                stdin=subprocess.DEVNULL,
-                start_new_session=True,
-                cwd=root,
-                env=job_env,
-            )
-        except Exception as e:
-            with cursor() as c:
-                c.execute("""UPDATE proc.ingest_job
-                             SET status='error', last_error=%s, finished_at=now()
-                             WHERE id=%s""", (f"spawn failed: {e!r}", job_id))
-            log_fh.close()
-            raise HTTPException(500, f"failed to launch subprocess: {e!r}")
-
-        with cursor() as c:
-            c.execute("""UPDATE proc.ingest_job SET pid=%s, log_path=%s
-                         WHERE id=%s""", (proc.pid, log_path, job_id))
+            enqueue_ingest_command(c, job_id, command, job_env, header)
 
         return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
 
@@ -738,43 +652,18 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             raise HTTPException(409,
                 "another job is already running; cancel it or wait for it to finish")
 
-        root = project_root()
-        cmd = [sys.executable, os.path.join(root, "db.py"),
-               "diavgeia-fulltext-backfill", "--limit", str(lim)]
+        command = ["diavgeia-fulltext-backfill", "--limit", str(lim)]
+        header = f"# diavgeia full-text backfill job: limit={lim}\n\n"
 
         today = dt.date.today()
         with cursor() as c:
             c.execute("""INSERT INTO proc.ingest_job
                          (status, types, date_from, date_to, resume, source)
-                         VALUES ('running', %s, %s, %s, %s, 'diavgeia')
+                         VALUES ('queued', %s, %s, %s, %s, 'diavgeia')
                          RETURNING id""",
                       (DIAVGEIA_TYPE_NAMES[:], today, today, False))
             job_id = c.fetchone()["id"]
-        log_path = os.path.join(LOG_DIR, f"job-{job_id}.log")
-
-        job_env = {**os.environ}
-        job_env["INGEST_JOB_ID"] = str(job_id)
-
-        log_fh = open(log_path, "w")
-        log_fh.write(f"# diavgeia full-text backfill job {job_id}: limit={lim}\n\n")
-        log_fh.flush()
-        try:
-            proc = subprocess.Popen(
-                cmd, stdout=log_fh, stderr=subprocess.STDOUT,
-                stdin=subprocess.DEVNULL, start_new_session=True,
-                cwd=root, env=job_env,
-            )
-        except Exception as e:
-            with cursor() as c:
-                c.execute("""UPDATE proc.ingest_job
-                             SET status='error', last_error=%s, finished_at=now()
-                             WHERE id=%s""", (f"spawn failed: {e!r}", job_id))
-            log_fh.close()
-            raise HTTPException(500, f"failed to launch subprocess: {e!r}")
-
-        with cursor() as c:
-            c.execute("""UPDATE proc.ingest_job SET pid=%s, log_path=%s
-                         WHERE id=%s""", (proc.pid, log_path, job_id))
+            enqueue_ingest_command(c, job_id, command, {}, header)
 
         return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
 
@@ -802,49 +691,21 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             raise HTTPException(409,
                 "another backfill is already running; cancel it or wait for it to finish")
 
-        root = project_root()
-        cmd = [sys.executable, os.path.join(root, "db.py"), "ted-backfill",
-               "--start", df.isoformat(), "--end", dtt.isoformat(),
-               "--country", country]
+        fulltext_flag = bool(extract_fulltext)
+        command = ["ted-backfill", "--start", df.isoformat(),
+                   "--end", dtt.isoformat(), "--country", country]
+        job_env = {"EXTRACT_FULLTEXT": "1"} if fulltext_flag else {}
+        header = (f"# TED backfill job: country={country} "
+                  f"{df.isoformat()}..{dtt.isoformat()} "
+                  f"extract_fulltext={fulltext_flag}\n\n")
 
         with cursor() as c:
             c.execute("""INSERT INTO proc.ingest_job
                          (status, types, date_from, date_to, resume, source)
-                         VALUES ('running', %s, %s, %s, %s, 'ted')
+                         VALUES ('queued', %s, %s, %s, %s, 'ted')
                          RETURNING id""", ([country], df, dtt, False))
             job_id = c.fetchone()["id"]
-        log_path = os.path.join(LOG_DIR, f"job-{job_id}.log")
-
-        fulltext_flag = bool(extract_fulltext)
-        job_env = {**os.environ}
-        if fulltext_flag:                       # ted_ingest reads EXTRACT_FULLTEXT
-            job_env["EXTRACT_FULLTEXT"] = "1"
-        else:
-            job_env.pop("EXTRACT_FULLTEXT", None)
-        job_env["INGEST_JOB_ID"] = str(job_id)
-
-        log_fh = open(log_path, "w")
-        log_fh.write(f"# TED backfill job {job_id}: country={country} "
-                     f"{df.isoformat()}..{dtt.isoformat()} "
-                     f"extract_fulltext={fulltext_flag}\n\n")
-        log_fh.flush()
-        try:
-            proc = subprocess.Popen(
-                cmd, stdout=log_fh, stderr=subprocess.STDOUT,
-                stdin=subprocess.DEVNULL, start_new_session=True,
-                cwd=root, env=job_env,
-            )
-        except Exception as e:
-            with cursor() as c:
-                c.execute("""UPDATE proc.ingest_job
-                             SET status='error', last_error=%s, finished_at=now()
-                             WHERE id=%s""", (f"spawn failed: {e!r}", job_id))
-            log_fh.close()
-            raise HTTPException(500, f"failed to launch subprocess: {e!r}")
-
-        with cursor() as c:
-            c.execute("""UPDATE proc.ingest_job SET pid=%s, log_path=%s
-                         WHERE id=%s""", (proc.pid, log_path, job_id))
+            enqueue_ingest_command(c, job_id, command, job_env, header)
         return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
 
     @router.post("/jobs/ted-fulltext")
@@ -862,41 +723,17 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             raise HTTPException(409,
                 "another job is already running; cancel it or wait for it to finish")
 
-        root = project_root()
-        cmd = [sys.executable, os.path.join(root, "db.py"),
-               "ted-fulltext-backfill", "--limit", str(lim)]
+        command = ["ted-fulltext-backfill", "--limit", str(lim)]
+        header = f"# TED full-text backfill job: limit={lim}\n\n"
 
         today = dt.date.today()
         with cursor() as c:
             c.execute("""INSERT INTO proc.ingest_job
                          (status, types, date_from, date_to, resume, source)
-                         VALUES ('running', %s, %s, %s, %s, 'ted')
+                         VALUES ('queued', %s, %s, %s, %s, 'ted')
                          RETURNING id""", (["GRC"], today, today, False))
             job_id = c.fetchone()["id"]
-        log_path = os.path.join(LOG_DIR, f"job-{job_id}.log")
-
-        job_env = {**os.environ}
-        job_env["INGEST_JOB_ID"] = str(job_id)
-        log_fh = open(log_path, "w")
-        log_fh.write(f"# TED full-text backfill job {job_id}: limit={lim}\n\n")
-        log_fh.flush()
-        try:
-            proc = subprocess.Popen(
-                cmd, stdout=log_fh, stderr=subprocess.STDOUT,
-                stdin=subprocess.DEVNULL, start_new_session=True,
-                cwd=root, env=job_env,
-            )
-        except Exception as e:
-            with cursor() as c:
-                c.execute("""UPDATE proc.ingest_job
-                             SET status='error', last_error=%s, finished_at=now()
-                             WHERE id=%s""", (f"spawn failed: {e!r}", job_id))
-            log_fh.close()
-            raise HTTPException(500, f"failed to launch subprocess: {e!r}")
-
-        with cursor() as c:
-            c.execute("""UPDATE proc.ingest_job SET pid=%s, log_path=%s
-                         WHERE id=%s""", (proc.pid, log_path, job_id))
+            enqueue_ingest_command(c, job_id, command, {}, header)
         return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
 
     @router.get("/jobs/{job_id}", response_class=HTMLResponse)
@@ -909,7 +746,8 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             ftf = "all"
         reconcile_stale()
         with cursor() as c:
-            c.execute("""SELECT * FROM proc.ingest_job WHERE id=%s""", (job_id,))
+            c.execute(f"""SELECT *, {_LIVE_SQL} FROM proc.ingest_job
+                          WHERE id=%s""", (STALE_SECONDS, job_id))
             job = c.fetchone()
             if not job:
                 raise HTTPException(404, f"job {job_id} not found")
@@ -996,24 +834,17 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                       (job_id, ACT_LOG_PREVIEW))
             act_log = c.fetchall()
 
-        # Tail the log file (last ~4 KB) without loading the whole thing.
-        log_tail = ""
-        if job["log_path"] and os.path.exists(job["log_path"]):
-            try:
-                with open(job["log_path"], "rb") as f:
-                    f.seek(0, 2)
-                    size = f.tell()
-                    f.seek(max(0, size - 4096))
-                    log_tail = f.read().decode("utf-8", "replace")
-            except Exception:
-                pass
+        # Worker-streamed output (log_text), with a fallback to legacy log files.
+        log_tail = job_log_tail(job)
 
         return templates.TemplateResponse(
             request, "admin_job.html",
             {"job": job, "windows": windows, "counts": counts,
              "log_tail": log_tail,
-             "alive": pid_alive(job["pid"]),
-             "is_active": job["status"] == "running",
+             "alive": job["live"],
+             # 'queued' is still in-flight — keep the page auto-refreshing until
+             # the worker claims it and it reaches a terminal status.
+             "is_active": job["status"] in ("queued", "running"),
              "act_log": act_log, "act_actions": act_actions,
              "act_log_total": act_log_total, "act_ft_yes": act_ft_yes,
              "act_ft_garbled": act_ft_garbled, "ftf": ftf,
@@ -1053,34 +884,24 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
 
     @router.post("/jobs/{job_id}/cancel")
     def admin_cancel_job(job_id: int):
+        # Cross-container cancel: we can't signal the worker's child from here, so
+        # we flag cancel_requested (the worker sees it within a heartbeat and
+        # kills its child) AND flip the row to 'cancelled' now. A 'queued' job the
+        # worker hasn't claimed yet is simply skipped — the guard on status='queued'
+        # ensures the worker never picks up a cancelled row.
         with cursor() as c:
-            c.execute("""SELECT id, pid, status FROM proc.ingest_job
-                         WHERE id=%s""", (job_id,))
-            job = c.fetchone()
-            if not job:
-                raise HTTPException(404, f"job {job_id} not found")
-            if job["status"] != "running":
-                # Nothing to cancel; idempotent redirect.
-                return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
-
-            pid = job["pid"]
-            killed = False
-            if pid and pid_alive(pid):
-                try:
-                    # SIGTERM to the whole process group (we used
-                    # start_new_session, so the leader = the subprocess).
-                    os.killpg(os.getpgid(pid), signal.SIGTERM)
-                    killed = True
-                except ProcessLookupError:
-                    pass
-                except Exception as e:
-                    raise HTTPException(500, f"failed to signal pid {pid}: {e!r}")
-
             c.execute("""UPDATE proc.ingest_job
-                         SET status='cancelled', finished_at=now(),
-                             last_error=%s
-                         WHERE id=%s""",
-                      ('cancelled via UI' if killed else 'PID already gone', job_id))
+                         SET cancel_requested=true,
+                             status='cancelled',
+                             finished_at=now(),
+                             last_error='cancelled via UI'
+                         WHERE id=%s AND status IN ('queued', 'running')""",
+                      (job_id,))
+            if c.rowcount == 0:
+                # Not found or already terminal — idempotent redirect.
+                c.execute("SELECT 1 FROM proc.ingest_job WHERE id=%s", (job_id,))
+                if c.fetchone() is None:
+                    raise HTTPException(404, f"job {job_id} not found")
         return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
 
     # ------------------------------------------------------------------ #
@@ -1318,10 +1139,11 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
 
     def _reconcile_table_jobs():
         with cursor() as c:
-            c.execute("SELECT id, pid FROM proc.table_extract_job WHERE status='running'")
+            c.execute(f"""SELECT id, {_LIVE_SQL} FROM proc.table_extract_job
+                          WHERE status='running'""", (STALE_SECONDS,))
             rows = c.fetchall()
             for r in rows:
-                if pid_alive(r["pid"]):
+                if r["live"]:
                     continue
                 c.execute("""SELECT count(*) FILTER (WHERE NOT done) AS pending,
                                     count(*) AS total
@@ -1330,6 +1152,13 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 new = "done" if (t["total"] and not t["pending"]) else "stale"
                 c.execute("""UPDATE proc.table_extract_job SET status=%s, finished_at=now()
                              WHERE id=%s AND status='running'""", (new, r["id"]))
+
+    def table_job_active() -> bool:
+        """True if a table job is queued or running (one at a time)."""
+        with cursor() as c:
+            c.execute("""SELECT 1 FROM proc.table_extract_job
+                         WHERE status IN ('queued', 'running') LIMIT 1""")
+            return c.fetchone() is not None
 
     @router.post("/extract-tables")
     def extract_tables_launch(request: Request,
@@ -1348,11 +1177,9 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             desc += " · +αποθήκευση πινάκων"
         _reconcile_table_jobs()
         with cursor() as c:
-            c.execute("SELECT id, pid FROM proc.table_extract_job WHERE status='running'")
-            for r in c.fetchall():
-                if pid_alive(r["pid"]):
-                    raise HTTPException(409, "Εκτελείται ήδη μαζική εξαγωγή πινάκων· "
-                                             "περιμένετε ή ακυρώστε την.")
+            if table_job_active():
+                raise HTTPException(409, "Εκτελείται ήδη μαζική εξαγωγή πινάκων· "
+                                         "περιμένετε ή ακυρώστε την.")
             c.execute(f"SELECT count(*) AS n FROM proc.procurement_act a WHERE {where_sql}", args)
             total = c.fetchone()["n"]
             if total == 0:
@@ -1364,7 +1191,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                     f"Περιορίστε το φίλτρο{' ή τρέξτε χωρίς αποθήκευση' if save else ''}.")
             c.execute("""INSERT INTO proc.table_extract_job
                            (status, filter_desc, total_acts, save_tables)
-                         VALUES ('running', %s, %s, %s) RETURNING id""",
+                         VALUES ('queued', %s, %s, %s) RETURNING id""",
                       (desc, total, save))
             job_id = c.fetchone()["id"]
             c.execute(f"""INSERT INTO proc.table_extract_target (job_id, adam, ord)
@@ -1372,28 +1199,13 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                                  (row_number() OVER (ORDER BY a.submission_date DESC NULLS LAST))::int - 1
                           FROM proc.procurement_act a WHERE {where_sql}""",
                       [job_id] + args)
-
-        root = project_root()
-        log_path = os.path.join(LOG_DIR, f"table-job-{job_id}.log")
-        cmd = [sys.executable, os.path.join(root, "db.py"),
-               "extract-tables", "--job", str(job_id)]
-        log_fh = open(log_path, "w")
-        log_fh.write(f"# table extraction job {job_id}: {desc} ({total} acts)\n\n")
-        log_fh.flush()
-        try:
-            proc = subprocess.Popen(
-                cmd, stdout=log_fh, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                start_new_session=True, cwd=root, env={**os.environ})
-        except Exception as e:
-            with cursor() as c:
-                c.execute("""UPDATE proc.table_extract_job SET status='error',
-                             last_error=%s, finished_at=now() WHERE id=%s""",
-                          (f"spawn failed: {e!r}", job_id))
-            log_fh.close()
-            raise HTTPException(500, f"failed to launch subprocess: {e!r}")
-        with cursor() as c:
-            c.execute("UPDATE proc.table_extract_job SET pid=%s, log_path=%s WHERE id=%s",
-                      (proc.pid, log_path, job_id))
+            # Enqueue for the worker: the runner reads its target list from
+            # proc.table_extract_target by --job, so no env is needed.
+            command = ["extract-tables", "--job", str(job_id)]
+            header = f"# table extraction job: {desc} ({total} acts)\n\n"
+            c.execute("""UPDATE proc.table_extract_job
+                         SET command=%s, log_text=%s, queued_at=now()
+                         WHERE id=%s""", (command, header, job_id))
         return RedirectResponse(url=f"/admin/table-jobs/{job_id}", status_code=303)
 
     @router.get("/table-jobs/{job_id}", response_class=HTMLResponse)
@@ -1402,7 +1214,8 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             tof = "all"
         _reconcile_table_jobs()
         with cursor() as c:
-            c.execute("SELECT * FROM proc.table_extract_job WHERE id=%s", (job_id,))
+            c.execute(f"SELECT *, {_LIVE_SQL} FROM proc.table_extract_job WHERE id=%s",
+                      (STALE_SECONDS, job_id))
             job = c.fetchone()
             if not job:
                 raise HTTPException(404, f"table job {job_id} not found")
@@ -1422,20 +1235,14 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                           WHERE job_id=%s {_TOF[tof]}
                           ORDER BY id DESC LIMIT %s""", (job_id, ACT_LOG_PREVIEW))
             log = c.fetchall()
-        log_tail = ""
-        if job["log_path"] and os.path.exists(job["log_path"]):
-            try:
-                with open(job["log_path"], "rb") as f:
-                    f.seek(0, 2); size = f.tell(); f.seek(max(0, size - 4096))
-                    log_tail = f.read().decode("utf-8", "replace")
-            except Exception:
-                pass
+        log_tail = job_log_tail(job)
         return templates.TemplateResponse(
             request, "admin_table_job.html",
             {"job": job, "counts": counts, "total_logged": total_logged,
              "total_tables": total_tables, "total_saved": total_saved,
              "log": log, "tof": tof,
-             "alive": pid_alive(job["pid"]), "is_active": job["status"] == "running",
+             "alive": job["live"],
+             "is_active": job["status"] in ("queued", "running"),
              "act_log_preview": ACT_LOG_PREVIEW, "log_tail": log_tail,
              "outcomes": _TABLE_OUTCOMES, "admin_tab": "acts"})
 
@@ -1463,21 +1270,18 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
 
     @router.post("/table-jobs/{job_id}/cancel")
     def table_job_cancel(job_id: int):
+        # Same cross-container cancel as ingest jobs: flag cancel_requested (the
+        # worker kills its child within a heartbeat) and flip to 'cancelled' now.
         with cursor() as c:
-            c.execute("SELECT pid, status FROM proc.table_extract_job WHERE id=%s", (job_id,))
-            job = c.fetchone()
-            if not job:
-                raise HTTPException(404, f"table job {job_id} not found")
-            if job["status"] == "running":
-                pid = job["pid"]
-                if pid and pid_alive(pid):
-                    try:
-                        os.killpg(os.getpgid(pid), signal.SIGTERM)
-                    except Exception:
-                        pass
-                c.execute("""UPDATE proc.table_extract_job
-                             SET status='cancelled', finished_at=now()
-                             WHERE id=%s""", (job_id,))
+            c.execute("""UPDATE proc.table_extract_job
+                         SET cancel_requested=true, status='cancelled',
+                             finished_at=now()
+                         WHERE id=%s AND status IN ('queued', 'running')""",
+                      (job_id,))
+            if c.rowcount == 0:
+                c.execute("SELECT 1 FROM proc.table_extract_job WHERE id=%s", (job_id,))
+                if c.fetchone() is None:
+                    raise HTTPException(404, f"table job {job_id} not found")
         return RedirectResponse(url=f"/admin/table-jobs/{job_id}", status_code=303)
 
     # ----- Authored-act edit / create form ---------------------------------- #

@@ -950,12 +950,43 @@ async def csrf_protect(request: Request) -> None:
         raise HTTPException(status_code=403, detail="CSRF token missing or invalid")
 
 
+# Inline job worker: in local/dev (NOT on Render) the web process runs the job
+# queue worker in a daemon thread, so admin-launched backfills/table jobs execute
+# with no separate process to start. On Render, a dedicated `type: worker` service
+# runs worker.py — the web service must NOT also run it (double-processing) — so
+# this defaults OFF there. Override explicitly with RUN_INLINE_WORKER=0/1.
+_RUN_INLINE_WORKER = os.environ.get(
+    "RUN_INLINE_WORKER", "0" if os.environ.get("RENDER") else "1") == "1"
+_worker_stop = None
+_worker_thread = None
+
+
 @asynccontextmanager
 async def _lifespan(_app):
-    # Close the DB pool on shutdown so its background maintenance thread is
-    # stopped cleanly, instead of ConnectionPool.__del__ trying to join it at
-    # interpreter finalization (noisy "cannot join thread at shutdown" trace).
+    import threading
+    global _worker_stop, _worker_thread
+    # Start the inline worker (lazy import so worker.py is never loaded on Render,
+    # where the flag is off and repo-root imports may differ).
+    if _RUN_INLINE_WORKER and os.environ.get("DATABASE_URL"):
+        try:
+            import worker as _worker
+            _worker_stop = threading.Event()
+            _worker_thread = threading.Thread(
+                target=_worker.run_loop, args=(_worker_stop,),
+                name="khmdhs-inline-worker", daemon=True)
+            _worker_thread.start()
+        except Exception as e:      # noqa: BLE001 — never block app startup
+            print(f"inline worker failed to start: {e!r}", flush=True)
+
     yield
+
+    # Stop the inline worker, then close the DB pool on shutdown so its background
+    # maintenance thread is stopped cleanly (instead of ConnectionPool.__del__
+    # trying to join it at interpreter finalization — a noisy trace).
+    if _worker_stop is not None:
+        _worker_stop.set()
+    if _worker_thread is not None:
+        _worker_thread.join(timeout=10)
     try:
         _pool.close()
     except Exception:      # noqa: BLE001 — best-effort on the way out

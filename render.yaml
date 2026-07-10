@@ -24,6 +24,23 @@ services:
       - key: SECRET_KEY
         sync: false            # set in dashboard (secret) — signs session cookies
 
+  # Background job worker — drains the admin job queue OFF the web process.
+  # The admin UI enqueues backfills / table-extraction jobs (proc.ingest_job,
+  # proc.table_extract_job with status='queued'); this long-running worker
+  # claims and runs them (worker.py), so heavy ingestion never runs on the web
+  # dyno and survives a web deploy/restart. INERT until you apply the Blueprint.
+  #   DATABASE_URL — the DB URL the worker runs jobs against (app_runtime is
+  #                  fine; the jobs only do DML). Set it in the dashboard.
+  - type: worker
+    name: khmdhs-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter             # Background Workers need a paid plan
+    dockerCommand: python worker.py
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+
   # Scheduled incremental ingestion — runs OFF the web process (a Cron Job spins
   # up, runs cron_catchup.py = per-source `db.py catchup`, then exits). Watermark-
   # based, so re-running is safe. INERT until you apply the Blueprint + set its env.
@@ -41,9 +58,17 @@ services:
       - key: DATABASE_URL
         sync: false
 # ---------------------------------------------------------------------------- #
+# Enabling the background worker (needed for admin-launched jobs in prod):
+#   1. Push; in Render, apply the Blueprint change → it creates "khmdhs-worker"
+#      (Background Workers need a paid plan).
+#   2. Set its DATABASE_URL (app_runtime url is fine). It starts polling and runs
+#      whatever the admin UI enqueues.
+#   NOTE: until this worker runs, admin-launched jobs sit in 'queued' (the web
+#   process no longer runs them itself). Locally, the web app runs an inline
+#   worker thread, so no separate process is needed in dev.
+#
 # Enabling the catchup cron:
-#   1. Push; in Render, apply the Blueprint change → it creates "khmdhs-catchup"
-#      (Cron Jobs need a paid plan).
+#   1. Apply the Blueprint → it creates "khmdhs-catchup" (Cron Jobs need a paid plan).
 #   2. Set its DATABASE_URL (owner url recommended). Trigger a manual run to test.
 #   3. It then runs daily and replaces running `./ingest.sh prod catchup` by hand.
 # ---------------------------------------------------------------------------- #

@@ -428,6 +428,8 @@ _ADMIN1 = {
     "Παράμετροι": "Parameters",
     "Εκκίνηση": "Started",
     "Διάρκεια": "Duration",
+    "Εργάτης": "Worker",
+    "σε αναμονή": "queued",
     "σε εξέλιξη": "in progress",
     "ολοκληρώθηκε": "completed",
     "ακυρώθηκε": "cancelled",

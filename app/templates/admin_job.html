@@ -3,8 +3,10 @@
 
 {% block content %}
 
-{% if is_active and alive %}
-  {# Auto-refresh every 6s while the job is running. Stops once it isn't. #}
+{% if is_active %}
+  {# Auto-refresh every 6s while the job is queued or running (waiting for the
+     worker to claim it, then while it runs). Stops once it reaches a terminal
+     status — reconcile_stale flips a dead 'running' row before this renders. #}
   <meta http-equiv="refresh" content="6">
 {% endif %}
 
@@ -20,9 +22,15 @@
     {% if job.resume %} · {{ t("με συνέχιση") }}{% endif %}
   </div>
   <div style="margin-top:12px;">
-    {% if job.status == 'running' %}
-      {% if alive %}
-        <span class="pill" style="color:var(--ok);">{{ t("σε εξέλιξη — PID") }} {{ job.pid }}</span>
+    {% if job.status in ('queued', 'running') %}
+      {% if job.status == 'queued' %}
+        <span class="pill" style="color:var(--ink-2);">{{ t("σε αναμονή") }}</span>
+      {% elif alive %}
+        <span class="pill" style="color:var(--ok);">{{ t("σε εξέλιξη") }}</span>
+      {% else %}
+        <span class="pill amend">{{ t("η διαδικασία χάθηκε") }}</span>
+      {% endif %}
+      {% if job.status == 'queued' or alive %}
         <form method="post" action="/admin/jobs/{{ job.id }}/cancel" style="display:inline-block; margin-left:10px;">
           <button type="submit"
                   style="background:transparent; color:var(--accent); border:1px solid var(--accent); padding:4px 12px; font-family:var(--sans); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer;"
@@ -30,8 +38,6 @@
             {{ t("Ακύρωση") }}
           </button>
         </form>
-      {% else %}
-        <span class="pill amend">{{ t("η διαδικασία χάθηκε") }}</span>
       {% endif %}
     {% elif job.status == 'done' %}<span class="pill" style="color:var(--ok);">{{ t("ολοκληρώθηκε") }}</span>
     {% elif job.status == 'cancelled' %}<span class="pill cancel">{{ t("ακυρωμένη") }}</span>
@@ -179,7 +185,7 @@
     <div class="section-h">{{ t("Έξοδος (τέλος αρχείου)") }}</div>
     {% if log_tail %}
       <pre style="font-family:var(--mono); font-size:11px; background:#1a1614; color:#d9d2bf; padding:14px 16px; max-height:340px; overflow:auto; line-height:1.55;">{{ log_tail }}</pre>
-      {% if job.log_path %}<p class="meta" style="margin-top:4px;">{{ job.log_path }}</p>{% endif %}
+      {% if job.worker_id %}<p class="meta" style="margin-top:4px;">{{ t("Εργάτης") }}: {{ job.worker_id }}</p>{% endif %}
     {% else %}
       <p style="font-family:var(--serif); font-style:italic; color:var(--ink-3); font-size:13px;">
         {{ t("Καμία έξοδος ακόμη — η εκτέλεση μόλις ξεκίνησε ή δεν δημιουργήθηκε αρχείο log.") }}
@@ -195,10 +201,10 @@
       {% if job.finished_at %}<dt>{{ t("Λήξη") }}</dt><dd>{{ job.finished_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>{% endif %}
       <dt>Status</dt><dd>{{ job.status }}</dd>
       {% if job.exit_code is not none %}<dt>Exit code</dt><dd>{{ job.exit_code }}</dd>{% endif %}
-      {% if job.pid %}<dt>PID</dt><dd><code style="font-family:var(--mono);">{{ job.pid }}</code></dd>{% endif %}
+      {% if job.worker_id %}<dt>{{ t("Εργάτης") }}</dt><dd><code style="font-family:var(--mono);">{{ job.worker_id }}</code></dd>{% endif %}
     </dl>
 
-    {% if is_active and alive %}
+    {% if is_active %}
       <p class="meta" style="margin-top:14px; color:var(--accent);">
         {{ t("Η σελίδα ανανεώνεται αυτόματα κάθε 6 δευτερόλεπτα.") }}
       </p>
