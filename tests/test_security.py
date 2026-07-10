@@ -10,6 +10,10 @@ def test_security_headers_present(client):
     csp = r.headers["content-security-policy"]
     assert "default-src 'self'" in csp
     assert "frame-ancestors 'none'" in csp
+    # HTMX's hx-vals='js:{…}' (CPV/NUTS typeahead, admin-acts widgets) needs
+    # 'unsafe-eval' in script-src; without it those requests never fire. Guard
+    # against a well-meaning CSP tightening silently re-breaking them.
+    assert "'unsafe-eval'" in csp
 
 
 def test_rate_limit_returns_429(client, monkeypatch):

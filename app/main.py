@@ -1245,11 +1245,16 @@ app.add_middleware(
 # (style/font only — they can't execute code). Framing, plugins, <base>, and
 # cross-site form posts are blocked. 'unsafe-inline' remains for now because the
 # templates use inline <script>/<style>/onclick — dropping it is a nonce refactor
-# for later. Override the whole policy with CONTENT_SECURITY_POLICY if needed.
+# for later. 'unsafe-eval' is required by HTMX's hx-vals='js:{…}' (the CPV/NUTS
+# typeahead and admin-acts widgets build their request params via a js:
+# expression, which HTMX evaluates with Function()); without it those requests
+# never fire. Since 'unsafe-inline' is already present, adding 'unsafe-eval' is a
+# negligible marginal relaxation. Override the whole policy with
+# CONTENT_SECURITY_POLICY if needed.
 # ---------------------------------------------------------------------------- #
 _CSP = os.environ.get("CONTENT_SECURITY_POLICY", "; ".join([
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data:",
