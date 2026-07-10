@@ -1181,26 +1181,25 @@ async def login_submit(request: Request):
     next_url = form.get("next") or "/"
     ip = request.client.host if request.client else "?"
     key = f"{username.lower()}|{ip}"
-    blocked = _auth.throttle_blocked(key)
-    if blocked:
-        return templates.TemplateResponse(
-            request, "login.html",
-            {"next": next_url,
-             "error": "Πολλές αποτυχημένες προσπάθειες — δοκιμάστε αργότερα."},
-            status_code=429)
     ok, user = False, None
     with cursor() as c:
+        if _auth.throttle_blocked(c, key):
+            return templates.TemplateResponse(
+                request, "login.html",
+                {"next": next_url,
+                 "error": "Πολλές αποτυχημένες προσπάθειες — δοκιμάστε αργότερα."},
+                status_code=429)
         u = _auth.get_by_username(c, username)
         if u and u.get("is_active") and _auth.verify_password(password, u["password_hash"]):
             ok, user = True, dict(u)
             _auth.touch_last_login(c, u["id"])
-    if not ok:
-        _auth.throttle_fail(key)
-        return templates.TemplateResponse(
-            request, "login.html",
-            {"next": next_url, "error": "Λάθος όνομα χρήστη ή κωδικός."},
-            status_code=401)
-    _auth.throttle_reset(key)
+        if not ok:
+            _auth.throttle_fail(c, key)
+            return templates.TemplateResponse(
+                request, "login.html",
+                {"next": next_url, "error": "Λάθος όνομα χρήστη ή κωδικός."},
+                status_code=401)
+        _auth.throttle_reset(c, key)
     _auth.login_session(request, user)
     return _Redirect(_safe_next(next_url), status_code=303)
 
@@ -1299,8 +1298,9 @@ app.include_router(_make_ic_router(templates, cursor))
 # Tender-table extraction UI (separate module, mounted under /tables). Gated by
 # the TABLES_ENABLED env flag so the deployed Render copy can carry the feature
 # turned off until the public conversation happens for real — locally it
-# defaults ON. Like /admin, it sits behind the app's BasicAuthMiddleware, so
-# it's curator-only without any per-route dependency. OCR inside it is gated
+# defaults ON. Like /admin, it sits behind the app's session AuthMiddleware
+# (/tables is an admin path in _is_admin_path), so it's curator-only without
+# any per-route dependency. OCR inside it is gated
 # SEPARATELY on ANTHROPIC_API_KEY, so enabling the feature and spending the API
 # key on OCR stay two independent decisions. Templates live in templates/tables/
 # and the three extraction modules (extractors.py, exporter.py, ocr.py) are kept

@@ -1,10 +1,12 @@
 # ---------------------------------------------------------------------------- #
 # Dockerfile — runs the FastAPI app under uvicorn.
-# Works on Render, Railway, Fly.io, or any container host. The app reads two
-# environment variables at runtime:
+# Works on Render, Railway, Fly.io, or any container host. The app reads these
+# environment variables at runtime (see render.yaml for the deploy-time set):
 #   DATABASE_URL  — your Supabase (or other) Postgres connection string
-#   APP_PASSWORD  — shared login password (enables the auth gate)
-#   APP_USERNAME  — optional, defaults to "team"
+#   SECRET_KEY    — signs the session cookies for the accounts/auth system;
+#                   MANDATORY in production (the app refuses to start without it)
+# Auth is per-user accounts with server-side sessions — there is no shared
+# APP_PASSWORD gate any more. See render.yaml and app/main.py for the full env.
 # ---------------------------------------------------------------------------- #
 FROM python:3.12-slim
 

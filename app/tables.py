@@ -11,9 +11,10 @@ are kept byte-identical between the two projects so fixes flow between them
 by copying three files. All KHMDHS-specific glue lives here.
 
 Design choices (the "public later" hinge):
-  * The whole router is gated by the app's BasicAuthMiddleware already, so
-    it is curator-only without any per-route dependency. Opening it to the
-    public later is a deployment decision, not a code change.
+  * The whole router is gated by the app's session AuthMiddleware already
+    (/tables is an admin path in _is_admin_path), so it is curator-only
+    without any per-route dependency. Opening it to the public later is a
+    deployment decision, not a code change.
   * OCR is gated SEPARATELY, on the presence of ANTHROPIC_API_KEY — so
     "enable the feature" and "spend my API key on OCR" stay two decisions.
   * The ΑΔΑΜ-fetch path enforces hard caps (max attachment size, max pages

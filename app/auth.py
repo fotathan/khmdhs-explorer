@@ -20,7 +20,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import secrets
-import time
 
 # scrypt params. N=2^14 → ~16 MB working memory per hash: strong for the
 # occasional login, cheap enough for the small Render instance.
@@ -662,31 +661,51 @@ def session_uid(request):
 
 
 # --------------------------------------------------------------------------- #
-# login throttle (in-memory; per (username, ip))
+# login throttle (DB-backed; per (username, ip))
+#
+# Backed by proc.login_throttle rather than process memory so lockouts survive
+# a restart and are shared across workers (in-memory state was per-process and
+# reset on deploy). Takes the open cursor `c` like the other helpers here.
 # --------------------------------------------------------------------------- #
-_FAILS: dict = {}
 _MAX_FAILS = 8
 _LOCK_SECONDS = 300
 
 
-def throttle_blocked(key) -> int:
+def throttle_blocked(c, key) -> int:
     """Seconds remaining if locked out, else 0."""
-    rec = _FAILS.get(key)
-    if not rec:
-        return 0
-    _, until = rec
-    return max(0, int(until - time.time()))
+    c.execute("""
+        SELECT GREATEST(0, EXTRACT(EPOCH FROM (locked_until - now())))::int AS s
+        FROM proc.login_throttle
+        WHERE key = %s AND locked_until IS NOT NULL AND locked_until > now()
+    """, (key,))
+    row = c.fetchone()
+    return int(row["s"]) if row else 0
 
 
-def throttle_fail(key):
-    n, _ = _FAILS.get(key, (0, 0))
-    n += 1
-    until = time.time() + _LOCK_SECONDS if n >= _MAX_FAILS else 0
-    _FAILS[key] = (n, until)
+def throttle_fail(c, key):
+    """Record a failed attempt; lock the key once it crosses _MAX_FAILS."""
+    c.execute("""
+        INSERT INTO proc.login_throttle (key, fail_count, locked_until, updated_at)
+        VALUES (%s, 1, NULL, now())
+        ON CONFLICT (key) DO UPDATE SET
+            fail_count   = proc.login_throttle.fail_count + 1,
+            locked_until = CASE
+                WHEN proc.login_throttle.fail_count + 1 >= %s
+                THEN now() + make_interval(secs => %s)
+                ELSE NULL END,
+            updated_at   = now()
+    """, (key, _MAX_FAILS, _LOCK_SECONDS))
+    # Opportunistic cleanup so spray attacks can't grow the table unbounded:
+    # drop idle rows (no active lock, untouched for a day). Cheap, indexed.
+    c.execute("""
+        DELETE FROM proc.login_throttle
+        WHERE updated_at < now() - interval '1 day'
+          AND (locked_until IS NULL OR locked_until < now())
+    """)
 
 
-def throttle_reset(key):
-    _FAILS.pop(key, None)
+def throttle_reset(c, key):
+    c.execute("DELETE FROM proc.login_throttle WHERE key = %s", (key,))
 
 
 # --------------------------------------------------------------------------- #
