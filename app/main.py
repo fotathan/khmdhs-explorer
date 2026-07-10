@@ -2287,7 +2287,8 @@ def act_detail(adam: str, request: Request):
                    -- contract-specific
                    a.contract_number, a.contract_signed_date,
                    a.start_date, a.end_date, a.no_end_date,
-                   a.assign_criteria_code, a.bids_submitted, a.max_bids_submitted,
+                   a.assign_criteria_code, a.assign_criteria_label,
+                   a.bids_submitted, a.max_bids_submitted,
                    -- payment-specific
                    a.is_credit, a.payment_commitment_code, a.contract_value,
                    a.raw_json,

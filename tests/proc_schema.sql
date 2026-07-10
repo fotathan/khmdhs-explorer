@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict z4cQ2qS6k78fajvNOsH8831ANjyjCBYPrdwpAlr9cYaM4w5xOCbaI64sqTouvwE
+\restrict vcUraPG3kSC0xSLent9KCQdxAqRy6L2SodqueFvG4ErTWsCoVfbggg1gcfuj7Y5
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Homebrew)
@@ -1582,6 +1582,7 @@ CREATE TABLE proc.procurement_act (
     contact_fax text,
     street_address text,
     contact_url text,
+    assign_criteria_label text,
     CONSTRAINT procurement_act_origin_chk CHECK ((origin = ANY (ARRAY['import'::text, 'authored'::text])))
 );
 
@@ -4109,5 +4110,5 @@ ALTER TABLE ONLY proc.user_subscription
 -- PostgreSQL database dump complete
 --
 
-\unrestrict z4cQ2qS6k78fajvNOsH8831ANjyjCBYPrdwpAlr9cYaM4w5xOCbaI64sqTouvwE
+\unrestrict vcUraPG3kSC0xSLent9KCQdxAqRy6L2SodqueFvG4ErTWsCoVfbggg1gcfuj7Y5
 

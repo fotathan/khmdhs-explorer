@@ -67,7 +67,7 @@
             {% if n.start_date %}<dt>{{ t("Έναρξη") }}</dt><dd>{{ n.start_date.strftime('%d/%m/%Y') }}</dd>{% endif %}
             {% if n.end_date %}<dt>{{ t("Λήξη") }}</dt><dd>{{ n.end_date.strftime('%d/%m/%Y') }}</dd>{% elif n.no_end_date %}<dt>{{ t("Λήξη") }}</dt><dd><em>{{ t("χωρίς προκαθορισμένη λήξη") }}</em></dd>{% endif %}
             {% if n.bids_submitted is not none %}<dt>{{ t("Προσφορές") }}</dt><dd>{{ n.bids_submitted }}{% if n.max_bids_submitted %} ({{ t("μέγ.") }} {{ n.max_bids_submitted }}){% endif %}</dd>{% endif %}
-            {% if n.assign_criteria_code %}<dt>{{ t("Κριτήριο ανάθεσης") }}</dt><dd>{{ n.assign_criteria_code | assign_criteria_label }}</dd>{% endif %}
+            {% if n.assign_criteria_label or n.assign_criteria_code %}<dt>{{ t("Κριτήριο ανάθεσης") }}</dt><dd>{{ n.assign_criteria_label or (n.assign_criteria_code | assign_criteria_label) }}</dd>{% endif %}
           {% endif %}
 
           {% if atype == 'payment' %}

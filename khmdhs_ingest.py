@@ -404,7 +404,8 @@ class Repository:
                   max_number_of_contractors, option_right, option_right_description,
                   framework_agreement_adam, bidding_website,
                   contract_number, contract_signed_date, start_date, end_date,
-                  no_end_date, assign_criteria_code, bids_submitted, max_bids_submitted,
+                  no_end_date, assign_criteria_code, assign_criteria_label,
+                  bids_submitted, max_bids_submitted,
                   is_credit, payment_commitment_code, contract_value,
                   approval_ada, commitment_no, protocol_number, author_email,
                   raw_json, source_endpoint, data_source)
@@ -425,7 +426,8 @@ class Repository:
                   %(max_number_of_contractors)s, %(option_right)s, %(option_right_description)s,
                   %(framework_agreement_adam)s, %(bidding_website)s,
                   %(contract_number)s, %(contract_signed_date)s, %(start_date)s, %(end_date)s,
-                  %(no_end_date)s, %(assign_criteria_code)s, %(bids_submitted)s, %(max_bids_submitted)s,
+                  %(no_end_date)s, %(assign_criteria_code)s, %(assign_criteria_label)s,
+                  %(bids_submitted)s, %(max_bids_submitted)s,
                   %(is_credit)s, %(payment_commitment_code)s, %(contract_value)s,
                   %(approval_ada)s, %(commitment_no)s, %(protocol_number)s, %(author_email)s,
                   %(raw_json)s, %(source_endpoint)s, 'khmdhs')
@@ -434,6 +436,7 @@ class Repository:
                   cancelled=EXCLUDED.cancelled, cancellation_date=EXCLUDED.cancellation_date,
                   total_cost_without_vat=EXCLUDED.total_cost_without_vat,
                   total_cost_with_vat=EXCLUDED.total_cost_with_vat,
+                  assign_criteria_label=EXCLUDED.assign_criteria_label,
                   data_source='khmdhs',
                   raw_json=EXCLUDED.raw_json, ingested_at=now()
                WHERE proc.procurement_act.origin = 'import'
@@ -492,6 +495,9 @@ class Repository:
                 "end_date": act.get("endDate"),
                 "no_end_date": act.get("noEndDate"),
                 "assign_criteria_code": kv_key(act, "assignCriteria"),
+                # assignCriteria's key is unreliable (it's the contractType code);
+                # the label is the truth — store it directly.
+                "assign_criteria_label": kv_label(act, "assignCriteria"),
                 "bids_submitted": act.get("bidsSubmitted"),
                 "max_bids_submitted": act.get("maxBidsSubmitted"),
                 # payment-specific
