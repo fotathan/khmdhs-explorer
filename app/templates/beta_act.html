@@ -1,13 +1,10 @@
 {% extends "beta_base.html" %}
 {% set atype = n.act_type or 'notice' %}
 {% set type_label_el = atype | type_label %}
-{# Yes/No/Not-available renderer for tri-state booleans: NULL means the source
-   never stated it — shown explicitly as "Not available", not silently as "No". #}
-{% macro tri(val) -%}
-  {%- if val is none -%}<span class="na">{{ "Δεν προσδιορίζεται" | t }}</span>
-  {%- elif val -%}{{ "ναι" | t }}
-  {%- else -%}{{ "όχι" | t }}{%- endif -%}
-{%- endmacro %}
+{# Yes/No renderer for tri-state booleans. NULL = the source never stated it, so
+   the caller omits the row entirely (nothing useful to show); only an explicit
+   Yes/No is rendered here. #}
+{% macro yn(val) -%}{{ "ναι" | t if val else "όχι" | t }}{%- endmacro %}
 {% block title %}{{ n.title or n.adam }} · {{ type_label_el }}{% endblock %}
 {% block content %}
 <main>
@@ -78,7 +75,7 @@
           {% endif %}
 
           {% if atype == 'payment' %}
-            <dt>{{ t("Πιστωτικό") }}</dt><dd>{{ tri(n.is_credit) }}</dd>
+            {% if n.is_credit is not none %}<dt>{{ t("Πιστωτικό") }}</dt><dd>{{ yn(n.is_credit) }}</dd>{% endif %}
             {% if n.payment_commitment_code %}<dt>{{ t("Κωδ. δέσμευσης") }}</dt><dd><code>{{ n.payment_commitment_code }}</code></dd>{% endif %}
             {% if n.contract_value %}<dt>{{ t("Αξία σύμβασης") }}</dt><dd>€ {{ "{:,.2f}".format(n.contract_value).replace(",", ".") }}</dd>{% endif %}
           {% endif %}
@@ -117,15 +114,15 @@
       <div class="panel">
         <h3 class="panel-h">{{ t("Πρόσθετα στοιχεία") }}</h3>
         <dl class="facts">
-          <dt>{{ t("Διαίρεση σε τμήματα") }}</dt><dd>{{ tri(n.divided_into_lots) }}</dd>
-          <dt>{{ t("Συμφωνία-πλαίσιο") }}</dt><dd>{{ tri(n.is_framework_agreement) }}</dd>
+          {% if n.divided_into_lots is not none %}<dt>{{ t("Διαίρεση σε τμήματα") }}</dt><dd>{{ yn(n.divided_into_lots) }}</dd>{% endif %}
+          {% if n.is_framework_agreement is not none %}<dt>{{ t("Συμφωνία-πλαίσιο") }}</dt><dd>{{ yn(n.is_framework_agreement) }}</dd>{% endif %}
           {% if n.type_of_bid_required %}<dt>{{ t("Τύπος απαιτούμενης προσφοράς") }}</dt><dd>{{ n.type_of_bid_required }}</dd>{% endif %}
-          <dt>{{ t("Εναλλακτικές προσφορές") }}</dt><dd>{{ tri(n.alternative_offers_allowed) }}</dd>
+          {% if n.alternative_offers_allowed is not none %}<dt>{{ t("Εναλλακτικές προσφορές") }}</dt><dd>{{ yn(n.alternative_offers_allowed) }}</dd>{% endif %}
           {% if n.number_of_offers is not none %}<dt>{{ t("Αριθμός προσφορών") }}</dt><dd>{{ n.number_of_offers }}</dd>{% endif %}
-          <dt>{{ t("Δικαίωμα παράτασης") }}</dt><dd>{{ tri(n.prolongation_option) }}</dd>
+          {% if n.prolongation_option is not none %}<dt>{{ t("Δικαίωμα παράτασης") }}</dt><dd>{{ yn(n.prolongation_option) }}</dd>{% endif %}
           {% if n.prolongation_in_months is not none %}<dt>{{ t("Παράταση (μήνες)") }}</dt><dd>{{ n.prolongation_in_months }}</dd>{% endif %}
           {% if n.vat_rate is not none %}<dt>{{ t("Συντελεστής ΦΠΑ") }}</dt><dd>{{ n.vat_rate }}%</dd>{% endif %}
-          <dt>{{ t("Περιλαμβάνεται ΦΠΑ") }}</dt><dd>{{ tri(n.vat_included) }}</dd>
+          {% if n.vat_included is not none %}<dt>{{ t("Περιλαμβάνεται ΦΠΑ") }}</dt><dd>{{ yn(n.vat_included) }}</dd>{% endif %}
           {% if n.value_eur is not none %}<dt>{{ t("Αξία (EUR)") }}</dt><dd>€ {{ "{:,.2f}".format(n.value_eur).replace(",", ".") }}</dd>{% endif %}
           {% if n.value_usd is not none %}<dt>{{ t("Αξία (USD)") }}</dt><dd>$ {{ "{:,.2f}".format(n.value_usd) }}</dd>{% endif %}
           {% if n.estimated_price_min is not none %}<dt>{{ t("Εκτιμώμενη τιμή (ελάχ.)") }}</dt><dd>€ {{ "{:,.2f}".format(n.estimated_price_min).replace(",", ".") }}</dd>{% endif %}

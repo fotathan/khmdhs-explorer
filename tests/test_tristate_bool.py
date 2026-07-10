@@ -19,7 +19,7 @@ def _dd(html, label):
     return re.sub("<[^>]+>", "", m.group(1)).strip() if m else None
 
 
-def test_act_page_renders_three_states(client, db):
+def test_act_page_hides_null_shows_yes_no(client, db):
     # vat_rate set so the extended panel shows; the booleans span all three states
     _mk_act(db, "TS-DISP", divided_into_lots=None, is_framework_agreement=True,
             vat_included=False, vat_rate=24)
@@ -27,7 +27,8 @@ def test_act_page_renders_three_states(client, db):
     login(client, "tsadmin", "goodpassword1")
     r = client.get("/act/TS-DISP", follow_redirects=False)
     assert r.status_code == 200
-    assert _dd(r.text, "Διαίρεση σε τμήματα") == "Δεν προσδιορίζεται"   # NULL
+    # NULL (not specified) → the row is omitted entirely, not shown as a label
+    assert "Διαίρεση σε τμήματα" not in r.text
     assert _dd(r.text, "Συμφωνία-πλαίσιο") == "ναι"                     # TRUE
     assert _dd(r.text, "Περιλαμβάνεται ΦΠΑ") == "όχι"                   # FALSE
     db.cursor().execute("DELETE FROM proc.procurement_act WHERE adam='TS-DISP'")
