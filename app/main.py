@@ -28,6 +28,7 @@ from __future__ import annotations
 import os
 import re
 import secrets
+import time as _time
 from contextlib import contextmanager, asynccontextmanager
 from datetime import date
 from typing import Optional
@@ -1191,9 +1192,91 @@ app.add_middleware(
     same_site="lax", https_only=_SESSION_SECURE, max_age=14 * 24 * 3600)
 
 
+# ---------------------------------------------------------------------------- #
+# Security response headers (set on every response; this is the OUTERMOST
+# middleware). A practical CSP: scripts/styles/images/xhr are locked to 'self'
+# (HTMX + Quill are vendored under /static, so no third-party script origins are
+# needed), with Google Fonts' two origins allowed for the webfont CSS + files
+# (style/font only — they can't execute code). Framing, plugins, <base>, and
+# cross-site form posts are blocked. 'unsafe-inline' remains for now because the
+# templates use inline <script>/<style>/onclick — dropping it is a nonce refactor
+# for later. Override the whole policy with CONTENT_SECURITY_POLICY if needed.
+# ---------------------------------------------------------------------------- #
+_CSP = os.environ.get("CONTENT_SECURITY_POLICY", "; ".join([
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data:",
+    "connect-src 'self'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+]))
+
+
+@app.middleware("http")
+async def _security_headers(request: Request, call_next):
+    response = await call_next(request)
+    h = response.headers
+    h.setdefault("X-Content-Type-Options", "nosniff")
+    h.setdefault("X-Frame-Options", "DENY")
+    h.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    h.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    h.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+    if _CSP:
+        h.setdefault("Content-Security-Policy", _CSP)
+    # HSTS only in prod (served over HTTPS at Render's edge); ignored over local
+    # http anyway, but no reason to emit it in dev.
+    if _IS_PROD:
+        h.setdefault("Strict-Transport-Security",
+                     "max-age=63072000; includeSubDomains")
+    return response
+
+
 def _safe_next(nxt: str) -> str:
     """Only allow same-site relative redirects (defeat open-redirect)."""
     return nxt if nxt and nxt.startswith("/") and not nxt.startswith("//") else "/"
+
+
+# ---------------------------------------------------------------------------- #
+# Lightweight per-IP rate limit for the aggregation-heavy public routes
+# (/analytics, /explore). In-memory fixed window — fine for the single-worker
+# deployment (the Dockerfile runs one uvicorn worker); it's PER-PROCESS, so a
+# multi-worker / multi-instance setup would need a shared store. Generous by
+# default so real users never hit it — it exists to blunt scripted scraping.
+#   RATELIMIT_ENABLED=0   turn it off
+#   RATELIMIT_PER_MIN=N   requests per IP per minute per route (default 60)
+# ---------------------------------------------------------------------------- #
+_RL_ENABLED = os.environ.get("RATELIMIT_ENABLED", "1") == "1"
+_RL_PER_MIN = int(os.environ.get("RATELIMIT_PER_MIN", "60"))
+_RL_WINDOW = 60.0
+_rl_hits: dict = {}   # (ip, bucket) -> [window_start_epoch, count]
+
+
+def _rate_limit(request: Request, bucket: str, per_min: int | None = None):
+    """Raise 429 if this client has exceeded the per-minute budget for `bucket`."""
+    if not _RL_ENABLED:
+        return
+    limit = per_min or _RL_PER_MIN
+    ip = request.client.host if request.client else "?"
+    now = _time.time()
+    # Opportunistic prune so distinct-IP spraying can't grow the map unbounded.
+    if len(_rl_hits) > 10000:
+        for k, v in list(_rl_hits.items()):
+            if now - v[0] >= _RL_WINDOW:
+                _rl_hits.pop(k, None)
+    key = (ip, bucket)
+    rec = _rl_hits.get(key)
+    if rec is None or now - rec[0] >= _RL_WINDOW:
+        rec = [now, 0]
+    rec[1] += 1
+    _rl_hits[key] = rec
+    if rec[1] > limit:
+        raise HTTPException(
+            status_code=429, detail="Too many requests — please slow down.",
+            headers={"Retry-After": str(int(_RL_WINDOW - (now - rec[0])) + 1)})
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -1559,6 +1642,7 @@ def analytics(request: Request):
     """Dashboard of deduplicated AWARDED value (contracts only; payments and
     cancelled acts excluded; merged entities consolidated). Reads precomputed
     materialized views — refresh them with SELECT proc.refresh_analytics()."""
+    _rate_limit(request, "analytics")
     lang = _i18n.lang_from_request(request)
     # The matview pre-bakes a Greek division label; in EN resolve the division's
     # English CPV name (root code), falling back to the baked Greek label.
@@ -1661,6 +1745,42 @@ def account_page(request: Request):
                                       {"acct": u, "subscription": sub})
 
 
+@app.post("/account/password")
+async def account_password(request: Request):
+    """Self-service password change: verify the current password, then set the
+    new one (min 8 chars). Re-renders the account page with a result banner."""
+    u = getattr(request.state, "user", None)
+    if not u:
+        return _Redirect("/login?next=/account", status_code=303)
+    form = await request.form()
+    current = form.get("current_password") or ""
+    new = form.get("new_password") or ""
+    confirm = form.get("confirm_password") or ""
+
+    def _render(error=None, ok=None):
+        sub = None
+        try:
+            with cursor() as c:
+                sub = _auth.current_subscription(c, u["id"])
+        except Exception:      # noqa: BLE001
+            sub = None
+        return templates.TemplateResponse(
+            request, "account.html",
+            {"acct": u, "subscription": sub, "pw_error": error, "pw_ok": ok},
+            status_code=400 if error else 200)
+
+    with cursor() as c:
+        full = _auth.get_by_username(c, u["username"])
+        if not full or not _auth.verify_password(current, full["password_hash"]):
+            return _render(error="Το τρέχον συνθηματικό δεν είναι σωστό.")
+        if new != confirm:
+            return _render(error="Τα νέα συνθηματικά δεν ταιριάζουν.")
+        if not _auth.password_ok(new):
+            return _render(error="Το νέο συνθηματικό πρέπει να έχει 8–200 χαρακτήρες.")
+        _auth.set_password(c, u["id"], new)
+    return _render(ok="Το συνθηματικό ενημερώθηκε.")
+
+
 @app.post("/account/export")
 def account_export(request: Request):
     u = getattr(request.state, "user", None)
@@ -1693,7 +1813,15 @@ async def account_delete(request: Request):
             request, "account.html",
             {"acct": u, "error": "Επιβεβαιώστε ότι κατανοείτε πως η ενέργεια είναι μη αναστρέψιμη."},
             status_code=400)
+    # Re-authenticate: require the current password before an irreversible delete.
+    password = form.get("password") or ""
     with cursor() as c:
+        full = _auth.get_by_username(c, u["username"])
+        if not full or not _auth.verify_password(password, full["password_hash"]):
+            return templates.TemplateResponse(
+                request, "account.html",
+                {"acct": u, "error": "Λάθος συνθηματικό — ο λογαριασμός δεν διαγράφηκε."},
+                status_code=403)
         _auth.delete_account(c, u["id"])
     _auth.logout_session(request)
     return _Redirect("/?account_deleted=1", status_code=303)
@@ -1790,6 +1918,7 @@ def explore(request: Request):
     Two tables: by authority and by contractor (both merge-aware, ranked by
     value). Honors the same analytics exclusions (cancelled / over-ceiling /
     suspicious-flagged) so totals are consistent with the dashboard."""
+    _rate_limit(request, "explore")
     params = _params_from(request)
     where, args = build_where(params)
 

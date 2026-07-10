@@ -1621,6 +1621,17 @@ _HELP = {
 # Trust / legal footer pages (data_sources, privacy, terms) + footer.
 _LEGAL = {
     "Ο λογαριασμός μου": "My account",
+    "Αλλαγή συνθηματικού": "Change password",
+    "Τρέχον συνθηματικό": "Current password",
+    "Νέο συνθηματικό": "New password",
+    "Επιβεβαίωση νέου συνθηματικού": "Confirm new password",
+    "Ενημέρωση συνθηματικού": "Update password",
+    "Συνθηματικό": "Password",
+    "Το τρέχον συνθηματικό δεν είναι σωστό.": "Your current password is incorrect.",
+    "Τα νέα συνθηματικά δεν ταιριάζουν.": "The new passwords do not match.",
+    "Το νέο συνθηματικό πρέπει να έχει 8–200 χαρακτήρες.": "The new password must be 8–200 characters.",
+    "Το συνθηματικό ενημερώθηκε.": "Password updated.",
+    "Λάθος συνθηματικό — ο λογαριασμός δεν διαγράφηκε.": "Wrong password — account not deleted.",
     "Τα δεδομένα σας": "Your data",
     "Κατεβάστε όλα τα προσωπικά δεδομένα που τηρούμε για τον λογαριασμό σας σε μορφή JSON.": "Download all the personal data we hold for your account, in JSON format.",
     "Λήψη των δεδομένων μου (JSON)": "Download my data (JSON)",

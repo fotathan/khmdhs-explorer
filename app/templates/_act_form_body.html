@@ -216,8 +216,8 @@
 {% if is_authored %}
 <script>
 (function () {
-  var CSS = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css';
-  var JS  = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js';
+  var CSS = '/static/vendor/quill-2.0.3.snow.css';
+  var JS  = '/static/vendor/quill-2.0.3.js';
   var mount = document.querySelector('.ftc-editor');
   if (!mount) return;
   function ensureCss() {

@@ -2329,9 +2329,10 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                     """INSERT INTO proc.act_attachment
                          (adam, filename, mimetype, size_bytes, checksum,
                           storage_backend, storage_ref, extracted_text, n_inner, uploaded_by)
-                       VALUES (%s,%s,%s,%s,%s,'local_fs',%s,%s,%s,%s)""",
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                     (adam, uf.filename, meta["mimetype"], meta["size"], meta["checksum"],
-                     meta["storage_ref"], text, n_inner, curator))
+                     meta.get("backend", "local_fs"), meta["storage_ref"],
+                     text, n_inner, curator))
                 c.execute("UPDATE proc.procurement_act SET has_attachments=true WHERE adam=%s",
                           (adam,))
         return templates.TemplateResponse(

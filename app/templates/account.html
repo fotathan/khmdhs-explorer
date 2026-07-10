@@ -18,6 +18,21 @@
   </div>
 
   <div class="acct-card">
+    <h2>{{ t("Αλλαγή συνθηματικού") }}</h2>
+    {% if pw_ok %}<div class="acct-ok">{{ pw_ok | t }}</div>{% endif %}
+    {% if pw_error %}<div class="acct-error">{{ pw_error | t }}</div>{% endif %}
+    <form method="post" action="/account/password" autocomplete="off">
+      <label class="acct-field">{{ t("Τρέχον συνθηματικό") }}
+        <input class="acct-input" type="password" name="current_password" required autocomplete="current-password"></label>
+      <label class="acct-field">{{ t("Νέο συνθηματικό") }}
+        <input class="acct-input" type="password" name="new_password" required minlength="8" autocomplete="new-password"></label>
+      <label class="acct-field">{{ t("Επιβεβαίωση νέου συνθηματικού") }}
+        <input class="acct-input" type="password" name="confirm_password" required minlength="8" autocomplete="new-password"></label>
+      <button class="acct-btn" type="submit">{{ t("Ενημέρωση συνθηματικού") }}</button>
+    </form>
+  </div>
+
+  <div class="acct-card">
     <h2>{{ t("Τα δεδομένα σας") }}</h2>
     <p class="acct-muted">{{ t("Κατεβάστε όλα τα προσωπικά δεδομένα που τηρούμε για τον λογαριασμό σας σε μορφή JSON.") }}</p>
     <form method="post" action="/account/export">
@@ -33,6 +48,8 @@
           onsubmit="return confirm('{{ t('Οριστική διαγραφή του λογαριασμού σας;') }}')">
       <label class="acct-check"><input type="checkbox" name="confirm" required>
         {{ t("Κατανοώ ότι η ενέργεια είναι μη αναστρέψιμη.") }}</label>
+      <label class="acct-field">{{ t("Συνθηματικό") }}
+        <input class="acct-input" type="password" name="password" required autocomplete="current-password"></label>
       <button class="acct-btn acct-btn-danger" type="submit">{{ t("Διαγραφή του λογαριασμού μου") }}</button>
     </form>
   </div>
@@ -58,5 +75,13 @@
   .acct-btn-danger:hover{background:#8f1e17;}
   .acct-error{background:#fdeceb;border:1px solid #f4c7c3;color:#b3261e;padding:10px 14px;
     border-radius:9px;font-size:13.5px;margin-bottom:16px;}
+  .acct-ok{background:#e9f7ee;border:1px solid #b7e2c6;color:#1a7a3d;padding:10px 14px;
+    border-radius:9px;font-size:13.5px;margin-bottom:16px;}
+  .acct-field{display:block;font-size:12px;color:var(--ink-2,#5b626d);margin-bottom:12px;
+    font-family:var(--mono,monospace);text-transform:uppercase;letter-spacing:.04em;}
+  .acct-input{display:block;width:100%;margin-top:5px;padding:9px 11px;border:1px solid var(--rule,#e6e8ec);
+    border-radius:8px;font-size:14px;font-family:inherit;text-transform:none;letter-spacing:normal;
+    color:var(--ink,#14181f);background:var(--paper,#fff);box-sizing:border-box;}
+  .acct-input:focus{outline:none;border-color:var(--accent,#b41034);}
 </style>
 {% endblock %}

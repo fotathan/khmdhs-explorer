@@ -121,7 +121,7 @@ def _s3_key(storage_ref: str) -> str:
 # bytes live, not what's recorded in the DB.
 # --------------------------------------------------------------------------- #
 def store(adam: str, filename: str, data: bytes) -> dict:
-    """Persist bytes and return {storage_ref, checksum, size, mimetype}."""
+    """Persist bytes and return {storage_ref, checksum, size, mimetype, backend}."""
     if not enabled():
         raise AttachmentError("attachments are disabled on this environment")
     if BACKEND not in ("local_fs", "s3"):
@@ -151,6 +151,7 @@ def store(adam: str, filename: str, data: bytes) -> dict:
         "checksum": hashlib.sha256(data).hexdigest(),
         "size": len(data),
         "mimetype": mimetype,
+        "backend": BACKEND,          # record the ACTUAL backend, not a hardcoded guess
     }
 
 
