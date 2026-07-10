@@ -188,7 +188,8 @@
   .ft-selmenu-list{max-height:240px; overflow:auto; display:flex; flex-direction:column;}
   .ft-selitem{display:block; width:100%; text-align:left; background:transparent; border:0; padding:6px 8px;
     font-size:12.5px; cursor:pointer; border-radius:5px; color:var(--ink,#222);}
-  .ft-selitem:hover{background:var(--accent-soft,#fbe9ec);}
+  .ft-selitem:hover,
+  .ft-selitem.ft-active{background:var(--accent-soft,#fbe9ec);}
   .ft-selitem-cpv{font-weight:600; color:var(--accent,#b41034); border-bottom:1px solid var(--rule,#e6e8ec);
     margin-bottom:4px; padding-bottom:8px;}
   .ft-flash{outline:2px solid var(--accent, #b41034) !important; outline-offset:1px;}
@@ -376,27 +377,64 @@
         var cb = document.createElement('button');
         cb.type = 'button'; cb.className = 'ft-selitem ft-selitem-cpv';
         cb.textContent = '{{ t("➜ Κωδικοί CPV (αυτόματος εντοπισμός)") }}';
-        cb.addEventListener('mousedown', function (ev) { ev.preventDefault(); addCpvFromSelection(lastText); hide(); });
+        cb._activate = function () { addCpvFromSelection(lastText); hide(); };
+        cb.addEventListener('mousedown', function (ev) { ev.preventDefault(); cb._activate(); });
         listEl.appendChild(cb);
       }
       fields().forEach(function (f) {
         var b = document.createElement('button');
         b.type = 'button'; b.className = 'ft-selitem'; b.textContent = f.label;
-        b.addEventListener('mousedown', function (ev) { ev.preventDefault(); pasteInto(f.el, lastText); hide(); });
+        b._activate = function () { pasteInto(f.el, lastText); hide(); };
+        b.addEventListener('mousedown', function (ev) { ev.preventDefault(); b._activate(); });
+        b.addEventListener('mousemove', function () { setActiveEl(b); });
         listEl.appendChild(b);
       });
+    }
+    // Keyboard navigation over the visible items.
+    var activeIdx = -1;
+    function visItems() {
+      return Array.prototype.filter.call(
+        listEl.querySelectorAll('.ft-selitem'),
+        function (b) { return b.style.display !== 'none'; });
+    }
+    function setActive(i) {
+      var items = visItems();
+      listEl.querySelectorAll('.ft-selitem').forEach(function (b) { b.classList.remove('ft-active'); });
+      if (!items.length) { activeIdx = -1; return; }
+      if (i < 0) i = 0; if (i >= items.length) i = items.length - 1;
+      items[i].classList.add('ft-active');
+      items[i].scrollIntoView({ block: 'nearest' });
+      activeIdx = i;
+    }
+    function setActiveEl(el) {
+      var items = visItems(); var i = items.indexOf(el);
+      if (i >= 0) setActive(i);
     }
     filterEl.addEventListener('input', function () {
       var qq = this.value.toLowerCase();
       listEl.querySelectorAll('.ft-selitem').forEach(function (b) {
         b.style.display = b.textContent.toLowerCase().indexOf(qq) >= 0 ? '' : 'none';
       });
+      setActive(0);
+    });
+    filterEl.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setActive(activeIdx + 1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(activeIdx - 1); }
+      else if (e.key === 'Enter') {
+        e.preventDefault();
+        var items = visItems();
+        if (items[activeIdx]) items[activeIdx]._activate();
+      } else if (e.key === 'Escape') { e.preventDefault(); hide(); }
     });
     function open(text, rect) {
       lastText = text; build(); filterEl.value = '';
+      listEl.querySelectorAll('.ft-selitem').forEach(function (b) { b.style.display = ''; });
       menu.style.display = 'block';
       menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 266)) + 'px';
       menu.style.top = (rect.bottom + 6) + 'px';
+      setActive(0);
+      // Put the cursor in the filter so you can type / arrow immediately.
+      setTimeout(function () { filterEl.focus(); }, 0);
     }
     function hide() { menu.style.display = 'none'; }
 
@@ -412,7 +450,13 @@
       if (menu.contains(e.target) || mount.contains(e.target)) return;
       hide();
     });
-    window.addEventListener('scroll', hide, true);
+    // Hide when the PAGE/editor scrolls (the menu is pinned to the selection),
+    // but NOT when the user scrolls inside the menu's own list (mouse wheel).
+    window.addEventListener('scroll', function (e) {
+      if (menu.style.display === 'none') return;
+      if (e.target && e.target.nodeType === 1 && menu.contains(e.target)) return;
+      hide();
+    }, true);
     window.addEventListener('resize', hide);
   }
 
