@@ -17,7 +17,7 @@
     <div class="card-top">
       <div style="min-width:0;">
         <span class="card-type t-{{ r.type }}">{{ r.type | type_label }}</span>
-        {% if r.data_source == 'diavgeia' %}<span class="src-badge src-diavgeia">{{ t("Διαύγεια") }}</span>{% elif r.data_source == 'ted' %}<span class="src-badge src-ted">TED</span>{% endif %}
+        {% if r.data_source == 'diavgeia' %}<span class="src-badge src-diavgeia">{{ t("Διαύγεια") }}</span>{% elif r.data_source == 'ted' %}<span class="src-badge src-ted">TED</span>{% else %}<span class="src-badge src-khmdhs">ΚΗΜΔΗΣ</span>{% endif %}
         <h3 class="card-title"><a href="/act/{{ r.adam }}">{{ r.title or '—' }}</a></h3>
         <div class="card-meta">
           {% if r.authority_id %}
