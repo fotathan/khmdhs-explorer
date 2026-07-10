@@ -23,3 +23,27 @@ services:
         sync: false            # set in dashboard (secret)
       - key: SECRET_KEY
         sync: false            # set in dashboard (secret) — signs session cookies
+
+  # Scheduled incremental ingestion — runs OFF the web process (a Cron Job spins
+  # up, runs cron_catchup.py = per-source `db.py catchup`, then exits). Watermark-
+  # based, so re-running is safe. INERT until you apply the Blueprint + set its env.
+  #   DATABASE_URL             — the DB URL (use the OWNER url if you set
+  #                              CRON_REFRESH_ANALYTICS=1, which REFRESHes matviews).
+  #   CRON_REFRESH_ANALYTICS   — optional "1" to refresh /analytics after catchup.
+  #   CRON_DISABLE / CRON_STEPS — optional, to skip or customise sources.
+  - type: cron
+    name: khmdhs-catchup
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    schedule: "30 3 * * *"     # daily 03:30 UTC (adjust as needed)
+    dockerCommand: python cron_catchup.py
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+# ---------------------------------------------------------------------------- #
+# Enabling the catchup cron:
+#   1. Push; in Render, apply the Blueprint change → it creates "khmdhs-catchup"
+#      (Cron Jobs need a paid plan).
+#   2. Set its DATABASE_URL (owner url recommended). Trigger a manual run to test.
+#   3. It then runs daily and replaces running `./ingest.sh prod catchup` by hand.
+# ---------------------------------------------------------------------------- #

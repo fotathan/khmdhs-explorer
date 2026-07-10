@@ -32,6 +32,11 @@ COPY app/ ./app/
 # (app/tables.py) imports it, so it must be in the image alongside app/.
 COPY local_ocr.py ./
 
+# Ingestion + ops CLIs. The web app doesn't import these, but db.py is spawned
+# as a subprocess by admin-triggered backfills and by cron_catchup.py (the
+# scheduled catchup cron), so they must be in the image.
+COPY db.py khmdhs_ingest.py diavgeia_ingest.py ted_ingest.py cron_catchup.py ./
+
 # Render (and most hosts) inject $PORT. Default to 8000 for local `docker run`.
 ENV PORT=8000
 
