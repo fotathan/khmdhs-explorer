@@ -83,6 +83,20 @@ def test_admin_can_save_and_apply(client):
     assert r.status_code == 303
     loc = r.headers["location"]
     assert "q=test" in loc and "type=notice" in loc
+    # applying tags the redirect with _sp so the search page can badge the profile
+    assert "_sp=" in loc
+
+
+def test_applied_profile_badge_and_clear_button(client):
+    """The search page shows a badge for the applied profile (_sp) and ships the
+    prominent clear-filters button + nav-loading hooks."""
+    make_user("sp_badge", "goodpassword1", role="admin")
+    login(client, "sp_badge", "goodpassword1")
+    html = client.get("/?type=notice&_sp=My%20Profile", follow_redirects=False).text
+    assert "sp-active-badge" in html and "My Profile" in html   # the badge
+    assert "clear-btn" in html                                  # prominent clear
+    assert "js-nav-loading" in html                             # apply/clear loading
+    assert "spDismissProfile" in html                           # dismiss handler
 
 
 def test_save_form_syncs_live_url_js(client):

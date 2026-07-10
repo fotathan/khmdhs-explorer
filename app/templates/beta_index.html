@@ -11,7 +11,7 @@
     </summary>
     <div class="sp-list">
       {% for p in search_profiles %}
-      <a href="/search-profiles/{{ p.id }}/apply">
+      <a href="/search-profiles/{{ p.id }}/apply" class="js-nav-loading">
         <span>{{ p.name }}</span>
         {% if p.scope == 'portal' %}<em class="sp-tag">{{ t("Πύλη") }}</em>{% endif %}
       </a>
@@ -48,7 +48,7 @@
             {% endfor %}
           </select>
         </label>
-        <button type="submit">{{ t("Αποθήκευση") }}</button>
+        <button type="submit">{{ t("Αποθήκευση") }}<span class="save-spin"></span></button>
       </form>
       <a class="sp-manage-link" href="/search-profiles/manage">{{ t("Διαχείριση προφίλ →") }}</a>
     </div>
@@ -83,6 +83,13 @@
     <div class="hero-meta">
       <span>{{ t("βρέθηκαν") }} <b id="hero-count">{{ "{:,}".format(total_count).replace(",", ".") }}</b> {{ t("πράξεις") }}</span>
       <span id="busy" class="htmx-indicator">{{ t("ανανέωση…") }}</span>
+      {% if active_profile %}
+      <span class="sp-active-badge" id="sp-active-badge">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        {{ t("Προφίλ") }}: <b>{{ active_profile }}</b>
+        <button type="button" class="sp-active-x" onclick="spDismissProfile()" title="{{ t('Αφαίρεση επισήμανσης') }}" aria-label="{{ t('Αφαίρεση επισήμανσης') }}">✕</button>
+      </span>
+      {% endif %}
     </div>
   </div>
 </div>
@@ -93,7 +100,10 @@
     <aside class="filters">
       <div class="filters-head">
         <h2>{{ t("Φίλτρα") }}</h2>
-        <a href="/">{{ t("καθαρισμός") }}</a>
+        <a href="/" class="clear-btn js-nav-loading">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+          {{ t("Καθαρισμός φίλτρων") }}
+        </a>
       </div>
 
       {% set sel_types = request.query_params.getlist('type') %}
@@ -367,15 +377,33 @@
   // params_qs field is only server-rendered on a full page load — so a profile
   // saved after tweaking the panel (adding CPV, categories, …) would otherwise
   // store a stale querystring. Read the current URL on submit instead.
+  // Reveal the results overlay (dim + spinner) during a full navigation so slow
+  // actions — applying a profile, clearing filters, saving — show feedback.
+  function spShowLoading(){
+    var ov=document.getElementById('results-overlay');
+    if(ov) ov.classList.add('show');
+  }
   var spSaveForm=document.querySelector('.sp-save form');
   if(spSaveForm){
     spSaveForm.addEventListener('submit', function(){
-      var qs=window.location.search.replace(/^\?/, '');
+      var qs=window.location.search.replace(/^\?/, '').replace(/(^|&)_sp=[^&]*/g, '').replace(/^&/, '');
       var pq=spSaveForm.querySelector('input[name=params_qs]');
       var nx=spSaveForm.querySelector('input[name=next]');
       if(pq) pq.value=qs;
       if(nx) nx.value=qs ? ('/?'+qs) : '/';
+      var menu=spSaveForm.closest('.sp-save');
+      if(menu) menu.classList.add('loading');   // spinner on the Save button
+      spShowLoading();
     });
   }
+  // Apply-a-profile and clear-filters are full navigations → show the overlay.
+  document.addEventListener('click', function(e){
+    if(e.target.closest('.js-nav-loading')) spShowLoading();
+  });
+  // Dismiss the "loaded profile" badge without reloading; drop the _sp marker.
+  window.spDismissProfile=function(){
+    var b=document.getElementById('sp-active-badge'); if(b) b.remove();
+    try{ var u=new URL(window.location); u.searchParams.delete('_sp'); history.replaceState({}, '', u); }catch(e){}
+  };
 </script>
 {% endblock %}

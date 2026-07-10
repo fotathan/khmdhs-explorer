@@ -2145,6 +2145,8 @@ def home(request: Request,
     ctx.setdefault("profile_customers", [])
     ctx["can_manage_profiles"] = bool(user and user.get("role") == "admin")
     ctx["current_query"] = request.url.query or ""
+    # _sp marks the applied profile (set by the apply redirect) → show a badge.
+    ctx["active_profile"] = request.query_params.get("_sp")
     ctx["can_export"] = bool(user)          # export is signed-in only
     ctx["export_cap"] = _EXPORT_CAP_ADMIN if (user and user.get("role") == "admin") else _EXPORT_CAP_CUSTOMER
     return templates.TemplateResponse(request, "beta_index.html", ctx)

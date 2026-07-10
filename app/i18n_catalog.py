@@ -1749,6 +1749,9 @@ _SEARCH_PROFILES = {
         "Assigns an existing portal profile to a specific customer as a live link — changes to the portal profile apply automatically.",
     "π.χ. Προφίλ πελάτη Χ": "e.g. Customer X profile",
     "Προφίλ πύλης αναφοράς": "Reference portal profile",
+    "Καθαρισμός φίλτρων": "Clear filters",
+    "Προφίλ": "Profile",
+    "Αφαίρεση επισήμανσης": "Dismiss",
     "Αποθηκευμένες αναζητήσεις (προφίλ αναζήτησης)": "Saved searches (search profiles)",
     "Ένα προφίλ αναζήτησης αποθηκεύει το σύνολο των φίλτρων μιας αναζήτησης ώστε να το εφαρμόζετε ξανά με ένα κλικ. Πάνω από την μπάρα αναζήτησης, το μενού «Αποθηκευμένες αναζητήσεις» εμφανίζει τα προφίλ που έχετε διαθέσιμα· η επιλογή ενός εφαρμόζει τα φίλτρα του.":
         "A search profile saves a search's whole filter set so you can re-apply it with one click. Above the search bar, the \"Saved searches\" menu lists the profiles available to you; picking one applies its filters.",

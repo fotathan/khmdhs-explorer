@@ -82,7 +82,11 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 raise HTTPException(403, "not allowed")
             params = _auth.effective_params(c, p)
         qs = params_to_qs(params)
-        return RedirectResponse(url=("/?" + qs) if qs else "/", status_code=303)
+        # _sp marks which profile is active so the search page can show a badge.
+        # It's not a known filter key, so params_from_qs drops it on any re-save.
+        marker = urlencode({"_sp": p["name"]})
+        url = "/?" + (qs + "&" + marker if qs else marker)
+        return RedirectResponse(url=url, status_code=303)
 
     # ---- create (admin) ---------------------------------------------------- #
     @router.post("")
