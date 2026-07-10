@@ -1,0 +1,4 @@
+# Test-only dependencies (not installed in the app image).
+# The app itself (FastAPI TestClient needs httpx, already in requirements.txt).
+-r requirements.txt
+pytest>=8,<9
