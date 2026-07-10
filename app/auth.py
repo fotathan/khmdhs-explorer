@@ -22,6 +22,7 @@ import hmac
 import secrets
 
 import pyotp
+from psycopg.types.json import Json
 
 # scrypt params. N=2^14 → ~16 MB working memory per hash: strong for the
 # occasional login, cheap enough for the small Render instance.
@@ -819,3 +820,98 @@ def delete_account(c, uid):
     """Hard-delete the user. FKs cascade their subscriptions, profile, notes,
     calls and tasks; admin audit rows keep a username snapshot (user_id → NULL)."""
     c.execute("DELETE FROM proc.app_user WHERE id = %s", (uid,))
+
+
+# --------------------------------------------------------------------------- #
+# Search profiles (saved searches)
+#
+# scope 'portal'   — admin-owned, global; visible to customers only when
+#                    is_published. scope 'customer' — owned by one customer.
+# A customer profile may reference a portal profile (based_on_id) as a LIVE link:
+# effective filters = own params if set, else the referenced profile's params.
+# `params` is the search filter dict the search page reads.
+# --------------------------------------------------------------------------- #
+def create_search_profile(c, *, name, scope, owner_id, params, based_on_id, created_by):
+    c.execute("""INSERT INTO proc.search_profile
+                   (name, scope, owner_user_id, based_on_id, params, created_by)
+                 VALUES (%s,%s,%s,%s,%s,%s) RETURNING id""",
+              (name, scope, owner_id, based_on_id,
+               Json(params) if params is not None else None, created_by))
+    return c.fetchone()["id"]
+
+
+def get_search_profile(c, pid):
+    c.execute("SELECT * FROM proc.search_profile WHERE id = %s", (pid,))
+    return c.fetchone()
+
+
+def update_search_profile(c, pid, *, name, params, based_on_id, is_published):
+    c.execute("""UPDATE proc.search_profile
+                 SET name=%s, params=%s, based_on_id=%s, is_published=%s, updated_at=now()
+                 WHERE id=%s""",
+              (name, Json(params) if params is not None else None,
+               based_on_id, is_published, pid))
+
+
+def set_profile_published(c, pid, published):
+    c.execute("UPDATE proc.search_profile SET is_published=%s, updated_at=now() "
+              "WHERE id=%s AND scope='portal'", (published, pid))
+
+
+def delete_search_profile(c, pid):
+    c.execute("DELETE FROM proc.search_profile WHERE id = %s", (pid,))
+
+
+def effective_params(c, profile):
+    """The profile's own params, else (live link) the referenced profile's."""
+    if profile.get("params") is not None:
+        return profile["params"]
+    bid = profile.get("based_on_id")
+    if bid:
+        c.execute("SELECT params FROM proc.search_profile WHERE id=%s", (bid,))
+        r = c.fetchone()
+        if r and r["params"] is not None:
+            return r["params"]
+    return {}
+
+
+def list_all_profiles(c):
+    """All profiles + owner username, for the admin management page."""
+    c.execute("""SELECT sp.*, u.username AS owner_username,
+                        b.name AS based_on_name
+                 FROM proc.search_profile sp
+                 LEFT JOIN proc.app_user u ON u.id = sp.owner_user_id
+                 LEFT JOIN proc.search_profile b ON b.id = sp.based_on_id
+                 ORDER BY sp.scope, lower(sp.name)""")
+    return c.fetchall()
+
+
+def profiles_for_user(c, user):
+    """Profiles a user may APPLY on the search page: admins get every portal
+    profile; everyone else gets published portal profiles plus their own."""
+    if user and user.get("role") == "admin":
+        c.execute("SELECT * FROM proc.search_profile WHERE scope='portal' "
+                  "ORDER BY lower(name)")
+        return c.fetchall()
+    uid = user.get("id") if user else None
+    c.execute("""SELECT * FROM proc.search_profile
+                 WHERE (scope='portal' AND is_published)
+                    OR (scope='customer' AND owner_user_id=%s)
+                 ORDER BY scope DESC, lower(name)""", (uid,))
+    return c.fetchall()
+
+
+def can_apply_profile(user, profile):
+    """Whether `user` may apply/see `profile`."""
+    is_admin = bool(user and user.get("role") == "admin")
+    if profile["scope"] == "portal":
+        return bool(profile["is_published"]) or is_admin
+    return is_admin or bool(user and user.get("id") == profile["owner_user_id"])
+
+
+def can_manage_profile(user, profile):
+    """Whether `user` may edit/delete `profile` (admins, or a customer's own)."""
+    is_admin = bool(user and user.get("role") == "admin")
+    if profile["scope"] == "portal":
+        return is_admin
+    return is_admin or bool(user and user.get("id") == profile["owner_user_id"])

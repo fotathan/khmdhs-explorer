@@ -1551,6 +1551,15 @@ except ImportError:
     from interconnect import make_interconnect_router as _make_ic_router
 app.include_router(_make_ic_router(templates, cursor))
 
+# Saved searches ("search profiles") — mounted under /search-profiles. Apply is
+# available to any signed-in user for the profiles they may use; create/manage is
+# admin-only (enforced inside the router).
+try:
+    from app.search_profiles import make_router as _make_sp_router
+except ImportError:
+    from search_profiles import make_router as _make_sp_router
+app.include_router(_make_sp_router(templates, cursor))
+
 # Tender-table extraction UI (separate module, mounted under /tables). Gated by
 # the TABLES_ENABLED env flag so the deployed Render copy can carry the feature
 # turned off until the public conversation happens for real — locally it
@@ -2117,6 +2126,20 @@ def home(request: Request,
     ctx["lk"] = lookups()
     ctx["nuts_regions"] = NUTS_REGIONS
     ctx["nav_active"] = "search"
+    # Saved searches the current user may apply (admins: all portal; customers:
+    # published portal + their own). Also flag whether they may save new ones.
+    user = getattr(request.state, "user", None)
+    try:
+        from app import auth as _auth
+        with cursor() as c:
+            ctx["search_profiles"] = _auth.profiles_for_user(c, user)
+            if user and user.get("role") == "admin":
+                ctx["profile_customers"] = _auth.list_customers(c)
+    except Exception:
+        ctx["search_profiles"] = []
+    ctx.setdefault("profile_customers", [])
+    ctx["can_manage_profiles"] = bool(user and user.get("role") == "admin")
+    ctx["current_query"] = request.url.query or ""
     return templates.TemplateResponse(request, "beta_index.html", ctx)
 
 

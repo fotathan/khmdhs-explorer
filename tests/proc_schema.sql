@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict ezqhQADKNQKwgCqIR8dfsOpOXiS67Qq9ej0oI83zXCeoHA6quvyuYCfWdEImsPR
+\restrict ui3WVvTuYFkVuAyhDo8UOcl6P6lhwaAHakQq2pxP2ferrzFVEA5rV9z5FfyzMcp
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Homebrew)
@@ -1907,6 +1907,46 @@ CREATE TABLE proc.schema_migration (
 
 
 --
+-- Name: search_profile; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.search_profile (
+    id bigint NOT NULL,
+    name text NOT NULL,
+    scope text DEFAULT 'customer'::text NOT NULL,
+    owner_user_id bigint,
+    based_on_id bigint,
+    params jsonb,
+    is_published boolean DEFAULT false NOT NULL,
+    created_by bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT search_profile_owner_chk CHECK ((((scope = 'portal'::text) AND (owner_user_id IS NULL)) OR ((scope = 'customer'::text) AND (owner_user_id IS NOT NULL)))),
+    CONSTRAINT search_profile_params_chk CHECK (((params IS NOT NULL) OR (based_on_id IS NOT NULL))),
+    CONSTRAINT search_profile_scope_chk CHECK ((scope = ANY (ARRAY['portal'::text, 'customer'::text])))
+);
+
+
+--
+-- Name: search_profile_id_seq; Type: SEQUENCE; Schema: proc; Owner: -
+--
+
+CREATE SEQUENCE proc.search_profile_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: search_profile_id_seq; Type: SEQUENCE OWNED BY; Schema: proc; Owner: -
+--
+
+ALTER SEQUENCE proc.search_profile_id_seq OWNED BY proc.search_profile.id;
+
+
+--
 -- Name: signer; Type: TABLE; Schema: proc; Owner: -
 --
 
@@ -2366,6 +2406,13 @@ ALTER TABLE ONLY proc.ingest_window ALTER COLUMN id SET DEFAULT nextval('proc.in
 --
 
 ALTER TABLE ONLY proc.line_item_correction ALTER COLUMN id SET DEFAULT nextval('proc.line_item_correction_id_seq'::regclass);
+
+
+--
+-- Name: search_profile id; Type: DEFAULT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.search_profile ALTER COLUMN id SET DEFAULT nextval('proc.search_profile_id_seq'::regclass);
 
 
 --
@@ -2850,6 +2897,14 @@ ALTER TABLE ONLY proc.product
 
 ALTER TABLE ONLY proc.schema_migration
     ADD CONSTRAINT schema_migration_pkey PRIMARY KEY (filename);
+
+
+--
+-- Name: search_profile search_profile_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.search_profile
+    ADD CONSTRAINT search_profile_pkey PRIMARY KEY (id);
 
 
 --
@@ -3565,6 +3620,20 @@ CREATE INDEX ix_postal_nuts_nuts ON proc.postal_nuts USING btree (nuts_code);
 
 
 --
+-- Name: ix_search_profile_owner; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_search_profile_owner ON proc.search_profile USING btree (owner_user_id) WHERE (owner_user_id IS NOT NULL);
+
+
+--
+-- Name: ix_search_profile_portal; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_search_profile_portal ON proc.search_profile USING btree (is_published) WHERE (scope = 'portal'::text);
+
+
+--
 -- Name: ix_table_extract_job_queued; Type: INDEX; Schema: proc; Owner: -
 --
 
@@ -4050,6 +4119,30 @@ ALTER TABLE ONLY proc.procurement_act
 
 
 --
+-- Name: search_profile search_profile_based_on_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.search_profile
+    ADD CONSTRAINT search_profile_based_on_id_fkey FOREIGN KEY (based_on_id) REFERENCES proc.search_profile(id) ON DELETE SET NULL;
+
+
+--
+-- Name: search_profile search_profile_created_by_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.search_profile
+    ADD CONSTRAINT search_profile_created_by_fkey FOREIGN KEY (created_by) REFERENCES proc.app_user(id) ON DELETE SET NULL;
+
+
+--
+-- Name: search_profile search_profile_owner_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.search_profile
+    ADD CONSTRAINT search_profile_owner_user_id_fkey FOREIGN KEY (owner_user_id) REFERENCES proc.app_user(id) ON DELETE CASCADE;
+
+
+--
 -- Name: signer signer_authority_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
 --
 
@@ -4117,5 +4210,5 @@ ALTER TABLE ONLY proc.user_subscription
 -- PostgreSQL database dump complete
 --
 
-\unrestrict ezqhQADKNQKwgCqIR8dfsOpOXiS67Qq9ej0oI83zXCeoHA6quvyuYCfWdEImsPR
+\unrestrict ui3WVvTuYFkVuAyhDo8UOcl6P6lhwaAHakQq2pxP2ferrzFVEA5rV9z5FfyzMcp
 

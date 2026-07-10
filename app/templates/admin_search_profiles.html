@@ -1,0 +1,128 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ t("Προφίλ Αναζήτησης") }}{% endblock %}
+
+{% block admin_content %}
+<style>
+  .sp-wrap{max-width:1000px;}
+  .sp-head{margin-bottom:18px;}
+  .sp-head h1{font-size:20px;margin:0 0 4px;}
+  .sp-head p{color:var(--ink-2);font-size:13px;margin:0;}
+  .sp-table{width:100%;border-collapse:collapse;background:var(--paper);border:1px solid var(--rule);border-radius:12px;overflow:hidden;}
+  .sp-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-2);padding:10px 14px;border-bottom:1px solid var(--rule);background:var(--paper-2);}
+  .sp-table td{padding:11px 14px;border-bottom:1px solid var(--rule-2);font-size:13px;vertical-align:top;}
+  .sp-table tr:last-child td{border-bottom:0;}
+  .sp-scope{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:2px 7px;border-radius:5px;}
+  .sp-scope.portal{background:var(--accent-soft);color:var(--accent-2);}
+  .sp-scope.customer{background:#e8f0fb;color:#1a4f9c;}
+  .sp-filters{color:var(--ink-2);font-size:12px;font-family:var(--mono);}
+  .sp-link{color:var(--ink-3);font-size:12px;}
+  .sp-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .sp-actions form{display:inline;}
+  .sp-btn{border:1px solid var(--rule);background:var(--paper);border-radius:7px;padding:4px 10px;font-size:12px;font-family:var(--sans);cursor:pointer;color:var(--ink-2);}
+  .sp-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .sp-btn.danger:hover{border-color:var(--accent);color:var(--accent);}
+  .sp-create{margin-top:26px;background:var(--paper);border:1px solid var(--rule);border-radius:12px;padding:18px 20px;}
+  .sp-create h2{font-size:15px;margin:0 0 4px;}
+  .sp-create p{color:var(--ink-2);font-size:12.5px;margin:0 0 14px;}
+  .sp-create .row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;}
+  .sp-create label{display:block;font-size:11px;font-weight:600;color:var(--ink-2);margin-bottom:4px;}
+  .sp-create input,.sp-create select{border:1px solid var(--rule);border-radius:8px;padding:8px 10px;font-family:var(--sans);font-size:13px;min-width:200px;}
+  .sp-create button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 18px;font-family:var(--sans);font-weight:600;font-size:13px;cursor:pointer;}
+  .sp-create button:hover{background:var(--accent-2);}
+  .sp-none{padding:22px;text-align:center;color:var(--ink-3);font-size:13px;}
+</style>
+
+<div class="sp-wrap">
+  <div class="sp-head">
+    <h1>{{ t("Προφίλ Αναζήτησης") }}</h1>
+    <p>{{ t("Αποθηκευμένες αναζητήσεις. Τα προφίλ πύλης (όταν δημοσιευτούν) γίνονται διαθέσιμα σε όλους τους πελάτες· τα προφίλ πελάτη ανήκουν αποκλειστικά σε έναν πελάτη.") }}</p>
+  </div>
+
+  <table class="sp-table">
+    <thead>
+      <tr>
+        <th>{{ t("Όνομα") }}</th>
+        <th>{{ t("Τύπος") }}</th>
+        <th>{{ t("Πελάτης") }}</th>
+        <th>{{ t("Φίλτρα") }}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for p in profiles %}
+      <tr>
+        <td>
+          <form method="post" action="/search-profiles/{{ p.id }}/rename" class="sp-actions">
+            <input type="text" name="name" value="{{ p.name }}" class="sp-btn" style="min-width:160px" aria-label="{{ t('Όνομα') }}">
+          </form>
+        </td>
+        <td><span class="sp-scope {{ p.scope }}">{{ t("Πύλη") if p.scope == 'portal' else t("Πελάτη") }}</span></td>
+        <td>{{ p.owner_username or '—' }}</td>
+        <td>
+          {% if p.based_on_name %}
+            <span class="sp-link">↳ {{ p.based_on_name }}</span>
+          {% elif p.params %}
+            <span class="sp-filters">{{ p.params.keys() | list | join(', ') }}</span>
+          {% else %}
+            <span class="sp-link">—</span>
+          {% endif %}
+        </td>
+        <td>
+          <div class="sp-actions">
+            <a class="sp-btn" href="/search-profiles/{{ p.id }}/apply">{{ t("Εφαρμογή") }}</a>
+            {% if p.scope == 'portal' %}
+            <form method="post" action="/search-profiles/{{ p.id }}/publish">
+              <input type="hidden" name="published" value="{{ '' if p.is_published else '1' }}">
+              <button class="sp-btn" type="submit">{{ t("Απόσυρση") if p.is_published else t("Δημοσίευσε") }}</button>
+            </form>
+            {% endif %}
+            <form method="post" action="/search-profiles/{{ p.id }}/delete"
+                  onsubmit="return confirm('{{ t('Διαγραφή αυτού του προφίλ;') }}')">
+              <button class="sp-btn danger" type="submit">{{ t("Διαγραφή") }}</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="sp-none">{{ t("Δεν υπάρχουν προφίλ ακόμη. Αποθηκεύστε μια αναζήτηση από τη σελίδα αναζήτησης, ή δημιουργήστε ένα προφίλ πελάτη με αναφορά παρακάτω.") }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="sp-create">
+    <h2>{{ t("Νέο προφίλ πελάτη (με αναφορά σε προφίλ πύλης)") }}</h2>
+    <p>{{ t("Αναθέτει ένα υπάρχον προφίλ πύλης σε συγκεκριμένο πελάτη ως ζωντανό σύνδεσμο — αλλαγές στο προφίλ πύλης εφαρμόζονται αυτόματα.") }}</p>
+    <form method="post" action="/search-profiles">
+      <input type="hidden" name="scope" value="customer">
+      <input type="hidden" name="next" value="/search-profiles/manage">
+      <div class="row">
+        <div>
+          <label>{{ t("Όνομα") }}</label>
+          <input type="text" name="name" required maxlength="120" placeholder="{{ t('π.χ. Προφίλ πελάτη Χ') }}">
+        </div>
+        <div>
+          <label>{{ t("Πελάτης") }}</label>
+          <select name="owner_id" required>
+            <option value="">—</option>
+            {% for cu in customers %}
+            <option value="{{ cu.id }}">{{ cu.full_name or cu.username }}{% if cu.company %} · {{ cu.company }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>{{ t("Προφίλ πύλης αναφοράς") }}</label>
+          <select name="based_on_id" required>
+            <option value="">—</option>
+            {% for pp in portal_profiles %}
+            <option value="{{ pp.id }}">{{ pp.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <button type="submit">{{ t("Δημιουργία") }}</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

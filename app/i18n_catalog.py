@@ -1723,6 +1723,40 @@ _LEGAL = {
     "Επικοινωνία: [συμπληρώστε στοιχεία].": "Contact: [add details].",
 }
 
+# Saved searches ("search profiles") — beta_index toolbar + admin manage page
+_SEARCH_PROFILES = {
+    "Αποθηκευμένες αναζητήσεις": "Saved searches",
+    "Αποθήκευση αναζήτησης": "Save this search",
+    "Δεν υπάρχουν προφίλ ακόμη.": "No profiles yet.",
+    "Όνομα προφίλ": "Profile name",
+    "π.χ. Καθαριότητα Αττικής": "e.g. Cleaning · Attica",
+    "Προφίλ πύλης": "Portal profile",
+    "Προφίλ πελάτη": "Customer profile",
+    "Διαχείριση προφίλ →": "Manage profiles →",
+    "Προφίλ Αναζήτησης": "Search Profiles",
+    "Αποθηκευμένες αναζητήσεις. Τα προφίλ πύλης (όταν δημοσιευτούν) γίνονται διαθέσιμα σε όλους τους πελάτες· τα προφίλ πελάτη ανήκουν αποκλειστικά σε έναν πελάτη.":
+        "Saved searches. Portal profiles (once published) become available to all customers; customer profiles belong exclusively to one customer.",
+    "Πύλη": "Portal",
+    "Πελάτη": "Customer",
+    "Δημοσίευσε": "Publish",
+    "Απόσυρση": "Unpublish",
+    "Διαγραφή αυτού του προφίλ;": "Delete this profile?",
+    "Δεν υπάρχουν προφίλ ακόμη. Αποθηκεύστε μια αναζήτηση από τη σελίδα αναζήτησης, ή δημιουργήστε ένα προφίλ πελάτη με αναφορά παρακάτω.":
+        "No profiles yet. Save a search from the search page, or create a referenced customer profile below.",
+    "Νέο προφίλ πελάτη (με αναφορά σε προφίλ πύλης)":
+        "New customer profile (referencing a portal profile)",
+    "Αναθέτει ένα υπάρχον προφίλ πύλης σε συγκεκριμένο πελάτη ως ζωντανό σύνδεσμο — αλλαγές στο προφίλ πύλης εφαρμόζονται αυτόματα.":
+        "Assigns an existing portal profile to a specific customer as a live link — changes to the portal profile apply automatically.",
+    "π.χ. Προφίλ πελάτη Χ": "e.g. Customer X profile",
+    "Προφίλ πύλης αναφοράς": "Reference portal profile",
+    "Αποθηκευμένες αναζητήσεις (προφίλ αναζήτησης)": "Saved searches (search profiles)",
+    "Ένα προφίλ αναζήτησης αποθηκεύει το σύνολο των φίλτρων μιας αναζήτησης ώστε να το εφαρμόζετε ξανά με ένα κλικ. Πάνω από την μπάρα αναζήτησης, το μενού «Αποθηκευμένες αναζητήσεις» εμφανίζει τα προφίλ που έχετε διαθέσιμα· η επιλογή ενός εφαρμόζει τα φίλτρα του.":
+        "A search profile saves a search's whole filter set so you can re-apply it with one click. Above the search bar, the \"Saved searches\" menu lists the profiles available to you; picking one applies its filters.",
+    "Προφίλ πύλης & πελάτη": "Portal & customer profiles",
+    "Τα προφίλ πύλης είναι κοινά και, όταν δημοσιευτούν, γίνονται διαθέσιμα σε όλους τους πελάτες. Τα προφίλ πελάτη ανήκουν αποκλειστικά σε έναν πελάτη. Ένα προφίλ πελάτη μπορεί να αναφέρεται σε ένα προφίλ πύλης ως ζωντανός σύνδεσμος — αλλαγές στο προφίλ πύλης εφαρμόζονται αυτόματα — ή να έχει δικά του φίλτρα.":
+        "Portal profiles are shared and, once published, become available to all customers. Customer profiles belong exclusively to one customer. A customer profile can reference a portal profile as a live link — changes to the portal profile apply automatically — or carry its own filters.",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
@@ -1730,5 +1764,6 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
              _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
-             _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL):
+             _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
+             _SEARCH_PROFILES):
     UI_EN.update(_grp)

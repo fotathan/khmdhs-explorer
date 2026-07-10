@@ -1,6 +1,61 @@
 {% extends "beta_base.html" %}
 {% block title %}{{ t("KHMDHS · Εξερευνητής") }}{% endblock %}
 {% block content %}
+{% if search_profiles or can_manage_profiles %}
+<div class="profiles-bar">
+  {% if search_profiles %}
+  <details class="sp-menu">
+    <summary>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      {{ t("Αποθηκευμένες αναζητήσεις") }}
+    </summary>
+    <div class="sp-list">
+      {% for p in search_profiles %}
+      <a href="/search-profiles/{{ p.id }}/apply">
+        <span>{{ p.name }}</span>
+        {% if p.scope == 'portal' %}<em class="sp-tag">{{ t("Πύλη") }}</em>{% endif %}
+      </a>
+      {% else %}
+      <span class="sp-empty">{{ t("Δεν υπάρχουν προφίλ ακόμη.") }}</span>
+      {% endfor %}
+    </div>
+  </details>
+  {% endif %}
+  {% if can_manage_profiles %}
+  <details class="sp-menu sp-save">
+    <summary>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+      {{ t("Αποθήκευση αναζήτησης") }}
+    </summary>
+    <div class="sp-pop">
+      <form method="post" action="/search-profiles">
+        <input type="hidden" name="params_qs" value="{{ current_query }}">
+        <input type="hidden" name="next" value="/{% if current_query %}?{{ current_query }}{% endif %}">
+        <label>{{ t("Όνομα") }}
+          <input type="text" name="name" required maxlength="120" placeholder="{{ t('π.χ. Καθαριότητα Αττικής') }}">
+        </label>
+        <label>{{ t("Τύπος") }}
+          <select name="scope" onchange="this.closest('.sp-pop').querySelector('.sp-owner').style.display=(this.value=='customer'?'block':'none')">
+            <option value="portal">{{ t("Προφίλ πύλης") }}</option>
+            <option value="customer">{{ t("Προφίλ πελάτη") }}</option>
+          </select>
+        </label>
+        <label class="sp-owner" style="display:none">{{ t("Πελάτης") }}
+          <select name="owner_id">
+            <option value="">—</option>
+            {% for cu in profile_customers %}
+            <option value="{{ cu.id }}">{{ cu.full_name or cu.username }}{% if cu.company %} · {{ cu.company }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="submit">{{ t("Αποθήκευση") }}</button>
+      </form>
+      <a class="sp-manage-link" href="/search-profiles/manage">{{ t("Διαχείριση προφίλ →") }}</a>
+    </div>
+  </details>
+  {% endif %}
+</div>
+{% endif %}
 <form id="filters" hx-get="/" hx-target="#results" hx-trigger="change, submit"
       hx-push-url="true" hx-indicator="#busy">
 
