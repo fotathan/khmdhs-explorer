@@ -25,6 +25,7 @@ venv/
 # Data dumps (don't commit large CSVs/DB dumps unless you mean to)
 *.dump
 *.sql.gz
+backups/          # pg_dump output from backup.sh (contains personal data)
 
 # Local-only attachment binaries (see app/attachments.py)
 attachment_store/
