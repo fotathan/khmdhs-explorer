@@ -1776,6 +1776,10 @@ _EXPORT = {
     "Σύνδεσμος": "Link",
     "Ναι": "Yes",
     "Όχι": "No",
+    "Πάρα πολλές εξαγωγές — περιμένετε λίγο και δοκιμάστε ξανά.":
+        "Too many exports — wait a moment and try again.",
+    "Η εξαγωγή απέτυχε. Δοκιμάστε ξανά σε λίγο.":
+        "The export failed. Please try again shortly.",
     "Εξαγωγή σε CSV / Excel": "Export to CSV / Excel",
     "Συνδεδεμένοι χρήστες μπορούν να εξάγουν την τρέχουσα αναζήτηση (με τα ενεργά φίλτρα) σε CSV ή Excel (XLSX) από το μενού «Εξαγωγή» πάνω από την μπάρα αναζήτησης. Κάθε εξαγωγή καλύπτει έως ένα όριο γραμμών· για μεγαλύτερα σύνολα, στενέψτε τα φίλτρα και εξάγετε σε κομμάτια.":
         "Signed-in users can export the current search (with its active filters) to CSV or Excel (XLSX) from the \"Export\" menu above the search bar. Each export covers up to a row limit; for larger sets, narrow the filters and export in parts.",

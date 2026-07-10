@@ -59,10 +59,11 @@
     <summary>
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
       {{ t("Εξαγωγή") }}
+      <span class="exp-spin" aria-hidden="true"></span>
     </summary>
     <div class="sp-pop exp-pop">
-      <a href="/export/acts?{% if current_query %}{{ current_query }}&{% endif %}fmt=csv">CSV</a>
-      <a href="/export/acts?{% if current_query %}{{ current_query }}&{% endif %}fmt=xlsx">Excel (XLSX)</a>
+      <a class="exp-link" href="/export/acts?{% if current_query %}{{ current_query }}&{% endif %}fmt=csv">CSV</a>
+      <a class="exp-link" href="/export/acts?{% if current_query %}{{ current_query }}&{% endif %}fmt=xlsx">Excel (XLSX)</a>
       <p class="exp-note">{{ t("Εξάγεται η τρέχουσα αναζήτηση — έως") }} {{ "{:,}".format(export_cap).replace(",", ".") }} {{ t("γραμμές") }}.</p>
     </div>
   </details>
@@ -328,6 +329,37 @@
       var mount=document.getElementById('cpv-suggest-mount');
       if(mount) mount.innerHTML='';
     }
+  });
+
+  // Export downloads: fetch as a blob so we can show a spinner while the server
+  // builds the file (a big XLSX takes a few seconds), then trigger the save.
+  document.addEventListener('click', function(e){
+    var a=e.target.closest('.exp-link'); if(!a) return;
+    e.preventDefault();
+    var menu=a.closest('.exp-menu'); if(!menu || menu.classList.contains('loading')) return;
+    menu.classList.add('loading');
+    fetch(a.href, {credentials:'same-origin'}).then(function(res){
+      if(res.status===429) throw new Error('429');
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      var cd=res.headers.get('Content-Disposition')||'';
+      var m=/filename="?([^"]+)"?/.exec(cd);
+      var name=m?m[1]:'khmdhs_export';
+      return res.blob().then(function(blob){
+        var url=URL.createObjectURL(blob);
+        var link=document.createElement('a');
+        link.href=url; link.download=name;
+        document.body.appendChild(link); link.click(); link.remove();
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+      });
+    }).catch(function(err){
+      if(String(err.message).indexOf('429')>-1){
+        alert({{ t("Πάρα πολλές εξαγωγές — περιμένετε λίγο και δοκιμάστε ξανά.") | tojson }});
+      } else {
+        alert({{ t("Η εξαγωγή απέτυχε. Δοκιμάστε ξανά σε λίγο.") | tojson }});
+      }
+    }).finally(function(){
+      menu.classList.remove('loading'); menu.open=false;
+    });
   });
 </script>
 {% endblock %}

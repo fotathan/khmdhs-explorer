@@ -87,6 +87,18 @@ def test_bad_format_rejected(client):
     assert r.status_code == 400
 
 
+def test_export_menu_ships_loading_js(client):
+    """The signed-in search page renders the Export menu wired to the blob-fetch
+    download (so the spinner shows while the file builds)."""
+    make_user("exp_ui", "goodpassword1", role="customer")
+    login(client, "exp_ui", "goodpassword1")
+    html = client.get("/", follow_redirects=False).text
+    assert "exp-link" in html                    # the fetch-intercepted links
+    assert "exp-spin" in html                    # the spinner element
+    assert "createObjectURL" in html             # blob download path
+    assert 'fmt=xlsx' in html and 'fmt=csv' in html
+
+
 def test_row_cap_enforced(client, db, monkeypatch):
     import csv
     import app.main as m
