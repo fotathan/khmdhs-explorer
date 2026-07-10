@@ -41,6 +41,16 @@ def expire_sub(uid, code="pro"):
                     "WHERE user_id = %s", (uid,))
 
 
+def enable_mfa(uid):
+    """Turn on 2FA for a user directly; return (secret, [recovery_codes])."""
+    from app import auth as _auth
+    secret = _auth.new_totp_secret()
+    plain, hashed = _auth.gen_recovery_codes()
+    with connect() as c:
+        _auth.enable_mfa(c.cursor(), uid, secret, hashed)
+    return secret, plain
+
+
 def login(client, username, password):
     return client.post("/login",
                        data={"username": username, "password": password},

@@ -1,0 +1,87 @@
+{% extends "beta_base.html" %}
+{% block title %}{{ t("Έλεγχος ταυτότητας δύο παραγόντων") }} · {{ t("Εξερευνητής") }}{% endblock %}
+{% block content %}
+<div class="acct-wrap">
+  <h1>{{ t("Έλεγχος ταυτότητας δύο παραγόντων (2FA)") }}</h1>
+  <p class="acct-muted"><a href="/account">← {{ t("Ο λογαριασμός μου") }}</a></p>
+  {% if error %}<div class="acct-error">{{ error | t }}</div>{% endif %}
+
+  {% if just_enabled %}
+    {# One-time display of recovery codes right after enabling. #}
+    <div class="acct-card">
+      <div class="acct-ok">{{ t("Το 2FA ενεργοποιήθηκε.") }}</div>
+      <h2>{{ t("Εφεδρικοί κωδικοί") }}</h2>
+      <p class="acct-muted">{{ t("Φυλάξτε τους κάπου ασφαλή. Κάθε κωδικός λειτουργεί μία φορά και σας επιτρέπει να συνδεθείτε αν χάσετε την εφαρμογή authenticator. Δεν θα εμφανιστούν ξανά.") }}</p>
+      <ul class="rc-list">
+        {% for code in recovery_codes %}<li>{{ code }}</li>{% endfor %}
+      </ul>
+      <a class="acct-btn" href="/account/mfa">{{ t("Ολοκλήρωση") }}</a>
+    </div>
+
+  {% elif mfa_enabled %}
+    <div class="acct-card">
+      <div class="acct-ok">{{ t("Το 2FA είναι ενεργό σε αυτόν τον λογαριασμό.") }}</div>
+      <h2>{{ t("Απενεργοποίηση 2FA") }}</h2>
+      <p class="acct-muted">{{ t("Για απενεργοποίηση, επιβεβαιώστε το συνθηματικό σας.") }}</p>
+      <form method="post" action="/account/mfa/disable" autocomplete="off">
+        <label class="acct-field">{{ t("Συνθηματικό") }}
+          <input class="acct-input" type="password" name="password" required autocomplete="current-password"></label>
+        <button class="acct-btn acct-btn-danger" type="submit">{{ t("Απενεργοποίηση 2FA") }}</button>
+      </form>
+    </div>
+
+  {% else %}
+    {# Setup: scan QR (or enter the secret) then confirm with a code. #}
+    <div class="acct-card">
+      <h2>{{ t("Ενεργοποίηση 2FA") }}</h2>
+      <ol class="acct-steps">
+        <li>{{ t("Σαρώστε τον κωδικό QR με μια εφαρμογή authenticator (Google Authenticator, Authy, 1Password, κ.λπ.).") }}</li>
+        <li>{{ t("Εισαγάγετε τον 6ψήφιο κωδικό που εμφανίζεται, για επιβεβαίωση.") }}</li>
+      </ol>
+      {% if qr_svg %}<div class="qr-box">{{ qr_svg | safe }}</div>{% endif %}
+      <p class="acct-muted">{{ t("Ή καταχωρίστε χειροκίνητα αυτό το κλειδί:") }}</p>
+      <p class="mfa-secret">{{ secret }}</p>
+      <form method="post" action="/account/mfa/enable" autocomplete="off">
+        <label class="acct-field">{{ t("Κωδικός επαλήθευσης") }}
+          <input class="acct-input" type="text" name="code" inputmode="numeric"
+                 autocomplete="one-time-code" required></label>
+        <button class="acct-btn" type="submit">{{ t("Ενεργοποίηση 2FA") }}</button>
+      </form>
+    </div>
+  {% endif %}
+</div>
+<style>
+  .acct-wrap{max-width:600px;margin:38px auto 64px;padding:0 22px;}
+  .acct-wrap h1{font-size:24px;letter-spacing:-.02em;margin:0 0 6px;}
+  .acct-card{background:var(--paper,#fff);border:1px solid var(--rule,#e6e8ec);border-radius:12px;
+    padding:20px 22px;margin-bottom:16px;box-shadow:var(--shadow-sm,0 1px 3px rgba(20,24,31,.06));}
+  .acct-card h2{font-size:16px;margin:14px 0 6px;}
+  .acct-muted{font-size:13px;color:var(--ink-2,#5b626d);line-height:1.55;margin:0 0 12px;}
+  .acct-muted a{color:var(--accent,#b41034);font-weight:600;}
+  .acct-steps{font-size:13.5px;color:var(--ink,#14181f);line-height:1.6;margin:0 0 14px;padding-left:20px;}
+  .qr-box{display:inline-block;background:#fff;padding:12px;border:1px solid var(--rule,#e6e8ec);
+    border-radius:10px;margin:4px 0 12px;}
+  .qr-box svg{display:block;width:190px;height:190px;}
+  .mfa-secret{font-family:var(--mono,monospace);font-size:15px;letter-spacing:.08em;
+    background:var(--paper-2,#f6f6f4);border:1px solid var(--rule,#e6e8ec);border-radius:8px;
+    padding:9px 12px;word-break:break-all;margin:0 0 16px;color:var(--ink,#14181f);}
+  .rc-list{list-style:none;padding:0;margin:8px 0 16px;display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .rc-list li{font-family:var(--mono,monospace);font-size:14px;letter-spacing:.06em;
+    background:var(--paper-2,#f6f6f4);border:1px solid var(--rule,#e6e8ec);border-radius:7px;padding:8px 10px;}
+  .acct-field{display:block;font-size:12px;color:var(--ink-2,#5b626d);margin-bottom:12px;
+    font-family:var(--mono,monospace);text-transform:uppercase;letter-spacing:.04em;}
+  .acct-input{display:block;width:100%;margin-top:5px;padding:9px 11px;border:1px solid var(--rule,#e6e8ec);
+    border-radius:8px;font-size:15px;font-family:inherit;text-transform:none;letter-spacing:.08em;
+    color:var(--ink,#14181f);background:var(--paper,#fff);box-sizing:border-box;}
+  .acct-input:focus{outline:none;border-color:var(--accent,#b41034);}
+  .acct-btn{display:inline-block;background:var(--accent,#b41034);color:#fff;border:0;padding:10px 16px;
+    border-radius:9px;font-weight:600;font-size:14px;cursor:pointer;font-family:inherit;text-decoration:none;}
+  .acct-btn:hover{background:var(--accent-2,#8a0c28);}
+  .acct-btn-danger{background:#b3261e;}
+  .acct-btn-danger:hover{background:#8f1e17;}
+  .acct-error{background:#fdeceb;border:1px solid #f4c7c3;color:#b3261e;padding:10px 14px;
+    border-radius:9px;font-size:13.5px;margin-bottom:16px;}
+  .acct-ok{background:#e9f7ee;border:1px solid #b7e2c6;color:#1a7a3d;padding:10px 14px;
+    border-radius:9px;font-size:13.5px;margin-bottom:14px;}
+</style>
+{% endblock %}

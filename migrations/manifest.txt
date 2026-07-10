@@ -64,3 +64,4 @@ admin_audit_migration.sql
 migrations/20260709201920_app_runtime_least_privilege_role_grants.sql
 migrations/20260710044258_login_throttle_table.sql
 migrations/20260710045935_job_queue_worker_columns.sql
+migrations/20260710083903_mfa_totp_on_app_user.sql

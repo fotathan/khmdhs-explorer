@@ -1295,7 +1295,7 @@ async def login_submit(request: Request):
     next_url = form.get("next") or "/"
     ip = request.client.host if request.client else "?"
     key = f"{username.lower()}|{ip}"
-    ok, user = False, None
+    user = None
     with cursor() as c:
         if _auth.throttle_blocked(c, key):
             return templates.TemplateResponse(
@@ -1304,18 +1304,81 @@ async def login_submit(request: Request):
                  "error": "Πολλές αποτυχημένες προσπάθειες — δοκιμάστε αργότερα."},
                 status_code=429)
         u = _auth.get_by_username(c, username)
-        if u and u.get("is_active") and _auth.verify_password(password, u["password_hash"]):
-            ok, user = True, dict(u)
-            _auth.touch_last_login(c, u["id"])
-        if not ok:
+        if not (u and u.get("is_active")
+                and _auth.verify_password(password, u["password_hash"])):
             _auth.throttle_fail(c, key)
             return templates.TemplateResponse(
                 request, "login.html",
                 {"next": next_url, "error": "Λάθος όνομα χρήστη ή κωδικός."},
                 status_code=401)
         _auth.throttle_reset(c, key)
+        # Password OK. If this account has 2FA, don't complete the login yet —
+        # stash a short-lived pending state and send them to the TOTP step.
+        mrow = _auth.get_mfa(c, u["id"])
+        if mrow and mrow["mfa_enabled"] and mrow["mfa_secret"]:
+            request.session.pop("uid", None)      # ensure not authenticated yet
+            request.session["mfa_pending"] = {
+                "uid": u["id"], "next": _safe_next(next_url), "ts": _time.time()}
+            return _Redirect("/login/mfa", status_code=303)
+        _auth.touch_last_login(c, u["id"])
+        user = dict(u)
     _auth.login_session(request, user)
     return _Redirect(_safe_next(next_url), status_code=303)
+
+
+# Second factor: entered after a correct password when the account has 2FA on.
+_MFA_PENDING_TTL = 300      # seconds a half-authenticated login stays valid
+
+
+def _mfa_pending(request):
+    p = request.session.get("mfa_pending")
+    if not p or (_time.time() - p.get("ts", 0)) > _MFA_PENDING_TTL:
+        request.session.pop("mfa_pending", None)
+        return None
+    return p
+
+
+@app.get("/login/mfa", response_class=HTMLResponse)
+def login_mfa_form(request: Request):
+    if not _mfa_pending(request):
+        return _Redirect("/login", status_code=303)
+    return templates.TemplateResponse(request, "login_mfa.html", {"error": None})
+
+
+@app.post("/login/mfa")
+async def login_mfa_submit(request: Request):
+    pending = _mfa_pending(request)
+    if not pending:
+        return _Redirect("/login", status_code=303)
+    form = await request.form()
+    code = form.get("code") or ""
+    uid = pending["uid"]
+    ip = request.client.host if request.client else "?"
+    key = f"mfa:{uid}|{ip}"
+    user = None
+    with cursor() as c:
+        if _auth.throttle_blocked(c, key):
+            return templates.TemplateResponse(
+                request, "login_mfa.html",
+                {"error": "Πολλές αποτυχημένες προσπάθειες — δοκιμάστε αργότερα."},
+                status_code=429)
+        mrow = _auth.get_mfa(c, uid)
+        good = bool(mrow and mrow["mfa_enabled"] and (
+            _auth.verify_totp(mrow["mfa_secret"], code)
+            or _auth.consume_recovery_code(c, uid, code)))
+        if not good:
+            _auth.throttle_fail(c, key)
+            return templates.TemplateResponse(
+                request, "login_mfa.html",
+                {"error": "Ο κωδικός δεν είναι έγκυρος."}, status_code=401)
+        _auth.throttle_reset(c, key)
+        _auth.touch_last_login(c, uid)
+        user = _auth.load_user(c, uid)
+    request.session.pop("mfa_pending", None)
+    if not user:
+        return _Redirect("/login", status_code=303)
+    _auth.login_session(request, user)
+    return _Redirect(_safe_next(pending.get("next", "/")), status_code=303)
 
 
 @app.get("/logout")
@@ -1736,13 +1799,99 @@ def account_page(request: Request):
     if not u:
         return _Redirect("/login?next=/account", status_code=303)
     sub = None
+    mfa_enabled = False
     try:
         with cursor() as c:
             sub = _auth.current_subscription(c, u["id"])
+            mrow = _auth.get_mfa(c, u["id"])
+            mfa_enabled = bool(mrow and mrow["mfa_enabled"])
     except Exception:      # noqa: BLE001 — subscription is optional decoration
         sub = None
     return templates.TemplateResponse(request, "account.html",
-                                      {"acct": u, "subscription": sub})
+                                      {"acct": u, "subscription": sub,
+                                       "mfa_enabled": mfa_enabled})
+
+
+# --- Two-factor auth (TOTP) enrolment ---------------------------------------- #
+def _mfa_qr_svg(uri: str):
+    """Inline SVG QR for the otpauth:// URI (segno, pure-python). None if segno
+    is unavailable — the page still shows the secret for manual entry."""
+    try:
+        import io
+        import segno
+        buf = io.BytesIO()      # segno's SVG writer emits bytes
+        segno.make(uri, error="m").save(buf, kind="svg", scale=4, border=2, xmldecl=False)
+        return buf.getvalue().decode("utf-8")
+    except Exception:      # noqa: BLE001
+        return None
+
+
+def _mfa_setup_ctx(request, u, error=None):
+    """Provisional-secret setup view: reuse the session secret across re-renders
+    so the QR the user is scanning doesn't change under them."""
+    secret = request.session.get("mfa_setup_secret")
+    if not secret:
+        secret = _auth.new_totp_secret()
+        request.session["mfa_setup_secret"] = secret
+    uri = _auth.totp_uri(secret, u["username"])
+    return {"acct": u, "mfa_enabled": False, "secret": secret,
+            "qr_svg": _mfa_qr_svg(uri), "error": error}
+
+
+@app.get("/account/mfa", response_class=HTMLResponse)
+def account_mfa(request: Request):
+    u = getattr(request.state, "user", None)
+    if not u:
+        return _Redirect("/login?next=/account/mfa", status_code=303)
+    with cursor() as c:
+        mrow = _auth.get_mfa(c, u["id"])
+    if mrow and mrow["mfa_enabled"]:
+        request.session.pop("mfa_setup_secret", None)
+        return templates.TemplateResponse(request, "account_mfa.html",
+                                          {"acct": u, "mfa_enabled": True})
+    return templates.TemplateResponse(request, "account_mfa.html", _mfa_setup_ctx(request, u))
+
+
+@app.post("/account/mfa/enable")
+async def account_mfa_enable(request: Request):
+    u = getattr(request.state, "user", None)
+    if not u:
+        return _Redirect("/login?next=/account/mfa", status_code=303)
+    secret = request.session.get("mfa_setup_secret")
+    form = await request.form()
+    code = form.get("code") or ""
+    if not secret or not _auth.verify_totp(secret, code):
+        return templates.TemplateResponse(
+            request, "account_mfa.html",
+            _mfa_setup_ctx(request, u, error="Ο κωδικός δεν επαληθεύτηκε — δοκιμάστε ξανά."),
+            status_code=400)
+    plain, hashed = _auth.gen_recovery_codes()
+    with cursor() as c:
+        _auth.enable_mfa(c, u["id"], secret, hashed)
+    request.session.pop("mfa_setup_secret", None)
+    # Show the recovery codes ONCE — they are not retrievable again.
+    return templates.TemplateResponse(
+        request, "account_mfa.html",
+        {"acct": u, "mfa_enabled": True, "just_enabled": True, "recovery_codes": plain})
+
+
+@app.post("/account/mfa/disable")
+async def account_mfa_disable(request: Request):
+    u = getattr(request.state, "user", None)
+    if not u:
+        return _Redirect("/login?next=/account/mfa", status_code=303)
+    form = await request.form()
+    password = form.get("password") or ""
+    with cursor() as c:
+        full = _auth.get_by_username(c, u["username"])
+        if not full or not _auth.verify_password(password, full["password_hash"]):
+            return templates.TemplateResponse(
+                request, "account_mfa.html",
+                {"acct": u, "mfa_enabled": True,
+                 "error": "Λάθος συνθηματικό — το 2FA δεν απενεργοποιήθηκε."},
+                status_code=403)
+        _auth.disable_mfa(c, u["id"])
+    return _Redirect("/account/mfa", status_code=303)
 
 
 @app.post("/account/password")

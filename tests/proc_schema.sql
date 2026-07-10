@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict KsPZGDA9ImkT4xhYT9vF1Zhc5FmCAbt0E7df2b2UfGLGKzvDsLz2uhwbmxpNzHE
+\restrict a9M5wOf21R4bJjdRSuDCdSMuHH0H4QeqgEBNgxCaZILVIyq6b8m6ipJl1yhZiHG
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Homebrew)
@@ -612,6 +612,9 @@ CREATE TABLE proc.app_user (
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     last_login_at timestamp with time zone,
+    mfa_secret text,
+    mfa_enabled boolean DEFAULT false NOT NULL,
+    mfa_recovery_codes text[] DEFAULT '{}'::text[] NOT NULL,
     CONSTRAINT app_user_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'customer'::text])))
 );
 
@@ -4100,5 +4103,5 @@ ALTER TABLE ONLY proc.user_subscription
 -- PostgreSQL database dump complete
 --
 
-\unrestrict KsPZGDA9ImkT4xhYT9vF1Zhc5FmCAbt0E7df2b2UfGLGKzvDsLz2uhwbmxpNzHE
+\unrestrict a9M5wOf21R4bJjdRSuDCdSMuHH0H4QeqgEBNgxCaZILVIyq6b8m6ipJl1yhZiHG
 

@@ -1083,9 +1083,30 @@ def cmd_progress(args):
             print(f"  {status:8s} {n:>5}   ({mn} .. {mx})")
 
 
+def cmd_clear_mfa(args):
+    """Break-glass: turn OFF two-factor for a user (e.g. a locked-out admin who
+    lost their authenticator and recovery codes). Run by an operator with DB
+    access; the user can re-enrol afterwards."""
+    with Database() as db:
+        rows = db.query("SELECT id, username, mfa_enabled FROM proc.app_user "
+                        "WHERE lower(username) = lower(%s)", (args.user,))
+        if not rows:
+            print(f"no such user: {args.user!r}")
+            return
+        uid, uname, enabled = rows[0]
+        db.execute("UPDATE proc.app_user SET mfa_enabled = false, mfa_secret = NULL, "
+                   "mfa_recovery_codes = '{}' WHERE id = %s", (uid,))
+        db.commit()
+        print(f"2FA cleared for {uname!r} (was enabled={enabled}). They can re-enrol at /account/mfa.")
+
+
 def main():
     ap = argparse.ArgumentParser(description="KHMDHS database bootstrap & runner.")
     sub = ap.add_subparsers(dest="cmd", required=True)
+
+    p_mfa = sub.add_parser("clear-mfa", help="break-glass: disable 2FA for a user")
+    p_mfa.add_argument("--user", required=True, help="username to clear 2FA for")
+    p_mfa.set_defaults(func=cmd_clear_mfa)
 
     p_init = sub.add_parser("init-schema", help="apply schema.sql to the database")
     p_init.add_argument("--file", help="path to schema.sql (default: alongside db.py)")

@@ -33,6 +33,15 @@
   </div>
 
   <div class="acct-card">
+    <h2>{{ t("Έλεγχος ταυτότητας δύο παραγόντων (2FA)") }}</h2>
+    <p class="acct-muted">
+      {% if mfa_enabled %}{{ t("Το 2FA είναι ενεργό — απαιτείται κωδικός authenticator κατά τη σύνδεση.") }}
+      {% else %}{{ t("Προσθέστε ένα δεύτερο επίπεδο ασφάλειας με μια εφαρμογή authenticator (συνιστάται για διαχειριστές).") }}{% endif %}
+    </p>
+    <a class="acct-btn" href="/account/mfa">{% if mfa_enabled %}{{ t("Διαχείριση 2FA") }}{% else %}{{ t("Ενεργοποίηση 2FA") }}{% endif %}</a>
+  </div>
+
+  <div class="acct-card">
     <h2>{{ t("Τα δεδομένα σας") }}</h2>
     <p class="acct-muted">{{ t("Κατεβάστε όλα τα προσωπικά δεδομένα που τηρούμε για τον λογαριασμό σας σε μορφή JSON.") }}</p>
     <form method="post" action="/account/export">

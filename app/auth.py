@@ -21,6 +21,8 @@ import hashlib
 import hmac
 import secrets
 
+import pyotp
+
 # scrypt params. N=2^14 → ~16 MB working memory per hash: strong for the
 # occasional login, cheap enough for the small Render instance.
 _N, _R, _P, _DKLEN = 2 ** 14, 8, 1, 32
@@ -706,6 +708,82 @@ def throttle_fail(c, key):
 
 def throttle_reset(c, key):
     c.execute("DELETE FROM proc.login_throttle WHERE key = %s", (key,))
+
+
+# --------------------------------------------------------------------------- #
+# Two-factor auth (TOTP + one-time recovery codes)
+#
+# Opt-in per account (recommended for admins). A user enrols self-service: we
+# store the base32 TOTP secret and a set of scrypt-hashed one-time recovery
+# codes (so a lost authenticator doesn't lock them out). mfa_enabled gates the
+# extra step at login.
+# --------------------------------------------------------------------------- #
+MFA_ISSUER = "KHMDHS"
+
+
+def new_totp_secret() -> str:
+    return pyotp.random_base32()
+
+
+def totp_uri(secret: str, username: str) -> str:
+    """otpauth:// URI for the authenticator QR / manual entry."""
+    return pyotp.TOTP(secret).provisioning_uri(name=username, issuer_name=MFA_ISSUER)
+
+
+def verify_totp(secret: str, code: str) -> bool:
+    """True if `code` is a valid TOTP for `secret` (±1 step for clock skew)."""
+    if not secret or not code:
+        return False
+    code = str(code).strip().replace(" ", "")
+    if not code.isdigit():
+        return False
+    try:
+        return pyotp.TOTP(secret).verify(code, valid_window=1)
+    except Exception:      # noqa: BLE001
+        return False
+
+
+def gen_recovery_codes(n: int = 10):
+    """Return (plaintext_codes, hashed_codes). Show the plaintext ONCE; store
+    only the hashes."""
+    plain = ["-".join(secrets.token_hex(2) for _ in range(2)) for _ in range(n)]
+    hashed = [hash_password(code) for code in plain]
+    return plain, hashed
+
+
+def get_mfa(c, uid):
+    c.execute("SELECT mfa_enabled, mfa_secret, mfa_recovery_codes "
+              "FROM proc.app_user WHERE id = %s", (uid,))
+    return c.fetchone()
+
+
+def enable_mfa(c, uid, secret, hashed_codes):
+    c.execute("UPDATE proc.app_user SET mfa_enabled = true, mfa_secret = %s, "
+              "mfa_recovery_codes = %s WHERE id = %s", (secret, hashed_codes, uid))
+
+
+def disable_mfa(c, uid):
+    c.execute("UPDATE proc.app_user SET mfa_enabled = false, mfa_secret = NULL, "
+              "mfa_recovery_codes = '{}' WHERE id = %s", (uid,))
+
+
+def consume_recovery_code(c, uid, code) -> bool:
+    """Verify a one-time recovery code and, on match, remove it. Returns True on
+    a successful (consumed) match."""
+    code = (code or "").strip().lower().replace(" ", "")
+    if not code:
+        return False
+    row = get_mfa(c, uid)
+    if not row:
+        return False
+    codes = list(row["mfa_recovery_codes"] or [])
+    for i, h in enumerate(codes):
+        if verify_password(code, h):
+            del codes[i]
+            c.execute("UPDATE proc.app_user SET mfa_recovery_codes = %s WHERE id = %s",
+                      (codes, uid))
+            return True
+    return False
 
 
 # --------------------------------------------------------------------------- #
