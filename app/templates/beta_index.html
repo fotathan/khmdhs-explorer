@@ -1,7 +1,7 @@
 {% extends "beta_base.html" %}
 {% block title %}{{ t("KHMDHS · Εξερευνητής") }}{% endblock %}
 {% block content %}
-{% if search_profiles or can_manage_profiles %}
+{% if search_profiles or can_manage_profiles or can_export %}
 <div class="profiles-bar">
   {% if search_profiles %}
   <details class="sp-menu">
@@ -51,6 +51,19 @@
         <button type="submit">{{ t("Αποθήκευση") }}</button>
       </form>
       <a class="sp-manage-link" href="/search-profiles/manage">{{ t("Διαχείριση προφίλ →") }}</a>
+    </div>
+  </details>
+  {% endif %}
+  {% if can_export %}
+  <details class="sp-menu exp-menu">
+    <summary>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+      {{ t("Εξαγωγή") }}
+    </summary>
+    <div class="sp-pop exp-pop">
+      <a href="/export/acts?{% if current_query %}{{ current_query }}&{% endif %}fmt=csv">CSV</a>
+      <a href="/export/acts?{% if current_query %}{{ current_query }}&{% endif %}fmt=xlsx">Excel (XLSX)</a>
+      <p class="exp-note">{{ t("Εξάγεται η τρέχουσα αναζήτηση — έως") }} {{ "{:,}".format(export_cap).replace(",", ".") }} {{ t("γραμμές") }}.</p>
     </div>
   </details>
   {% endif %}

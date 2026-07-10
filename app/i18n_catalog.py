@@ -1757,6 +1757,30 @@ _SEARCH_PROFILES = {
         "Portal profiles are shared and, once published, become available to all customers. Customer profiles belong exclusively to one customer. A customer profile can reference a portal profile as a live link — changes to the portal profile apply automatically — or carry its own filters.",
 }
 
+# Act export (CSV / XLSX) — toolbar labels + column headers (headers are
+# translated in Python via i18n.translate, so they live in the same catalog).
+_EXPORT = {
+    "Εξαγωγή": "Export",
+    "Εξάγεται η τρέχουσα αναζήτηση — έως": "Exports the current search — up to",
+    "γραμμές": "rows",
+    "ΑΔΑΜ": "ADAM",
+    "Αναθέτουσα αρχή": "Contracting authority",
+    "Ημ. υπογραφής": "Signing date",
+    "Ημ. δημοσίευσης": "Publication date",
+    "Καταληκτική ημ.": "Deadline",
+    "Αξία (€)": "Value (€)",
+    "Διαδικασία": "Procedure",
+    "Ακυρωμένη": "Cancelled",
+    "Τροποποιημένη": "Modified",
+    "Διορθωμένη αξία": "Corrected value",
+    "Σύνδεσμος": "Link",
+    "Ναι": "Yes",
+    "Όχι": "No",
+    "Εξαγωγή σε CSV / Excel": "Export to CSV / Excel",
+    "Συνδεδεμένοι χρήστες μπορούν να εξάγουν την τρέχουσα αναζήτηση (με τα ενεργά φίλτρα) σε CSV ή Excel (XLSX) από το μενού «Εξαγωγή» πάνω από την μπάρα αναζήτησης. Κάθε εξαγωγή καλύπτει έως ένα όριο γραμμών· για μεγαλύτερα σύνολα, στενέψτε τα φίλτρα και εξάγετε σε κομμάτια.":
+        "Signed-in users can export the current search (with its active filters) to CSV or Excel (XLSX) from the \"Export\" menu above the search bar. Each export covers up to a row limit; for larger sets, narrow the filters and export in parts.",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
@@ -1765,5 +1789,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
              _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
              _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
-             _SEARCH_PROFILES):
+             _SEARCH_PROFILES, _EXPORT):
     UI_EN.update(_grp)

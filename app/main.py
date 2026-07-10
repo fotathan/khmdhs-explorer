@@ -2145,7 +2145,98 @@ def home(request: Request,
     ctx.setdefault("profile_customers", [])
     ctx["can_manage_profiles"] = bool(user and user.get("role") == "admin")
     ctx["current_query"] = request.url.query or ""
+    ctx["can_export"] = bool(user)          # export is signed-in only
+    ctx["export_cap"] = _EXPORT_CAP_ADMIN if (user and user.get("role") == "admin") else _EXPORT_CAP_CUSTOMER
     return templates.TemplateResponse(request, "beta_index.html", ctx)
+
+
+# --------------------------------------------------------------------------- #
+# Act export (CSV / XLSX of the current filtered result set).
+#
+# Abuse / DoS guards, layered so no single failure exposes the app:
+#   • signed-in only (no anonymous bulk pull),
+#   • a hard row LIMIT (server-controlled, tight for customers) bounding query
+#     cost AND memory regardless of the filter,
+#   • a dedicated per-IP rate-limit bucket,
+#   • fixed server-defined columns (nothing user-controlled),
+#   • openpyxl write-only mode so XLSX memory stays flat.
+# --------------------------------------------------------------------------- #
+_EXPORT_CAP_CUSTOMER = int(os.environ.get("EXPORT_MAX_ROWS_CUSTOMER", "1000"))
+_EXPORT_CAP_ADMIN = int(os.environ.get("EXPORT_MAX_ROWS_ADMIN", "20000"))
+_EXPORT_PER_MIN = int(os.environ.get("EXPORT_PER_MIN", "2"))
+_SOURCE_LABELS = {"khmdhs": "ΚΗΜΔΗΣ", "diavgeia": "Διαύγεια", "ted": "TED"}
+
+
+@app.get("/export/acts")
+def export_acts(request: Request, fmt: str = Query("csv")):
+    """Download the current search (same filters as `/`) as CSV or XLSX."""
+    user = getattr(request.state, "user", None)
+    if not user:
+        # anti-scrape + DoS gate: exports are for signed-in users only.
+        return _Redirect(url="/login", status_code=303)
+    _rate_limit(request, "export", per_min=_EXPORT_PER_MIN)
+    fmt = (fmt or "csv").lower()
+    if fmt not in ("csv", "xlsx"):
+        raise HTTPException(status_code=400, detail="fmt must be csv or xlsx")
+    is_admin = user.get("role") == "admin"
+    cap = _EXPORT_CAP_ADMIN if is_admin else _EXPORT_CAP_CUSTOMER
+
+    lang = _i18n.lang_from_request(request)
+    params = _params_from(request)
+    where, args = build_where(params)
+    order_by = SORT_COLS.get(params.get("sort") or DEFAULT_SORT, SORT_COLS[DEFAULT_SORT])
+    sql = f"""
+        SELECT {SELECT_COLS}
+        FROM proc.procurement_act a
+        LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
+        WHERE {where}
+        ORDER BY {order_by}
+        LIMIT {int(cap)}
+    """
+    with cursor() as c:
+        c.execute(sql, args)
+        db_rows = c.fetchall()
+
+    def _tr(s):
+        return _i18n.translate(s, lang)
+
+    yes, no = _tr("Ναι"), _tr("Όχι")
+
+    def _codelbl(code, domain):
+        return _code_label_impl(code, domain) if code not in (None, "") else ""
+
+    base = str(request.base_url)
+    columns = [
+        (_tr("ΑΔΑΜ"),            lambda r: r["adam"]),
+        (_tr("Τύπος"),           lambda r: _tr(TYPE_LABELS.get(r["type"], r["type"]))),
+        (_tr("Τίτλος"),          lambda r: r["title"]),
+        (_tr("Αναθέτουσα αρχή"), lambda r: r["authority_name"]),
+        (_tr("Ημ. υπογραφής"),   lambda r: r["signed_date"]),
+        (_tr("Ημ. δημοσίευσης"), lambda r: r["submission_date"]),
+        (_tr("Καταληκτική ημ."), lambda r: r["final_submission_date"]),
+        (_tr("Αξία (€)"),        lambda r: float(r["resolved_value"]) if r["resolved_value"] is not None else None),
+        (_tr("Είδος σύμβασης"),  lambda r: _codelbl(r["contract_type_code"], "contract_type")),
+        (_tr("Διαδικασία"),      lambda r: _codelbl(r["procedure_type_code"], "procedure_type")),
+        ("NUTS",                 lambda r: r["nuts_code"]),
+        (_tr("Πηγή"),            lambda r: _SOURCE_LABELS.get(r["data_source"], r["data_source"])),
+        (_tr("Ακυρωμένη"),       lambda r: yes if r["cancelled"] else no),
+        (_tr("Τροποποιημένη"),   lambda r: yes if r["is_modified"] else no),
+        (_tr("Διορθωμένη αξία"), lambda r: yes if r["is_corrected"] else no),
+        (_tr("Σύνδεσμος"),       lambda r: f"{base}act/{r['adam']}"),
+    ]
+    headers = [h for h, _ in columns]
+    out_rows = [[fn(r) for _, fn in columns] for r in db_rows]
+
+    from app import act_export
+    fname = f"khmdhs_acts_{date.today().strftime('%Y%m%d')}.{fmt}"
+    if fmt == "csv":
+        data = act_export.rows_to_csv(headers, out_rows)
+        media = "text/csv; charset=utf-8"
+    else:
+        data = act_export.rows_to_xlsx(headers, out_rows, sheet_title="KHMDHS")
+        media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    return _Response(content=data, media_type=media,
+                     headers={"Content-Disposition": f'attachment; filename="{fname}"'})
 
 
 def _params_from(request: Request) -> dict:
