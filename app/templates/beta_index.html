@@ -57,14 +57,14 @@
 </div>
 {% endif %}
 <form id="filters" hx-get="/" hx-target="#results" hx-trigger="change, submit"
-      hx-push-url="true" hx-indicator="#busy">
+      hx-push-url="true" hx-indicator="#results-overlay, #search-spin, #busy">
 
 <div class="hero">
   <div class="hero-in">
     <div class="searchbar">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
       <input type="text" name="q" value="{{ params.q or '' }}" placeholder="{{ t('Αναζήτηση σε τίτλους, αναθέτουσες, αναδόχους, ΑΔΑΜ…') }}">
-      <button class="go" type="submit">{{ t("Αναζήτηση") }}</button>
+      <button class="go" type="submit">{{ t("Αναζήτηση") }}<span id="search-spin" class="btn-spin htmx-indicator"></span></button>
     </div>
     <div class="hero-meta">
       <span>{{ t("βρέθηκαν") }} <b id="hero-count">{{ "{:,}".format(total_count).replace(",", ".") }}</b> {{ t("πράξεις") }}</span>
@@ -249,8 +249,11 @@
         </div>
       </div>
 
-      <div id="results">
-        {% include "beta_results.html" %}
+      <div class="results-wrap">
+        <div id="results-overlay" class="results-overlay htmx-indicator" aria-hidden="true"><span class="spinner"></span></div>
+        <div id="results">
+          {% include "beta_results.html" %}
+        </div>
       </div>
     </section>
   </div>

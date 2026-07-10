@@ -2,7 +2,7 @@
 {% block title %}{{ t("Σύνοψη · Εξερευνητής") }}{% endblock %}
 {% block content %}
 <form id="filters" hx-get="/explore" hx-target="#explore-results" hx-trigger="change, submit"
-      hx-push-url="true" hx-indicator="#ex-busy">
+      hx-push-url="true" hx-indicator="#ex-results-overlay, #ex-spin, #ex-busy">
 
 <div class="hero">
   <div class="hero-in">
@@ -13,7 +13,7 @@
     <div class="searchbar" style="max-width:640px;">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
       <input type="text" name="q" value="{{ params.q or '' }}" placeholder="{{ t('λέξη-κλειδί σε τίτλο/αναθέτουσα/ανάδοχο…') }}">
-      <button class="go" type="submit">{{ t("Σύνοψη") }}</button>
+      <button class="go" type="submit">{{ t("Σύνοψη") }}<span id="ex-spin" class="btn-spin htmx-indicator"></span></button>
     </div>
     <div class="hero-meta">
       <span><b id="ex-count">{{ "{:,}".format(grand.n).replace(",", ".") }}</b> {{ t("πράξεις στο φίλτρο") }}</span>
@@ -101,8 +101,11 @@
     </aside>
 
     <section>
-      <div id="explore-results">
-        {% include "beta_explore_results.html" %}
+      <div class="results-wrap">
+        <div id="ex-results-overlay" class="results-overlay htmx-indicator" aria-hidden="true"><span class="spinner"></span></div>
+        <div id="explore-results">
+          {% include "beta_explore_results.html" %}
+        </div>
       </div>
     </section>
   </div>

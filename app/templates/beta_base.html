@@ -75,7 +75,15 @@
   .searchbar input{flex:1;border:0;outline:0;font-family:var(--sans);font-size:15px;color:var(--ink);background:transparent;padding:8px 0;}
   .searchbar input::placeholder{color:var(--ink-3);}
   .searchbar .go{background:var(--accent);color:#fff;border:0;border-radius:10px;font-family:var(--sans);font-weight:600;font-size:14px;padding:10px 20px;cursor:pointer;transition:background .12s;}
+  .searchbar .go{position:relative;padding-right:34px;}
   .searchbar .go:hover{background:var(--accent-2);}
+  /* background-search feedback: dim+spinner over the results, spinner in the button.
+     Both carry .htmx-indicator, so htmx fades them in only while the request runs. */
+  .results-wrap{position:relative;}
+  .results-overlay{position:absolute;inset:0;z-index:20;display:flex;align-items:flex-start;justify-content:center;padding-top:56px;background:rgba(255,255,255,.6);pointer-events:none;border-radius:var(--radius);}
+  .results-overlay .spinner{width:32px;height:32px;border-radius:50%;border:3px solid var(--rule);border-top-color:var(--accent);animation:sp-rot .7s linear infinite;}
+  .btn-spin{position:absolute;right:12px;top:50%;margin-top:-7px;width:13px;height:13px;border-radius:50%;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;animation:sp-rot .7s linear infinite;}
+  @keyframes sp-rot{to{transform:rotate(360deg);}}
   .hero-meta{display:flex;gap:22px;margin-top:14px;font-size:13px;color:var(--ink-3);}
   .hero-meta b{color:var(--ink-2);font-weight:600;font-variant-numeric:tabular-nums;}
 
