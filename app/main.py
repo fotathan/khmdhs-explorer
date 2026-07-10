@@ -25,10 +25,12 @@ Then open http://localhost:8000
 """
 from __future__ import annotations
 
+import logging
 import os
 import re
 import secrets
 import time as _time
+import uuid
 from contextlib import contextmanager, asynccontextmanager
 from datetime import date
 from typing import Optional
@@ -71,6 +73,12 @@ try:
     from app import i18n as _i18n
 except ImportError:  # flat layout (run with --app-dir=app)
     import i18n as _i18n
+
+try:
+    from app import obs as _obs
+except ImportError:  # flat layout (run with --app-dir=app)
+    import obs as _obs
+_obs.configure()      # structured (JSON in prod) logging on the "khmdhs" logger
 
 
 def _i18n_context(request):
@@ -1233,6 +1241,40 @@ async def _security_headers(request: Request, call_next):
         h.setdefault("Strict-Transport-Security",
                      "max-age=63072000; includeSubDomains")
     return response
+
+
+# Structured request log (OUTERMOST middleware, added last). One JSON line per
+# request with a request id, latency, final status and the acting user. Slow or
+# failing requests log at WARNING; unhandled exceptions log with a traceback.
+@app.middleware("http")
+async def _request_log(request: Request, call_next):
+    rid = request.headers.get("x-request-id") or uuid.uuid4().hex[:16]
+    request.state.request_id = rid
+    start = _time.perf_counter()
+    status = 500
+    try:
+        response = await call_next(request)
+        status = response.status_code
+        response.headers.setdefault("X-Request-ID", rid)
+        return response
+    except Exception:
+        _obs.log_event(logging.ERROR, "request failed", exc_info=True,
+                       request_id=rid, method=request.method,
+                       path=request.url.path)
+        raise
+    finally:
+        dur_ms = round((_time.perf_counter() - start) * 1000, 1)
+        uid = None
+        try:
+            uid = request.session.get("uid")
+        except Exception:      # noqa: BLE001 — session may be absent on some paths
+            uid = None
+        level = (logging.WARNING
+                 if (status >= 500 or dur_ms >= _obs.SLOW_MS) else logging.INFO)
+        _obs.log_event(level, "request", request_id=rid, method=request.method,
+                       path=request.url.path, status=status, dur_ms=dur_ms,
+                       uid=uid, ip=(request.client.host if request.client else None),
+                       slow=(dur_ms >= _obs.SLOW_MS))
 
 
 def _safe_next(nxt: str) -> str:

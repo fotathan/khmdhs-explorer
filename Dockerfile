@@ -44,5 +44,6 @@ COPY db.py khmdhs_ingest.py diavgeia_ingest.py ted_ingest.py cron_catchup.py wor
 ENV PORT=8000
 
 # Shell form so $PORT expands. Single worker is plenty for a read-mostly,
-# few-users private app; bump --workers later if needed.
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT}
+# few-users private app; bump --workers later if needed. --no-access-log because
+# the app emits its own structured (JSON) request log (see app/obs.py).
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --no-access-log
