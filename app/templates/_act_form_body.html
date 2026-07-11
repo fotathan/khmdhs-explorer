@@ -230,6 +230,8 @@
   .af-scan-acc{background:var(--accent); color:#fff; border:0; border-radius:6px; padding:4px 12px; font-size:12px; font-weight:600; cursor:pointer;}
   .af-scan-acc[disabled]{background:var(--ok,#1f8a63); cursor:default;}
   .af-scan-empty{padding:14px; font-size:13px; color:var(--ink-3);}
+  .af-scan-row-linked{cursor:default; border-radius:6px; transition:background .1s;}
+  .af-scan-row-linked:hover{background:var(--paper-2);}
 </style>
 
 <script>
@@ -530,6 +532,39 @@
     return true;
   }
 
+  // --- highlight found values in the full-text editor (Quill) ---------------
+  var HL_COLORS = { date: '#fff3bf', amount: '#d3f9d8', cpv: '#e5dbff',
+                    afm: '#ffe3e3', postal: '#c5f6fa', title: '#ffec99' };
+  var _hl = [];  // currently-applied highlights [{start,len,color}]
+  function quill() { var m = document.querySelector('.ftc-editor'); return m && m.__quill; }
+  function clearHighlights() {
+    var q = quill(); if (!q) return;
+    _hl.forEach(function (h) { q.formatText(h.start, h.len, 'background', false, 'silent'); });
+    _hl = [];
+  }
+  function applyHighlights(suggestions) {
+    var q = quill(); if (!q) return;
+    clearHighlights();
+    suggestions.forEach(function (s) {
+      var c = s.span && HL_COLORS[s.kind]; if (!c) return;
+      q.formatText(s.span[0], s.span[1], 'background', c, 'silent');
+      _hl.push({ start: s.span[0], len: s.span[1], color: c });
+    });
+  }
+  function scrollToSpan(start, len) {
+    var q = quill(); if (!q) return;
+    try {
+      var b = q.getBounds(start, len || 1);
+      var ed = document.querySelector('.ftc-editor .ql-editor');
+      if (ed && b) ed.scrollTop = Math.max(0, b.top + ed.scrollTop - ed.clientHeight / 2);
+    } catch (e) { }
+  }
+  // Strip the highlight backgrounds before the act form saves, so they aren't
+  // baked into the stored full-text HTML. Capture phase → runs before the editor
+  // mirrors its innerHTML into the hidden inputs on submit.
+  var _saveForm = document.querySelector('form[action="/admin/acts/save"]');
+  if (_saveForm) _saveForm.addEventListener('submit', clearHighlights, true);
+
   function accept(s, targetName, btn) {
     if (s.kind === 'cpv') {
       if (typeof pickCpv === 'function') pickCpv(s.value, s.hint || '');
@@ -579,6 +614,19 @@
         btn.textContent = '{{ t("Εφαρμογή") }}';
         btn.addEventListener('click', function () { accept(s, sel ? sel.value : s.target, btn); });
         row.appendChild(btn);
+        // Hovering a suggestion emphasises + scrolls to its spot in the text.
+        if (s.span) {
+          row.classList.add('af-scan-row-linked');
+          row.addEventListener('mouseenter', function () {
+            var q = quill(); if (!q) return;
+            q.formatText(s.span[0], s.span[1], 'background', '#ffd43b', 'silent');
+            scrollToSpan(s.span[0], s.span[1]);
+          });
+          row.addEventListener('mouseleave', function () {
+            var q = quill(); if (!q) return;
+            q.formatText(s.span[0], s.span[1], 'background', HL_COLORS[s.kind] || false, 'silent');
+          });
+        }
         g.appendChild(row);
       });
       box.appendChild(g);
@@ -599,6 +647,7 @@
       var s = (data && data.suggestions) || [];
       status.textContent = s.length + ' {{ t("υποψήφιες τιμές") }}';
       render(s);
+      applyHighlights(s);   // colour each found value in the full-text editor
     }).catch(function () { status.textContent = '{{ t("Σφάλμα σάρωσης") }}'; })
       .finally(function () { if (btn) btn.disabled = false; });
   };

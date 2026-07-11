@@ -99,7 +99,8 @@ def find_dates(text: str, limit: int = 20) -> list[dict]:
         if iso in seen:
             return
         seen.add(iso)
-        out.append({"iso": iso, "raw": raw, "target": _anchor(norm, pos, DATE_FIELDS)})
+        out.append({"iso": iso, "raw": raw, "start": pos, "len": len(raw),
+                    "target": _anchor(norm, pos, DATE_FIELDS)})
 
     for m in _NUM_DATE.finditer(text):
         d, mth, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
@@ -137,34 +138,39 @@ def find_amounts(text: str, limit: int = 20) -> list[dict]:
         if key in seen:
             continue
         seen.add(key)
-        out.append({"value": f"{val:.2f}", "raw": m.group(0).strip(), "target": target})
+        raw = m.group(0)
+        out.append({"value": f"{val:.2f}", "raw": raw.strip(),
+                    "start": m.start(), "len": len(raw), "target": target})
     return out[:limit]
 
 
-def find_afms(text: str, limit: int = 10) -> list[str]:
-    out = []
+def find_afms(text: str, limit: int = 10) -> list[dict]:
+    out, seen = [], set()
     for m in _AFM.finditer(text):
         s = m.group(1)
-        if valid_afm(s) and s not in out:
-            out.append(s)
+        if valid_afm(s) and s not in seen:
+            seen.add(s)
+            out.append({"afm": s, "start": m.start(1), "len": len(s)})
     return out[:limit]
 
 
-def find_postals(text: str, limit: int = 10) -> list[str]:
-    out = []
+def find_postals(text: str, limit: int = 10) -> list[dict]:
+    out, seen = [], set()
     for m in _POSTAL.finditer(text):
         code = m.group(1) + m.group(2)
-        if code[0] != "0" and code not in out:   # Greek TK: 10000-99999
-            out.append(code)
+        if code[0] != "0" and code not in seen:   # Greek TK: 10000-99999
+            seen.add(code)
+            out.append({"code": code, "start": m.start(), "len": len(m.group(0))})
     return out[:limit]
 
 
-def find_cpv_prefixes(text: str, limit: int = 30) -> list[str]:
-    out = []
+def find_cpv_prefixes(text: str, limit: int = 30) -> list[dict]:
+    out, seen = [], set()
     for m in _CPV.finditer(text):
         p = m.group(1)
-        if p not in out:
-            out.append(p)
+        if p not in seen:
+            seen.add(p)
+            out.append({"prefix": p, "start": m.start(), "len": len(m.group(0))})
     return out[:limit]
 
 
@@ -189,11 +195,10 @@ def find_authority_hint(text: str) -> str | None:
     return None
 
 
-def find_title(text: str) -> str | None:
-    for line in (text or "").splitlines():
-        m = _TITLE.search(line)
-        if m:
-            t = m.group(1).strip(" .·—-\t")
-            if len(t) >= 8:
-                return t[:400]
+def find_title(text: str) -> dict | None:
+    for m in _TITLE.finditer(text or ""):
+        raw = m.group(1)
+        t = raw.strip(" .·—-\t")
+        if len(t) >= 8:
+            return {"text": t[:400], "start": m.start(1), "len": len(raw.rstrip())}
     return None

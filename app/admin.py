@@ -1417,8 +1417,11 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         desc_col = "description_en" if lang == "en" else "description"
         sugg = []
 
-        # CPV — only codes that exist in the vocabulary
-        prefixes = tx.find_cpv_prefixes(text)
+        # CPV — only codes that exist in the vocabulary. Span from the 8-digit
+        # prefix as it appears in the text (for highlighting).
+        cpv_matches = tx.find_cpv_prefixes(text)
+        prefixes = [m["prefix"] for m in cpv_matches]
+        prefix_span = {m["prefix"]: [m["start"], m["len"]] for m in cpv_matches}
         if prefixes:
             with cursor() as c:
                 c.execute(f"""SELECT cpv_code, {desc_col} AS d FROM proc.cpv_code
@@ -1426,34 +1429,39 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                           (prefixes,))
                 for r in c.fetchall():
                     sugg.append({"kind": "cpv", "target": "cpv", "value": r["cpv_code"],
-                                 "display": r["cpv_code"], "hint": r["d"] or ""})
+                                 "display": r["cpv_code"], "hint": r["d"] or "",
+                                 "span": prefix_span.get(r["cpv_code"][:8])})
 
         # dates + amounts (keyword-anchored to a best-guess field; user can retarget)
         date_targets = [f for f, _ in tx.DATE_FIELDS]
         for d in tx.find_dates(text):
             sugg.append({"kind": "date", "target": d["target"] or "submission_date",
-                         "value": d["iso"], "display": d["raw"], "targets": date_targets})
+                         "value": d["iso"], "display": d["raw"], "targets": date_targets,
+                         "span": [d["start"], d["len"]]})
         amount_targets = [f for f, _ in tx.AMOUNT_FIELDS]
         for a in tx.find_amounts(text):
             sugg.append({"kind": "amount", "target": a["target"] or "budget",
-                         "value": a["value"], "display": a["raw"], "targets": amount_targets})
+                         "value": a["value"], "display": a["raw"], "targets": amount_targets,
+                         "span": [a["start"], a["len"]]})
 
         # postal → NUTS (validated against the gazetteer; fills postal_code + nuts_code)
         postals = tx.find_postals(text)
         if postals:
+            codes = [p["code"] for p in postals]
             with cursor() as c:
                 c.execute("SELECT postal_code, nuts_code FROM proc.postal_nuts "
-                          "WHERE postal_code = ANY(%s)", (postals,))
+                          "WHERE postal_code = ANY(%s)", (codes,))
                 pn = {r["postal_code"]: r["nuts_code"] for r in c.fetchall()}
-            for code in postals:
-                if code in pn:
-                    sugg.append({"kind": "postal", "target": "postal_code", "value": code,
-                                 "display": code, "hint": "NUTS " + (pn[code] or ""),
-                                 "nuts": pn[code]})
+            for p in postals:
+                if p["code"] in pn:
+                    sugg.append({"kind": "postal", "target": "postal_code", "value": p["code"],
+                                 "display": p["code"], "hint": "NUTS " + (pn[p["code"]] or ""),
+                                 "nuts": pn[p["code"]], "span": [p["start"], p["len"]]})
 
         # ΑΦΜ → authority/operator name (mod-11 valid; dictionary lookup)
-        afms = tx.find_afms(text)
-        if afms:
+        afm_matches = tx.find_afms(text)
+        if afm_matches:
+            afms = [a["afm"] for a in afm_matches]
             with cursor() as c:
                 c.execute("""SELECT vat_number AS v, name, 'authority' AS k FROM proc.authority
                              WHERE vat_number = ANY(%s)
@@ -1463,11 +1471,13 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 names = {}
                 for r in c.fetchall():
                     names.setdefault(r["v"], (r["name"], r["k"]))
-            for a in afms:
+            for am in afm_matches:
+                a = am["afm"]
                 name, k = names.get(a, (None, None))
                 sugg.append({"kind": "afm", "target": "authority_id", "value": a,
                              "display": a + (" · " + name if name else ""),
-                             "hint": k or "ΑΦΜ (άγνωστο στη βάση)"})
+                             "hint": k or "ΑΦΜ (άγνωστο στη βάση)",
+                             "span": [am["start"], am["len"]]})
 
         # authority name fuzzy match (one letterhead line vs the dictionary).
         # Best-effort: pg_trgm's similarity()/% resolve via search_path, so if the
@@ -1491,8 +1501,9 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         # title
         title = tx.find_title(text)
         if title:
-            sugg.append({"kind": "title", "target": "title", "value": title,
-                         "display": title, "hint": ""})
+            sugg.append({"kind": "title", "target": "title", "value": title["text"],
+                         "display": title["text"], "hint": "",
+                         "span": [title["start"], title["len"]]})
 
         # dedup identical suggestions (e.g. same authority name under two org_ids)
         seen, uniq = set(), []

@@ -58,11 +58,21 @@ def test_amounts_anchor_and_parse():
 
 def test_cpv_postal_title_authority():
     from app import text_extract as tx
-    assert "33100000" in tx.find_cpv_prefixes(SAMPLE)
-    assert "85100" in tx.find_postals(SAMPLE)
-    assert tx.find_title(SAMPLE) == "Προμήθεια ιατρικού εξοπλισμού"
+    assert "33100000" in [m["prefix"] for m in tx.find_cpv_prefixes(SAMPLE)]
+    assert "85100" in [p["code"] for p in tx.find_postals(SAMPLE)]
+    assert tx.find_title(SAMPLE)["text"] == "Προμήθεια ιατρικού εξοπλισμού"
     assert tx.find_authority_hint(SAMPLE) == "ΔΗΜΟΣ ΡΟΔΟΥ"   # not the boilerplate line
-    assert tx.find_afms(SAMPLE) == ["094019245"]
+    assert [a["afm"] for a in tx.find_afms(SAMPLE)] == ["094019245"]
+
+
+def test_finders_report_offsets():
+    """Matches carry (start, len) into the text so the UI can highlight them."""
+    from app import text_extract as tx
+    text = "ΑΦΜ 094019245 και CPV 33100000-1"
+    afm = tx.find_afms(text)[0]
+    assert text[afm["start"]:afm["start"] + afm["len"]] == "094019245"
+    cpv = tx.find_cpv_prefixes(text)[0]
+    assert text[cpv["start"]:cpv["start"] + cpv["len"]] == "33100000-1"
 
 
 # --------------------------------------------------------------------------- #
