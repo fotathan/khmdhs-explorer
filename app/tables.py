@@ -345,7 +345,13 @@ def _local_ocr_entry(entry, pages) -> str:
     for pg in page_nums:
         try:
             img = safe_render_full(entry, pg)
-        except Exception:
+        except Exception as e:
+            # Don't swallow silently — the reason (e.g. "renderer crashed
+            # (exit -9)" = OOM-killed, or "timed out") is the whole diagnosis
+            # for "OCR works locally but yields nothing on a small prod instance".
+            import logging
+            logging.getLogger("khmdhs").warning(
+                "local OCR render failed for %s page %s: %s", entry.source, pg, e)
             continue
         txt = local_ocr.ocr_image(img)
         if txt:
