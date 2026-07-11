@@ -1605,6 +1605,18 @@ def version():
         out["db"] = "ok"
     except Exception:      # noqa: BLE001 — report, don't raise
         out["db"] = "error"
+    # OCR capability, so "works locally, fails on prod" is diagnosable at a glance:
+    #   tesseract = binary on PATH; greek = binary + the Greek (ell) language data
+    #   present (what local_ocr actually requires); anthropic = API OCR tier key.
+    import shutil as _shutil
+    ocr = {"tesseract": bool(_shutil.which("tesseract")), "greek": False,
+           "anthropic": bool(os.environ.get("ANTHROPIC_API_KEY"))}
+    try:
+        import local_ocr as _lo
+        ocr["greek"] = _lo.available()
+    except Exception:      # noqa: BLE001
+        pass
+    out["ocr"] = ocr
     return out
 
 
