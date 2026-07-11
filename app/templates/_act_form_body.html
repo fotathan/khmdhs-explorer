@@ -225,6 +225,9 @@
     max-width:calc(100vw - 36px); max-height:66vh; margin:0; display:flex;
     flex-direction:column; border:1px solid var(--rule); border-radius:12px;
     background:var(--paper); box-shadow:0 12px 36px rgba(0,0,0,.18); z-index:900;}
+  /* the class sets display:flex, which would beat the UA [hidden]{display:none};
+     re-assert it so the ✕/close (and the pre-scan state) actually hide the panel */
+  .af-scan-results[hidden]{display:none;}
   .af-scan-hd{display:flex; align-items:center; justify-content:space-between;
     padding:9px 12px; border-bottom:1px solid var(--rule-2); background:var(--paper-2);
     border-radius:12px 12px 0 0; font-size:12px; font-weight:700; color:var(--ink-2);
