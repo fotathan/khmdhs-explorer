@@ -33,6 +33,21 @@ def test_dates_anchor_to_closest_keyword():
     assert got["01/06/2026"] == "submission_date"         # "δημοσίευσης"
 
 
+def test_written_greek_date_formats():
+    from app.text_extract import find_dates
+
+    def iso(text):
+        got = find_dates(text)
+        return got[0]["iso"] if got else None
+
+    assert iso("28 Ιουλίου 2026") == "2026-07-28"
+    assert iso("28ης Ιουλίου του 2026") == "2026-07-28"    # ordinal suffix + "του"
+    assert iso("1ης Σεπτεμβρίου 2026") == "2026-09-01"
+    assert iso("έως και την 15η Μαΐου 2027") == "2027-05-15"   # Μαΐου (ΐ)
+    # a real word between number and year that ISN'T a month must NOT match
+    assert find_dates("5 προϊόντων του 2026") == []
+
+
 def test_amounts_anchor_and_parse():
     from app.text_extract import find_amounts
     got = {a["raw"].split()[0]: (a["value"], a["target"]) for a in find_amounts(SAMPLE)}

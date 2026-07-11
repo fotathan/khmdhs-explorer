@@ -43,7 +43,14 @@ _GREEK_MONTHS = {
 }
 
 _NUM_DATE = re.compile(r"\b(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})\b")
-_GR_DATE = re.compile(r"\b(\d{1,2})\s+([Α-Ωα-ωΆ-Ώά-ώ]+)\s+(\d{4})\b")
+# Written Greek dates, tolerant of an ordinal suffix on the day ("28ης", "1ης",
+# "3ου", "28η") and an optional genitive article before the year ("Ιουλίου του
+# 2026"). The middle token must still resolve to a real month name (below), which
+# keeps false positives out. Examples matched:
+#   28 Ιουλίου 2026 · 28ης Ιουλίου του 2026 · 1ης Σεπτεμβρίου 2026
+_GR_DATE = re.compile(
+    r"\b(\d{1,2})(?:ης|ος|ου|ής|η|ή|ῃ)?\s+([Α-Ωα-ωΆ-Ώάέίόύήώϊϋΐΰ]+)"
+    r"(?:\s+του)?\s+(\d{4})\b")
 # money: 1.234.567,89 | 1234,89 | 1.234 followed by a currency marker (€ / ευρω / eur)
 _MONEY = re.compile(
     r"(?:€\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:,\d{1,2})?)\s*(?:€|ευρω|eur)",
