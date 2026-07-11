@@ -37,6 +37,16 @@
         <input type="hidden" name="full_text_html" class="ftc-html">
         <div class="ftc-initial-html" hidden>{% if full_text_html %}{{ full_text_html | safe }}{% endif %}</div>
         <div class="ftc-initial-text" hidden>{{ full_text or '' }}</div>
+
+        <div class="af-scan">
+          <button type="button" class="af-scan-btn" onclick="afScanText()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            {{ t("Σάρωση κειμένου για πεδία") }}
+          </button>
+          <span class="af-scan-status"></span>
+          <div class="af-scan-note">{{ t("Εντοπίζει υποψήφιες τιμές (CPV, ΑΦΜ, Τ.Κ.→NUTS, ημερομηνίες, ποσά, τίτλο) χωρίς AI — τις εφαρμόζετε με ένα κλικ.") }}</div>
+        </div>
+        <div class="af-scan-results" hidden></div>
       </div>
     </div>
 
@@ -199,6 +209,27 @@
     background:var(--ink,#14181f); color:#fff; padding:9px 16px; border-radius:8px; font-size:13px;
     z-index:1001; box-shadow:0 6px 20px rgba(0,0,0,.22); opacity:0; transition:opacity .18s, transform .18s; pointer-events:none;}
   .ft-toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  /* Full-text field scanner (deterministic, no AI). */
+  .af-scan{margin-top:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .af-scan-btn{display:inline-flex; align-items:center; gap:6px; background:var(--paper);
+    border:1px solid var(--accent); color:var(--accent); border-radius:8px; padding:7px 13px;
+    font-family:var(--sans); font-size:12.5px; font-weight:600; cursor:pointer;}
+  .af-scan-btn:hover{background:var(--accent); color:#fff;}
+  .af-scan-btn[disabled]{opacity:.6; cursor:default;}
+  .af-scan-status{font-size:12px; color:var(--ink-2);}
+  .af-scan-note{flex-basis:100%; font-size:11px; color:var(--ink-3); line-height:1.4; letter-spacing:0; text-transform:none;}
+  .af-scan-results{margin-top:12px; border:1px solid var(--rule); border-radius:10px; background:var(--paper);}
+  .af-scan-group{padding:8px 12px; border-bottom:1px solid var(--rule-2);}
+  .af-scan-group:last-child{border-bottom:0;}
+  .af-scan-group-h{font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-3); margin:2px 0 6px;}
+  .af-scan-row{display:flex; align-items:center; gap:8px; padding:4px 0; flex-wrap:wrap;}
+  .af-scan-val{flex:1 1 auto; min-width:120px; font-size:13px; color:var(--ink);}
+  .af-scan-val .h{color:var(--ink-3); font-size:12px;}
+  .af-scan-row select{font-size:12px; padding:3px 6px; border:1px solid var(--rule); border-radius:6px; max-width:170px;}
+  .af-scan-acc{background:var(--accent); color:#fff; border:0; border-radius:6px; padding:4px 12px; font-size:12px; font-weight:600; cursor:pointer;}
+  .af-scan-acc[disabled]{background:var(--ok,#1f8a63); cursor:default;}
+  .af-scan-empty{padding:14px; font-size:13px; color:var(--ink-3);}
 </style>
 
 <script>
@@ -465,6 +496,112 @@
   ensureCss();
   if (window.Quill) { init(); }
   else { var s = document.createElement('script'); s.src = JS; s.onload = init; document.head.appendChild(s); }
+})();
+</script>
+
+<script>
+// Full-text field scanner: POST the whole text to the deterministic extractor,
+// render candidates the curator can accept one-by-one. Suggest-only — nothing is
+// written until the curator clicks Accept.
+(function () {
+  var FIELD_LABELS = {
+    signed_date: '{{ t("Ημ. υπογραφής") }}', submission_date: '{{ t("Ημ. δημοσίευσης") }}',
+    final_submission_date: '{{ t("Λήξη υποβολής") }}', start_date: '{{ t("Έναρξη") }}',
+    end_date: '{{ t("Λήξη") }}', budget: '{{ t("Προϋπολογισμός") }}',
+    total_cost_without_vat: '{{ t("Αξία χωρίς ΦΠΑ") }}', total_cost_with_vat: '{{ t("Αξία με ΦΠΑ") }}',
+    bid_bond_amount: '{{ t("Εγγύηση συμμετοχής") }}'
+  };
+  var GROUP_LABELS = {
+    cpv: '{{ t("Κωδικοί CPV") }}', title: '{{ t("Τίτλος") }}', afm: '{{ t("ΑΦΜ / Αναθέτουσα") }}',
+    authority: '{{ t("Αναθέτουσα (ταίριασμα ονόματος)") }}', postal: '{{ t("Τ.Κ. → NUTS") }}',
+    date: '{{ t("Ημερομηνίες") }}', amount: '{{ t("Ποσά") }}'
+  };
+  var ORDER = ['title', 'cpv', 'afm', 'authority', 'date', 'amount', 'postal'];
+
+  function fill(name, value) {
+    var scope = document.querySelector('.af-fields') || document;
+    var el = scope.querySelector('[name="' + name + '"]');
+    if (!el) return false;
+    el.value = value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    el.classList.add('ft-flash'); el.scrollIntoView({ block: 'nearest' });
+    setTimeout(function () { el.classList.remove('ft-flash'); }, 1000);
+    return true;
+  }
+
+  function accept(s, targetName, btn) {
+    if (s.kind === 'cpv') {
+      if (typeof pickCpv === 'function') pickCpv(s.value, s.hint || '');
+    } else if (s.kind === 'postal') {
+      fill('postal_code', s.value);
+      if (window.nutsFromZip) window.nutsFromZip(s.value);
+    } else {
+      fill(targetName || s.target, s.value);
+    }
+    btn.disabled = true; btn.textContent = '✓';
+  }
+
+  function render(suggestions) {
+    var box = document.querySelector('.af-scan-results');
+    box.innerHTML = ''; box.hidden = false;
+    if (!suggestions.length) {
+      box.innerHTML = '<div class="af-scan-empty">{{ t("Δεν εντοπίστηκαν υποψήφιες τιμές.") }}</div>';
+      return;
+    }
+    var byKind = {};
+    suggestions.forEach(function (s) { (byKind[s.kind] = byKind[s.kind] || []).push(s); });
+    ORDER.forEach(function (kind) {
+      var items = byKind[kind]; if (!items) return;
+      var g = document.createElement('div'); g.className = 'af-scan-group';
+      var h = document.createElement('div'); h.className = 'af-scan-group-h';
+      h.textContent = GROUP_LABELS[kind] || kind; g.appendChild(h);
+      items.forEach(function (s) {
+        var row = document.createElement('div'); row.className = 'af-scan-row';
+        var val = document.createElement('div'); val.className = 'af-scan-val';
+        val.innerHTML = '<b></b>' + (s.hint ? ' <span class="h"></span>' : '');
+        val.querySelector('b').textContent = s.display;
+        if (s.hint) val.querySelector('.h').textContent = '· ' + s.hint;
+        row.appendChild(val);
+        var sel = null;
+        if (s.targets && s.targets.length > 1) {
+          sel = document.createElement('select');
+          s.targets.forEach(function (t) {
+            var o = document.createElement('option');
+            o.value = t; o.textContent = FIELD_LABELS[t] || t;
+            if (t === s.target) o.selected = true;
+            sel.appendChild(o);
+          });
+          row.appendChild(sel);
+        }
+        var btn = document.createElement('button');
+        btn.type = 'button'; btn.className = 'af-scan-acc';
+        btn.textContent = '{{ t("Εφαρμογή") }}';
+        btn.addEventListener('click', function () { accept(s, sel ? sel.value : s.target, btn); });
+        row.appendChild(btn);
+        g.appendChild(row);
+      });
+      box.appendChild(g);
+    });
+  }
+
+  window.afScanText = function () {
+    var mount = document.querySelector('.ftc-editor');
+    var text = (mount && mount.__quill) ? mount.__quill.getText() : '';
+    var status = document.querySelector('.af-scan-status');
+    var btn = document.querySelector('.af-scan-btn');
+    if (!text.trim()) { status.textContent = '{{ t("Το κείμενο είναι κενό.") }}'; return; }
+    status.textContent = '{{ t("Σάρωση…") }}'; if (btn) btn.disabled = true;
+    var body = new URLSearchParams(); body.set('text', text);
+    fetch('/admin/acts/extract', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body
+    }).then(function (r) { return r.json(); }).then(function (data) {
+      var s = (data && data.suggestions) || [];
+      status.textContent = s.length + ' {{ t("υποψήφιες τιμές") }}';
+      render(s);
+    }).catch(function () { status.textContent = '{{ t("Σφάλμα σάρωσης") }}'; })
+      .finally(function () { if (btn) btn.disabled = false; });
+  };
 })();
 </script>
 {% endif %}

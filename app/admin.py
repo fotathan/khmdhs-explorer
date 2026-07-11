@@ -1399,6 +1399,110 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         return RedirectResponse(url=f"/admin/act/{adam}/edit?tab=fields",
                                 status_code=303)
 
+    @router.post("/acts/extract")
+    async def act_extract(request: Request):
+        """Deterministic (no-AI) scan of the act's full text → structured
+        candidates for the form fields. Suggest-only: the UI lets the curator
+        accept each one. Regex + validation in app.text_extract; DB validation
+        (CPV vocabulary, postal→NUTS, ΑΦΜ→party, authority name) added here."""
+        from fastapi.responses import JSONResponse
+        from app import text_extract as tx
+        try:
+            from app import i18n as _i18n
+        except ImportError:
+            import i18n as _i18n
+        form = await request.form()
+        text = (form.get("text") or "")[:300000]
+        lang = _i18n.lang_from_request(request)
+        desc_col = "description_en" if lang == "en" else "description"
+        sugg = []
+
+        # CPV — only codes that exist in the vocabulary
+        prefixes = tx.find_cpv_prefixes(text)
+        if prefixes:
+            with cursor() as c:
+                c.execute(f"""SELECT cpv_code, {desc_col} AS d FROM proc.cpv_code
+                              WHERE left(cpv_code,8) = ANY(%s) ORDER BY cpv_code""",
+                          (prefixes,))
+                for r in c.fetchall():
+                    sugg.append({"kind": "cpv", "target": "cpv", "value": r["cpv_code"],
+                                 "display": r["cpv_code"], "hint": r["d"] or ""})
+
+        # dates + amounts (keyword-anchored to a best-guess field; user can retarget)
+        date_targets = [f for f, _ in tx.DATE_FIELDS]
+        for d in tx.find_dates(text):
+            sugg.append({"kind": "date", "target": d["target"] or "submission_date",
+                         "value": d["iso"], "display": d["raw"], "targets": date_targets})
+        amount_targets = [f for f, _ in tx.AMOUNT_FIELDS]
+        for a in tx.find_amounts(text):
+            sugg.append({"kind": "amount", "target": a["target"] or "budget",
+                         "value": a["value"], "display": a["raw"], "targets": amount_targets})
+
+        # postal → NUTS (validated against the gazetteer; fills postal_code + nuts_code)
+        postals = tx.find_postals(text)
+        if postals:
+            with cursor() as c:
+                c.execute("SELECT postal_code, nuts_code FROM proc.postal_nuts "
+                          "WHERE postal_code = ANY(%s)", (postals,))
+                pn = {r["postal_code"]: r["nuts_code"] for r in c.fetchall()}
+            for code in postals:
+                if code in pn:
+                    sugg.append({"kind": "postal", "target": "postal_code", "value": code,
+                                 "display": code, "hint": "NUTS " + (pn[code] or ""),
+                                 "nuts": pn[code]})
+
+        # ΑΦΜ → authority/operator name (mod-11 valid; dictionary lookup)
+        afms = tx.find_afms(text)
+        if afms:
+            with cursor() as c:
+                c.execute("""SELECT vat_number AS v, name, 'authority' AS k FROM proc.authority
+                             WHERE vat_number = ANY(%s)
+                             UNION ALL
+                             SELECT vat_number, name, 'operator' FROM proc.economic_operator
+                             WHERE vat_number = ANY(%s)""", (afms, afms))
+                names = {}
+                for r in c.fetchall():
+                    names.setdefault(r["v"], (r["name"], r["k"]))
+            for a in afms:
+                name, k = names.get(a, (None, None))
+                sugg.append({"kind": "afm", "target": "authority_id", "value": a,
+                             "display": a + (" · " + name if name else ""),
+                             "hint": k or "ΑΦΜ (άγνωστο στη βάση)"})
+
+        # authority name fuzzy match (one letterhead line vs the dictionary).
+        # Best-effort: pg_trgm's similarity()/% resolve via search_path, so if the
+        # extension isn't reachable we just skip this bonus rather than 500.
+        hint = tx.find_authority_hint(text)
+        if hint:
+            try:
+                with cursor() as c:
+                    c.execute("""SELECT DISTINCT ON (name) org_id, name,
+                                        similarity(name, %s) AS sim
+                                 FROM proc.authority WHERE name %% %s
+                                 ORDER BY name, sim DESC""", (hint, hint))
+                    rows = [r for r in c.fetchall() if (r["sim"] or 0) >= 0.4]
+                for r in sorted(rows, key=lambda r: -r["sim"])[:1]:
+                    sugg.append({"kind": "authority", "target": "authority_id",
+                                 "value": str(r["org_id"]), "display": r["name"],
+                                 "hint": "~" + str(round(r["sim"], 2))})
+            except Exception:
+                pass
+
+        # title
+        title = tx.find_title(text)
+        if title:
+            sugg.append({"kind": "title", "target": "title", "value": title,
+                         "display": title, "hint": ""})
+
+        # dedup identical suggestions (e.g. same authority name under two org_ids)
+        seen, uniq = set(), []
+        for s in sugg:
+            key = (s["kind"], s.get("target"), s["display"])
+            if key not in seen:
+                seen.add(key)
+                uniq.append(s)
+        return JSONResponse({"suggestions": uniq})
+
     @router.post("/acts/save")
     async def act_save(request: Request):
         """Insert (create) or update (edit) an AUTHORED act. Shared by both

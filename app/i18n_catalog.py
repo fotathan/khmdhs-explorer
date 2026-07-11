@@ -1789,6 +1789,22 @@ _EXPORT = {
         "Signed-in users can export the current search (with its active filters) to CSV or Excel (XLSX) from the \"Export\" menu above the search bar. Each export covers up to a row limit; for larger sets, narrow the filters and export in parts.",
 }
 
+# Full-text field scanner (deterministic extraction on the act form)
+_SCAN = {
+    "Σάρωση κειμένου για πεδία": "Scan text for fields",
+    "Εντοπίζει υποψήφιες τιμές (CPV, ΑΦΜ, Τ.Κ.→NUTS, ημερομηνίες, ποσά, τίτλο) χωρίς AI — τις εφαρμόζετε με ένα κλικ.":
+        "Detects candidate values (CPV, VAT no., postcode→NUTS, dates, amounts, title) with no AI — apply each with one click.",
+    "ΑΦΜ / Αναθέτουσα": "VAT no. / Authority",
+    "Αναθέτουσα (ταίριασμα ονόματος)": "Authority (name match)",
+    "Τ.Κ. → NUTS": "Postcode → NUTS",
+    "Ποσά": "Amounts",
+    "Το κείμενο είναι κενό.": "The text is empty.",
+    "Σάρωση…": "Scanning…",
+    "υποψήφιες τιμές": "candidate values",
+    "Σφάλμα σάρωσης": "Scan error",
+    "Δεν εντοπίστηκαν υποψήφιες τιμές.": "No candidate values found.",
+}
+
 # Merge into one flat catalog. Later groups override earlier ones on key clash
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
@@ -1797,5 +1813,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
              _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
              _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
-             _SEARCH_PROFILES, _EXPORT):
+             _SEARCH_PROFILES, _EXPORT, _SCAN):
     UI_EN.update(_grp)
