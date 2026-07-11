@@ -219,7 +219,26 @@
   .af-scan-btn[disabled]{opacity:.6; cursor:default;}
   .af-scan-status{font-size:12px; color:var(--ink-2);}
   .af-scan-note{flex-basis:100%; font-size:11px; color:var(--ink-3); line-height:1.4; letter-spacing:0; text-transform:none;}
-  .af-scan-results{margin-top:12px; border:1px solid var(--rule); border-radius:10px; background:var(--paper);}
+  /* Floating, always-visible results panel — stays put while you scroll the form
+     to watch fields fill, instead of being pinned to the bottom of the text. */
+  .af-scan-results{position:fixed; right:18px; bottom:18px; width:344px;
+    max-width:calc(100vw - 36px); max-height:66vh; margin:0; display:flex;
+    flex-direction:column; border:1px solid var(--rule); border-radius:12px;
+    background:var(--paper); box-shadow:0 12px 36px rgba(0,0,0,.18); z-index:900;}
+  .af-scan-hd{display:flex; align-items:center; justify-content:space-between;
+    padding:9px 12px; border-bottom:1px solid var(--rule-2); background:var(--paper-2);
+    border-radius:12px 12px 0 0; font-size:12px; font-weight:700; color:var(--ink-2);
+    letter-spacing:.02em;}
+  .af-scan-hd-acts{display:flex; gap:2px;}
+  .af-scan-hd-btn{border:0; background:transparent; cursor:pointer; font-size:15px;
+    line-height:1; color:var(--ink-3); padding:2px 7px; border-radius:6px;}
+  .af-scan-hd-btn:hover{background:var(--rule); color:var(--ink);}
+  .af-scan-body{overflow:auto; padding:2px 0 4px;}
+  .af-scan-results.collapsed{max-height:none;}
+  .af-scan-results.collapsed .af-scan-body{display:none;}
+  @media (max-width:720px){
+    .af-scan-results{right:8px; left:8px; width:auto; bottom:8px; max-height:52vh;}
+  }
   .af-scan-group{padding:8px 12px; border-bottom:1px solid var(--rule-2);}
   .af-scan-group:last-child{border-bottom:0;}
   .af-scan-group-h{font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-3); margin:2px 0 6px;}
@@ -579,11 +598,39 @@
 
   function render(suggestions) {
     var box = document.querySelector('.af-scan-results');
-    box.innerHTML = ''; box.hidden = false;
+    // The save <form> carries a transform, which would trap position:fixed inside
+    // it; reparent the panel to <body> so it floats against the viewport.
+    if (box.parentElement !== document.body) document.body.appendChild(box);
+    box.innerHTML = ''; box.hidden = false; box.classList.remove('collapsed');
+
+    // header: count + collapse + close (the panel floats and stays in view)
+    var hd = document.createElement('div'); hd.className = 'af-scan-hd';
+    var ttl = document.createElement('span');
+    ttl.textContent = suggestions.length + ' {{ t("υποψήφιες τιμές") }}';
+    var acts = document.createElement('span'); acts.className = 'af-scan-hd-acts';
+    var colBtn = document.createElement('button');
+    colBtn.type = 'button'; colBtn.className = 'af-scan-hd-btn'; colBtn.textContent = '–';
+    colBtn.title = '{{ t("Σύμπτυξη") }}';
+    colBtn.addEventListener('click', function () {
+      box.classList.toggle('collapsed');
+      colBtn.textContent = box.classList.contains('collapsed') ? '+' : '–';
+    });
+    var clsBtn = document.createElement('button');
+    clsBtn.type = 'button'; clsBtn.className = 'af-scan-hd-btn'; clsBtn.textContent = '✕';
+    clsBtn.title = '{{ t("Κλείσιμο") }}';
+    clsBtn.addEventListener('click', function () { box.hidden = true; clearHighlights(); });
+    acts.appendChild(colBtn); acts.appendChild(clsBtn);
+    hd.appendChild(ttl); hd.appendChild(acts);
+    box.appendChild(hd);
+
     if (!suggestions.length) {
-      box.innerHTML = '<div class="af-scan-empty">{{ t("Δεν εντοπίστηκαν υποψήφιες τιμές.") }}</div>';
+      var em = document.createElement('div'); em.className = 'af-scan-empty';
+      em.textContent = '{{ t("Δεν εντοπίστηκαν υποψήφιες τιμές.") }}';
+      box.appendChild(em);
       return;
     }
+    var body = document.createElement('div'); body.className = 'af-scan-body';
+    box.appendChild(body);
     var byKind = {};
     suggestions.forEach(function (s) { (byKind[s.kind] = byKind[s.kind] || []).push(s); });
     ORDER.forEach(function (kind) {
@@ -629,7 +676,7 @@
         }
         g.appendChild(row);
       });
-      box.appendChild(g);
+      body.appendChild(g);
     });
   }
 

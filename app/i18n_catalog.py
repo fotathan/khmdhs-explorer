@@ -1803,6 +1803,8 @@ _SCAN = {
     "υποψήφιες τιμές": "candidate values",
     "Σφάλμα σάρωσης": "Scan error",
     "Δεν εντοπίστηκαν υποψήφιες τιμές.": "No candidate values found.",
+    "Σύμπτυξη": "Collapse",
+    "Κλείσιμο": "Close",
 }
 
 # Merge into one flat catalog. Later groups override earlier ones on key clash
