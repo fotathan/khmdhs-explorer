@@ -1018,9 +1018,12 @@ def make_router(templates, cursor) -> APIRouter:
 
     @router.post("/fulltext/upload", response_class=HTMLResponse)
     async def fulltext_upload(request: Request,
-                              adam: str = Form(...),
+                              adam: str = Form(""),
                               files: list[UploadFile] = None):
-        """Alternative to fetch: curator uploads the file(s) directly."""
+        """Alternative to fetch: curator uploads the file(s) directly. adam is
+        optional (default "") — when CREATING a new act there is no ΑΔΑΜ yet, so
+        the widget posts an empty value; a required Form(...) would 422 the whole
+        upload before any OCR runs."""
         _prune_sessions()
         adam = adam.strip()
         entries, errors, total = [], [], 0
