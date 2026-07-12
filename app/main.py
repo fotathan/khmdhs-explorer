@@ -1172,9 +1172,7 @@ def _audit(request, status_code: int) -> None:
     auditing must never break or slow-fail a request, so all errors are swallowed."""
     try:
         u = getattr(request.state, "user", None) or {}
-        xff = request.headers.get("x-forwarded-for", "")
-        ip = (xff.split(",")[0].strip() if xff
-              else (request.client.host if request.client else None))
+        ip = _client_ip(request)
         with cursor() as c:
             c.execute(
                 """INSERT INTO proc.admin_action
@@ -1315,7 +1313,7 @@ async def _request_log(request: Request, call_next):
                  if (status >= 500 or dur_ms >= _obs.SLOW_MS) else logging.INFO)
         _obs.log_event(level, "request", request_id=rid, method=request.method,
                        path=request.url.path, status=status, dur_ms=dur_ms,
-                       uid=uid, ip=(request.client.host if request.client else None),
+                       uid=uid, ip=_client_ip(request),
                        slow=(dur_ms >= _obs.SLOW_MS))
 
 
@@ -1335,8 +1333,25 @@ def _safe_next(nxt: str) -> str:
 # ---------------------------------------------------------------------------- #
 _RL_ENABLED = os.environ.get("RATELIMIT_ENABLED", "1") == "1"
 _RL_PER_MIN = int(os.environ.get("RATELIMIT_PER_MIN", "60"))
+# The main search endpoint (/) runs live queries + aggregate counts and is hit
+# on every filter change, so it gets its own, more generous budget.
+_RL_SEARCH_PER_MIN = int(os.environ.get("RATELIMIT_SEARCH_PER_MIN", "150"))
 _RL_WINDOW = 60.0
 _rl_hits: dict = {}   # (ip, bucket) -> [window_start_epoch, count]
+
+
+def _client_ip(request: Request) -> str:
+    """Best-effort real client IP. Behind Render's proxy the socket peer
+    (request.client.host) is the load balancer, not the visitor — so prefer the
+    FIRST X-Forwarded-For hop (the origin client Render records) and fall back to
+    the socket peer. Used for rate-limiting, the login throttle, audit + logs so
+    they all key on the same address."""
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        first = xff.split(",")[0].strip()
+        if first:
+            return first
+    return request.client.host if request.client else "?"
 
 
 def _rate_limit(request: Request, bucket: str, per_min: int | None = None):
@@ -1344,7 +1359,7 @@ def _rate_limit(request: Request, bucket: str, per_min: int | None = None):
     if not _RL_ENABLED:
         return
     limit = per_min or _RL_PER_MIN
-    ip = request.client.host if request.client else "?"
+    ip = _client_ip(request)
     now = _time.time()
     # Opportunistic prune so distinct-IP spraying can't grow the map unbounded.
     if len(_rl_hits) > 10000:
@@ -1377,7 +1392,7 @@ async def login_submit(request: Request):
     username = (form.get("username") or "").strip()
     password = form.get("password") or ""
     next_url = form.get("next") or "/"
-    ip = request.client.host if request.client else "?"
+    ip = _client_ip(request)
     key = f"{username.lower()}|{ip}"
     user = None
     with cursor() as c:
@@ -1437,7 +1452,7 @@ async def login_mfa_submit(request: Request):
     form = await request.form()
     code = form.get("code") or ""
     uid = pending["uid"]
-    ip = request.client.host if request.client else "?"
+    ip = _client_ip(request)
     key = f"mfa:{uid}|{ip}"
     user = None
     with cursor() as c:
@@ -2099,6 +2114,7 @@ def home(request: Request,
     the URL they can share / reload — no /search "rendered partial naked"
     surprise.
     """
+    _rate_limit(request, "search", per_min=_RL_SEARCH_PER_MIN)
     params = _params_from(request)
     # Freemium teaser: anonymous callers are capped to the first page (both the
     # HTML pager and the JSON page param), so pagination past page 1 requires an
