@@ -42,9 +42,48 @@ PG_DUMP=/usr/local/opt/postgresql@17/bin/pg_dump \
 - Keeps the newest **7** dumps (override with `BACKUP_KEEP`). Custom format lets
   you restore selectively and is compressed.
 
-**Cadence:** run it on a schedule you're comfortable losing data back to — weekly
-is a sane floor for a pilot, daily if acts are being curated often. Store at least
-one copy off your laptop (an encrypted drive or a private bucket).
+Every run automatically:
+
+- **Integrity-checks** the fresh archive with `pg_restore --list`. A truncated or
+  corrupt dump fails *at creation* (and is deleted) instead of surprising you
+  mid-restore. A failed `pg_dump` also cleans up its partial file.
+- Writes a **SHA-256 sidecar** (`<dump>.sha256`) so bit-rot or tampering is
+  detectable later.
+
+### Verify an existing archive
+
+```bash
+./backup.sh --verify backups/khmdhs-proc-<UTC>.dump      # checksum + structure
+./backup.sh --verify backups/khmdhs-proc-<UTC>.dump.gpg  # checksum (decrypt for structure)
+```
+
+### Encrypt at rest (optional but recommended off-machine)
+
+Dumps contain PII (user emails, password hashes, CRM notes). Set one of these and
+the plaintext `.dump` is replaced by an encrypted `.dump.gpg`:
+
+```bash
+BACKUP_GPG_RECIPIENT="you@example.com" ./backup.sh "<session-url>"   # public-key
+BACKUP_GPG_PASSPHRASE="$(cat ~/.khmdhs_backup_pass)" ./backup.sh ... # symmetric (AES256)
+```
+
+Restore an encrypted dump by decrypting first: `gpg -o out.dump -d in.dump.gpg`.
+
+**Cadence & scheduling:** run it on a schedule you're comfortable losing data back
+to — weekly is a sane floor for a pilot, daily if acts are being curated often.
+Store at least one copy off your laptop (an encrypted drive or a private bucket).
+A host `cron` entry (macOS/Linux) that keeps 14 encrypted dumps:
+
+```cron
+# 03:15 UTC daily — encrypted prod backup, keep 14
+15 3 * * *  PG_DUMP=/usr/local/opt/postgresql@17/bin/pg_dump \
+  BACKUP_KEEP=14 BACKUP_GPG_PASSPHRASE="$(cat $HOME/.khmdhs_backup_pass)" \
+  DATABASE_URL="postgresql://USER:PW@HOST:5432/postgres" \
+  /path/to/KHMDHS/backup.sh >> $HOME/khmdhs-backup.log 2>&1
+```
+
+(Render's disk is ephemeral, so schedule this on a machine that persists — your
+laptop/NAS, or a tiny always-on box — and push a copy to a private bucket.)
 
 ## Restore (into a fresh Postgres 17)
 
