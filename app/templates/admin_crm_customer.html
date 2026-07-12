@@ -113,6 +113,13 @@
       <button type="submit" class="u-mini">{{ t("παράταση") }}</button>
     </form>
     {% endif %}
+
+    <div class="section-h" style="margin-top:20px;">{{ t("Ασφάλεια") }}</div>
+    <form method="post" action="/admin/users/{{ cust.id }}/temp-password" class="crm-side"
+          onsubmit="return confirm('{{ t('Έκδοση προσωρινού συνθηματικού; Οι ενεργές συνεδρίες του χρήστη θα τερματιστούν.') }}');">
+      <input type="hidden" name="back" value="/admin/crm/{{ cust.id }}">
+      <button type="submit" class="u-mini">{{ t("προσωρινό συνθηματικό") }}</button>
+    </form>
   </aside>
 </div>
 

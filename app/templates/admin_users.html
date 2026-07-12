@@ -50,6 +50,11 @@
               <input type="password" name="password" placeholder="{{ t('νέος κωδικός') }}" minlength="8" required style="font-size:12px; padding:3px 6px;">
               <button type="submit" class="u-mini">OK</button>
             </form>
+            <form method="post" action="/admin/users/{{ u.id }}/temp-password" style="display:inline"
+                  onsubmit="return confirm('{{ t('Έκδοση προσωρινού συνθηματικού; Οι ενεργές συνεδρίες του χρήστη θα τερματιστούν.') }}');">
+              <input type="hidden" name="back" value="/admin/users">
+              <button type="submit" class="u-mini">{{ t("προσωρινός κωδικός") }}</button>
+            </form>
           </td>
         </tr>
         {% endfor %}

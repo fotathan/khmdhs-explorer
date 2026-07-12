@@ -622,6 +622,7 @@ CREATE TABLE proc.app_user (
     mfa_enabled boolean DEFAULT false NOT NULL,
     mfa_recovery_codes text[] DEFAULT '{}'::text[] NOT NULL,
     session_version integer DEFAULT 0 NOT NULL,
+    must_change_password boolean DEFAULT false NOT NULL,
     CONSTRAINT app_user_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'customer'::text])))
 );
 

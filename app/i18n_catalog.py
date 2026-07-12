@@ -1205,6 +1205,29 @@ _AUTH = {
     "Δημιουργήστε δωρεάν λογαριασμό για πλήρη πρόσβαση: πλοήγηση σε όλες τις σελίδες αποτελεσμάτων και πλήρη στοιχεία πράξεων, αναθετουσών και αναδόχων.":
         "Create a free account for full access: browse every page of results and see the full detail of acts, authorities and contractors.",
     "Έχετε ήδη λογαριασμό; Σύνδεση": "Already have an account? Sign in",
+    # Two-factor enable (re-verify password).
+    "Λάθος συνθηματικό — το 2FA δεν ενεργοποιήθηκε.": "Wrong password — 2FA was not enabled.",
+    # Admin-issued temporary passwords + forced change.
+    "Ασφάλεια": "Security",
+    "Επιστροφή": "Back",
+    "Επιβεβαίωση συνθηματικού": "Confirm password",
+    "προσωρινός κωδικός": "temp password",
+    "προσωρινό συνθηματικό": "temp password",
+    "Προσωρινό συνθηματικό": "Temporary password",
+    "Έκδοση προσωρινού συνθηματικού; Οι ενεργές συνεδρίες του χρήστη θα τερματιστούν.":
+        "Issue a temporary password? The user's active sessions will be ended.",
+    "Εκδόθηκε προσωρινό συνθηματικό για τον χρήστη":
+        "A temporary password was issued for user",
+    "Προσωρινό συνθηματικό (εμφανίζεται μόνο τώρα)":
+        "Temporary password (shown only now)",
+    "Κοινοποιήστε το με ασφάλεια στον χρήστη. Δεν θα εμφανιστεί ξανά. Ο χρήστης θα υποχρεωθεί να ορίσει δικό του συνθηματικό κατά την επόμενη σύνδεση, και όλες οι ενεργές συνεδρίες του τερματίστηκαν.":
+        "Share it securely with the user. It won't be shown again. The user must set "
+        "their own password at next login, and all their active sessions were ended.",
+    "Απαιτείται αλλαγή συνθηματικού": "Password change required",
+    "Χρησιμοποιείτε προσωρινό συνθηματικό που εκδόθηκε από διαχειριστή. Ορίστε το δικό σας συνθηματικό για να συνεχίσετε.":
+        "You are using a temporary password issued by an administrator. Set your own "
+        "password to continue.",
+    "Αποθήκευση και συνέχεια": "Save and continue",
 }
 
 # Subscriptions / products (test & paid, statuses, admin grant UI, expired CTA).
@@ -1408,6 +1431,16 @@ _INTERCONNECT = {
 
 # User manual / help page (beta_help.html). Greek-source keys -> English.
 _HELP = {
+    # Accounts & security (help page).
+    "αλλάζετε συνθηματικό και ενεργοποιείτε την ταυτοποίηση δύο παραγόντων (2FA) — η ενεργοποίηση/απενεργοποίησή της ζητά το τρέχον συνθηματικό σας.":
+        "change your password and enable two-factor authentication (2FA) — turning it "
+        "on/off asks for your current password.",
+    "Για την ασφάλειά σας, κάθε αλλαγή συνθηματικού ή ρυθμίσεων 2FA αποσυνδέει αυτόματα όλες τις άλλες ενεργές συνεδρίες σας.":
+        "For your security, any password or 2FA change automatically signs out all your "
+        "other active sessions.",
+    "Οι διαχειριστές μπορούν να εκδώσουν προσωρινό συνθηματικό για έναν χρήστη (χωρίς email)· ο χρήστης υποχρεούται να ορίσει δικό του συνθηματικό κατά την επόμενη σύνδεση.":
+        "Admins can issue a temporary password for a user (no email needed); the user "
+        "must set their own password at next login.",
     "Προκήρυξη": "Notice",
     "Σύμβαση": "Contract",
     "Εντολή Πληρωμής": "Payment order",

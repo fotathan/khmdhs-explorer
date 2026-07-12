@@ -74,7 +74,7 @@ def password_ok(pw: str) -> bool:
 # DB helpers (c = open dict-row cursor)
 # --------------------------------------------------------------------------- #
 _COLS = ("id, username, email, role, is_active, created_at, last_login_at, "
-         "session_version")
+         "session_version, must_change_password")
 # Same columns, qualified — for queries that JOIN the subscription (which also
 # has an `id` column, so bare `id` would be ambiguous).
 _UCOLS = ", ".join("u." + col.strip() for col in _COLS.split(","))
@@ -145,16 +145,27 @@ def create_user(c, username, password, role="customer", email=None):
     return c.fetchone()
 
 
-def set_password(c, uid, password):
+def set_password(c, uid, password, must_change=False):
     if not password_ok(password):
         raise ValueError("password must be 8–200 characters")
     # Bump session_version so every existing session for this user is invalidated
     # on its next request (a stolen/lingering cookie stops working the moment the
     # password changes). The actor changing their OWN password refreshes their
     # session's version afterwards so they stay logged in.
+    #
+    # must_change=True marks an admin-issued TEMPORARY password: the middleware
+    # then forces the user to change it before doing anything else. A normal
+    # (self-service) password set clears the flag.
     c.execute("UPDATE proc.app_user "
-              "SET password_hash = %s, session_version = session_version + 1 "
-              "WHERE id = %s", (hash_password(password), uid))
+              "SET password_hash = %s, session_version = session_version + 1, "
+              "    must_change_password = %s "
+              "WHERE id = %s", (hash_password(password), bool(must_change), uid))
+
+
+def gen_temp_password() -> str:
+    """A readable, single-use temporary password for admin-assisted onboarding /
+    lockout recovery. Comfortably above the 8-char minimum and unguessable."""
+    return "Temp-" + secrets.token_urlsafe(9)
 
 
 def set_role(c, uid, role):

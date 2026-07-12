@@ -362,6 +362,27 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 _users_ctx(request, error=str(e)), status_code=400)
         return RedirectResponse("/admin/users?ok=password", status_code=303)
 
+    @router.post("/users/{uid}/temp-password")
+    async def admin_users_temp_password(uid: int, request: Request):
+        """Issue a one-time temporary password for a user (admin or customer):
+        generate it, set it with must_change_password, and show it ONCE so the
+        admin can relay it. The user is forced to change it at next login. Works
+        without an email provider. `back` controls the return link (admins list
+        vs a CRM customer page)."""
+        form = await request.form()
+        back = form.get("back") or "/admin/users"
+        with cursor() as c:
+            c.execute("SELECT username FROM proc.app_user WHERE id = %s", (uid,))
+            row = c.fetchone()
+            if not row:
+                return RedirectResponse(back, status_code=303)
+            temp = _auth.gen_temp_password()
+            _auth.set_password(c, uid, temp, must_change=True)
+        return templates.TemplateResponse(
+            request, "admin_temp_password.html",
+            {"username": row["username"], "temp_password": temp, "back": back,
+             "admin_tab": "users"})
+
     # ---- subscriptions / products ------------------------------------- #
     @router.post("/users/{uid}/grant")
     async def admin_users_grant(uid: int, request: Request):

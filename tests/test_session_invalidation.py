@@ -25,7 +25,7 @@ def _bump_directly(uid):
 
 
 # --- unit: the mutating helpers bump the version ---
-def test_set_password_bumps_version():
+def test_set_password_bumps_version(_clean):
     uid = make_user("pwbump", "goodpassword1")
     before = _sv(uid)
     with connect() as c:
@@ -33,7 +33,7 @@ def test_set_password_bumps_version():
     assert _sv(uid) == before + 1
 
 
-def test_set_role_bumps_version():
+def test_set_role_bumps_version(_clean):
     uid = make_user("rolebump", "goodpassword1")
     before = _sv(uid)
     with connect() as c:
@@ -41,7 +41,7 @@ def test_set_role_bumps_version():
     assert _sv(uid) == before + 1
 
 
-def test_mfa_toggle_bumps_version():
+def test_mfa_toggle_bumps_version(_clean):
     uid = make_user("mfabump", "goodpassword1")
     before = _sv(uid)
     secret = auth.new_totp_secret()

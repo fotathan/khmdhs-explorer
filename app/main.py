@@ -1206,6 +1206,17 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     request.session.clear()
             except Exception:
                 request.state.user = None
+        # Forced password change: a user holding an admin-issued TEMPORARY
+        # password must set their own before doing anything else. Everything but
+        # the change page, logout, and static assets is walled off.
+        _u = request.state.user
+        if _u and _u.get("must_change_password"):
+            _p = request.url.path
+            if not (_p == "/account/force-password" or _p == "/logout"
+                    or _p.startswith("/static/")):
+                if "application/json" in request.headers.get("accept", ""):
+                    return _Response("Password change required.", status_code=403)
+                return _Redirect("/account/force-password", status_code=303)
         # Audit every state-changing request to an admin surface — including
         # attempts rejected below (non-admin) or by CSRF (403 from the route).
         is_admin_mut = (request.method not in _CSRF_SAFE_METHODS
@@ -2068,6 +2079,44 @@ async def account_password(request: Request):
         # THIS session valid by re-stamping its cookie with the new version.
         request.session["sv"] = _auth.session_version(c, u["id"])
     return _render(ok="Το συνθηματικό ενημερώθηκε.")
+
+
+@app.get("/account/force-password", response_class=HTMLResponse)
+def account_force_password(request: Request):
+    """Mandatory change screen for a user on an admin-issued temporary password.
+    No current-password prompt — they authenticated with the temp one this
+    session; the middleware keeps them here until the flag clears."""
+    u = getattr(request.state, "user", None)
+    if not u:
+        return _Redirect("/login?next=/account/force-password", status_code=303)
+    if not u.get("must_change_password"):
+        return _Redirect("/", status_code=303)      # nothing to change
+    return templates.TemplateResponse(request, "account_force_password.html", {"acct": u})
+
+
+@app.post("/account/force-password")
+async def account_force_password_set(request: Request):
+    u = getattr(request.state, "user", None)
+    if not u:
+        return _Redirect("/login?next=/account/force-password", status_code=303)
+    form = await request.form()
+    new = form.get("new_password") or ""
+    confirm = form.get("confirm_password") or ""
+
+    def _err(msg):
+        return templates.TemplateResponse(
+            request, "account_force_password.html",
+            {"acct": u, "error": msg}, status_code=400)
+
+    if new != confirm:
+        return _err("Τα νέα συνθηματικά δεν ταιριάζουν.")
+    if not _auth.password_ok(new):
+        return _err("Το νέο συνθηματικό πρέπει να έχει 8–200 χαρακτήρες.")
+    with cursor() as c:
+        # must_change defaults False → clears the flag; also bumps session_version.
+        _auth.set_password(c, u["id"], new)
+        request.session["sv"] = _auth.session_version(c, u["id"])
+    return _Redirect("/", status_code=303)
 
 
 @app.post("/account/export")
