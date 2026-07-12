@@ -24,15 +24,13 @@ jobs:
         run: ruff check --select E9,F63,F7,F82,F821,F811 .
 
       # Dependency CVE scan. Blocks on NEW advisories; the ignore list is the set
-      # we've triaged and deferred (transitive/major-bump). Revisit periodically.
-      #   PYSEC-2026-1845  pytest (test-only; needs pytest 9 major bump)
-      #   PYSEC-2026-248/249  starlette (transitive via fastapi; needs fastapi bump)
+      # we've triaged and deferred. Revisit periodically.
+      #   PYSEC-2026-1845  pytest (test-only, not shipped; needs pytest 9 major bump)
+      # (The jinja2/requests/starlette CVEs that used to be here were fixed by
+      #  bumping the pins in requirements.txt — jinja2 3.1.6, requests 2.33.0,
+      #  fastapi 0.139.0 → starlette 1.3.1.)
       - name: pip-audit (dependency CVEs)
-        run: |
-          pip-audit \
-            --ignore-vuln PYSEC-2026-1845 \
-            --ignore-vuln PYSEC-2026-248 \
-            --ignore-vuln PYSEC-2026-249
+        run: pip-audit --ignore-vuln PYSEC-2026-1845
 
       # Every migration file must be listed in the manifest (and vice versa), so a
       # new migration can't be silently forgotten. (A full empty-DB replay isn't
