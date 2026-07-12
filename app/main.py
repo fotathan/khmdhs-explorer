@@ -1251,9 +1251,9 @@ app.add_middleware(
 # ---------------------------------------------------------------------------- #
 # Security response headers (set on every response; this is the OUTERMOST
 # middleware). A practical CSP: scripts/styles/images/xhr are locked to 'self'
-# (HTMX + Quill are vendored under /static, so no third-party script origins are
-# needed), with Google Fonts' two origins allowed for the webfont CSS + files
-# (style/font only — they can't execute code). Framing, plugins, <base>, and
+# (HTMX + Quill are vendored under /static, and the Fira webfonts are self-hosted
+# under /static/fonts — so the app pulls NO third-party frontend resources and the
+# policy needs no external origins at all). Framing, plugins, <base>, and
 # cross-site form posts are blocked. 'unsafe-inline' remains for now because the
 # templates use inline <script>/<style>/onclick — dropping it is a nonce refactor
 # for later. 'unsafe-eval' is required by HTMX's hx-vals='js:{…}' (the CPV/NUTS
@@ -1266,8 +1266,8 @@ app.add_middleware(
 _CSP = os.environ.get("CONTENT_SECURITY_POLICY", "; ".join([
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com",
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self'",
     "img-src 'self' data:",
     "connect-src 'self'",
     "frame-ancestors 'none'",
