@@ -1,0 +1,19 @@
+# Dependabot — weekly PRs for dependency and GitHub Actions updates, so security
+# fixes (e.g. the python-multipart / starlette CVEs) surface as reviewable PRs
+# instead of drifting. Grouped to keep the PR count sane.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3

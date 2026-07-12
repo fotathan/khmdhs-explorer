@@ -6,6 +6,42 @@ on:
   pull_request:
 
 jobs:
+  # Fast static checks — no DB needed. Run first so obvious mistakes fail cheaply.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+
+      # Correctness-only ruff subset (syntax + pyflakes logic: undefined names,
+      # bad f-strings, redefinitions). Deliberately NOT style/unused-imports, so
+      # it catches real bugs without churn on the existing code.
+      - name: Ruff (correctness rules)
+        run: ruff check --select E9,F63,F7,F82,F821,F811 .
+
+      # Dependency CVE scan. Blocks on NEW advisories; the ignore list is the set
+      # we've triaged and deferred (transitive/major-bump). Revisit periodically.
+      #   PYSEC-2026-1845  pytest (test-only; needs pytest 9 major bump)
+      #   PYSEC-2026-248/249  starlette (transitive via fastapi; needs fastapi bump)
+      - name: pip-audit (dependency CVEs)
+        run: |
+          pip-audit \
+            --ignore-vuln PYSEC-2026-1845 \
+            --ignore-vuln PYSEC-2026-248 \
+            --ignore-vuln PYSEC-2026-249
+
+      # Every migration file must be listed in the manifest (and vice versa), so a
+      # new migration can't be silently forgotten. (A full empty-DB replay isn't
+      # feasible: the historical root migrations accreted against evolving state
+      # and don't re-run cleanly from scratch — the snapshot is the source of
+      # truth. See tests/proc_schema.sql.)
+      - name: Migration manifest consistency
+        run: python .github/scripts/check_migration_manifest.py
+
   test:
     runs-on: ubuntu-latest
 

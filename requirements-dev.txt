@@ -1,4 +1,6 @@
-# Test-only dependencies (not installed in the app image).
-# The app itself (FastAPI TestClient needs httpx, already in requirements.txt).
+# Test + CI-only dependencies (not installed in the app image).
+# The app itself needs httpx (FastAPI TestClient) — that's in requirements.txt.
 -r requirements.txt
 pytest>=8,<9
+ruff==0.15.21          # fast linter — CI runs the correctness rule subset
+pip-audit==2.10.1      # dependency CVE scanner (CI)
