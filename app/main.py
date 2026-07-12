@@ -1493,8 +1493,10 @@ async def login_mfa_submit(request: Request):
     return _Redirect(_safe_next(pending.get("next", "/")), status_code=303)
 
 
-@app.get("/logout")
+@app.post("/logout")
 def logout(request: Request):
+    # POST (not GET) so it's CSRF-protected and can't be triggered by a link,
+    # prefetch, or <img> — a stray GET /logout can no longer sign a user out.
     _auth.logout_session(request)
     return _Redirect("/", status_code=303)
 

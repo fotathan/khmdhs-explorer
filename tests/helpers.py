@@ -57,6 +57,12 @@ def login(client, username, password):
                        follow_redirects=False)
 
 
+def logout(client):
+    """POST /logout with the CSRF token (logout is a CSRF-protected POST)."""
+    return client.post("/logout", headers={"X-CSRF-Token": get_csrf(client)},
+                       follow_redirects=False)
+
+
 _CSRF_RE = re.compile(r'name="csrf-token"\s+content="([^"]+)"')
 
 

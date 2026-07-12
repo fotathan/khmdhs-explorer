@@ -211,7 +211,9 @@
       {% include "_lang_select.html" %}
       {% if is_authenticated %}
         <a href="/account" class="acct-user" title="{{ t('Ο λογαριασμός μου') }}">{{ user.username }}</a>
-        <a href="/logout">{{ t("Αποσύνδεση") }}</a>
+        <form method="post" action="/logout" style="display:inline;margin:0;">
+          <button type="submit" style="background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline;">{{ t("Αποσύνδεση") }}</button>
+        </form>
       {% else %}
         <a href="/login">{{ t("Σύνδεση") }}</a>
         <a href="/register" class="acct-cta">{{ t("Εγγραφή") }}</a>

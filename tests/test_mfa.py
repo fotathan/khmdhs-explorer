@@ -3,7 +3,7 @@ import re
 
 import pyotp
 from app import auth
-from tests.helpers import connect, enable_mfa, get_csrf, login, make_user
+from tests.helpers import connect, enable_mfa, get_csrf, login, logout, make_user
 
 
 # --- unit ---
@@ -62,7 +62,7 @@ def test_recovery_code_works_once(client):
                        follow_redirects=False).status_code == 303
     assert client.get("/admin/users", follow_redirects=False).status_code == 200
     # the same recovery code cannot be reused
-    client.get("/logout")
+    logout(client)
     login(client, "boss2fa", "goodpassword1")
     assert client.post("/login/mfa", data={"code": code},
                        follow_redirects=False).status_code == 401

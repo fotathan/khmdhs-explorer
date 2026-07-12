@@ -6,7 +6,7 @@ force-change page until they set their own password (no email provider needed).
 import re
 
 from app import auth
-from tests.helpers import connect, get_csrf, login, make_user
+from tests.helpers import connect, get_csrf, login, logout, make_user
 
 
 def _csrf_from(client, path):
@@ -68,7 +68,7 @@ def test_admin_issue_temp_then_forced_change_flow(client):
     assert m, "temp password should be shown once"
     temp = m.group(1)
     assert _flag(cust_id)["f"] is True
-    client.get("/logout")
+    logout(client)
 
     # customer logs in with the temp password, then is walled off to the change page
     assert login(client, "custx", temp).status_code == 303
@@ -88,7 +88,7 @@ def test_admin_issue_temp_then_forced_change_flow(client):
     assert client.get("/", follow_redirects=False).status_code == 200
 
     # the temp password no longer works; the new one does
-    client.get("/logout")
+    logout(client)
     assert login(client, "custx", temp).status_code == 401
     assert login(client, "custx", "myrealpass1").status_code == 303
 
