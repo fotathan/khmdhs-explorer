@@ -45,6 +45,9 @@
         <label class="acct-field">{{ t("Κωδικός επαλήθευσης") }}
           <input class="acct-input" type="text" name="code" inputmode="numeric"
                  autocomplete="one-time-code" required></label>
+        <label class="acct-field">{{ t("Συνθηματικό") }}
+          <input class="acct-input" type="password" name="password" required
+                 autocomplete="current-password"></label>
         <button class="acct-btn" type="submit">{{ t("Ενεργοποίηση 2FA") }}</button>
       </form>
     </div>

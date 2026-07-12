@@ -73,7 +73,8 @@ def password_ok(pw: str) -> bool:
 # --------------------------------------------------------------------------- #
 # DB helpers (c = open dict-row cursor)
 # --------------------------------------------------------------------------- #
-_COLS = "id, username, email, role, is_active, created_at, last_login_at"
+_COLS = ("id, username, email, role, is_active, created_at, last_login_at, "
+         "session_version")
 # Same columns, qualified — for queries that JOIN the subscription (which also
 # has an `id` column, so bare `id` would be ambiguous).
 _UCOLS = ", ".join("u." + col.strip() for col in _COLS.split(","))
@@ -147,14 +148,31 @@ def create_user(c, username, password, role="customer", email=None):
 def set_password(c, uid, password):
     if not password_ok(password):
         raise ValueError("password must be 8–200 characters")
-    c.execute("UPDATE proc.app_user SET password_hash = %s WHERE id = %s",
-              (hash_password(password), uid))
+    # Bump session_version so every existing session for this user is invalidated
+    # on its next request (a stolen/lingering cookie stops working the moment the
+    # password changes). The actor changing their OWN password refreshes their
+    # session's version afterwards so they stay logged in.
+    c.execute("UPDATE proc.app_user "
+              "SET password_hash = %s, session_version = session_version + 1 "
+              "WHERE id = %s", (hash_password(password), uid))
 
 
 def set_role(c, uid, role):
     if role not in ("admin", "customer"):
         raise ValueError("invalid role")
-    c.execute("UPDATE proc.app_user SET role = %s WHERE id = %s", (role, uid))
+    # Privilege change: invalidate the user's existing sessions too.
+    c.execute("UPDATE proc.app_user "
+              "SET role = %s, session_version = session_version + 1 "
+              "WHERE id = %s", (role, uid))
+
+
+def session_version(c, uid) -> int:
+    """Current session_version for a user (0 if the row is gone). Used to refresh
+    the actor's own cookie after a self-service credential change so they aren't
+    logged out by their own action."""
+    c.execute("SELECT session_version FROM proc.app_user WHERE id = %s", (uid,))
+    row = c.fetchone()
+    return int(row["session_version"]) if row else 0
 
 
 def set_active(c, uid, active: bool):
@@ -650,6 +668,9 @@ def login_session(request, user):
     request.session["uid"] = user["id"]
     request.session["username"] = user["username"]
     request.session["role"] = user["role"]
+    # Stamp the current session_version; the middleware invalidates the cookie if
+    # the DB value later moves ahead (password / MFA / role change).
+    request.session["sv"] = int(user.get("session_version") or 0)
 
 
 def logout_session(request):
@@ -746,8 +767,12 @@ def verify_totp(secret: str, code: str) -> bool:
 
 def gen_recovery_codes(n: int = 10):
     """Return (plaintext_codes, hashed_codes). Show the plaintext ONCE; store
-    only the hashes."""
-    plain = ["-".join(secrets.token_hex(2) for _ in range(2)) for _ in range(n)]
+    only the hashes.
+
+    Each code is 5 groups of 2 hex bytes = 80 bits of entropy (was 32 bits, which
+    is brute-forceable given the hashes are unsalted-per-code only by the KDF).
+    Format stays hyphen-grouped lowercase hex, e.g. 'a1b2-c3d4-e5f6-0718-29ab'."""
+    plain = ["-".join(secrets.token_hex(2) for _ in range(5)) for _ in range(n)]
     hashed = [hash_password(code) for code in plain]
     return plain, hashed
 
@@ -759,13 +784,17 @@ def get_mfa(c, uid):
 
 
 def enable_mfa(c, uid, secret, hashed_codes):
+    # Toggling MFA is a security-state change → bump session_version so other
+    # sessions must re-authenticate.
     c.execute("UPDATE proc.app_user SET mfa_enabled = true, mfa_secret = %s, "
-              "mfa_recovery_codes = %s WHERE id = %s", (secret, hashed_codes, uid))
+              "mfa_recovery_codes = %s, session_version = session_version + 1 "
+              "WHERE id = %s", (secret, hashed_codes, uid))
 
 
 def disable_mfa(c, uid):
     c.execute("UPDATE proc.app_user SET mfa_enabled = false, mfa_secret = NULL, "
-              "mfa_recovery_codes = '{}' WHERE id = %s", (uid,))
+              "mfa_recovery_codes = '{}', session_version = session_version + 1 "
+              "WHERE id = %s", (uid,))
 
 
 def consume_recovery_code(c, uid, code) -> bool:

@@ -79,7 +79,7 @@ def test_enrollment_flow(client):
     secret = m.group(1)
     tok = get_csrf(client)
     r = client.post("/account/mfa/enable",
-                    data={"code": pyotp.TOTP(secret).now()},
+                    data={"code": pyotp.TOTP(secret).now(), "password": "goodpassword1"},
                     headers={"X-CSRF-Token": tok})
     assert r.status_code == 200
     assert "Recovery codes" in r.text or "Εφεδρικοί" in r.text
@@ -94,9 +94,29 @@ def test_enrollment_rejects_bad_code(client):
     login(client, "enroller", "goodpassword1")
     client.get("/account/mfa")     # establish the provisional secret
     tok = get_csrf(client)
-    r = client.post("/account/mfa/enable", data={"code": "000000"},
+    # correct password, wrong TOTP -> rejected on the code
+    r = client.post("/account/mfa/enable",
+                    data={"code": "000000", "password": "goodpassword1"},
                     headers={"X-CSRF-Token": tok})
     assert r.status_code == 400
+    with connect() as c:
+        cur = c.cursor()
+        cur.execute("SELECT mfa_enabled FROM proc.app_user WHERE username='enroller'")
+        assert cur.fetchone()["mfa_enabled"] is False
+
+
+def test_enrollment_requires_current_password(client):
+    """Enabling 2FA must re-verify the password, even in a logged-in session."""
+    make_user("enroller", "goodpassword1", role="admin")
+    login(client, "enroller", "goodpassword1")
+    html = client.get("/account/mfa").text
+    secret = re.search(r'class="mfa-secret">([A-Z2-7]+)<', html).group(1)
+    tok = get_csrf(client)
+    # valid TOTP but wrong password -> refused, MFA stays off
+    r = client.post("/account/mfa/enable",
+                    data={"code": pyotp.TOTP(secret).now(), "password": "wrongpassword"},
+                    headers={"X-CSRF-Token": tok})
+    assert r.status_code == 403
     with connect() as c:
         cur = c.cursor()
         cur.execute("SELECT mfa_enabled FROM proc.app_user WHERE username='enroller'")

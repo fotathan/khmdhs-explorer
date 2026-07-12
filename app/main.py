@@ -1198,10 +1198,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
             try:
                 with cursor() as c:
                     u = _auth.load_user(c, uid)
-                if u:
+                if u and request.session.get("sv") == int(u.get("session_version") or 0):
                     request.state.user = dict(u)
                 else:
-                    request.session.clear()   # gone or deactivated
+                    # Gone, deactivated, or the session_version moved ahead
+                    # (password / MFA / role change, or a pre-versioning cookie).
+                    request.session.clear()
             except Exception:
                 request.state.user = None
         # Audit every state-changing request to an admin surface — including
@@ -1980,6 +1982,17 @@ async def account_mfa_enable(request: Request):
     secret = request.session.get("mfa_setup_secret")
     form = await request.form()
     code = form.get("code") or ""
+    password = form.get("password") or ""
+    # Require the current password to turn 2FA on — matches the disable flow and
+    # stops someone with a borrowed, already-logged-in session from binding their
+    # own authenticator to the account.
+    with cursor() as c:
+        full = _auth.get_by_username(c, u["username"])
+    if not full or not _auth.verify_password(password, full["password_hash"]):
+        return templates.TemplateResponse(
+            request, "account_mfa.html",
+            _mfa_setup_ctx(request, u, error="Λάθος συνθηματικό — το 2FA δεν ενεργοποιήθηκε."),
+            status_code=403)
     if not secret or not _auth.verify_totp(secret, code):
         return templates.TemplateResponse(
             request, "account_mfa.html",
@@ -1988,6 +2001,8 @@ async def account_mfa_enable(request: Request):
     plain, hashed = _auth.gen_recovery_codes()
     with cursor() as c:
         _auth.enable_mfa(c, u["id"], secret, hashed)
+        # enable_mfa bumped session_version; keep this session valid.
+        request.session["sv"] = _auth.session_version(c, u["id"])
     request.session.pop("mfa_setup_secret", None)
     # Show the recovery codes ONCE — they are not retrievable again.
     return templates.TemplateResponse(
@@ -2011,6 +2026,8 @@ async def account_mfa_disable(request: Request):
                  "error": "Λάθος συνθηματικό — το 2FA δεν απενεργοποιήθηκε."},
                 status_code=403)
         _auth.disable_mfa(c, u["id"])
+        # disable_mfa bumped session_version; keep this session valid.
+        request.session["sv"] = _auth.session_version(c, u["id"])
     return _Redirect("/account/mfa", status_code=303)
 
 
@@ -2047,6 +2064,9 @@ async def account_password(request: Request):
         if not _auth.password_ok(new):
             return _render(error="Το νέο συνθηματικό πρέπει να έχει 8–200 χαρακτήρες.")
         _auth.set_password(c, u["id"], new)
+        # set_password bumped session_version (invalidating other sessions); keep
+        # THIS session valid by re-stamping its cookie with the new version.
+        request.session["sv"] = _auth.session_version(c, u["id"])
     return _render(ok="Το συνθηματικό ενημερώθηκε.")
 
 
