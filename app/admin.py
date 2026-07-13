@@ -1551,12 +1551,55 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
 
     def _resolve_party_link(c, kind, row):
         """The entity link for a row: an explicit id from the search dialog wins;
-        otherwise Phase B's exact-match auto-relate (ΑΦΜ / name) applies."""
+        otherwise auto-relate to the normalised authority / economic_operator
+        entity on an EXACT match — ΑΦΜ first, then (authority) an external id
+        equal to org_id, then an accent/case-insensitive exact NAME match but
+        only when it's unambiguous (exactly one entity). Returns the entity key
+        or None."""
         spec = _PARTY_SPECS[kind]
         explicit = row.get("_link")
         if explicit:
-            return int(explicit) if spec["link_is_int"] else explicit
-        return None      # Phase B fills this in
+            try:
+                return int(explicit) if spec["link_is_int"] else explicit
+            except ValueError:
+                return None
+        ent, key = spec["entity"], spec["entity_key"]
+
+        afm = (row.get("afm") or "").strip()
+        if afm:
+            c.execute(f"SELECT {key} AS k FROM {ent} WHERE vat_number = %s LIMIT 1", (afm,))
+            r = c.fetchone()
+            if r:
+                return r["k"]
+
+        if kind == "authority":
+            ext = (row.get("external_id") or "").strip()
+            if ext:
+                c.execute(f"SELECT {key} AS k FROM {ent} WHERE {key} = %s LIMIT 1", (ext,))
+                r = c.fetchone()
+                if r:
+                    return r["k"]
+
+        name = (row.get("name") or "").strip()
+        if name:
+            # translate(…, 'ς', 'σ') folds the Greek final sigma so an uppercase
+            # source ("ΔΗΜΟΣ", lowered to regular σ) still matches a stored name
+            # that ends in ς.
+            try:
+                c.execute(
+                    f"SELECT {key} AS k FROM {ent} "
+                    f"WHERE translate(lower(proc.f_unaccent(name)), 'ς', 'σ') "
+                    f"    = translate(lower(proc.f_unaccent(%s)), 'ς', 'σ') LIMIT 2",
+                    (name,))
+            except Exception:      # noqa: BLE001 — unaccent unreachable → plain lower()
+                c.execute(
+                    f"SELECT {key} AS k FROM {ent} "
+                    f"WHERE translate(lower(name), 'ς', 'σ') = translate(lower(%s), 'ς', 'σ') LIMIT 2",
+                    (name,))
+            hits = c.fetchall()
+            if len(hits) == 1:     # only auto-link when the name is unambiguous
+                return hits[0]["k"]
+        return None
 
     def _load_parties(c, adam):
         """{'authority': [...rows...], 'contractor': [...rows...]} for the edit form."""
