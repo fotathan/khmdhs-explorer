@@ -1451,6 +1451,30 @@ _INTERCONNECT = {
 
 # User manual / help page (beta_help.html). Greek-source keys -> English.
 _HELP = {
+    # Admin curation: scanner, dropdowns, and act-level parties.
+    "Σάρωση κειμένου": "Text scan",
+    "Το κουμπί «Σάρωση κειμένου για πεδία» εντοπίζει ντετερμινιστικά (χωρίς AI) υποψήφιες τιμές μέσα στο πλήρες κείμενο — CPV, ΑΦΜ, Τ.Κ.→NUTS, ημερομηνίες, ποσά, τίτλο, τιμές λιστών και αναθέτουσες/αναδόχους — και τις εφαρμόζετε με ένα κλικ.":
+        "The “Scan text for fields” button deterministically (no AI) finds "
+        "candidate values in the full text — CPV, ΑΦΜ, postal→NUTS, dates, amounts, "
+        "title, dropdown values and authorities/contractors — which you apply with one click.",
+    "Αναθέτουσες & ανάδοχοι στην πράξη": "Authorities & contractors on the act",
+    "Καταχωρίστε μία ή περισσότερες αναθέτουσες αρχές και αναδόχους με πλήρη στοιχεία (επωνυμία, ΑΦΜ, διεύθυνση, επικοινωνία, ποσό ανάθεσης) απευθείας στην πράξη.":
+        "Capture one or more contracting authorities and contractors with full detail "
+        "(name, ΑΦΜ, address, contact, award amount) directly on the act.",
+    "Λίστες επιλογής": "Dropdown lists",
+    "Διαδικασία, υποτύπος εγγράφου, κατάσταση, κανονισμός, τύπος προσφοράς, δραστηριότητα και ηλεκτρονικός πλειστηριασμός επιλέγονται πλέον από λίστες.":
+        "Procedure, document sub-type, status, regulation, bid type, activity and "
+        "e-auction are now picked from lists.",
+    "Σάρωση & επικύρωση": "Scan & validation",
+    "Η σάρωση «κουμπώνει» τις τιμές των λιστών στην πλησιέστερη έγκυρη επιλογή, και προτείνει αναθέτουσες/αναδόχους μόνο όταν το ΑΦΜ ή το όνομα επικυρώνεται στη βάση — τότε συνδέει αυτόματα την εγγραφή με την οντότητα.":
+        "The scan snaps dropdown values to the nearest valid option, and suggests "
+        "authorities/contractors only when the ΑΦΜ or name is validated in the DB — "
+        "then it links the row to that entity automatically.",
+    "Σύνδεση μερών": "Linking parties",
+    "Κάθε αναθέτουσα/ανάδοχος στην πράξη συνδέεται αυτόματα με την καταχώρηση της βάσης όταν ταιριάζει ακριβώς το ΑΦΜ, το ID ή το όνομα· αλλιώς χρησιμοποιήστε το κουμπί «Αναζήτηση» για χειροκίνητη σύνδεση. Το ✓ δείχνει τη σύνδεση.":
+        "Each authority/contractor on the act auto-links to the DB record on an exact "
+        "ΑΦΜ, ID or name match; otherwise use the “Search” button to link it manually. "
+        "The ✓ marks the link.",
     # Accounts & security (help page).
     "αλλάζετε συνθηματικό και ενεργοποιείτε την ταυτοποίηση δύο παραγόντων (2FA) — η ενεργοποίηση/απενεργοποίησή της ζητά το τρέχον συνθηματικό σας.":
         "change your password and enable two-factor authentication (2FA) — turning it "
