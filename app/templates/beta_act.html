@@ -162,6 +162,42 @@
       </div>
       {% endif %}
 
+      {% if act_authorities %}
+      <div class="panel">
+        <h3 class="panel-h">{{ t("Αναθέτουσες αρχές") }}</h3>
+        <table class="dtable">
+          <thead><tr><th>{{ t("Επωνυμία") }}</th><th>{{ t("ΑΦΜ") }}</th><th>{{ t("Πόλη") }}</th></tr></thead>
+          <tbody>
+            {% for a in act_authorities %}
+            <tr>
+              <td>{% if a.authority_id %}<a href="/authority/{{ a.authority_id }}">{{ a.name or a.linked_name or '—' }}</a> <span title="{{ t('Συνδεδεμένο') }}" style="color:var(--ok,#1f8a63);">✓</span>{% else %}{{ a.name or '—' }}{% endif %}</td>
+              <td><code class="adam">{{ a.afm or '—' }}</code></td>
+              <td>{{ a.city or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      {% if act_contractors %}
+      <div class="panel">
+        <h3 class="panel-h">{{ t("Ανάδοχοι / Νικητές") }}</h3>
+        <table class="dtable">
+          <thead><tr><th>{{ t("Επωνυμία") }}</th><th>{{ t("ΑΦΜ") }}</th><th class="val">{{ t("Ποσό ανάθεσης") }}</th></tr></thead>
+          <tbody>
+            {% for c in act_contractors %}
+            <tr>
+              <td>{% if c.afm %}<a href="/contractor/{{ c.afm }}">{{ c.name or c.linked_name or '—' }}</a>{% if c.operator_id %} <span title="{{ t('Συνδεδεμένο') }}" style="color:var(--ok,#1f8a63);">✓</span>{% endif %}{% else %}{{ c.name or '—' }}{% endif %}</td>
+              <td><code class="adam">{{ c.afm or '—' }}</code></td>
+              <td class="val">{% if c.award_amount %}€ {{ "{:,.2f}".format(c.award_amount).replace(",", "X").replace(".", ",").replace("X", ".") }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
       <div class="panel">
         <h3 class="panel-h">{{ t("Είδη / Αντικείμενο") }}</h3>
         {% if line_items %}

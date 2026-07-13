@@ -13,6 +13,50 @@
    _fulltext_editor.html); scalar fields are gated behind take-ownership. #}
 {% set is_authored = (mode == 'create') or (origin == 'authored') %}
 
+{# --- Repeatable party rows (authorities / contractors) ------------------- #}
+{% macro party_row(kind, idx, row, fields) %}
+{% set link_col = 'authority_id' if kind == 'authority' else 'operator_id' %}
+{% set kind_label = t('Αναθέτουσα') if kind == 'authority' else t('Ανάδοχος') %}
+<fieldset class="party-row">
+  <div class="party-row-head">
+    <span class="party-idx">{{ kind_label }} <span class="party-num">{{ (idx + 1) if idx is number else '' }}</span></span>
+    {% if row.get(link_col) %}<span class="party-linked">✓ {{ t("Συνδεδεμένο") }} · {{ row.get(link_col) }}</span>{% endif %}
+    <button type="button" class="party-search u-mini" data-kind="{{ kind }}">{{ t("Αναζήτηση") }}</button>
+    <button type="button" class="party-remove" title="{{ t('Αφαίρεση') }}">×</button>
+  </div>
+  <div class="form-grid party-grid">
+    {% for fname, flabel, fkind in fields %}
+    <div class="field {% if fkind == 'textarea' %}field-wide{% endif %}">
+      <label>{{ flabel | t }}</label>
+      {% if fkind == 'textarea' %}
+        <textarea name="{{ kind }}_{{ idx }}_{{ fname }}" rows="2">{{ row.get(fname) or '' }}</textarea>
+      {% elif fkind == 'bool' %}
+        <select name="{{ kind }}_{{ idx }}_{{ fname }}">
+          <option value="" {% if row.get(fname) is none %}selected{% endif %}>{{ t("Δεν προσδιορίζεται") }}</option>
+          <option value="1" {% if row.get(fname) is not none and row.get(fname) %}selected{% endif %}>{{ t("Ναι") }}</option>
+          <option value="0" {% if row.get(fname) is not none and not row.get(fname) %}selected{% endif %}>{{ t("Όχι") }}</option>
+        </select>
+      {% else %}
+        <input type="text" name="{{ kind }}_{{ idx }}_{{ fname }}" value="{{ row.get(fname) if row.get(fname) is not none else '' }}">
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  <input type="hidden" name="{{ kind }}_{{ idx }}_link_id" value="{{ row.get(link_col) or '' }}">
+</fieldset>
+{% endmacro %}
+
+{% macro party_section(kind, title, add_label, rows, fields) %}
+<div class="form-section party-section" data-kind="{{ kind }}">
+  <div class="form-section-h">{{ title | t }}</div>
+  <div class="party-rows">
+    {% for row in rows %}{{ party_row(kind, loop.index0, row, fields) }}{% endfor %}
+  </div>
+  <template class="party-tpl">{{ party_row(kind, '__IDX__', {}, fields) }}</template>
+  <button type="button" class="party-add u-mini">+ {{ add_label | t }}</button>
+</div>
+{% endmacro %}
+
 <div class="af-toggle">
   <label class="af-switch">
     <input type="checkbox" id="af-split-toggle" onchange="afToggleSplit(this.checked)">
@@ -132,6 +176,12 @@
       {% endif %}
     </div>{# .af-fields #}
   </div>{# .actform-body #}
+
+  {# Multi-value parties: an act may name several authorities and contractors. #}
+  <div class="party-blocks">
+    {{ party_section('authority', 'Αναθέτουσες αρχές', 'Προσθήκη αρχής', parties.authority, party_fields.authority) }}
+    {{ party_section('contractor', 'Ανάδοχοι / Νικητές', 'Προσθήκη αναδόχου', parties.contractor, party_fields.contractor) }}
+  </div>
 
   <div class="af-actions">
     <button type="submit" class="af-save-btn">
@@ -267,6 +317,18 @@
   .af-scan-empty{padding:14px; font-size:13px; color:var(--ink-3);}
   .af-scan-row-linked{cursor:default; border-radius:6px; transition:background .1s;}
   .af-scan-row-linked:hover{background:var(--paper-2);}
+  /* multi-value party rows */
+  .party-blocks{margin-top:4px;}
+  .party-section{margin-bottom:18px;}
+  .party-row{border:1px solid var(--rule); border-radius:10px; padding:12px 14px; margin:0 0 12px;}
+  .party-row-head{display:flex; align-items:center; gap:10px; margin:0 0 10px;}
+  .party-idx{font-size:12px; font-weight:600; color:var(--ink-2); text-transform:uppercase; letter-spacing:.04em;}
+  .party-linked{font-size:12px; color:var(--ok,#1f8a63); font-weight:600;}
+  .party-row-head .party-remove{margin-left:auto; background:none; border:0; font-size:20px; line-height:1;
+    color:var(--ink-3); cursor:pointer; padding:0 4px;}
+  .party-row-head .party-remove:hover{color:var(--danger,#c0362c);}
+  .party-grid{grid-template-columns:repeat(3, minmax(0,1fr));}
+  .party-add{margin-top:2px;}
 </style>
 
 <script>
@@ -715,6 +777,36 @@
     }).catch(function () { status.textContent = '{{ t("Σφάλμα σάρωσης") }}'; })
       .finally(function () { if (btn) btn.disabled = false; });
   };
+})();
+</script>
+
+<script>
+// Repeatable authority/contractor rows: add clones the section's <template>
+// (with a fresh index) and remove drops the row. Delegated so cloned rows work.
+(function () {
+  function nextIndex(rowsEl) {
+    var max = -1;
+    rowsEl.querySelectorAll('[name]').forEach(function (el) {
+      var m = el.name.match(/_(\d+)_/);
+      if (m) max = Math.max(max, +m[1]);
+    });
+    return max + 1;
+  }
+  document.addEventListener('click', function (e) {
+    var add = e.target.closest && e.target.closest('.party-add');
+    if (add) {
+      var sec = add.closest('.party-section');
+      var rows = sec.querySelector('.party-rows');
+      var tpl = sec.querySelector('.party-tpl');
+      var html = tpl.innerHTML.replace(/__IDX__/g, nextIndex(rows));
+      var tmp = document.createElement('div');
+      tmp.innerHTML = html.trim();
+      rows.appendChild(tmp.firstElementChild);
+      return;
+    }
+    var rm = e.target.closest && e.target.closest('.party-remove');
+    if (rm) { var r = rm.closest('.party-row'); if (r) r.remove(); }
+  });
 })();
 </script>
 {% endif %}

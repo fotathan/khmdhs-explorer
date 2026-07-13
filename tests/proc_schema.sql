@@ -4209,6 +4209,61 @@ ALTER TABLE ONLY proc.user_subscription
 
 
 --
+-- Party detail child tables (act_authority / act_contractor) — kept in sync with
+-- migrations/20260713073607_*.sql. Appended after the base dump; the referenced
+-- procurement_act / authority / economic_operator tables are defined above.
+--
+
+CREATE TABLE proc.act_authority (
+    adam          text     NOT NULL REFERENCES proc.procurement_act(adam) ON DELETE CASCADE,
+    ord           smallint NOT NULL DEFAULT 0,
+    name          text,
+    afm           text,
+    external_id   text,
+    source_code   text,
+    type_code     text,
+    activity_code text,
+    street        text,
+    postal_code   text,
+    city          text,
+    country       text,
+    phone         text,
+    email         text,
+    fax           text,
+    url           text,
+    address_text  text,
+    notes         text,
+    authority_id  text     REFERENCES proc.authority(org_id) ON DELETE SET NULL,
+    PRIMARY KEY (adam, ord)
+);
+
+CREATE TABLE proc.act_contractor (
+    adam            text     NOT NULL REFERENCES proc.procurement_act(adam) ON DELETE CASCADE,
+    ord             smallint NOT NULL DEFAULT 0,
+    name            text,
+    afm             text,
+    tax_number      text,
+    street          text,
+    postal_code     text,
+    city            text,
+    country         text,
+    email           text,
+    phone           text,
+    fax             text,
+    url             text,
+    address_text    text,
+    contact_person  text,
+    notes           text,
+    award_amount        numeric(18,2),
+    award_currency      text,
+    award_vat_rate      numeric,
+    award_vat_included  boolean,
+    operator_id     bigint   REFERENCES proc.economic_operator(operator_id) ON DELETE SET NULL,
+    PRIMARY KEY (adam, ord)
+);
+
+
+--
 -- PostgreSQL database dump complete
 --
 

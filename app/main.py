@@ -2784,9 +2784,28 @@ def act_detail(adam: str, request: Request):
     except Exception:
         interconnect_group = None
 
+    # Curated party rows (multi-value authorities / contractors captured on the
+    # act); carry the linked entity's name when the row is related to the DB.
+    act_authorities, act_contractors = [], []
+    try:
+        with cursor() as c:
+            c.execute("""SELECT aa.*, au.name AS linked_name
+                         FROM proc.act_authority aa
+                         LEFT JOIN proc.authority au ON au.org_id = aa.authority_id
+                         WHERE aa.adam=%s ORDER BY aa.ord""", (adam,))
+            act_authorities = c.fetchall()
+            c.execute("""SELECT ac.*, eo.name AS linked_name
+                         FROM proc.act_contractor ac
+                         LEFT JOIN proc.economic_operator eo ON eo.operator_id = ac.operator_id
+                         WHERE ac.adam=%s ORDER BY ac.ord""", (adam,))
+            act_contractors = c.fetchall()
+    except Exception:      # noqa: BLE001
+        pass
+
     return templates.TemplateResponse(
         request, "beta_act.html",
         {"n": notice, "gated": False,
+         "act_authorities": act_authorities, "act_contractors": act_contractors,
          "interconnect_group": interconnect_group,
          "line_items": line_items,
          "operators": operators,

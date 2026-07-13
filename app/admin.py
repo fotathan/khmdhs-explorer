@@ -1465,12 +1465,119 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             opts["contracting_authority_activity_code"] = []
         return opts
 
+    # ---- Party rows (multi-value authorities / contractors on the act) ------ #
+    # (field, label, kind) per row. An act can have several of each; the rows
+    # live in proc.act_authority / proc.act_contractor (child tables).
+    _AUTHORITY_ROW_FIELDS = [
+        ("name", "Επωνυμία", "text"), ("afm", "ΑΦΜ", "text"),
+        ("external_id", "Εξωτερικό ID", "text"), ("source_code", "Είδος", "text"),
+        ("type_code", "Τύπος αρχής", "text"), ("activity_code", "Δραστηριότητα", "text"),
+        ("street", "Οδός", "text"), ("postal_code", "Τ.Κ.", "text"),
+        ("city", "Πόλη", "text"), ("country", "Χώρα", "text"),
+        ("phone", "Τηλέφωνο", "text"), ("email", "Email", "text"),
+        ("fax", "Φαξ", "text"), ("url", "Ιστότοπος", "text"),
+        ("address_text", "Διεύθυνση", "textarea"), ("notes", "Σημειώσεις", "textarea"),
+    ]
+    _CONTRACTOR_ROW_FIELDS = [
+        ("name", "Επωνυμία", "text"), ("afm", "ΑΦΜ", "text"),
+        ("tax_number", "Αρ. φορολ./στατιστ.", "text"),
+        ("street", "Οδός", "text"), ("postal_code", "Τ.Κ.", "text"),
+        ("city", "Πόλη", "text"), ("country", "Χώρα", "text"),
+        ("email", "Email", "text"), ("phone", "Τηλέφωνο", "text"),
+        ("fax", "Φαξ", "text"), ("url", "Ιστότοπος", "text"),
+        ("address_text", "Διεύθυνση", "textarea"),
+        ("contact_person", "Υπεύθυνος επικοινωνίας", "text"),
+        ("notes", "Σημειώσεις", "textarea"),
+        ("award_amount", "Ποσό ανάθεσης", "number"), ("award_currency", "Νόμισμα", "text"),
+        ("award_vat_rate", "Συντ. ΦΠΑ (%)", "number"), ("award_vat_included", "ΦΠΑ", "bool"),
+    ]
+    # kind → (child table, fields, link column, entity table, entity key col)
+    _PARTY_SPECS = {
+        "authority":  {"table": "proc.act_authority",  "fields": _AUTHORITY_ROW_FIELDS,
+                       "link": "authority_id", "entity": "proc.authority",
+                       "entity_key": "org_id", "link_is_int": False},
+        "contractor": {"table": "proc.act_contractor", "fields": _CONTRACTOR_ROW_FIELDS,
+                       "link": "operator_id", "entity": "proc.economic_operator",
+                       "entity_key": "operator_id", "link_is_int": True},
+    }
+
+    def _collect_parties(form, kind):
+        """Parse repeated form fields `<kind>_<i>_<field>` into coerced row dicts,
+        preserving order and dropping rows with neither a name nor an ΑΦΜ. Also
+        reads an optional `<kind>_<i>_link_id` set by the search dialog."""
+        spec = _PARTY_SPECS[kind]
+        kinds = {f[0]: f[2] for f in spec["fields"]}
+        rows = {}
+        for key in form.keys():
+            m = re.match(rf"^{kind}_(\d+)_(\w+)$", key)
+            if not m:
+                continue
+            idx, fld = int(m.group(1)), m.group(2)
+            if fld in kinds or fld == "link_id":
+                rows.setdefault(idx, {})[fld] = form.get(key)
+        out = []
+        for idx in sorted(rows):
+            r = rows[idx]
+            if not ((r.get("name") or "").strip() or (r.get("afm") or "").strip()):
+                continue
+            row = {}
+            for fld, k2 in kinds.items():
+                raw = (r.get(fld) or "").strip()
+                if k2 == "bool":
+                    row[fld] = None if raw == "" else (raw == "1")
+                elif k2 == "number":
+                    row[fld] = None if raw == "" else _clean_number(raw)
+                else:
+                    row[fld] = raw or None
+            row["_link"] = (r.get("link_id") or "").strip() or None
+            out.append(row)
+        return out
+
+    def _save_parties(c, adam, form):
+        """Replace an act's authority/contractor rows (delete + reinsert). The
+        entity link is whatever the form supplied (search dialog); Phase B fills
+        it in on an exact match when absent."""
+        for kind, spec in _PARTY_SPECS.items():
+            rows = _collect_parties(form, kind)
+            c.execute(f"DELETE FROM {spec['table']} WHERE adam=%s", (adam,))
+            cols = [f[0] for f in spec["fields"]]
+            for i, row in enumerate(rows):
+                link = _resolve_party_link(c, kind, row)
+                colnames = ["adam", "ord"] + cols + [spec["link"]]
+                vals = [adam, i] + [row[cn] for cn in cols] + [link]
+                ph = ", ".join(["%s"] * len(colnames))
+                c.execute(f"INSERT INTO {spec['table']} ({', '.join(colnames)}) "
+                          f"VALUES ({ph})", vals)
+
+    def _resolve_party_link(c, kind, row):
+        """The entity link for a row: an explicit id from the search dialog wins;
+        otherwise Phase B's exact-match auto-relate (ΑΦΜ / name) applies."""
+        spec = _PARTY_SPECS[kind]
+        explicit = row.get("_link")
+        if explicit:
+            return int(explicit) if spec["link_is_int"] else explicit
+        return None      # Phase B fills this in
+
+    def _load_parties(c, adam):
+        """{'authority': [...rows...], 'contractor': [...rows...]} for the edit form."""
+        result = {}
+        for kind, spec in _PARTY_SPECS.items():
+            c.execute(f"SELECT * FROM {spec['table']} WHERE adam=%s ORDER BY ord", (adam,))
+            result[kind] = [dict(r) for r in c.fetchall()]
+        return result
+
+    def _party_field_defs():
+        """(field, label, kind) lists for the template to render each row."""
+        return {"authority": _AUTHORITY_ROW_FIELDS, "contractor": _CONTRACTOR_ROW_FIELDS}
+
     @router.get("/acts/new", response_class=HTMLResponse)
     def act_create_form(request: Request):
         """Blank form to author a new act from scratch."""
         ctx = {"groups": _act_form_fields(), "field_options": _field_options(),
                "act": {}, "mode": "create",
                "adam": None, "authority_name": None,
+               "party_fields": _party_field_defs(),
+               "parties": {"authority": [], "contractor": []},
                "full_text": "", "full_text_html": ""}
         ctx.update(_ocr_flags())
         return templates.TemplateResponse(request, "admin_act_form.html", ctx)
@@ -1697,6 +1804,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                     vals + [curator, adam])
                 _save_cpv(c, adam)
                 _save_nuts(c, adam)
+                _save_parties(c, adam, form)
             return RedirectResponse(url=f"/admin/act/{adam}/edit?tab=fields&saved=1",
                                     status_code=303)
         else:
@@ -1739,6 +1847,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                     all_vals)
                 _save_cpv(c, adam)
                 _save_nuts(c, adam)
+                _save_parties(c, adam, form)
             return RedirectResponse(url=f"/admin/act/{adam}/edit?tab=fields&saved=1",
                                     status_code=303)
 
@@ -2148,9 +2257,11 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                           (act["nuts_code"],))
                 row = c.fetchone()
                 nuts = [row] if row else [{"nuts_code": act["nuts_code"], "label": None}]
+            parties = _load_parties(c, adam)
         ctx = {"groups": _act_form_fields(), "field_options": _field_options(),
                "act": dict(act), "adam": adam,
                "mode": "edit",
+               "party_fields": _party_field_defs(), "parties": parties,
                "authority_name": authority_name, "origin": act["origin"],
                "cpvs": cpvs, "cpv_seeded": cpv_seeded, "nuts": nuts,
                "full_text": act.get("full_text"),
