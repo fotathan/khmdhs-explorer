@@ -228,6 +228,26 @@ def test_admin_lot_and_scope_flow(client, lots_clean):
     assert "Route lot" in html
 
 
+def test_ensure_lots_entry_point_creates_group(client, lots_clean):
+    # an ungrouped act: the editor's "Lots & applicability" link makes a group
+    with connect() as c:
+        _acts(c.cursor(), "SOLO")
+    _admin(client)
+    tok = get_csrf(client)
+    r = client.post("/admin/interconnect/act/SOLO/lots",
+                    headers={"X-CSRF-Token": tok}, follow_redirects=False)
+    assert r.status_code == 303
+    loc = r.headers["location"]
+    assert loc.startswith("/admin/interconnect/group/") and loc.endswith("#lots")
+    with connect() as c:
+        assert ic.group_of(c.cursor(), "SOLO") is not None
+    # idempotent: a second click reuses the same group
+    gid = loc.rsplit("/", 1)[1].split("#")[0]
+    r2 = client.post("/admin/interconnect/act/SOLO/lots",
+                     headers={"X-CSRF-Token": tok}, follow_redirects=False)
+    assert r2.headers["location"] == f"/admin/interconnect/group/{gid}#lots"
+
+
 def test_admin_routes_require_admin(client, lots_clean):
     gid = _group_with_member("A1")
     # not logged in → gated/redirected, never a 303 success

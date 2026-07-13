@@ -821,6 +821,16 @@ def make_interconnect_router(templates: Jinja2Templates, cursor) -> APIRouter:
                                     status_code=303)
         return RedirectResponse(f"/admin/interconnect/group/{gid}?ok=scope_saved", status_code=303)
 
+    @router.post("/act/{adam}/lots")
+    async def do_ensure_lots(adam: str, request: Request):
+        """Entry point from the act editor: jump to this act's tender-group lots,
+        creating a singleton group for the act if it has none yet."""
+        with cursor() as c, c.connection.transaction():
+            if not _get_act(c, adam):
+                raise HTTPException(404, "act not found")
+            gid = ensure_group_for_act(c, adam, created_by=_by(request))
+        return RedirectResponse(f"/admin/interconnect/group/{gid}#lots", status_code=303)
+
     @router.post("/rules")
     async def save_rules(request: Request):
         form = await request.form()

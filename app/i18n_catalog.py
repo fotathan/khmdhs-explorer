@@ -1467,6 +1467,7 @@ _INTERCONNECT = {
     "Ολόκληρο τον διαγωνισμό": "Whole tender",
     "Συγκεκριμένα τμήματα": "Specific lots",
     "Τμήματα διαγωνισμού": "Tender lots",
+    "Τμήματα & εφαρμογή ›": "Lots & applicability ›",
     "Αυτή η πράξη εφαρμόζεται σε:": "This act applies to:",
     "Σε όλο τον διαγωνισμό": "Across the whole tender",
 }
