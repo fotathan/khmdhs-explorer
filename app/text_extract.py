@@ -238,6 +238,43 @@ def find_authority_hint(text: str) -> str | None:
     return None
 
 
+# Keywords that start an organisation name (authority OR contractor), normalised.
+_ORG_STARTS = _AUTH_STARTS + (
+    "εταιρεια", "ανωνυμη εταιρεια", "ανωνυμος εταιρεια", "α.ε", "αε ", "επε",
+    "ε.π.ε", "ικε", "ο.ε", "κοινοπραξια", "αναδοχος", "δημοτικη", "περιφερειακη",
+    "κοινωφελης", "συνεταιρισμος", "ενωση",
+)
+
+
+def find_party_name_candidates(text: str, limit: int = 12) -> list[dict]:
+    """Candidate organisation-name lines to validate against the party DB — a
+    line that starts with an org keyword (normalised) or is largely uppercase
+    Greek, of sensible length. Returns {text, start, len}, de-duped, in order.
+    The caller resolves each against proc.authority / proc.economic_operator."""
+    out, seen = [], set()
+    for m in re.finditer(r"[^\n]+", text or ""):
+        raw = m.group(0)
+        line = raw.strip(" .·—-\t")
+        if not (8 <= len(line) <= 120):
+            continue
+        letters = [c for c in line if c.isalpha()]
+        if len(letters) < 5:
+            continue
+        n = _norm(line)
+        upper_ratio = sum(1 for c in letters if c.isupper()) / len(letters)
+        if not (n.startswith(_ORG_STARTS) or upper_ratio >= 0.8):
+            continue
+        if n in seen:
+            continue
+        seen.add(n)
+        off = raw.find(line)
+        out.append({"text": line, "start": m.start() + (off if off >= 0 else 0),
+                    "len": len(line)})
+        if len(out) >= limit:
+            break
+    return out
+
+
 def find_title(text: str) -> dict | None:
     for m in _TITLE.finditer(text or ""):
         raw = m.group(1)

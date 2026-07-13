@@ -169,3 +169,21 @@ def test_scan_afm_validated_becomes_linked_party(client):
     assert not [s for s in sugg if s.get("kind") == "party" and s["value"] == unknown]
     # … it stays as a legacy single-authority suggestion
     assert [s for s in sugg if s.get("kind") == "afm" and s["value"] == unknown]
+
+
+def test_scan_name_matched_party(client):
+    """An org-name LINE in the text that matches an entity in the DB → a linked
+    party suggestion (validated), filling the entity's ΑΦΜ + name."""
+    _admin(client)
+    with connect() as c:
+        c.cursor().execute("INSERT INTO proc.authority (org_id, vat_number, name) "
+                           "VALUES (%s,%s,%s)", ("ORG-NM", "090000008", "ΔΗΜΟΣ ΞΑΝΘΗΣ"))
+    tok = get_csrf(client)
+    text = "ΕΛΛΗΝΙΚΗ ΔΗΜΟΚΡΑΤΙΑ\nΔΗΜΟΣ ΞΑΝΘΗΣ\nΔΙΑΚΗΡΥΞΗ ΑΝΟΙΧΤΟΥ ΔΙΑΓΩΝΙΣΜΟΥ"
+    sugg = client.post("/admin/acts/extract", data={"text": text},
+                       headers={"X-CSRF-Token": tok}).json()["suggestions"]
+    party = [s for s in sugg if s.get("kind") == "party" and s.get("link") == "ORG-NM"]
+    assert party, "name-matched authority should produce a linked party suggestion"
+    assert party[0]["target"] == "authority"
+    assert "ΔΗΜΟΣ ΞΑΝΘΗΣ" in party[0]["display"]
+    assert party[0]["value"] == "090000008"     # the entity's own ΑΦΜ fills the row

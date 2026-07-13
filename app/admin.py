@@ -1770,6 +1770,55 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             except Exception:
                 pass
 
+        # party NAME matching — candidate org lines validated against the entity
+        # DB by an accent/case/final-sigma-folded EXACT name match (schema-
+        # qualified proc.f_unaccent, so it works regardless of search_path — unlike
+        # pg_trgm which lives in proc). Only an UNAMBIGUOUS match (exactly one
+        # entity) is offered, and not for an entity already matched by ΑΦΜ. The
+        # linked entity's own ΑΦΜ + name fill the row.
+        seen_party = {(s["target"], s.get("link")) for s in sugg if s.get("kind") == "party"}
+        cands = tx.find_party_name_candidates(text)
+        if cands:
+            _fold = "translate(lower(proc.f_unaccent({0})), %(sig)s, %(nsig)s)"
+            try:
+                with cursor() as c:
+                    # ONE scan of both entity tables (fold each name once), joined
+                    # to the small candidate set by ordinality — not one scan/cand.
+                    c.execute(
+                        f"""WITH cand AS (
+                              SELECT ord, {_fold.format('txt')} AS f
+                              FROM unnest(%(texts)s::text[]) WITH ORDINALITY AS u(txt, ord))
+                            SELECT cand.ord AS ord, e.key, e.name, e.afm, e.kind
+                            FROM cand JOIN (
+                              SELECT org_id::text AS key, name, vat_number AS afm,
+                                     'authority' AS kind, {_fold.format('name')} AS f
+                              FROM proc.authority
+                              UNION ALL
+                              SELECT operator_id::text, name, vat_number, 'operator',
+                                     {_fold.format('name')}
+                              FROM proc.economic_operator
+                            ) e ON e.f = cand.f""",
+                        {"texts": [cnd["text"] for cnd in cands], "sig": "ς", "nsig": "σ"})
+                    rows = c.fetchall()
+            except Exception:      # noqa: BLE001
+                rows = []
+            by_ord = {}
+            for r in rows:
+                by_ord.setdefault(r["ord"], []).append(r)
+            for ordn, hits in by_ord.items():
+                if len(hits) != 1:      # only an UNAMBIGUOUS single entity
+                    continue
+                top = hits[0]
+                kind_t = "authority" if top["kind"] == "authority" else "contractor"
+                if (kind_t, top["key"]) in seen_party:
+                    continue
+                seen_party.add((kind_t, top["key"]))
+                cand = cands[ordn - 1]
+                sugg.append({"kind": "party", "target": kind_t, "value": top["afm"] or "",
+                             "display": top["name"], "hint": "",
+                             "link": top["key"], "pname": top["name"],
+                             "span": [cand["start"], cand["len"]]})
+
         # title
         title = tx.find_title(text)
         if title:
