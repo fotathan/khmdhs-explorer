@@ -144,3 +144,28 @@ def test_party_suggest_requires_admin(client):
     # anonymous (no login) must not reach the admin suggest endpoint
     assert client.get("/admin/api/authority-suggest?term=test",
                       follow_redirects=False).status_code != 200
+
+
+def test_scan_afm_validated_becomes_linked_party(client):
+    """A ΑΦΜ found in the text that EXISTS in the entity DB → a party suggestion
+    pre-linked to that entity; a valid-but-unknown ΑΦΜ stays on the legacy field."""
+    _admin(client)
+    known, unknown = "090000008", "090000010"     # both mod-11 valid
+    with connect() as c:
+        c.cursor().execute("INSERT INTO proc.authority (org_id, vat_number, name) "
+                           "VALUES (%s,%s,%s)", ("ORG-AF", known, "ΔΗΜΟΣ ΔΟΚΙΜΗΣ"))
+    tok = get_csrf(client)
+    text = "Αναθέτουσα αρχή με ΑΦΜ " + known + ", και άγνωστη με ΑΦΜ " + unknown + "."
+    sugg = client.post("/admin/acts/extract", data={"text": text},
+                       headers={"X-CSRF-Token": tok}).json()["suggestions"]
+
+    party = [s for s in sugg if s.get("kind") == "party" and s["value"] == known]
+    assert party, "validated ΑΦΜ should produce a party suggestion"
+    assert party[0]["target"] == "authority"
+    assert party[0]["link"] == "ORG-AF"
+    assert "ΔΗΜΟΣ ΔΟΚΙΜΗΣ" in party[0]["display"]
+
+    # the unknown ΑΦΜ is NOT auto-filled as a party (must be validated) …
+    assert not [s for s in sugg if s.get("kind") == "party" and s["value"] == unknown]
+    # … it stays as a legacy single-authority suggestion
+    assert [s for s in sugg if s.get("kind") == "afm" and s["value"] == unknown]

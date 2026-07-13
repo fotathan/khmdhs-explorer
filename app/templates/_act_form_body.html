@@ -629,9 +629,10 @@
   var GROUP_LABELS = {
     cpv: '{{ t("Κωδικοί CPV") }}', title: '{{ t("Τίτλος") }}', afm: '{{ t("ΑΦΜ / Αναθέτουσα") }}',
     authority: '{{ t("Αναθέτουσα (ταίριασμα ονόματος)") }}', postal: '{{ t("Τ.Κ. → NUTS") }}',
-    date: '{{ t("Ημερομηνίες") }}', amount: '{{ t("Ποσά") }}', select: '{{ t("Πεδία επιλογής") }}'
+    date: '{{ t("Ημερομηνίες") }}', amount: '{{ t("Ποσά") }}', select: '{{ t("Πεδία επιλογής") }}',
+    party: '{{ t("Μέρη από ΑΦΜ (επικυρωμένα)") }}'
   };
-  var ORDER = ['title', 'cpv', 'afm', 'authority', 'date', 'amount', 'postal', 'select'];
+  var ORDER = ['title', 'cpv', 'afm', 'party', 'authority', 'date', 'amount', 'postal', 'select'];
 
   function fill(name, value) {
     var scope = document.querySelector('.af-fields') || document;
@@ -648,7 +649,7 @@
   // --- highlight found values in the full-text editor (Quill) ---------------
   var HL_COLORS = { date: '#fff3bf', amount: '#d3f9d8', cpv: '#e5dbff',
                     afm: '#ffe3e3', postal: '#c5f6fa', title: '#ffec99',
-                    select: '#ffd8a8' };
+                    select: '#ffd8a8', party: '#d0ebff' };
   var _hl = [];  // currently-applied highlights [{start,len,color}]
   function quill() { var m = document.querySelector('.ftc-editor'); return m && m.__quill; }
   function clearHighlights() {
@@ -685,10 +686,39 @@
     } else if (s.kind === 'postal') {
       fill('postal_code', s.value);
       if (window.nutsFromZip) window.nutsFromZip(s.value);
+    } else if (s.kind === 'party') {
+      addScannedParty(s.target, s);      // s.target = 'authority' | 'contractor'
     } else {
       fill(targetName || s.target, s.value);
     }
     btn.disabled = true; btn.textContent = '✓';
+  }
+
+  // A DB-validated ΑΦΜ from the scan → add (or reuse an empty) party row,
+  // pre-filled with the ΑΦΜ + entity name + link, and mark it linked.
+  function addScannedParty(kind, s) {
+    var sec = document.querySelector('.party-section[data-kind="' + kind + '"]');
+    if (!sec) return;
+    var rows = sec.querySelector('.party-rows'), target = null;
+    rows.querySelectorAll('.party-row').forEach(function (r) {
+      if (target) return;
+      var nm = r.querySelector('[name$="_name"]'), af = r.querySelector('[name$="_afm"]');
+      if ((!nm || !nm.value) && (!af || !af.value)) target = r;   // first empty row
+    });
+    if (!target) {
+      sec.querySelector('.party-add').click();
+      var all = rows.querySelectorAll('.party-row'); target = all[all.length - 1];
+    }
+    var afm = target.querySelector('[name$="_afm"]'); if (afm) afm.value = s.value;
+    var nm = target.querySelector('[name$="_name"]'); if (nm && s.pname && !nm.value) nm.value = s.pname;
+    var link = target.querySelector('[name$="_link_id"]'); if (link) link.value = s.link || '';
+    var head = target.querySelector('.party-row-head');
+    if (head && !head.querySelector('.party-linked')) {
+      var m = document.createElement('span'); m.className = 'party-linked';
+      m.textContent = '✓ {{ t("Συνδεδεμένο") }}';
+      target.querySelector('.party-idx').after(m);
+    }
+    target.scrollIntoView({ block: 'nearest' });
   }
 
   function render(suggestions) {

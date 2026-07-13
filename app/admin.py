@@ -1720,26 +1720,36 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                                  "display": p["code"], "hint": "NUTS " + (pn[p["code"]] or ""),
                                  "nuts": pn[p["code"]], "span": [p["start"], p["len"]]})
 
-        # ΑΦΜ → authority/operator name (mod-11 valid; dictionary lookup)
+        # ΑΦΜ → party auto-fill, VALIDATED against the entity DB. A ΑΦΜ present
+        # in proc.authority / proc.economic_operator becomes a party suggestion
+        # pre-linked to that entity (accepting it adds a row with the ΑΦΜ + name +
+        # link). An unknown ΑΦΜ falls back to the legacy single-authority field.
         afm_matches = tx.find_afms(text)
         if afm_matches:
             afms = [a["afm"] for a in afm_matches]
             with cursor() as c:
-                c.execute("""SELECT vat_number AS v, name, 'authority' AS k FROM proc.authority
-                             WHERE vat_number = ANY(%s)
+                c.execute("""SELECT vat_number AS v, org_id::text AS key, name, 'authority' AS k
+                             FROM proc.authority WHERE vat_number = ANY(%s)
                              UNION ALL
-                             SELECT vat_number, name, 'operator' FROM proc.economic_operator
-                             WHERE vat_number = ANY(%s)""", (afms, afms))
-                names = {}
+                             SELECT vat_number, operator_id::text, name, 'operator'
+                             FROM proc.economic_operator WHERE vat_number = ANY(%s)""",
+                          (afms, afms))
+                ent = {}
                 for r in c.fetchall():
-                    names.setdefault(r["v"], (r["name"], r["k"]))
+                    ent.setdefault(r["v"], (r["k"], r["key"], r["name"]))
             for am in afm_matches:
                 a = am["afm"]
-                name, k = names.get(a, (None, None))
-                sugg.append({"kind": "afm", "target": "authority_id", "value": a,
-                             "display": a + (" · " + name if name else ""),
-                             "hint": k or "ΑΦΜ (άγνωστο στη βάση)",
-                             "span": [am["start"], am["len"]]})
+                info = ent.get(a)
+                if info:
+                    kind_t = "authority" if info[0] == "authority" else "contractor"
+                    sugg.append({"kind": "party", "target": kind_t, "value": a,
+                                 "display": a + (" · " + info[2] if info[2] else ""),
+                                 "hint": "", "link": info[1], "pname": info[2],
+                                 "span": [am["start"], am["len"]]})
+                else:
+                    sugg.append({"kind": "afm", "target": "authority_id", "value": a,
+                                 "display": a, "hint": "ΑΦΜ (άγνωστο στη βάση)",
+                                 "span": [am["start"], am["len"]]})
 
         # authority name fuzzy match (one letterhead line vs the dictionary).
         # Best-effort: pg_trgm's similarity()/% resolve via search_path, so if the
