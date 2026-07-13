@@ -230,6 +230,10 @@
   .form-section-h{font-family:var(--mono, monospace); font-size:11px; letter-spacing:0.1em;
     text-transform:uppercase; color:var(--accent, #b41034); border-bottom:1px solid var(--rule);
     padding-bottom:7px; margin-bottom:14px;}
+  /* On the full-width admin console, keep the editor a comfortable width rather
+     than stretching the 3-column grid / split view across the whole viewport.
+     Caps the editor column (toggle, body, parties, actions) uniformly. */
+  .af-toggle, .actform-body, .party-blocks, .af-actions{max-width:1280px;}
   .form-grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:14px 18px;}
   .form-grid .field-wide{grid-column:span 3;}
   .form-grid .field{margin:0;}
