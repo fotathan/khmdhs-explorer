@@ -51,6 +51,11 @@
   .admin-navlink.on{background:var(--accent-soft,rgba(180,16,52,.08));color:var(--accent);
     font-weight:700;border-left-color:var(--accent);}
   .admin-main{min-width:0;}
+  /* Admin is data-dense (wide tables, side-by-side forms): let the console use
+     the full viewport width instead of base.html's 1320px reading cap, so it
+     scales with the manager's screen. Scoped to admin via :has() — public pages
+     keep their reading width. Old browsers without :has() fall back to the cap. */
+  main:has(> .admin-shell){max-width:none;}
   /* shared CRM bits (badges + activity filter bar) */
   .sub-badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;}
   .sub-tester,.st-held,.st-done,.st-open{background:#eaf6ef;color:#1a7f47;}
