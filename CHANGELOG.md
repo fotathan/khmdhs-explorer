@@ -32,6 +32,10 @@ truth; this is a curated digest.
   imported read-only) and a per-act "Applies to" control. **Public act page**: a
   Tender-lots panel and related acts bucketed into whole-tender / per-lot /
   not-determined. Analytics totals are unchanged (lots are not acts).
+- **Lot backfill** for the TED back-catalogue: `db.py ted-lot-backfill`
+  (+ admin button, `ted_notice.lots_extracted_at` marker) re-fetches the XML of
+  notices imported before structured lots existed to capture their lot snapshot,
+  without touching stored full text. New TED collections capture lots inline.
 
 ### Added — act parties (authorities & contractors on the act)
 - Capture **multiple authorities and contractors** on an act, each with full

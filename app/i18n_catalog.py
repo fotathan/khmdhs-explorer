@@ -1446,6 +1446,10 @@ _INTERCONNECT = {
     "Πόσες προκηρύξεις θα επιχειρηθούν αυτή τη φορά.": "How many notices to attempt this run.",
     "Εκκίνηση εξαγωγής κειμένου TED": "Start TED text extraction",
     "Κάλυψη TED": "TED coverage",
+    "Μαζική συλλογή τμημάτων (lots)": "Bulk lot collection",
+    "Για προκηρύξεις TED που εισήχθησαν <strong>πριν</strong> υπάρξουν τα δομημένα τμήματα. Ξανα-αντλεί το XML για να αποθηκεύσει τα τμήματα & τα αποτελέσματα ανά τμήμα (resumable). Δεν αλλάζει το αποθηκευμένο πλήρες κείμενο.":
+        "For TED notices imported <strong>before</strong> structured lots existed. Re-fetches the XML to store the lots & per-lot results (resumable). Does not change the stored full text.",
+    "Εκκίνηση συλλογής τμημάτων TED": "Start TED lot collection",
     # Structured lots + act scope (group page + public act page)
     "Τμήματα": "Lots", "Lots": "Lots", "Τμήμα": "Lot",
     "Πηγή": "Source", "Πράξεις": "Acts",

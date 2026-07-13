@@ -251,6 +251,22 @@
           </form>
         </div>
 
+        <div class="fn-card">
+          <div class="fn-h">{{ t("Μαζική συλλογή τμημάτων (lots)") }}</div>
+          <p class="fn-desc">
+            {{ t('Για προκηρύξεις TED που εισήχθησαν <strong>πριν</strong> υπάρξουν τα δομημένα τμήματα. Ξανα-αντλεί το XML για να αποθηκεύσει τα τμήματα & τα αποτελέσματα ανά τμήμα (resumable). Δεν αλλάζει το αποθηκευμένο πλήρες κείμενο.') | safe }}
+            <span class="warn">{{ t('Αφορά την <strong>τοπική</strong> βάση (εκεί που τρέχει ο server). Για την παραγωγή, χρησιμοποιήστε το <code>ingest.sh</code> από το terminal.') | safe }}</span>
+          </p>
+          <form method="post" action="/admin/jobs/ted-lot">
+            <div class="field" style="max-width:220px;">
+              <label>{{ t("όριο ανά εκτέλεση") }}</label>
+              <input type="number" name="limit" value="5000" min="1" step="100">
+              <div class="meta" style="margin-top:4px;">{{ t("Πόσες προκηρύξεις θα επιχειρηθούν αυτή τη φορά.") }}</div>
+            </div>
+            <button type="submit" class="run-btn">{{ t("Εκκίνηση συλλογής τμημάτων TED") }}</button>
+          </form>
+        </div>
+
       </div>
     </div>
     {% endif %}

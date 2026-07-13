@@ -930,6 +930,28 @@ def cmd_ted_project(args):
         print(f"projected — {n} TED notices present in proc.ted_notice / procurement_act.")
 
 
+def cmd_ted_lot_backfill(args):
+    """Capture the source-native LOT snapshot for TED notices imported BEFORE
+    structured lots existed (re-fetch each notice's eForms XML). Bounded by
+    --limit, resumable via the lots_extracted_at marker; projects the resulting
+    lots + scope. Does not touch stored full text."""
+    import ted_ingest as ti
+    with Database() as db:
+        final_status = "done"
+        try:
+            client, repo = ti.TedClient(), ti.TedRepository(db)
+            n = ti.lot_backfill_pass(client, repo, limit=args.limit)
+            print(f"TED lots: {n['with_lots']} with lots, {n['empty']} lot-less/failed "
+                  f"(of {n['seen']} tried)")
+            m = ti.project_all(db)
+            print(f"  projected; {m} TED notices present")
+        except BaseException:
+            final_status = "error"
+            raise
+        finally:
+            _finalize_job(db, final_status)   # no-op unless launched via admin
+
+
 def cmd_ted_fulltext_backfill(args):
     """Fetch + store full text for TED notices ALREADY imported without it
     (parse each notice's eForms XML). Bounded by --limit, resumable; projects the
@@ -1240,6 +1262,13 @@ def main():
     p_tft.add_argument("--limit", type=int, default=5000,
                        help="max notices per run (default: 5000)")
     p_tft.set_defaults(func=cmd_ted_fulltext_backfill)
+
+    p_tlb = sub.add_parser("ted-lot-backfill",
+                           help="capture the lot snapshot for TED notices imported "
+                                "before structured lots existed (re-parse the XML)")
+    p_tlb.add_argument("--limit", type=int, default=5000,
+                       help="max notices per run (default: 5000)")
+    p_tlb.set_defaults(func=cmd_ted_lot_backfill)
 
     p_tcu = sub.add_parser("ted-catchup",
                            help="incremental TED fetch since last run (watermark − overlap)")

@@ -2117,7 +2117,8 @@ CREATE TABLE proc.ted_notice (
     ingested_at timestamp with time zone DEFAULT now() NOT NULL,
     description text,
     full_text text,
-    full_text_extracted_at timestamp with time zone
+    full_text_extracted_at timestamp with time zone,
+    lots_extracted_at timestamp with time zone
 );
 
 

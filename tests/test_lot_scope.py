@@ -255,3 +255,63 @@ def test_public_act_page_buckets(client, lots_clean):
     # whole-tender + not-determined buckets rendered (Greek labels)
     assert "Σε όλο τον διαγωνισμό" in html
     assert "Δεν έχει προσδιοριστεί" in html
+
+
+# --------------------------------------------------------------------------- #
+# TED lot-backfill pass (re-fetch XML for notices imported before lots existed)
+# --------------------------------------------------------------------------- #
+class _FakeTedClient:
+    def __init__(self, xml_by_url):
+        self.xml_by_url = xml_by_url
+        self.calls = []
+
+    def get_xml(self, url):
+        self.calls.append(url)
+        return self.xml_by_url[url]
+
+
+_XML_TWO_LOTS = ("<ContractNotice>"
+                 "<ProcurementProjectLot><ID>LOT-1</ID>"
+                 "<ProcurementProject><Name>A</Name></ProcurementProject></ProcurementProjectLot>"
+                 "<ProcurementProjectLot><ID>LOT-2</ID>"
+                 "<ProcurementProject><Name>B</Name></ProcurementProject></ProcurementProjectLot>"
+                 "</ContractNotice>")
+_XML_LOTLESS = "<ContractNotice><ProcurementProject><Name>X</Name></ProcurementProject></ContractNotice>"
+
+
+def test_ted_lot_backfill_pass(lots_clean):
+    import db as dbmod
+    import ted_ingest as ti
+
+    with connect() as conn:
+        cur = conn.cursor()
+        cur.execute("""INSERT INTO proc.ted_notice
+                         (publication_number, xml_url, full_text, full_text_extracted_at)
+                       VALUES ('P1','http://x/1.xml','EXISTING TEXT', now())""")
+        cur.execute("INSERT INTO proc.ted_notice (publication_number, xml_url) "
+                    "VALUES ('P2','http://x/2.xml')")   # lot-less
+
+    db = dbmod.Database(autocommit=False)
+    repo = ti.TedRepository(db)
+    fake = _FakeTedClient({"http://x/1.xml": _XML_TWO_LOTS, "http://x/2.xml": _XML_LOTLESS})
+
+    n = ti.lot_backfill_pass(fake, repo, limit=100)
+    assert n == {"seen": 2, "with_lots": 1, "empty": 1}
+
+    with connect() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT count(*) AS n FROM proc.ted_notice_lot WHERE publication_number='P1'")
+        assert cur.fetchone()["n"] == 2
+        cur.execute("SELECT full_text, lots_extracted_at FROM proc.ted_notice WHERE publication_number='P1'")
+        r = cur.fetchone()
+        assert r["full_text"] == "EXISTING TEXT"          # text untouched
+        assert r["lots_extracted_at"] is not None          # marked done
+        cur.execute("SELECT count(*) AS n FROM proc.ted_notice_lot WHERE publication_number='P2'")
+        assert cur.fetchone()["n"] == 0                     # lot-less → no rows
+        cur.execute("SELECT lots_extracted_at FROM proc.ted_notice WHERE publication_number='P2'")
+        assert cur.fetchone()["lots_extracted_at"] is not None   # but marked tried
+
+    # idempotent: both notices now have the marker → nothing left to do
+    n2 = ti.lot_backfill_pass(fake, repo, limit=100)
+    assert n2["seen"] == 0
+    db.close()

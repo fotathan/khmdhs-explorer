@@ -574,6 +574,15 @@ class TedRepository:
                        (pub, r["result_ordinal"], r.get("lot_identifier"),
                         r.get("result_status"), _num(r.get("maximum_value")),
                         r.get("currency"), _as_jsonb(r)))
+        # mark the lot snapshot as (re)captured so the lot-backfill pass skips it
+        db.execute("UPDATE proc.ted_notice SET lots_extracted_at=now() "
+                   "WHERE publication_number=%s", (pub,))
+
+    def mark_lots_tried(self, pub):
+        """Record that lot extraction was ATTEMPTED (even if the XML had no lots
+        or failed to parse), so the lot-backfill pass doesn't re-fetch it forever."""
+        self.db.execute("UPDATE proc.ted_notice SET lots_extracted_at=now() "
+                        "WHERE publication_number=%s", (pub,))
 
 
 # --------------------------------------------------------------------------- #
@@ -613,6 +622,37 @@ def fulltext_pass(client, repo, limit=5000):
             repo.set_fulltext(pub, summary, ft)
             repo.replace_lots(pub, parsed)
             n["extracted" if ft else "empty"] += 1
+        db.commit()
+    return n
+
+
+def lot_backfill_pass(client, repo, limit=5000):
+    """Capture the source-native LOT snapshot for notices imported BEFORE
+    structured lots existed: those with an xml_url but never attempted
+    (lots_extracted_at IS NULL). Bounded, resumable. Re-fetches the XML and
+    writes ted_notice_lot / ted_lot_result via replace_lots; does NOT touch the
+    stored full_text. Notices whose XML has no lots (or won't parse) are marked
+    tried so they aren't re-fetched. Run project_all afterwards to surface the
+    lots as lifecycle lots + scope."""
+    db = repo.db
+    rows = db.query("""SELECT publication_number, xml_url FROM proc.ted_notice
+                       WHERE lots_extracted_at IS NULL AND xml_url IS NOT NULL
+                       ORDER BY publication_date DESC NULLS LAST
+                       LIMIT %s""", (int(limit),))
+    cpv_labels, nuts_labels = load_label_maps(db)
+    n = {"seen": 0, "with_lots": 0, "empty": 0}
+    for pub, xml_url in rows:
+        n["seen"] += 1
+        parsed = fetch_notice(client, xml_url, cpv_labels, nuts_labels)
+        if parsed is None:
+            repo.mark_lots_tried(pub)          # fetch/parse failed → skip next time
+            n["empty"] += 1
+        elif parsed.get("lots") or parsed.get("results"):
+            repo.replace_lots(pub, parsed)     # also sets lots_extracted_at
+            n["with_lots"] += 1
+        else:
+            repo.mark_lots_tried(pub)          # genuinely lot-less notice
+            n["empty"] += 1
         db.commit()
     return n
 

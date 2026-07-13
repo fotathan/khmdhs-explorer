@@ -757,6 +757,34 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             enqueue_ingest_command(c, job_id, command, {}, header)
         return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
 
+    @router.post("/jobs/ted-lot")
+    def admin_start_ted_lot_job(request: Request,
+                                limit: str = Form(default="5000")):
+        """Capture the lot snapshot for TED notices imported before structured
+        lots existed (db.py ted-lot-backfill). Tracked as a source='ted' job."""
+        try:
+            lim = max(1, int(limit))
+        except ValueError:
+            lim = 5000
+
+        reconcile_stale()
+        if any_running():
+            raise HTTPException(409,
+                "another job is already running; cancel it or wait for it to finish")
+
+        command = ["ted-lot-backfill", "--limit", str(lim)]
+        header = f"# TED lot backfill job: limit={lim}\n\n"
+
+        today = dt.date.today()
+        with cursor() as c:
+            c.execute("""INSERT INTO proc.ingest_job
+                         (status, types, date_from, date_to, resume, source)
+                         VALUES ('queued', %s, %s, %s, %s, 'ted')
+                         RETURNING id""", (["GRC"], today, today, False))
+            job_id = c.fetchone()["id"]
+            enqueue_ingest_command(c, job_id, command, {}, header)
+        return RedirectResponse(url=f"/admin/jobs/{job_id}", status_code=303)
+
     @router.get("/jobs/{job_id}", response_class=HTMLResponse)
     def admin_job_detail(job_id: int, request: Request,
                          ftf: str = Query("all")):
