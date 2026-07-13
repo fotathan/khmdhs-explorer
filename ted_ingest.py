@@ -266,26 +266,30 @@ def load_label_maps(db):
     return cpv, nuts
 
 
-def parse_fulltext(xml_text: str, cpv_labels: dict | None = None,
-                   nuts_labels: dict | None = None):
-    """Render (summary, full_text) from a TED eForms/UBL notice XML.
+def parse_notice_xml(xml_text: str, cpv_labels: dict | None = None,
+                     nuts_labels: dict | None = None) -> dict:
+    """Parse a TED eForms/UBL notice XML ONCE into a structured dict:
+
+        {summary, full_text, lots: [...], results: [...]}
+
+    `summary`/`full_text` are the searchable text blob (rendered exactly as the
+    legacy parse_fulltext produced — render_fulltext reproduces the tuple).
+    `lots`/`results` are the source-native lot + lot-result snapshot persisted
+    into proc.ted_notice_lot / proc.ted_lot_result.
 
     eForms keeps almost everything in *typed* fields (codes, amounts, party
-    names), not prose — so a plain Description/Note scrape captures next to
-    nothing. This walks the structured tree (project → lots → results →
-    organizations), resolving CPV/NUTS codes to Greek labels, then appends any
-    remaining Greek prose so call-for-tenders bodies survive too.
-
-    summary = the Συνοπτική Παρουσίαση header (title + CPV/NUTS/value/nature);
-    full_text = that plus per-lot detail, per-lot results, and the organization
-    directory (which names every winner) — a searchable mirror of TED's view.
+    names), not prose — so this walks the structured tree (project → lots →
+    results → organizations), resolving CPV/NUTS codes to Greek labels for the
+    text blob, then appends any remaining Greek prose so call-for-tenders bodies
+    survive too.
     """
     cpv_labels = cpv_labels or {}
     nuts_labels = nuts_labels or {}
+    empty = {"summary": None, "full_text": None, "lots": [], "results": []}
     try:
         root = ET.fromstring(xml_text)
     except ET.ParseError:
-        return None, None
+        return dict(empty)
 
     def cpv_lbl(c): return cpv_labels.get((c or "")[:8], "")
     def nuts_lbl(c): return nuts_labels.get((c or "").strip(), "")
@@ -317,6 +321,25 @@ def parse_fulltext(xml_text: str, cpv_labels: dict | None = None,
             out.append(f"{indent}Διάρκεια: {_txt(dm)} {unit}".rstrip())
         return out
 
+    # --- structured extractors (distinct from the text renderers above) ------ #
+    def _codes(pp, localname):
+        out, seen = [], set()
+        if pp is None:
+            return out
+        for el in pp.iter():
+            if _localname(el.tag) == localname:
+                v = _txt(el)
+                if v and v not in seen:
+                    seen.add(v)
+                    out.append(v)
+        return out
+
+    def _est_value(pp):
+        el = pp.find(".//{*}EstimatedOverallContractAmount") if pp is not None else None
+        if el is None or not _txt(el):
+            return (None, None)
+        return (_txt(el), el.get("currencyID"))
+
     # header — the top-level ProcurementProject (Συνοπτική Παρουσίαση)
     top = root.find("{*}ProcurementProject")
     header, title = [], ""
@@ -330,13 +353,15 @@ def parse_fulltext(xml_text: str, cpv_labels: dict | None = None,
         header += render_purpose(top)
     summary = "\n".join(header).strip() or None
 
-    # lots
+    # lots — text blob + structured snapshot in one pass
     lot_lines = []
+    lots = []
     for lot in root.findall("{*}ProcurementProjectLot"):
         lid = _txt(lot.find("{*}ID"))
         pp = lot.find("{*}ProcurementProject")
         nm = _pick(pp, "{*}Name") if pp is not None else ""
         lot_lines.append(f"\n{lid}: {nm}".rstrip())
+        dd = ""
         if pp is not None:
             dd = _pick(pp, "{*}Description")
             if dd and dd != nm:
@@ -346,15 +371,37 @@ def parse_fulltext(xml_text: str, cpv_labels: dict | None = None,
             or _pick(lot, ".//{*}AwardingCriterion//{*}CalculationExpression")
         if crit:
             lot_lines.append(f"  Κριτήριο ανάθεσης: {crit}")
+        if lid:
+            val, cur = _est_value(pp)
+            lots.append({
+                "lot_identifier": lid,
+                "lot_number": None,
+                "title": nm or None,
+                "description": dd or None,
+                "status": None,
+                "estimated_value": val,
+                "currency": cur,
+                "cpvs": _codes(pp, "ItemClassificationCode"),
+                "nuts": _codes(pp, "CountrySubentityCode"),
+            })
 
-    # results (award notices)
+    # results (award notices) — text blob + structured snapshot in one pass
     res_lines = []
+    results = []
     for lr in root.iter():
         if _localname(lr.tag) != "LotResult":
             continue
         lot_ref = _txt(lr.find(".//{*}TenderLot/{*}ID"))
         status = _txt(lr.find("{*}TenderResultCode"))
-        mx = amount(lr.find(".//{*}MaximumValueAmount"))
+        mx_el = lr.find(".//{*}MaximumValueAmount")
+        mx = amount(mx_el)
+        results.append({
+            "result_ordinal": len(results) + 1,
+            "lot_identifier": lot_ref or None,
+            "result_status": status or None,
+            "maximum_value": _txt(mx_el) if mx_el is not None else None,
+            "currency": mx_el.get("currencyID") if mx_el is not None else None,
+        })
         parts = []
         if status:
             parts.append(_STATUS.get(status, status))
@@ -404,7 +451,20 @@ def parse_fulltext(xml_text: str, cpv_labels: dict | None = None,
     if extra:
         structured = (structured + "\n\nΠρόσθετες πληροφορίες\n" + "\n".join(extra)).strip()
 
-    return summary, (structured or None)
+    return {"summary": summary, "full_text": (structured or None),
+            "lots": lots, "results": results}
+
+
+def render_fulltext(parsed: dict):
+    """(summary, full_text) from a parsed notice — the legacy parse_fulltext tuple."""
+    return parsed.get("summary"), parsed.get("full_text")
+
+
+def parse_fulltext(xml_text: str, cpv_labels: dict | None = None,
+                   nuts_labels: dict | None = None):
+    """Back-compat wrapper: (summary, full_text) rendered from the parsed notice.
+    Kept byte-identical to the pre-refactor output for existing callers/tests."""
+    return render_fulltext(parse_notice_xml(xml_text, cpv_labels, nuts_labels))
 
 
 def fetch_fulltext(client, xml_url: str, cpv_labels: dict | None = None,
@@ -416,6 +476,20 @@ def fetch_fulltext(client, xml_url: str, cpv_labels: dict | None = None,
         return parse_fulltext(client.get_xml(xml_url), cpv_labels, nuts_labels)
     except Exception:      # noqa: BLE001 — treat as "tried, empty"
         return None, None
+
+
+def fetch_notice(client, xml_url: str, cpv_labels: dict | None = None,
+                 nuts_labels: dict | None = None):
+    """Fetch + parse a notice into its structured dict (summary/full_text/lots/
+    results), or None if the XML could not be fetched/parsed. Callers persist the
+    text via set_fulltext and the lot snapshot via replace_lots; a None here means
+    'leave any prior successful snapshot untouched'."""
+    if not xml_url:
+        return None
+    try:
+        return parse_notice_xml(client.get_xml(xml_url), cpv_labels, nuts_labels)
+    except Exception:      # noqa: BLE001 — treat as "tried, empty"
+        return None
 
 
 # --------------------------------------------------------------------------- #
@@ -464,6 +538,43 @@ class TedRepository:
                            SET description=%s, full_text=%s, full_text_extracted_at=now()
                            WHERE publication_number=%s""", (summary, full_text, pub))
 
+    def replace_lots(self, pub, parsed):
+        """Replace this publication's source-native lot + result snapshot from a
+        parsed notice dict. Idempotent: delete-then-insert scoped to `pub`, so
+        re-processing never duplicates. Only called when parsing SUCCEEDED, so a
+        prior good snapshot is never wiped by a failed fetch (caller passes the
+        parsed dict, or skips this on None)."""
+        db = self.db
+        # results + child cpv/nuts cascade from ted_notice_lot; clear all first
+        db.execute("DELETE FROM proc.ted_lot_result WHERE publication_number=%s", (pub,))
+        db.execute("DELETE FROM proc.ted_notice_lot WHERE publication_number=%s", (pub,))
+        for lot in parsed.get("lots", []):
+            lid = lot["lot_identifier"]
+            db.execute("""INSERT INTO proc.ted_notice_lot
+                            (publication_number, lot_identifier, lot_number, title,
+                             description, status, estimated_value, currency, raw_json)
+                          VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                       (pub, lid, lot.get("lot_number"), lot.get("title"),
+                        lot.get("description"), lot.get("status"),
+                        _num(lot.get("estimated_value")), lot.get("currency"),
+                        _as_jsonb(lot)))
+            for cpv in dict.fromkeys(lot.get("cpvs") or []):
+                db.execute("""INSERT INTO proc.ted_notice_lot_cpv
+                                (publication_number, lot_identifier, cpv_code)
+                              VALUES (%s,%s,%s) ON CONFLICT DO NOTHING""", (pub, lid, cpv))
+            for nuts in dict.fromkeys(lot.get("nuts") or []):
+                db.execute("""INSERT INTO proc.ted_notice_lot_nuts
+                                (publication_number, lot_identifier, nuts_code)
+                              VALUES (%s,%s,%s) ON CONFLICT DO NOTHING""", (pub, lid, nuts))
+        for r in parsed.get("results", []):
+            db.execute("""INSERT INTO proc.ted_lot_result
+                            (publication_number, result_ordinal, lot_identifier,
+                             result_status, maximum_value, currency, raw_json)
+                          VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+                       (pub, r["result_ordinal"], r.get("lot_identifier"),
+                        r.get("result_status"), _num(r.get("maximum_value")),
+                        r.get("currency"), _as_jsonb(r)))
+
 
 # --------------------------------------------------------------------------- #
 # orchestration — windowed, resumable (mirrors diavgeia ingest_type)
@@ -493,9 +604,15 @@ def fulltext_pass(client, repo, limit=5000):
     n = {"seen": 0, "extracted": 0, "empty": 0}
     for pub, xml_url in rows:
         n["seen"] += 1
-        summary, ft = fetch_fulltext(client, xml_url, cpv_labels, nuts_labels)
-        repo.set_fulltext(pub, summary, ft)
-        n["extracted" if ft else "empty"] += 1
+        parsed = fetch_notice(client, xml_url, cpv_labels, nuts_labels)
+        if parsed is None:                 # fetch/parse failed — mark tried, keep any prior snapshot
+            repo.set_fulltext(pub, None, None)
+            n["empty"] += 1
+        else:
+            summary, ft = render_fulltext(parsed)
+            repo.set_fulltext(pub, summary, ft)
+            repo.replace_lots(pub, parsed)
+            n["extracted" if ft else "empty"] += 1
         db.commit()
     return n
 
@@ -529,9 +646,13 @@ def ingest_country(client, repo, country, start, end, *, resume=True):
                 if m:
                     repo.upsert_notice(m)
                     if EXTRACT_FULLTEXT and m.get("xml_url"):
-                        ft_summary, ft_body = fetch_fulltext(
-                            client, m["xml_url"], cpv_labels, nuts_labels)
-                        repo.set_fulltext(m["publication_number"], ft_summary, ft_body)
+                        parsed = fetch_notice(client, m["xml_url"], cpv_labels, nuts_labels)
+                        if parsed is None:
+                            repo.set_fulltext(m["publication_number"], None, None)
+                        else:
+                            ft_summary, ft_body = render_fulltext(parsed)
+                            repo.set_fulltext(m["publication_number"], ft_summary, ft_body)
+                            repo.replace_lots(m["publication_number"], parsed)
                     n += 1
             db.execute("""UPDATE proc.ted_ingest_window SET status='done', notices=%s,
                           finished_at=now() WHERE country=%s AND date_from=%s AND date_to=%s""",
@@ -643,6 +764,104 @@ def project_all(db) -> int:
         ON CONFLICT DO NOTHING
     """)
     db.commit()
+
+    # 4. Lifecycle lots + act scope (structured overlay on proc.act_group). Only
+    #    publications that carry lots OR lot-results get a group; lot-less notices
+    #    stay ungrouped (scope unknown by absence). Two order-independent passes:
+    #    4A ensures groups + projects lots for every such publication; 4B sets each
+    #    act's scope from its lot-results (mapping refs to lots now guaranteed to
+    #    exist in the same group). Curator-set scope and authored lots are never
+    #    overwritten.
+    from app import interconnect as ic     # lazy: pulls fastapi, only needed here
+    c = db.dict_cursor()
+    pubs = db.query("""
+        SELECT t.publication_number, t.procedure_identifier
+        FROM proc.ted_notice t
+        WHERE EXISTS (SELECT 1 FROM proc.ted_notice_lot l
+                      WHERE l.publication_number = t.publication_number)
+           OR EXISTS (SELECT 1 FROM proc.ted_lot_result r
+                      WHERE r.publication_number = t.publication_number)
+    """)
+
+    # 4A. group per publication + import its lots (+ mapped CPV/NUTS)
+    for pub, proc_id in pubs:
+        adam = f"TED:{pub}"
+        scheme, value = (("ted-procedure", proc_id) if proc_id
+                         else ("ted-publication", pub))
+        gid = ic.ensure_group_identifier(c, adam, scheme, value)
+        c.execute("""SELECT lot_identifier, lot_number, title, description, status,
+                            estimated_value, currency
+                     FROM proc.ted_notice_lot WHERE publication_number = %s""", (pub,))
+        for lot in c.fetchall():
+            c.execute("""INSERT INTO proc.tender_lot
+                           (group_id, source, source_key, origin, lot_number, title,
+                            description, status, estimated_value, currency_code)
+                         VALUES (%s,'ted',%s,'import',%s,%s,%s,%s,%s,%s)
+                         ON CONFLICT (group_id, source, source_key) DO UPDATE SET
+                            lot_number=EXCLUDED.lot_number, title=EXCLUDED.title,
+                            description=EXCLUDED.description, status=EXCLUDED.status,
+                            estimated_value=EXCLUDED.estimated_value,
+                            currency_code=EXCLUDED.currency_code
+                         WHERE proc.tender_lot.origin = 'import'
+                         RETURNING id""",
+                      (gid, lot["lot_identifier"], lot["lot_number"], lot["title"],
+                       lot["description"], lot["status"], lot["estimated_value"],
+                       lot["currency"]))
+            row = c.fetchone()
+            if row is None:       # conflict fell on an authored lot → never overwrite
+                continue
+            lot_id = row["id"]
+            # TED lot CPVs are 8-digit; map to the catalog's 10-char code (as the
+            # act-level projection does). Unknown codes are dropped from the lot
+            # link (they survive in the source-native snapshot).
+            c.execute("DELETE FROM proc.tender_lot_cpv WHERE lot_id = %s", (lot_id,))
+            c.execute("""INSERT INTO proc.tender_lot_cpv (lot_id, cpv_code)
+                         SELECT DISTINCT %s, cc.cpv_code
+                         FROM proc.ted_notice_lot_cpv tc
+                         JOIN LATERAL (SELECT cpv_code FROM proc.cpv_code
+                                       WHERE left(cpv_code,8) = left(tc.cpv_code,8) LIMIT 1) cc ON true
+                         WHERE tc.publication_number = %s AND tc.lot_identifier = %s
+                         ON CONFLICT DO NOTHING""", (lot_id, pub, lot["lot_identifier"]))
+            c.execute("DELETE FROM proc.tender_lot_nuts WHERE lot_id = %s", (lot_id,))
+            c.execute("""INSERT INTO proc.tender_lot_nuts (lot_id, nuts_code)
+                         SELECT DISTINCT %s, tn.nuts_code
+                         FROM proc.ted_notice_lot_nuts tn
+                         JOIN proc.nuts_code nc ON nc.nuts_code = tn.nuts_code
+                         WHERE tn.publication_number = %s AND tn.lot_identifier = %s
+                         ON CONFLICT DO NOTHING""", (lot_id, pub, lot["lot_identifier"]))
+    db.commit()
+
+    # 4B. scope each act from its lot-results (now that all lots exist)
+    unresolved = 0
+    for pub, _proc in pubs:
+        adam = f"TED:{pub}"
+        if ic.scope_is_curator(c, adam):
+            continue
+        gid = ic.group_of(c, adam)
+        if gid is None:
+            continue
+        c.execute("""SELECT DISTINCT lot_identifier FROM proc.ted_lot_result
+                     WHERE publication_number = %s AND lot_identifier IS NOT NULL""", (pub,))
+        refs = [r["lot_identifier"] for r in c.fetchall()]
+        if not refs:
+            ic.set_scope_unknown(c, adam, source="import")
+            continue
+        c.execute("""SELECT id, source_key FROM proc.tender_lot
+                     WHERE group_id = %s AND source = 'ted' AND source_key = ANY(%s)""",
+                  (gid, refs))
+        found = {r["source_key"]: r["id"] for r in c.fetchall()}
+        lot_ids = [found[k] for k in refs if k in found]
+        missing = [k for k in refs if k not in found]
+        if missing:
+            unresolved += len(missing)
+            print(f"[TED project] {pub}: lot-result ref(s) with no lot: {missing}")
+        if lot_ids:
+            ic.set_scope_lots(c, adam, lot_ids, source="import")
+        else:
+            ic.set_scope_unknown(c, adam, source="import")
+    db.commit()
+    if unresolved:
+        print(f"[TED project] {unresolved} unresolved lot-result reference(s) left unknown")
 
     rows = db.query("SELECT count(*) FROM proc.ted_notice")
     return rows[0][0] if rows else 0

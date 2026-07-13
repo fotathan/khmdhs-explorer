@@ -2778,11 +2778,19 @@ def act_detail(adam: str, request: Request):
 
     # Interconnection group (curated overlay) — read-only panel of related acts.
     interconnect_group = None
+    lot_panel = None
+    act_scope = None
     try:
         with cursor() as c:
             interconnect_group = _interconnect.group_panel(c, adam)
-    except Exception:
-        interconnect_group = None
+            gid = _interconnect.group_of(c, adam)
+            if gid:
+                # Structured lots + scope buckets (only when the tender has lots).
+                lot_panel = _interconnect.group_lot_panel(c, gid)
+                act_scope = _interconnect.scope_for_act(c, adam)
+    except Exception:      # noqa: BLE001 — lots/scope are an optional overlay
+        lot_panel = None
+        act_scope = None
 
     # Curated party rows (multi-value authorities / contractors captured on the
     # act); carry the linked entity's name when the row is related to the DB.
@@ -2807,6 +2815,7 @@ def act_detail(adam: str, request: Request):
         {"n": notice, "gated": False,
          "act_authorities": act_authorities, "act_contractors": act_contractors,
          "interconnect_group": interconnect_group,
+         "lot_panel": lot_panel, "act_scope": act_scope,
          "line_items": line_items,
          "operators": operators,
          "act_cpvs": act_cpvs,

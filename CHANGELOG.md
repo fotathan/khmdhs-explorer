@@ -10,6 +10,29 @@ truth; this is a curated digest.
 
 ## 2026-07-13
 
+### Added — structured tender lots & act scope
+- **First-class procurement lots** (`proc.tender_lot` + CPV/NUTS children), owned
+  by a tender lifecycle group (`proc.act_group`) — **not** modelled as acts and
+  **not** added to `proc.act_type`. Lots are imported from TED or authored by an
+  admin.
+- **Act scope** (`proc.act_scope` / `proc.act_lot_scope`): each act applies to the
+  **whole tender**, **specific lots**, or is **unknown** (the default — absence of
+  a row). A DB trigger rejects cross-group lot links and orphaned whole/unknown
+  scopes; the "≥1 lot" rule is enforced in the service layer.
+- **TED source-native lot snapshots** (`proc.ted_notice_lot` + CPV/NUTS,
+  `proc.ted_lot_result`): the notice XML is now parsed **once** into a structured
+  result (lots + lot-results) and rendered to text from that same structure
+  (`parse_notice_xml` / `render_fulltext`; `parse_fulltext` kept byte-compatible).
+- **Lifecycle grouping by identifier** (`proc.act_group_identifier`): multiple TED
+  publications of one procedure converge on a single group; lot-results scope the
+  award act to its lots. Curator-set scope and authored lots are never overwritten
+  by ingestion. Machine-created singleton groups carry an `auto` flag and are
+  hidden from the curated group listing.
+- **Admin** (`/admin/interconnect/group/{id}`): a Lots section (authored CRUD,
+  imported read-only) and a per-act "Applies to" control. **Public act page**: a
+  Tender-lots panel and related acts bucketed into whole-tender / per-lot /
+  not-determined. Analytics totals are unchanged (lots are not acts).
+
 ### Added — act parties (authorities & contractors on the act)
 - Capture **multiple authorities and contractors** on an act, each with full
   detail (name, ΑΦΜ, id, address, contact, notes; contractor also the award

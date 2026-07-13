@@ -411,6 +411,70 @@
         </ul>
       </div>
       {% endif %}
+
+      {% if lot_panel %}
+      <div class="sidecard">
+        <style>
+          .lot-scope-here{font-size:12px;color:var(--ink-2,#555);margin:0 0 10px;padding:6px 9px;background:var(--surface-2,#f6f6f6);border-radius:6px;}
+          .lot-list{list-style:none;margin:0;padding:0;} .lot-item{padding:8px 0;border-top:1px solid var(--border,#eee);}
+          .lot-item:first-child{border-top:0;}
+          .lot-h{font-size:13px;font-weight:600;} .lot-num{font-family:var(--mono);font-size:11px;color:var(--accent);margin-right:4px;}
+          .lot-desc{font-size:12px;color:var(--ink-2,#555);margin:2px 0;} .lot-meta{font-size:11px;color:var(--ink-3,#888);}
+          .lot-acts{list-style:none;margin:5px 0 0;padding:0 0 0 8px;} .lot-acts li{font-size:12px;margin:2px 0;}
+          .lot-acts a{color:var(--accent);} .lot-acts a.is-self{font-weight:700;color:var(--ink);text-decoration:none;cursor:default;}
+          .lot-acts .tl-type{font-size:10px;color:var(--ink-3,#888);}
+          .lot-bucket-h{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3,#888);margin:12px 0 2px;}
+        </style>
+        <div class="sidecard-h">{{ t("Τμήματα διαγωνισμού") }}</div>
+        {% if act_scope %}
+        <div class="lot-scope-here">
+          {{ t("Αυτή η πράξη εφαρμόζεται σε:") }}
+          <strong>
+            {%- if act_scope.kind == 'whole_tender' %}{{ t("Ολόκληρο τον διαγωνισμό") }}
+            {%- elif act_scope.kind == 'specific_lots' %}{{ t("Συγκεκριμένα τμήματα") }}
+            {%- else %}{{ t("Δεν έχει προσδιοριστεί") }}{% endif -%}
+          </strong>
+        </div>
+        {% endif %}
+        <ul class="lot-list">
+          {% for l in lot_panel.lots %}
+          <li class="lot-item">
+            <div class="lot-h"><span class="lot-num">{{ l.lot_number or l.source_key }}</span> {{ l.title or '—' }}</div>
+            {% if l.description %}<div class="lot-desc">{{ l.description[:160] }}</div>{% endif %}
+            <div class="lot-meta">
+              {% if l.estimated_value %}€ {{ "{:,.0f}".format(l.estimated_value).replace(",", ".") }} {{ l.currency_code or '' }}{% endif %}
+              {% if l.cpvs %} · CPV {{ l.cpvs|join(', ') }}{% endif %}
+              {% if l.nuts %} · NUTS {{ l.nuts|join(', ') }}{% endif %}
+            </div>
+            {% set scoped = lot_panel.acts_by_lot.get(l.id) %}
+            {% if scoped %}
+            <ul class="lot-acts">
+              {% for s in scoped %}
+              <li><a href="/act/{{ s.adam }}"{% if s.adam == n.adam %} class="is-self"{% endif %}>{{ s.title or s.adam }}</a> <span class="tl-type">{{ s.type | type_label }}</span></li>
+              {% endfor %}
+            </ul>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% if lot_panel.whole_tender %}
+        <div class="lot-bucket-h">{{ t("Σε όλο τον διαγωνισμό") }}</div>
+        <ul class="lot-acts">
+          {% for s in lot_panel.whole_tender %}
+          <li><a href="/act/{{ s.adam }}"{% if s.adam == n.adam %} class="is-self"{% endif %}>{{ s.title or s.adam }}</a> <span class="tl-type">{{ s.type | type_label }}</span></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        {% if lot_panel.unknown %}
+        <div class="lot-bucket-h">{{ t("Δεν έχει προσδιοριστεί") }}</div>
+        <ul class="lot-acts">
+          {% for s in lot_panel.unknown %}
+          <li><a href="/act/{{ s.adam }}"{% if s.adam == n.adam %} class="is-self"{% endif %}>{{ s.title or s.adam }}</a> <span class="tl-type">{{ s.type | type_label }}</span></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+      {% endif %}
     </aside>
   </div>
 

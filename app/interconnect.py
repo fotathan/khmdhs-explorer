@@ -19,6 +19,8 @@ Data helpers take an open dict-row cursor `c`, mirroring app/auth.py.
 
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -212,10 +214,58 @@ def _add_member(c, gid, adam, by):
 
 
 def merge_groups(c, keep, drop):
+    """Merge group `drop` into `keep`: move members, identifiers, and lots;
+    reconcile duplicate lots by (source, source_key) — repointing scope links to
+    the canonical lot and merging non-null fields — then drop the empty group.
+    Never loses imported lot data. Caller owns the transaction boundary."""
     if keep == drop:
         return
+    # 1. members
     c.execute("UPDATE proc.act_group_member SET group_id = %s WHERE group_id = %s",
               (keep, drop))
+    # 2. identifiers — a (scheme,value) already on `keep` wins; drop's dup is discarded
+    c.execute("""UPDATE proc.act_group_identifier d SET group_id = %s
+                 WHERE d.group_id = %s
+                   AND NOT EXISTS (SELECT 1 FROM proc.act_group_identifier k
+                                   WHERE k.scheme = d.scheme AND k.value = d.value
+                                     AND k.group_id = %s)""", (keep, drop, keep))
+    c.execute("DELETE FROM proc.act_group_identifier WHERE group_id = %s", (drop,))
+    # 3. reconcile lots that collide on (source, source_key)
+    c.execute("""SELECT d.id AS drop_id, k.id AS keep_id
+                 FROM proc.tender_lot d
+                 JOIN proc.tender_lot k
+                   ON k.group_id = %s AND k.source = d.source AND k.source_key = d.source_key
+                 WHERE d.group_id = %s""", (keep, drop))
+    for row in c.fetchall():
+        di, ki = row["drop_id"], row["keep_id"]
+        # repoint scope links from the dup lot to the canonical one (skip rows the
+        # act already has for the canonical lot), then drop leftover dup links
+        c.execute("""UPDATE proc.act_lot_scope s SET lot_id = %s
+                     WHERE s.lot_id = %s
+                       AND NOT EXISTS (SELECT 1 FROM proc.act_lot_scope s2
+                                       WHERE s2.adam = s.adam AND s2.lot_id = %s)""",
+                  (ki, di, ki))
+        c.execute("DELETE FROM proc.act_lot_scope WHERE lot_id = %s", (di,))
+        # merge non-null descriptive fields conservatively onto the kept lot
+        c.execute("""UPDATE proc.tender_lot k SET
+                        lot_number      = COALESCE(k.lot_number, d.lot_number),
+                        title           = COALESCE(k.title, d.title),
+                        description     = COALESCE(k.description, d.description),
+                        status          = COALESCE(k.status, d.status),
+                        estimated_value = COALESCE(k.estimated_value, d.estimated_value),
+                        awarded_value   = COALESCE(k.awarded_value, d.awarded_value),
+                        currency_code   = COALESCE(k.currency_code, d.currency_code),
+                        raw_json        = COALESCE(k.raw_json, d.raw_json)
+                     FROM proc.tender_lot d WHERE k.id = %s AND d.id = %s""", (ki, di))
+        c.execute("""INSERT INTO proc.tender_lot_cpv (lot_id, cpv_code)
+                     SELECT %s, cpv_code FROM proc.tender_lot_cpv WHERE lot_id = %s
+                     ON CONFLICT DO NOTHING""", (ki, di))
+        c.execute("""INSERT INTO proc.tender_lot_nuts (lot_id, nuts_code)
+                     SELECT %s, nuts_code FROM proc.tender_lot_nuts WHERE lot_id = %s
+                     ON CONFLICT DO NOTHING""", (ki, di))
+        c.execute("DELETE FROM proc.tender_lot WHERE id = %s", (di,))
+    # 4. move the surviving (non-duplicate) lots, then drop the now-empty group
+    c.execute("UPDATE proc.tender_lot SET group_id = %s WHERE group_id = %s", (keep, drop))
     c.execute("DELETE FROM proc.act_group WHERE id = %s", (drop,))
 
 
@@ -240,13 +290,28 @@ def relate(c, adam_a, adam_b, by=None):
 
 
 def remove_member(c, adam):
-    """Remove an act from its group; dissolve the group if <2 members remain."""
+    """Remove an act from its group. Deletes the act's own scope first (its lot
+    links cascade), leaving the group's lots and other acts untouched. Dissolves
+    the group only when the remainder has <2 members AND owns no lots and no
+    identifiers. Refuses to strand a group's lots: removing the last member of a
+    group that still owns lots raises 409."""
     gid = group_of(c, adam)
     if not gid:
         return
-    c.execute("DELETE FROM proc.act_group_member WHERE adam = %s", (adam,))
     c.execute("SELECT count(*) AS n FROM proc.act_group_member WHERE group_id = %s", (gid,))
-    if c.fetchone()["n"] < 2:
+    members = c.fetchone()["n"]
+    c.execute("SELECT count(*) AS n FROM proc.tender_lot WHERE group_id = %s", (gid,))
+    has_lots = c.fetchone()["n"] > 0
+    c.execute("SELECT count(*) AS n FROM proc.act_group_identifier WHERE group_id = %s", (gid,))
+    has_ids = c.fetchone()["n"] > 0
+
+    if members <= 1 and has_lots:
+        raise HTTPException(409, "group still owns lots; delete or reassign them first")
+
+    c.execute("DELETE FROM proc.act_scope WHERE adam = %s", (adam,))       # links cascade
+    c.execute("DELETE FROM proc.act_group_member WHERE adam = %s", (adam,))
+    # dissolve a now-trivial group only when nothing else is anchored to it
+    if members - 1 < 2 and not has_lots and not has_ids:
         c.execute("DELETE FROM proc.act_group WHERE id = %s", (gid,))  # cascades the lone member
 
 
@@ -266,19 +331,254 @@ def clear_duplicate(c, adam):
 
 
 def list_groups(c, limit=200):
+    """Curated group listing. Machine-created singleton groups (auto=true, one
+    per TED publication/procedure) are hidden UNLESS they've grown past one
+    member — otherwise thousands of auto groups would drown the curated ones.
+    They stay reachable from each act's own interconnect page."""
     c.execute("""
-        SELECT g.id, g.created_at,
+        SELECT g.id, g.created_at, g.auto,
                count(m.adam) AS n,
                count(*) FILTER (WHERE m.is_duplicate) AS n_dup,
+               (SELECT count(*) FROM proc.tender_lot l WHERE l.group_id = g.id) AS n_lots,
                (array_agg(a.title ORDER BY a.submission_date NULLS LAST))[1] AS sample_title
         FROM proc.act_group g
         JOIN proc.act_group_member m ON m.group_id = g.id
         JOIN proc.procurement_act a ON a.adam = m.adam
         GROUP BY g.id
+        HAVING NOT g.auto OR count(m.adam) > 1
         ORDER BY g.created_at DESC
         LIMIT %s
     """, (limit,))
     return c.fetchall()
+
+
+# --------------------------------------------------------------------------- #
+# lifecycle-group identifiers + ensure helpers (reused by TED projection)
+# --------------------------------------------------------------------------- #
+def ensure_group_for_act(c, adam, *, created_by=None) -> int:
+    """Return the act's group, creating a singleton for it if it has none."""
+    gid = group_of(c, adam)
+    if gid:
+        return gid
+    c.execute("INSERT INTO proc.act_group (created_by) VALUES (%s) RETURNING id", (created_by,))
+    gid = c.fetchone()["id"]
+    _add_member(c, gid, adam, created_by)
+    return gid
+
+
+def group_by_identifier(c, scheme, value):
+    c.execute("SELECT group_id FROM proc.act_group_identifier WHERE scheme = %s AND value = %s",
+              (scheme, value))
+    row = c.fetchone()
+    return row["group_id"] if row else None
+
+
+def ensure_group_identifier(c, adam, scheme, value, *, created_by=None) -> int:
+    """Attach `adam` to the lifecycle group carrying (scheme, value), creating an
+    `auto` singleton group + the identifier if none exists yet. If the act is
+    already in a different group, merge that group into the identifier's group
+    (the identifier's group is kept). Returns the resulting group id."""
+    gid = group_by_identifier(c, scheme, value)
+    cur = group_of(c, adam)
+    if gid is None:
+        gid = cur
+        if gid is None:
+            c.execute("INSERT INTO proc.act_group (created_by, auto) VALUES (%s, true) RETURNING id",
+                      (created_by,))
+            gid = c.fetchone()["id"]
+        c.execute("""INSERT INTO proc.act_group_identifier (group_id, scheme, value)
+                     VALUES (%s, %s, %s) ON CONFLICT (scheme, value) DO NOTHING""",
+                  (gid, scheme, value))
+    if cur is not None and cur != gid:
+        merge_groups(c, gid, cur)
+    elif cur is None:
+        _add_member(c, gid, adam, created_by)
+    return gid
+
+
+# --------------------------------------------------------------------------- #
+# lots (canonical, group-owned) — CRUD + reads
+# --------------------------------------------------------------------------- #
+_LOT_EDITABLE = ("lot_number", "title", "description", "status",
+                 "estimated_value", "awarded_value", "currency_code")
+
+
+def lots_for_group(c, gid):
+    """All lots of a group with their CPV/NUTS codes and #scoped acts."""
+    c.execute("""
+        SELECT l.id, l.group_id, l.source, l.source_key, l.origin, l.lot_number,
+               l.title, l.description, l.status, l.estimated_value, l.awarded_value,
+               l.currency_code, l.created_by, l.created_at, l.updated_at,
+               (SELECT array_agg(cpv_code ORDER BY cpv_code)
+                  FROM proc.tender_lot_cpv WHERE lot_id = l.id) AS cpvs,
+               (SELECT array_agg(nuts_code ORDER BY nuts_code)
+                  FROM proc.tender_lot_nuts WHERE lot_id = l.id) AS nuts,
+               (SELECT count(*) FROM proc.act_lot_scope s WHERE s.lot_id = l.id) AS n_acts
+        FROM proc.tender_lot l
+        WHERE l.group_id = %s
+        ORDER BY l.source, l.lot_number NULLS LAST, l.source_key
+    """, (gid,))
+    return c.fetchall()
+
+
+def create_lot(c, gid, *, created_by=None, **fields):
+    """Create an AUTHORED lot in a group (source='manual', stable MANUAL-<uuid>)."""
+    key = "MANUAL-" + uuid.uuid4().hex
+    cols = {k: fields.get(k) for k in _LOT_EDITABLE}
+    c.execute("""INSERT INTO proc.tender_lot
+                   (group_id, source, source_key, origin, created_by,
+                    lot_number, title, description, status,
+                    estimated_value, awarded_value, currency_code)
+                 VALUES (%s, 'manual', %s, 'authored', %s, %s, %s, %s, %s, %s, %s, %s)
+                 RETURNING id""",
+              (gid, key, created_by, cols["lot_number"], cols["title"],
+               cols["description"], cols["status"], cols["estimated_value"],
+               cols["awarded_value"], cols["currency_code"]))
+    return c.fetchone()["id"]
+
+
+def update_lot(c, lot_id, **fields):
+    """Edit an AUTHORED lot (imported lots are read-only)."""
+    sets, vals = [], []
+    for k in _LOT_EDITABLE:
+        if k in fields:
+            sets.append(f"{k} = %s")
+            vals.append(fields[k])
+    if not sets:
+        return
+    vals.append(lot_id)
+    c.execute(f"UPDATE proc.tender_lot SET {', '.join(sets)} "
+              f"WHERE id = %s AND origin = 'authored'", vals)
+
+
+def delete_lot(c, lot_id, *, force=False):
+    """Delete an AUTHORED lot. If it has act scope links, refuse (409) unless
+    `force`; on force, its links cascade and any act thereby left with a
+    specific_lots scope but no lots is reset to 'unknown' (never leaves an act
+    claiming specific lots it no longer has)."""
+    c.execute("SELECT origin FROM proc.tender_lot WHERE id = %s", (lot_id,))
+    row = c.fetchone()
+    if not row:
+        return 0
+    if row["origin"] != "authored":
+        raise HTTPException(409, "imported lots are read-only")
+    c.execute("SELECT adam FROM proc.act_lot_scope WHERE lot_id = %s", (lot_id,))
+    affected = [r["adam"] for r in c.fetchall()]
+    if affected and not force:
+        raise HTTPException(409, f"lot is referenced by {len(affected)} act(s); confirm removal")
+    c.execute("DELETE FROM proc.tender_lot WHERE id = %s AND origin = 'authored'", (lot_id,))
+    for adam in affected:
+        c.execute("SELECT 1 FROM proc.act_lot_scope WHERE adam = %s LIMIT 1", (adam,))
+        if not c.fetchone():
+            c.execute("""UPDATE proc.act_scope SET scope_kind = 'unknown', updated_at = now()
+                         WHERE adam = %s AND scope_kind = 'specific_lots'""", (adam,))
+    return 1
+
+
+# --------------------------------------------------------------------------- #
+# act scope (which part of the tender an act applies to)
+# --------------------------------------------------------------------------- #
+def scope_for_act(c, adam):
+    """The act's scope: {kind, lot_ids, source, note}. Absent row == unknown."""
+    c.execute("SELECT scope_kind, scope_source, note FROM proc.act_scope WHERE adam = %s", (adam,))
+    row = c.fetchone()
+    c.execute("SELECT lot_id FROM proc.act_lot_scope WHERE adam = %s ORDER BY lot_id", (adam,))
+    lot_ids = [r["lot_id"] for r in c.fetchall()]
+    return {"kind": row["scope_kind"] if row else "unknown",
+            "lot_ids": lot_ids,
+            "source": row["scope_source"] if row else None,
+            "note": row["note"] if row else None}
+
+
+def scope_is_curator(c, adam) -> bool:
+    """True if a curator set this act's scope (ingestion must not overwrite it)."""
+    c.execute("SELECT scope_source FROM proc.act_scope WHERE adam = %s", (adam,))
+    row = c.fetchone()
+    return bool(row and row["scope_source"] == "curator")
+
+
+def _upsert_scope(c, adam, kind, *, source, by):
+    c.execute("""INSERT INTO proc.act_scope (adam, scope_kind, scope_source, updated_by, updated_at)
+                 VALUES (%s, %s, %s, %s, now())
+                 ON CONFLICT (adam) DO UPDATE SET
+                    scope_kind = EXCLUDED.scope_kind, scope_source = EXCLUDED.scope_source,
+                    updated_by = EXCLUDED.updated_by, updated_at = now()""",
+              (adam, kind, source, by))
+
+
+def set_scope_unknown(c, adam, *, source="curator", by=None):
+    c.execute("DELETE FROM proc.act_lot_scope WHERE adam = %s", (adam,))
+    _upsert_scope(c, adam, "unknown", source=source, by=by)
+
+
+def set_scope_whole(c, adam, *, source="curator", by=None):
+    c.execute("DELETE FROM proc.act_lot_scope WHERE adam = %s", (adam,))
+    _upsert_scope(c, adam, "whole_tender", source=source, by=by)
+
+
+def set_scope_lots(c, adam, lot_ids, *, source="curator", by=None):
+    """Point the act at one or more specific lots (all in the act's group).
+    Enforces >=1 lot and group membership here (the DB trigger backs this up)."""
+    lot_ids = [int(x) for x in lot_ids]
+    if not lot_ids:
+        raise HTTPException(400, "specific lots requires at least one lot")
+    gid = group_of(c, adam)
+    if gid is None:
+        raise HTTPException(409, "act is not in a group")
+    c.execute("SELECT id FROM proc.tender_lot WHERE group_id = %s AND id = ANY(%s)",
+              (gid, lot_ids))
+    valid = {r["id"] for r in c.fetchall()}
+    missing = [x for x in lot_ids if x not in valid]
+    if missing:
+        raise HTTPException(400, f"lots not in this group: {missing}")
+    # scope_kind must be specific_lots BEFORE the bridge rows are inserted (trigger)
+    _upsert_scope(c, adam, "specific_lots", source=source, by=by)
+    c.execute("DELETE FROM proc.act_lot_scope WHERE adam = %s", (adam,))
+    for lid in valid:
+        c.execute("INSERT INTO proc.act_lot_scope (adam, lot_id) VALUES (%s, %s) "
+                  "ON CONFLICT DO NOTHING", (adam, lid))
+
+
+def group_lot_panel(c, gid):
+    """Read model for act pages / group page: the group's lots plus, per lot, the
+    acts scoped to it; plus the whole-tender and unknown act buckets. Returns
+    None when the group has no lots."""
+    lots = lots_for_group(c, gid)
+    if not lots:
+        return None
+    # acts scoped specifically, per lot
+    c.execute("""
+        SELECT s.lot_id, s.adam, a.type, a.title
+        FROM proc.act_lot_scope s
+        JOIN proc.procurement_act a ON a.adam = s.adam
+        WHERE s.lot_id IN (SELECT id FROM proc.tender_lot WHERE group_id = %s)
+        ORDER BY a.submission_date NULLS LAST, s.adam
+    """, (gid,))
+    by_lot = {}
+    for r in c.fetchall():
+        by_lot.setdefault(r["lot_id"], []).append(r)
+    # whole-tender acts in this group
+    c.execute("""
+        SELECT sc.adam, a.type, a.title
+        FROM proc.act_scope sc
+        JOIN proc.act_group_member m ON m.adam = sc.adam
+        JOIN proc.procurement_act a ON a.adam = sc.adam
+        WHERE m.group_id = %s AND sc.scope_kind = 'whole_tender'
+        ORDER BY a.submission_date NULLS LAST, sc.adam
+    """, (gid,))
+    whole = c.fetchall()
+    # members whose scope is unknown / unset — the "Not determined" bucket
+    c.execute("""
+        SELECT m.adam, a.type, a.title
+        FROM proc.act_group_member m
+        JOIN proc.procurement_act a ON a.adam = m.adam
+        LEFT JOIN proc.act_scope sc ON sc.adam = m.adam
+        WHERE m.group_id = %s AND COALESCE(sc.scope_kind, 'unknown') = 'unknown'
+        ORDER BY a.submission_date NULLS LAST, m.adam
+    """, (gid,))
+    unknown = c.fetchall()
+    return {"lots": lots, "acts_by_lot": by_lot,
+            "whole_tender": whole, "unknown": unknown}
 
 
 def group_panel(c, adam):
@@ -402,20 +702,23 @@ def make_interconnect_router(templates: Jinja2Templates, cursor) -> APIRouter:
             "cmp": cmp, "a": a, "b": b, "ga": ga, "gb": gb, "admin_tab": "interconnect"})
 
     @router.get("/group/{gid}", response_class=HTMLResponse)
-    def group_page(gid: int, request: Request, ok: str = None):
+    def group_page(gid: int, request: Request, ok: str = None, err: str = None):
         with cursor() as c:
             members = group_members(c, gid)
             if not members:
                 raise HTTPException(404, "group not found")
+            lots = lots_for_group(c, gid)
+            scopes = {m["adam"]: scope_for_act(c, m["adam"]) for m in members}
         return templates.TemplateResponse(request, "admin_interconnect_group.html", {
-            "gid": gid, "members": members, "ok": ok, "admin_tab": "interconnect"})
+            "gid": gid, "members": members, "lots": lots, "scopes": scopes,
+            "ok": ok, "err": err, "admin_tab": "interconnect"})
 
     @router.post("/relate")
     async def do_relate(request: Request):
         form = await request.form()
         a, b = (form.get("a") or "").strip(), (form.get("b") or "").strip()
         back = (form.get("back") or f"/admin/interconnect/act/{a}")
-        with cursor() as c:
+        with cursor() as c, c.connection.transaction():
             relate(c, a, b, _by(request))
         return RedirectResponse(f"{back}?ok=related", status_code=303)
 
@@ -442,9 +745,81 @@ def make_interconnect_router(templates: Jinja2Templates, cursor) -> APIRouter:
         form = await request.form()
         adam = (form.get("adam") or "").strip()
         back = (form.get("back") or f"/admin/interconnect/act/{adam}")
-        with cursor() as c:
+        with cursor() as c, c.connection.transaction():
             remove_member(c, adam)
         return RedirectResponse(f"{back}?ok=removed", status_code=303)
+
+    # ------- lots + scope (group page) ------------------------------------- #
+    def _num(v):
+        v = (v or "").strip().replace(",", ".")
+        try:
+            return float(v) if v else None
+        except ValueError:
+            return None
+
+    @router.post("/lot/create")
+    async def do_lot_create(request: Request):
+        form = await request.form()
+        gid = int(form.get("gid"))
+        with cursor() as c, c.connection.transaction():
+            create_lot(c, gid, created_by=_by(request),
+                       lot_number=(form.get("lot_number") or "").strip() or None,
+                       title=(form.get("title") or "").strip() or None,
+                       description=(form.get("description") or "").strip() or None,
+                       status=(form.get("status") or "").strip() or None,
+                       estimated_value=_num(form.get("estimated_value")),
+                       awarded_value=_num(form.get("awarded_value")),
+                       currency_code=(form.get("currency_code") or "").strip() or None)
+        return RedirectResponse(f"/admin/interconnect/group/{gid}?ok=lot_created", status_code=303)
+
+    @router.post("/lot/edit")
+    async def do_lot_edit(request: Request):
+        form = await request.form()
+        gid, lot_id = int(form.get("gid")), int(form.get("lot_id"))
+        with cursor() as c, c.connection.transaction():
+            update_lot(c, lot_id,
+                       lot_number=(form.get("lot_number") or "").strip() or None,
+                       title=(form.get("title") or "").strip() or None,
+                       description=(form.get("description") or "").strip() or None,
+                       status=(form.get("status") or "").strip() or None,
+                       estimated_value=_num(form.get("estimated_value")),
+                       awarded_value=_num(form.get("awarded_value")),
+                       currency_code=(form.get("currency_code") or "").strip() or None)
+        return RedirectResponse(f"/admin/interconnect/group/{gid}?ok=lot_saved", status_code=303)
+
+    @router.post("/lot/delete")
+    async def do_lot_delete(request: Request):
+        form = await request.form()
+        gid, lot_id = int(form.get("gid")), int(form.get("lot_id"))
+        force = form.get("force") == "1"
+        try:
+            with cursor() as c, c.connection.transaction():
+                delete_lot(c, lot_id, force=force)
+        except HTTPException as e:
+            return RedirectResponse(f"/admin/interconnect/group/{gid}?err=lot_ref",
+                                    status_code=303)
+        return RedirectResponse(f"/admin/interconnect/group/{gid}?ok=lot_deleted", status_code=303)
+
+    @router.post("/scope")
+    async def do_scope(request: Request):
+        form = await request.form()
+        gid = int(form.get("gid"))
+        adam = (form.get("adam") or "").strip()
+        kind = (form.get("scope_kind") or "unknown").strip()
+        lot_ids = [int(x) for x in form.getlist("lot_ids") if x]
+        by = _by(request)
+        try:
+            with cursor() as c, c.connection.transaction():
+                if kind == "whole_tender":
+                    set_scope_whole(c, adam, by=by)
+                elif kind == "specific_lots":
+                    set_scope_lots(c, adam, lot_ids, by=by)
+                else:
+                    set_scope_unknown(c, adam, by=by)
+        except HTTPException:
+            return RedirectResponse(f"/admin/interconnect/group/{gid}?err=scope",
+                                    status_code=303)
+        return RedirectResponse(f"/admin/interconnect/group/{gid}?ok=scope_saved", status_code=303)
 
     @router.post("/rules")
     async def save_rules(request: Request):

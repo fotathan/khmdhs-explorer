@@ -12,6 +12,22 @@
 </div>
 
 {% if ok %}<div class="ic-flash ic-ok">{{ t("✓ Αποθηκεύτηκε.") }}</div>{% endif %}
+{% if err == 'lot_ref' %}<div class="ic-flash ic-err">{{ t("Το τμήμα συνδέεται με πράξεις — επιβεβαιώστε τη διαγραφή.") }}</div>{% endif %}
+{% if err == 'scope' %}<div class="ic-flash ic-err">{{ t("Μη έγκυρη επιλογή τμημάτων.") }}</div>{% endif %}
+
+{% macro lot_form(gid, lot) %}
+<form method="post" action="/admin/interconnect/lot/{{ 'edit' if lot else 'create' }}" class="lotform">
+  <input type="hidden" name="gid" value="{{ gid }}">
+  {% if lot %}<input type="hidden" name="lot_id" value="{{ lot.id }}">{% endif %}
+  <input name="lot_number" placeholder="{{ t('Αριθμός') }}" value="{{ lot.lot_number if lot and lot.lot_number else '' }}" style="width:80px;">
+  <input name="title" placeholder="{{ t('Τίτλος') }}" value="{{ lot.title if lot and lot.title else '' }}">
+  <input name="estimated_value" placeholder="{{ t('Εκτ. αξία') }}" value="{{ lot.estimated_value if lot and lot.estimated_value else '' }}" style="width:110px;">
+  <input name="currency_code" placeholder="EUR" value="{{ lot.currency_code if lot and lot.currency_code else '' }}" style="width:64px;">
+  <input name="status" placeholder="{{ t('Κατάσταση') }}" value="{{ lot.status if lot and lot.status else '' }}" style="width:120px;">
+  <textarea name="description" placeholder="{{ t('Περιγραφή') }}" rows="1">{{ lot.description if lot and lot.description else '' }}</textarea>
+  <button type="submit" class="ic-btn">{{ t("Αποθήκευση") }}</button>
+</form>
+{% endmacro %}
 
 <table class="notices">
   <thead><tr>
@@ -55,9 +71,95 @@
   </tbody>
 </table>
 
+{# ---------- Lots ---------- #}
+<h2 class="ic-h2">{{ t("Τμήματα") }} <span class="meta">({{ t("Lots") }})</span></h2>
+{% if lots %}
+<table class="notices">
+  <thead><tr>
+    <th>{{ t("Τμήμα") }}</th><th>{{ t("Τίτλος") }}</th><th>{{ t("Πηγή") }}</th>
+    <th>{{ t("Αξία") }}</th><th>CPV / NUTS</th><th>{{ t("Πράξεις") }}</th><th></th>
+  </tr></thead>
+  <tbody>
+    {% for l in lots %}
+    <tr>
+      <td class="meta">{{ l.lot_number or l.source_key }}</td>
+      <td>{{ l.title or '—' }}{% if l.description %}<div class="meta">{{ l.description[:120] }}</div>{% endif %}</td>
+      <td class="meta">{{ l.source }} · {{ t("χειροκίνητο") if l.origin == 'authored' else t("εισαγωγή") }}</td>
+      <td class="val">{% if l.estimated_value %}{{ "{:,.0f}".format(l.estimated_value).replace(",", ".") }} {{ l.currency_code or '' }}{% else %}—{% endif %}</td>
+      <td class="meta">{{ (l.cpvs or [])|join(', ') }}{% if l.nuts %}<br>{{ l.nuts|join(', ') }}{% endif %}</td>
+      <td class="meta">{{ l.n_acts }}</td>
+      <td style="white-space:nowrap;">
+        {% if l.origin == 'authored' %}
+        <button type="button" class="ic-mini" onclick="document.getElementById('lot-edit-{{ l.id }}').style.display='table-row';">{{ t("επεξεργασία") }}</button>
+        <form method="post" action="/admin/interconnect/lot/delete" style="display:inline"
+              onsubmit="return confirm('{{ t('Διαγραφή τμήματος;') }}');">
+          <input type="hidden" name="gid" value="{{ gid }}"><input type="hidden" name="lot_id" value="{{ l.id }}">
+          {% if l.n_acts %}<input type="hidden" name="force" value="1">{% endif %}
+          <button type="submit" class="ic-mini">{{ t("διαγραφή") }}</button>
+        </form>
+        {% else %}<span class="meta">{{ t("μόνο ανάγνωση") }}</span>{% endif %}
+      </td>
+    </tr>
+    {% if l.origin == 'authored' %}
+    <tr id="lot-edit-{{ l.id }}" style="display:none;"><td colspan="7" style="background:#fafafa;">{{ lot_form(gid, l) }}</td></tr>
+    {% endif %}
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="meta">{{ t("Δεν υπάρχουν τμήματα σε αυτή την ομάδα.") }}</p>
+{% endif %}
+
+<details class="ic-add">
+  <summary>{{ t("+ Προσθήκη τμήματος") }}</summary>
+  {{ lot_form(gid, none) }}
+</details>
+
+{# ---------- Applies-to (per-act scope) ---------- #}
+{% if lots %}
+<h2 class="ic-h2">{{ t("Εφαρμόζεται σε") }} <span class="meta">({{ t("Applies to") }})</span></h2>
+<div class="scopelist">
+  {% for m in members %}
+  {% set sc = scopes[m.adam] %}
+  <form method="post" action="/admin/interconnect/scope" class="scopeform">
+    <input type="hidden" name="gid" value="{{ gid }}"><input type="hidden" name="adam" value="{{ m.adam }}">
+    <div class="scope-act"><strong>{{ (m.title or m.adam)[:64] }}</strong> <span class="meta adam">{{ m.adam }}</span></div>
+    <label class="scope-opt"><input type="radio" name="scope_kind" value="unknown" {{ 'checked' if sc.kind == 'unknown' else '' }} onchange="scopeToggle(this)"> {{ t("Δεν έχει προσδιοριστεί") }}</label>
+    <label class="scope-opt"><input type="radio" name="scope_kind" value="whole_tender" {{ 'checked' if sc.kind == 'whole_tender' else '' }} onchange="scopeToggle(this)"> {{ t("Ολόκληρο τον διαγωνισμό") }}</label>
+    <label class="scope-opt"><input type="radio" name="scope_kind" value="specific_lots" {{ 'checked' if sc.kind == 'specific_lots' else '' }} onchange="scopeToggle(this)"> {{ t("Συγκεκριμένα τμήματα") }}</label>
+    <div class="lotpick" {% if sc.kind != 'specific_lots' %}style="display:none;"{% endif %}>
+      {% for l in lots %}
+      <label class="meta"><input type="checkbox" name="lot_ids" value="{{ l.id }}" {{ 'checked' if l.id in sc.lot_ids else '' }}> {{ l.lot_number or l.source_key }} — {{ (l.title or '')[:32] }}</label>
+      {% endfor %}
+    </div>
+    <button type="submit" class="ic-mini">{{ t("Αποθήκευση") }}</button>
+  </form>
+  {% endfor %}
+</div>
+<script>
+function scopeToggle(radio){
+  var pick = radio.form.querySelector('.lotpick');
+  if (pick) pick.style.display = (radio.value === 'specific_lots') ? '' : 'none';
+}
+</script>
+{% endif %}
+
 <style>
   .ic-flash{padding:9px 14px;border-radius:8px;font-size:13px;margin:14px 0;background:#eaf6ef;border:1px solid #b7e0c7;color:#1a7f47;}
+  .ic-flash.ic-err{background:#fdeceb;border-color:#f3c2bd;color:#b3261e;}
   .ic-mini{background:none;border:0;color:var(--accent);cursor:pointer;font-size:11px;padding:0 4px;text-decoration:underline;}
   .ic-dup{font-size:10px;font-weight:700;color:#b3261e;background:#fdeceb;border-radius:6px;padding:0 5px;margin-left:5px;}
+  .ic-h2{font-size:15px;margin:26px 0 8px;padding-top:14px;border-top:1px solid var(--border,#e5e5e5);}
+  .ic-btn{background:var(--accent);color:#fff;border:0;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;}
+  .lotform{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 0;}
+  .lotform input,.lotform textarea{font-size:12px;padding:4px 6px;border:1px solid var(--border,#ccc);border-radius:5px;}
+  .lotform input[name=title]{flex:1 1 220px;} .lotform textarea{flex:1 1 260px;resize:vertical;}
+  .ic-add{margin:10px 0;} .ic-add summary{cursor:pointer;color:var(--accent);font-size:13px;}
+  .scopelist{display:flex;flex-direction:column;gap:10px;}
+  .scopeform{border:1px solid var(--border,#e5e5e5);border-radius:8px;padding:10px 12px;}
+  .scope-act{margin-bottom:6px;} .scope-act .adam{font-size:11px;}
+  .scope-opt{display:inline-flex;align-items:center;gap:4px;font-size:12px;margin-right:14px;}
+  .lotpick{margin:8px 0;display:flex;flex-wrap:wrap;gap:4px 16px;padding-left:8px;}
+  .lotpick label{display:inline-flex;align-items:center;gap:4px;}
 </style>
 {% endblock %}

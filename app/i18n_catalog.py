@@ -1446,6 +1446,25 @@ _INTERCONNECT = {
     "Πόσες προκηρύξεις θα επιχειρηθούν αυτή τη φορά.": "How many notices to attempt this run.",
     "Εκκίνηση εξαγωγής κειμένου TED": "Start TED text extraction",
     "Κάλυψη TED": "TED coverage",
+    # Structured lots + act scope (group page + public act page)
+    "Τμήματα": "Lots", "Lots": "Lots", "Τμήμα": "Lot",
+    "Πηγή": "Source", "Πράξεις": "Acts",
+    "χειροκίνητο": "manual", "εισαγωγή": "import",
+    "επεξεργασία": "edit", "μόνο ανάγνωση": "read-only",
+    "Διαγραφή τμήματος;": "Delete lot?",
+    "Δεν υπάρχουν τμήματα σε αυτή την ομάδα.": "This group has no lots.",
+    "+ Προσθήκη τμήματος": "+ Add lot",
+    "Αριθμός": "Number", "Εκτ. αξία": "Est. value",
+    "Το τμήμα συνδέεται με πράξεις — επιβεβαιώστε τη διαγραφή.":
+        "The lot is referenced by acts — confirm the deletion.",
+    "Μη έγκυρη επιλογή τμημάτων.": "Invalid lot selection.",
+    "Εφαρμόζεται σε": "Applies to", "Applies to": "Applies to",
+    "Δεν έχει προσδιοριστεί": "Not determined",
+    "Ολόκληρο τον διαγωνισμό": "Whole tender",
+    "Συγκεκριμένα τμήματα": "Specific lots",
+    "Τμήματα διαγωνισμού": "Tender lots",
+    "Αυτή η πράξη εφαρμόζεται σε:": "This act applies to:",
+    "Σε όλο τον διαγωνισμό": "Across the whole tender",
 }
 
 
@@ -1689,6 +1708,15 @@ _HELP = {
     "Αποθηκευμένες εξαγωγές μπορούν να δημοσιευτούν για δημόσια προβολή ανά πράξη.": "Saved extractions can be published for a per-act public view.",
     "Διαθεσιμότητα": "Availability",
     "Ορισμένες δυνατότητες εξαρτώνται από τη διαμόρφωση: τα ανεβασμένα συνημμένα και μέρος των εργαλείων κειμένου ενεργοποιούνται με σημαίες, και το OCR μέσω Claude API λειτουργεί μόνο όταν υπάρχει κλειδί. Όπου μια δυνατότητα είναι ανενεργή, τα χειριστήριά της απλώς δεν εμφανίζονται.": "Some capabilities depend on configuration: uploaded attachments and part of the text tooling are enabled by flags, and Claude-API OCR only works when a key is present. Where a feature is off, its controls simply don't appear.",
+    "Τμήματα & εφαρμογή (scope)": "Lots & applicability (scope)",
+    "Στη σελίδα μιας ομάδας, η ενότητα «Τμήματα» δείχνει τα τμήματα (lots) του διαγωνισμού. Τα τμήματα από το TED εισάγονται αυτόματα (μόνο ανάγνωση)· μπορείτε επίσης να προσθέσετε χειροκίνητα τμήματα. Για κάθε πράξη της ομάδας, το «Εφαρμόζεται σε» ορίζει αν αφορά ολόκληρο τον διαγωνισμό, συγκεκριμένα τμήματα, ή δεν έχει προσδιοριστεί.":
+        "On a group's page, the \"Lots\" section shows the tender's lots. Lots from TED are imported automatically (read-only); you can also add manual lots. For each act in the group, \"Applies to\" sets whether it concerns the whole tender, specific lots, or is not yet determined.",
+    "Ένα τμήμα ανήκει πάντα σε έναν διαγωνισμό (ομάδα), όχι σε μια πράξη· η ίδια πράξη μπορεί να καλύπτει πολλά τμήματα.":
+        "A lot always belongs to a tender (group), not to an act; the same act can cover several lots.",
+    "Η αυτόματη εισαγωγή δεν αντικαθιστά ποτέ μια εφαρμογή που έχει ορίσει χειροκίνητα ο διαχειριστής.":
+        "Automatic import never overwrites an applicability an administrator has set manually.",
+    "Στη δημόσια σελίδα μιας πράξης, οι συνδεδεμένες πράξεις ομαδοποιούνται ανά τμήμα, «σε όλο τον διαγωνισμό», ή «δεν έχει προσδιοριστεί».":
+        "On an act's public page, related acts are grouped by lot, \"across the whole tender\", or \"not determined\".",
     "Αναφορά": "Reference",
     "Όρος": "Term",
     "Σημασία": "Meaning",

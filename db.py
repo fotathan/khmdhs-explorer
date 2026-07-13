@@ -118,6 +118,17 @@ class Database:
         self.cur.execute(sql, params)
         return self.cur.fetchall()
 
+    def dict_cursor(self):
+        """A second cursor on THIS connection that yields dict rows — lets code
+        written against the app's dict-row cursor (e.g. app.interconnect helpers)
+        run inside an ingestion transaction. Shares the connection, so writes
+        commit together with self.commit()."""
+        if _DRIVER == "psycopg3":
+            from psycopg.rows import dict_row
+            return self.conn.cursor(row_factory=dict_row)
+        import psycopg2.extras
+        return self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
     def close(self):
         try:
             self.cur.close()
