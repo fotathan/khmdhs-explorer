@@ -68,6 +68,49 @@ def _norm(s: str) -> str:
     return "".join(c for c in s if unicodedata.category(c) != "Mn")
 
 
+def _fold(s: str) -> str:
+    """Accent-fold + lowercase, PRESERVING length (one char in → one char out),
+    so an index into the folded string maps 1:1 back to the original text (needed
+    for the highlight span). Unlike _norm, which drops combining marks and so
+    shifts offsets."""
+    out = []
+    for ch in s or "":
+        base = "".join(c for c in unicodedata.normalize("NFD", ch)
+                       if unicodedata.category(c) != "Mn")
+        out.append((base[:1] or ch).lower())
+    return "".join(out)
+
+
+# Option labels too short/generic to match reliably in free text (yes/no, "other",
+# status words) — skip them so we never false-snap a dropdown from a stray word.
+_OPTION_MIN_LEN = 9
+
+
+def find_option_matches(text: str, options_by_field: dict) -> list[dict]:
+    """For each select field, find the option whose accent-folded label appears
+    verbatim in the text; the LONGEST matching label wins (most specific). The
+    returned value is always a real option value, so applying it snaps the
+    dropdown exactly. options_by_field: {field: [(value, label), …]}."""
+    folded = _fold(text)
+    out = []
+    for field, options in (options_by_field or {}).items():
+        best = None      # (label_len, start, value, label)
+        for value, label in options or []:
+            fl = _fold(label)
+            if len(fl) < _OPTION_MIN_LEN:
+                continue
+            idx = folded.find(fl)
+            if idx == -1:
+                continue
+            if best is None or len(fl) > best[0]:
+                best = (len(fl), idx, value, label)
+        if best:
+            _, start, value, label = best
+            out.append({"target": field, "value": value, "display": label,
+                        "start": start, "len": len(label)})
+    return out
+
+
 def _anchor(norm_text: str, pos: int, fields, window: int = 55) -> str | None:
     """Field whose keyword sits CLOSEST before `pos` (labels precede their value
     in these documents, and the nearest one wins over priority order)."""

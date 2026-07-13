@@ -1,7 +1,7 @@
 """Manual act create/edit form: the former free-text label fields now render as
 dropdowns constrained to curated option lists (and the authority-activity field
 pulls its options from proc.code_list)."""
-from tests.helpers import login, make_user
+from tests.helpers import get_csrf, login, make_user
 
 SELECT_FIELDS = [
     "procedure_label", "subtype_of_document", "regulation_of_procurement",
@@ -39,3 +39,18 @@ def test_authority_activity_options_come_from_code_list(client):
     # labels should populate the dropdown rather than a hardcoded list.
     html = _open_new_act_form(client).text
     assert "Γενικές δημόσιες υπηρεσίες" in html or "Άμυνα" in html
+
+
+def test_scan_emits_snapped_select_suggestion(client):
+    """The deterministic scanner matches a procedure phrase in the text and
+    suggests the exact dropdown option value (so accepting it snaps the select)."""
+    make_user("boss", "goodpassword1", role="admin")
+    login(client, "boss", "goodpassword1")
+    tok = get_csrf(client)
+    text = "Ο διαγωνισμός διενεργείται με ΑΝΟΙΧΤΗ ΔΙΑΔΙΚΑΣΙΑ και κριτήριο την τιμή."
+    r = client.post("/admin/acts/extract", data={"text": text},
+                    headers={"X-CSRF-Token": tok})
+    assert r.status_code == 200
+    proc = [s for s in r.json()["suggestions"]
+            if s.get("kind") == "select" and s["target"] == "procedure_label"]
+    assert proc and proc[0]["value"] == "Ανοιχτή διαδικασία"

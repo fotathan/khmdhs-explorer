@@ -551,9 +551,9 @@
   var GROUP_LABELS = {
     cpv: '{{ t("Κωδικοί CPV") }}', title: '{{ t("Τίτλος") }}', afm: '{{ t("ΑΦΜ / Αναθέτουσα") }}',
     authority: '{{ t("Αναθέτουσα (ταίριασμα ονόματος)") }}', postal: '{{ t("Τ.Κ. → NUTS") }}',
-    date: '{{ t("Ημερομηνίες") }}', amount: '{{ t("Ποσά") }}'
+    date: '{{ t("Ημερομηνίες") }}', amount: '{{ t("Ποσά") }}', select: '{{ t("Πεδία επιλογής") }}'
   };
-  var ORDER = ['title', 'cpv', 'afm', 'authority', 'date', 'amount', 'postal'];
+  var ORDER = ['title', 'cpv', 'afm', 'authority', 'date', 'amount', 'postal', 'select'];
 
   function fill(name, value) {
     var scope = document.querySelector('.af-fields') || document;
@@ -569,7 +569,8 @@
 
   // --- highlight found values in the full-text editor (Quill) ---------------
   var HL_COLORS = { date: '#fff3bf', amount: '#d3f9d8', cpv: '#e5dbff',
-                    afm: '#ffe3e3', postal: '#c5f6fa', title: '#ffec99' };
+                    afm: '#ffe3e3', postal: '#c5f6fa', title: '#ffec99',
+                    select: '#ffd8a8' };
   var _hl = [];  // currently-applied highlights [{start,len,color}]
   function quill() { var m = document.querySelector('.ftc-editor'); return m && m.__quill; }
   function clearHighlights() {

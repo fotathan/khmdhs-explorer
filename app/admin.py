@@ -1588,6 +1588,14 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                          "display": title["text"], "hint": "",
                          "span": [title["start"], title["len"]]})
 
+        # dropdown fields — match the text against each select's option list and
+        # suggest the nearest option. The value is always a real option, so
+        # accepting it snaps the dropdown exactly (no free-text left behind).
+        for om in tx.find_option_matches(text, _field_options()):
+            sugg.append({"kind": "select", "target": om["target"], "value": om["value"],
+                         "display": om["display"], "hint": "",
+                         "span": [om["start"], om["len"]]})
+
         # dedup identical suggestions (e.g. same authority name under two org_ids)
         seen, uniq = set(), []
         for s in sugg:

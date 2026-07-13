@@ -788,6 +788,7 @@ _PANELS = {
 _ACTFORM = {
     "Νέα πράξη": "New act",
     "τρέχουσα τιμή": "current value",
+    "Πεδία επιλογής": "Dropdown fields",
     "Επεξεργασία πράξης": "Edit act",
     "‹ πίσω στη διαχείριση πράξεων": "‹ back to act management",
     "Δημιουργία πράξης (χειροκίνητη)": "Create act (manual)",

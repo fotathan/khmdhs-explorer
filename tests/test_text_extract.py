@@ -121,3 +121,42 @@ def test_extract_requires_admin(client):
     r = client.post("/admin/acts/extract",
                     data={"text": "x", "csrf_token": tok}, follow_redirects=False)
     assert r.status_code in (302, 303, 403)      # admin-gated (redirect or forbidden)
+
+
+# --- dropdown-option snapping (find_option_matches) ---
+def test_find_option_matches_snaps_and_maps_span():
+    from app import text_extract as tx
+    opts = {
+        "procedure_label": [
+            ("Ανοιχτή διαδικασία", "Ανοιχτή διαδικασία"),
+            ("Απευθείας ανάθεση", "Απευθείας ανάθεση"),
+        ],
+        "e_auction": [("Ναι", "Ναι"), ("Όχι", "Όχι")],   # too short → never matched
+    }
+    text = "Ο διαγωνισμός διενεργείται με ΑΝΟΙΧΤΗ ΔΙΑΔΙΚΑΣΙΑ και κριτήριο την τιμή."
+    got = tx.find_option_matches(text, opts)
+    by_field = {m["target"]: m for m in got}
+    # procedure snapped to the real option value (accent/case-insensitive)
+    assert by_field["procedure_label"]["value"] == "Ανοιχτή διαδικασία"
+    # the span points back at the matched phrase in the ORIGINAL text
+    m = by_field["procedure_label"]
+    assert text[m["start"]:m["start"] + m["len"]].lower() == "ανοιχτη διαδικασια"
+    # yes/no options are too generic to auto-match
+    assert "e_auction" not in by_field
+
+
+def test_find_option_matches_longest_option_wins():
+    from app import text_extract as tx
+    opts = {"procedure_label": [
+        ("Κλειστή διαδικασία", "Κλειστή διαδικασία"),
+        ("Ταχεία κλειστή διαδικασία", "Ταχεία κλειστή διαδικασία"),
+    ]}
+    text = "Εφαρμόζεται ΤΑΧΕΙΑ ΚΛΕΙΣΤΗ ΔΙΑΔΙΚΑΣΙΑ για λόγους επείγοντος."
+    got = tx.find_option_matches(text, opts)
+    assert got and got[0]["value"] == "Ταχεία κλειστή διαδικασία"
+
+
+def test_find_option_matches_none_when_absent():
+    from app import text_extract as tx
+    opts = {"procedure_label": [("Δημοπρασία", "Δημοπρασία")]}
+    assert tx.find_option_matches("Κείμενο χωρίς σχετική διαδικασία εδώ.", opts) == []
