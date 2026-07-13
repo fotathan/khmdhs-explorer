@@ -117,3 +117,30 @@ def test_ambiguous_name_does_not_auto_relate(client):
     }, headers={"X-CSRF-Token": tok}, follow_redirects=False)
     adam = re.search(r"/admin/act/([^/]+)/edit", r.headers["location"]).group(1)
     assert _rows("act_authority", adam)[0]["authority_id"] is None   # ambiguous → not linked
+
+
+def test_party_suggest_endpoints(client):
+    _admin(client)
+    with connect() as c:
+        cur = c.cursor()
+        cur.execute("INSERT INTO proc.authority (org_id, vat_number, name, city) "
+                    "VALUES (%s,%s,%s,%s)", ("ORG-S1", "111222333", "ΔΗΜΟΣ ΘΕΣΣΑΛΟΝΙΚΗΣ", "Θεσσαλονίκη"))
+        cur.execute("INSERT INTO proc.economic_operator (vat_number, name) "
+                    "VALUES (%s,%s) RETURNING operator_id", ("444555666", "ΤΕΧΝΙΚΗ ΕΤΑΙΡΕΙΑ ΑΕ"))
+        op_id = cur.fetchone()["operator_id"]
+    # authority by name
+    res = client.get("/admin/api/authority-suggest?term=Θεσσαλον").json()["results"]
+    assert any(x["key"] == "ORG-S1" and x["afm"] == "111222333" for x in res)
+    # authority by ΑΦΜ (exact match ranks first)
+    assert client.get("/admin/api/authority-suggest?term=111222333").json()["results"][0]["key"] == "ORG-S1"
+    # contractor by name
+    assert any(x["key"] == op_id
+               for x in client.get("/admin/api/contractor-suggest?term=ΤΕΧΝΙΚΗ").json()["results"])
+    # too-short term → empty
+    assert client.get("/admin/api/authority-suggest?term=x").json()["results"] == []
+
+
+def test_party_suggest_requires_admin(client):
+    # anonymous (no login) must not reach the admin suggest endpoint
+    assert client.get("/admin/api/authority-suggest?term=test",
+                      follow_redirects=False).status_code != 200

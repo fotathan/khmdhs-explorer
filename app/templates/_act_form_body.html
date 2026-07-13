@@ -329,6 +329,22 @@
   .party-row-head .party-remove:hover{color:var(--danger,#c0362c);}
   .party-grid{grid-template-columns:repeat(3, minmax(0,1fr));}
   .party-add{margin-top:2px;}
+  /* search-and-relate dialog */
+  .psearch-modal{position:fixed; inset:0; background:rgba(20,24,31,.45); display:flex;
+    align-items:flex-start; justify-content:center; z-index:1000; padding-top:8vh;}
+  .psearch-modal[hidden]{display:none;}
+  .psearch-box{background:var(--paper); border-radius:12px; width:min(560px,92vw);
+    max-height:70vh; display:flex; flex-direction:column; box-shadow:0 10px 40px rgba(0,0,0,.25);}
+  .psearch-head{display:flex; gap:8px; padding:12px; border-bottom:1px solid var(--rule);}
+  .psearch-input{flex:1; padding:9px 11px; border:1px solid var(--rule); border-radius:8px; font-size:14px;}
+  .psearch-close{background:none; border:0; font-size:22px; line-height:1; cursor:pointer; color:var(--ink-3);}
+  .psearch-results{overflow-y:auto; padding:6px;}
+  .psearch-item{display:block; width:100%; text-align:left; background:none; border:0;
+    border-radius:8px; padding:9px 10px; cursor:pointer; font-size:13px;}
+  .psearch-item:hover{background:var(--paper-2);}
+  .psearch-name{font-weight:600;}
+  .psearch-afm,.psearch-city{color:var(--ink-3); font-size:12px; margin-left:6px;}
+  .psearch-empty{padding:14px; color:var(--ink-3); font-size:13px;}
 </style>
 
 <script>
@@ -807,6 +823,81 @@
     var rm = e.target.closest && e.target.closest('.party-remove');
     if (rm) { var r = rm.closest('.party-row'); if (r) r.remove(); }
   });
+})();
+</script>
+
+<div class="psearch-modal" hidden>
+  <div class="psearch-box">
+    <div class="psearch-head">
+      <input type="text" class="psearch-input" autocomplete="off"
+             placeholder="{{ t('Αναζήτηση με επωνυμία ή ΑΦΜ…') }}">
+      <button type="button" class="psearch-close" aria-label="{{ t('Κλείσιμο') }}">×</button>
+    </div>
+    <div class="psearch-results"></div>
+  </div>
+</div>
+<script>
+// Search-and-relate: the per-row "Αναζήτηση" button opens a dialog that queries
+// the authority/contractor DB; picking a result links the row (sets link_id) and
+// fills empty detail fields. Reparented to <body> so position:fixed isn't trapped
+// by a transformed ancestor.
+(function () {
+  var modal = document.querySelector('.psearch-modal');
+  if (!modal) return;
+  document.body.appendChild(modal);
+  var input = modal.querySelector('.psearch-input');
+  var results = modal.querySelector('.psearch-results');
+  var activeRow = null, activeKind = null, timer = null;
+
+  function open(kind, row) { activeKind = kind; activeRow = row; input.value = '';
+    results.innerHTML = ''; modal.hidden = false; input.focus(); }
+  function close() { modal.hidden = true; activeRow = null; }
+
+  function render(list) {
+    results.innerHTML = '';
+    if (!list.length) { results.innerHTML = '<div class="psearch-empty">{{ t("Καμία αντιστοιχία") }}</div>'; return; }
+    list.forEach(function (it) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'psearch-item';
+      b.innerHTML = '<span class="psearch-name"></span><span class="psearch-afm"></span><span class="psearch-city"></span>';
+      b.querySelector('.psearch-name').textContent = it.name || '—';
+      b.querySelector('.psearch-afm').textContent = it.afm ? ('ΑΦΜ ' + it.afm) : '';
+      b.querySelector('.psearch-city').textContent = it.city || '';
+      b.addEventListener('click', function () { pick(it); });
+      results.appendChild(b);
+    });
+  }
+  function pick(it) {
+    if (!activeRow) return;
+    var link = activeRow.querySelector('[name$="_link_id"]'); if (link) link.value = it.key;
+    // fill empty detail fields only — never clobber curator input
+    [['name', it.name], ['afm', it.afm], ['city', it.city]].forEach(function (p) {
+      var el = activeRow.querySelector('[name$="_' + p[0] + '"]');
+      if (el && p[1] != null && el.value === '') el.value = p[1];
+    });
+    var mark = activeRow.querySelector('.party-row-head .party-linked');
+    if (!mark) { mark = document.createElement('span'); mark.className = 'party-linked';
+      activeRow.querySelector('.party-idx').after(mark); }
+    mark.textContent = '✓ {{ t("Συνδεδεμένο") }}';
+    close();
+  }
+  document.addEventListener('click', function (e) {
+    var s = e.target.closest && e.target.closest('.party-search');
+    if (s) { open(s.getAttribute('data-kind'), s.closest('.party-row')); return; }
+    if (e.target.closest && e.target.closest('.psearch-close')) { close(); return; }
+    if (e.target === modal) close();
+  });
+  input.addEventListener('input', function () {
+    clearTimeout(timer);
+    var q = input.value.trim();
+    if (q.length < 2) { results.innerHTML = ''; return; }
+    timer = setTimeout(function () {
+      fetch('/admin/api/' + activeKind + '-suggest?term=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(function (d) { render(d.results || []); })
+        .catch(function () { results.innerHTML = '<div class="psearch-empty">{{ t("Σφάλμα") }}</div>'; });
+    }, 200);
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) close(); });
 })();
 </script>
 {% endif %}

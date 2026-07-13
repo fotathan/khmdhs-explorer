@@ -1613,6 +1613,35 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         """(field, label, kind) lists for the template to render each row."""
         return {"authority": _AUTHORITY_ROW_FIELDS, "contractor": _CONTRACTOR_ROW_FIELDS}
 
+    def _party_suggest(kind, term):
+        """Search the entity DB by name or ΑΦΜ for the manual-relate dialog.
+        Exact-ΑΦΜ hits rank first, then shorter (more specific) names."""
+        from fastapi.responses import JSONResponse
+        term = (term or "").strip()
+        if len(term) < 2:
+            return JSONResponse({"results": []})
+        spec = _PARTY_SPECS[kind]
+        ent, key = spec["entity"], spec["entity_key"]
+        digits = term.replace(" ", "")
+        with cursor() as c:
+            c.execute(
+                f"""SELECT {key} AS key, name, vat_number AS afm, city
+                    FROM {ent}
+                    WHERE name ILIKE %s OR vat_number LIKE %s
+                    ORDER BY (vat_number = %s) DESC, char_length(coalesce(name,'')) ASC
+                    LIMIT 12""",
+                (f"%{term}%", f"{digits}%", digits))
+            rows = [dict(r) for r in c.fetchall()]
+        return JSONResponse({"results": rows})
+
+    @router.get("/api/authority-suggest")
+    def api_authority_suggest(request: Request, term: str = Query("")):
+        return _party_suggest("authority", term)
+
+    @router.get("/api/contractor-suggest")
+    def api_contractor_suggest(request: Request, term: str = Query("")):
+        return _party_suggest("contractor", term)
+
     @router.get("/acts/new", response_class=HTMLResponse)
     def act_create_form(request: Request):
         """Blank form to author a new act from scratch."""

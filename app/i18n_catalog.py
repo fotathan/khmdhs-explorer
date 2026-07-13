@@ -804,6 +804,8 @@ _ACTFORM = {
     "Αρ. φορολ./στατιστ.": "Tax / statistical no.",
     "Υπεύθυνος επικοινωνίας": "Contact person",
     "Συντ. ΦΠΑ (%)": "VAT rate (%)",
+    "Αναζήτηση με επωνυμία ή ΑΦΜ…": "Search by name or ΑΦΜ…",
+    "Καμία αντιστοιχία": "No matches",
     "Επεξεργασία πράξης": "Edit act",
     "‹ πίσω στη διαχείριση πράξεων": "‹ back to act management",
     "Δημιουργία πράξης (χειροκίνητη)": "Create act (manual)",
