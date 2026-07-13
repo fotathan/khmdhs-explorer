@@ -85,6 +85,19 @@
                   <option value="{{ code }}" {% if val==code %}selected{% endif %}>{{ code | type_label }}</option>
                   {% endfor %}
                 </select>
+              {% elif kind == 'select' %}
+                {% set opts = field_options.get(name, []) %}
+                {% set optvals = opts | map('first') | list %}
+                <select name="{{ name }}">
+                  <option value="" {% if not val %}selected{% endif %}>{{ "Δεν προσδιορίζεται" | t }}</option>
+                  {% for ov, ol in opts %}
+                  <option value="{{ ov }}" {% if val == ov %}selected{% endif %}>{{ ol }}</option>
+                  {% endfor %}
+                  {# preserve a pre-existing free-text value that isn't in the curated list #}
+                  {% if val and val not in optvals %}
+                  <option value="{{ val }}" selected>{{ val }} ({{ "τρέχουσα τιμή" | t }})</option>
+                  {% endif %}
+                </select>
               {% elif kind == 'date' %}
                 <input type="date" name="{{ name }}" value="{{ val.strftime('%Y-%m-%d') if val else '' }}">
               {% elif kind == 'number' %}

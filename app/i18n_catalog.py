@@ -787,6 +787,7 @@ _PANELS = {
 # Act create/edit form (admin_act_form.html)
 _ACTFORM = {
     "Νέα πράξη": "New act",
+    "τρέχουσα τιμή": "current value",
     "Επεξεργασία πράξης": "Edit act",
     "‹ πίσω στη διαχείριση πράξεων": "‹ back to act management",
     "Δημιουργία πράξης (χειροκίνητη)": "Create act (manual)",

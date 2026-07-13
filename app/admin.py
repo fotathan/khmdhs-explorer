@@ -1320,23 +1320,24 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 ("authority_reference", "Αναφορά αρχής", "text"),
                 ("data_source", "Πηγή δεδομένων", "text"),
                 ("source_url", "Σύνδεσμος πηγής", "text"),
-                ("source_status", "Κατάσταση πηγής", "text"),
+                ("source_status", "Κατάσταση πηγής", "select"),
                 ("language", "Γλώσσα", "text"),
             ],
             "Κατηγοριοποίηση": [
                 ("type", "Τύπος πράξης", "type"),
                 ("nature_of_contract", "Είδος σύμβασης (πηγής)", "text"),
                 ("type_of_document", "Τύπος εγγράφου", "text"),
-                ("subtype_of_document", "Υποτύπος εγγράφου", "text"),
-                ("procedure_label", "Διαδικασία", "text"),
-                ("regulation_of_procurement", "Κανονισμός", "text"),
-                ("e_auction", "Ηλεκτρονικός πλειστηριασμός", "text"),
+                ("subtype_of_document", "Υποτύπος εγγράφου", "select"),
+                ("procedure_label", "Διαδικασία", "select"),
+                ("regulation_of_procurement", "Κανονισμός", "select"),
+                ("e_auction", "Ηλεκτρονικός πλειστηριασμός", "select"),
                 ("dynamic_purchasing_system", "ΔΣΑ (DPS)", "text"),
                 ("lot_number", "Αριθμός τμήματος", "text"),
                 ("divided_into_lots", "Διαίρεση σε τμήματα", "bool"),
                 ("is_framework_agreement", "Συμφωνία-πλαίσιο", "bool"),
-                ("type_of_bid_required", "Τύπος απαιτούμενης προσφοράς", "text"),
+                ("type_of_bid_required", "Τύπος απαιτούμενης προσφοράς", "select"),
                 ("alternative_offers_allowed", "Εναλλακτικές προσφορές", "bool"),
+                ("contracting_authority_activity_code", "Δραστηριότητα αναθέτουσας", "select"),
             ],
             "Προσφορές & παράταση": [
                 ("number_of_offers", "Αριθμός προσφορών", "number"),
@@ -1404,10 +1405,71 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 kinds[name] = kind
         return kinds
 
+    # Curated option lists for the free-text label fields, so the manual form
+    # offers a dropdown instead of raw typing. The stored value IS the Greek
+    # label (these are label columns, not coded), so value == label here.
+    # `contracting_authority_activity_code` is the one coded field among them —
+    # its options come from the proc.code_list 'authority_activity' domain
+    # (value = code key), so it's added dynamically in _field_options().
+    _SELECT_LABELS = {
+        "procedure_label": [
+            "Ανοιχτή διαδικασία", "Κλειστή διαδικασία", "Απευθείας ανάθεση",
+            "Ανταγωνιστική διαδικασία με διαπραγμάτευση", "Ανταγωνιστικός διάλογος",
+            "Διαπραγμάτευση με προηγούμενη προκήρυξη διαγωνισμού",
+            "Διαπραγμάτευση χωρίς προηγούμενη δημοσίευση",
+            "Ανάθεση διαγωνισμού χωρίς προηγούμενη δημοσίευση διακήρυξης",
+            "Ανάθεση παραχώρησης χωρίς προηγούμενη ειδοποίηση παραχώρησης",
+            "Διαδικασία ανάθεσης παραχώρησης", "Δημοπρασία", "Συνοπτικός διαγωνισμός",
+            "Σύμπραξη καινοτομίας", "Ταχεία διαδικασία διαπραγμάτευσης",
+            "Ταχεία κλειστή διαδικασία", "Άλλα", "Μη διαθέσιμη", "Μη καθορισμένη",
+        ],
+        "subtype_of_document": [
+            "Προκήρυξη Ευρωπαϊκής Ένωσης", "Εθνική Προκήρυξη", "Ιδιωτικός Διαγωνισμός",
+            "Προκήρυξη Μικρού Προϋπολογισμού", "Τοπικός διαγωνισμός",
+            "Διεθνείς διαγωνισμοί", "Αναπτυξιακοί διαγωνισμοί",
+        ],
+        "source_status": ["Νέα", "Ενεργή", "Ανενεργή", "Ληγμένη", "Διεγραμμένη"],
+        "regulation_of_procurement": [
+            "Ευρωπαϊκή Ένωση", "Ευρωπαϊκή Ένωση με τη συμμετοχή των χωρών της GPA",
+            "Ευρωπαϊκή οικονομική περιοχή",
+            "Ευρωπαϊκή οικονομική περιοχή με συμμετοχή στις χώρες της GPA", "GPA",
+            "Ευρωπαϊκή Επενδυτική Τράπεζα, Ευρωπαϊκή Τράπεζα Ανασυγκρότησης και Ανάπτυξης, Ευρωπαϊκό Νομισματικό Ινστιτούτο",
+            "Οργανισμός Ευρωπαϊκού Ιδρύματος ή Διεθνής Οργανισμός",
+            "Συμφωνία μεταξύ της Ευρωπαϊκής Ένωσης και της Ελβετικής Συνομοσπονδίας",
+            "Συμφωνία αμερικανικών κρατικών προμηθειών",
+            "ΗΠΑ - Ιαπωνία: Συμφωνία για την προμήθεια τηλεπικοινωνιών",
+            "Phare Tacis και χώρες της Κεντρικής και Ανατολικής Ευρώπης",
+            "Ταμείο εξωτερικής βοήθειας και ευρωπαϊκής ανάπτυξης",
+            "Άλλο", "Δεν διευκρινίζεται", "Δεν εφαρμόζεται",
+        ],
+        "type_of_bid_required": [
+            "Υποβολή για όλα τα τμήματα", "Υποβολή για ένα μόνο τμήμα",
+            "Υποβολή για ένα ή περισσότερα τμήματα", "Άλλο",
+            "Δεν εφαρμόζεται", "Δεν διευκρινίζεται",
+        ],
+        "e_auction": ["Ναι", "Όχι"],
+    }
+
+    def _field_options():
+        """{field_name: [(value, label), …]} for every 'select' field. Label
+        fields store the label itself (value == label); the one coded field
+        reads its options from proc.code_list."""
+        opts = {name: [(v, v) for v in vals] for name, vals in _SELECT_LABELS.items()}
+        try:
+            with cursor() as c:
+                c.execute("SELECT code, label_el FROM proc.code_list "
+                          "WHERE domain = 'authority_activity' ORDER BY label_el")
+                opts["contracting_authority_activity_code"] = \
+                    [(r["code"], r["label_el"]) for r in c.fetchall()]
+        except Exception:      # noqa: BLE001 — a DB hiccup shouldn't break the form
+            opts["contracting_authority_activity_code"] = []
+        return opts
+
     @router.get("/acts/new", response_class=HTMLResponse)
     def act_create_form(request: Request):
         """Blank form to author a new act from scratch."""
-        ctx = {"groups": _act_form_fields(), "act": {}, "mode": "create",
+        ctx = {"groups": _act_form_fields(), "field_options": _field_options(),
+               "act": {}, "mode": "create",
                "adam": None, "authority_name": None,
                "full_text": "", "full_text_html": ""}
         ctx.update(_ocr_flags())
@@ -2078,7 +2140,8 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                           (act["nuts_code"],))
                 row = c.fetchone()
                 nuts = [row] if row else [{"nuts_code": act["nuts_code"], "label": None}]
-        ctx = {"groups": _act_form_fields(), "act": dict(act), "adam": adam,
+        ctx = {"groups": _act_form_fields(), "field_options": _field_options(),
+               "act": dict(act), "adam": adam,
                "mode": "edit",
                "authority_name": authority_name, "origin": act["origin"],
                "cpvs": cpvs, "cpv_seeded": cpv_seeded, "nuts": nuts,
