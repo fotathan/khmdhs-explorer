@@ -10,6 +10,15 @@ truth; this is a curated digest.
 
 ## 2026-07-13
 
+### Added — free local OCR tier for table extraction
+- Table extraction (act edit/create form's Πίνακες tab + the standalone /tables
+  tool) now offers a **free "Local OCR (Tesseract)" button before the paid Claude
+  button** — matching the tiered escalation the full-text flow already had. A new
+  `local_ocr.ocr_image_table` reconstructs a grid from Tesseract word boxes
+  (row clustering + x-projection columns); `tables._local_ocr_tables_entry` wraps
+  it into the standard editable table. Lower fidelity than Claude on messy tables
+  (the curator edits the result), but free and offline. Route `POST /tables/local-ocr`.
+
 ### Added — structured tender lots & act scope
 - **First-class procurement lots** (`proc.tender_lot` + CPV/NUTS children), owned
   by a tender lifecycle group (`proc.act_group`) — **not** modelled as acts and

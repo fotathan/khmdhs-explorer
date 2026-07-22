@@ -1079,7 +1079,12 @@ _TABLES = {
     "Αν το κείμενο δεν είναι αρκετά καλό, δοκιμάστε ανάγνωση μέσω Claude (PDF/εικόνες).":
         "If the text isn't good enough, try reading via Claude (PDFs/images).",
     "Δωρεάν OCR (Tesseract)": "Free OCR (Tesseract)",
+    "Δωρεάν OCR πινάκων (Tesseract)": "Free table OCR (Tesseract)",
     "τοπικό OCR…": "local OCR…",
+    "Δοκιμάστε πρώτα το δωρεάν τοπικό OCR· το Claude (επί πληρωμή) ως έσχατη λύση.":
+        "Try the free local OCR first; Claude (paid) as a last resort.",
+    "Λάθος/αλλοιωμένο κείμενο ή πίνακες που δεν εντοπίστηκαν; Δοκιμάστε πρώτα το δωρεάν τοπικό OCR, και το Claude (επί πληρωμή) ως έσχατη λύση.":
+        "Wrong/garbled text or no tables found? Try the free local OCR first, and Claude (paid) as a last resort.",
     "Ανάγνωση μέσω Claude (επί πληρωμή)": "Read via Claude (paid)",
     "Αν το κείμενο δεν είναι αρκετά καλό, δοκιμάστε ως έσχατη λύση την ανάγνωση μέσω Claude (επί πληρωμή· PDF/εικόνες).":
         "If the text still isn't good enough, as a last resort try reading via Claude (paid; PDFs/images).",

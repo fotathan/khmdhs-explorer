@@ -38,6 +38,16 @@
          src="/tables/thumb?session_id={{ session_id }}&entry_id={{ report.entry_id }}&page=1"
          onclick="openLightbox(event, '{{ session_id }}', '{{ report.entry_id }}', 1, 1, false)">
     {% endif %}
+    {% if local_ocr_available %}
+    <button type="button" class="tt-btn tt-secondary"
+            hx-post="/tables/local-ocr" hx-target="closest .tt-card" hx-swap="outerHTML"
+            hx-vals='{"session_id": "{{ session_id }}", "entry_id": "{{ report.entry_id }}"}'
+            hx-indicator="#tt-locr-busy-{{ report.entry_id }}"
+            hx-disabled-elt="this">
+      {{ t("Δωρεάν OCR πινάκων (Tesseract)") }}{% if sel %} ({% if lang=='en' %}{{ sel.n }} page{{ "" if sel.n == 1 else "s" }}{% else %}{{ sel.n }} σελίδ{{ "α" if sel.n == 1 else "ες" }}{% endif %}){% elif report.n_pages %} ({% if lang=='en' %}{{ report.n_pages }} page{{ "" if report.n_pages == 1 else "s" }}{% else %}{{ report.n_pages }} σελίδ{{ "α" if report.n_pages == 1 else "ες" }}{% endif %}){% endif %}
+    </button>
+    <span class="tt-indicator" id="tt-locr-busy-{{ report.entry_id }}">{{ t("τοπικό OCR…") }}</span>
+    {% endif %}
     {% if ocr_available %}
     <button type="button" class="tt-btn"
             hx-post="/tables/ocr" hx-target="closest .tt-card" hx-swap="outerHTML"
@@ -49,10 +59,13 @@
     <span class="tt-indicator" id="tt-ocr-busy-{{ report.entry_id }}">
       {{ t("αποστολή σελίδων στο Claude API — μπορεί να πάρει λίγο…") }}
     </span>
-    {% else %}
+    {% elif not local_ocr_available %}
     <p class="tt-truncated" style="margin-top:.4rem">
       {{ t('Το <code>ANTHROPIC_API_KEY</code> δεν είναι ορισμένο — το OCR είναι ανενεργό.') | safe }}
     </p>
+    {% endif %}
+    {% if local_ocr_available and ocr_available %}
+    <p class="tt-truncated" style="margin-top:.35rem; color:var(--tt-muted,#666);">{{ t("Δοκιμάστε πρώτα το δωρεάν τοπικό OCR· το Claude (επί πληρωμή) ως έσχατη λύση.") }}</p>
     {% endif %}
   </div>
   {% endif %}
@@ -63,9 +76,9 @@
   {% set selr = (page_sel | default({})).get(report.entry_id) %}
   <div class="tt-detail" style="padding-top:0; border-top:1px dashed var(--tt-rule, #ddd); margin-top:.6rem">
     <p class="tt-truncated" style="margin:.4rem 0 .5rem; color:var(--tt-muted, #666);">
-      {{ t("Λάθος ή αλλοιωμένο κείμενο (π.χ. ελληνικοί χαρακτήρες); Δοκιμάστε εξαγωγή μέσω Claude.") }}
+      {% if local_ocr_available %}{{ t("Λάθος/αλλοιωμένο κείμενο ή πίνακες που δεν εντοπίστηκαν; Δοκιμάστε πρώτα το δωρεάν τοπικό OCR, και το Claude (επί πληρωμή) ως έσχατη λύση.") }}{% else %}{{ t("Λάθος ή αλλοιωμένο κείμενο (π.χ. ελληνικοί χαρακτήρες); Δοκιμάστε εξαγωγή μέσω Claude.") }}{% endif %}
     </p>
-    {% if ocr_available %}
+    {% if local_ocr_available or ocr_available %}
     <div class="tt-picker-wrap" style="margin-bottom:.5rem">
       <button type="button" class="tt-btn tt-secondary tt-mini"
               hx-get="/tables/pages?session_id={{ session_id }}&entry_id={{ report.entry_id }}"
@@ -73,6 +86,18 @@
         {% if selr %}{% if lang=='en' %}Pages {{ selr.label }} — change{% else %}Σελίδες {{ selr.label }} — αλλαγή{% endif %}{% else %}{{ t("Επιλογή σελίδων (προαιρετικό)") }}{% endif %}
       </button>
     </div>
+    {% endif %}
+    {% if local_ocr_available %}
+    <button type="button" class="tt-btn tt-secondary"
+            hx-post="/tables/local-ocr" hx-target="closest .tt-card" hx-swap="outerHTML"
+            hx-vals='{"session_id": "{{ session_id }}", "entry_id": "{{ report.entry_id }}"}'
+            hx-indicator="#tt-locr-busy-{{ report.entry_id }}"
+            hx-disabled-elt="this">
+      {{ t("Δωρεάν OCR πινάκων (Tesseract)") }}{% if selr %} ({% if lang=='en' %}{{ selr.n }} page{{ "" if selr.n == 1 else "s" }}{% else %}{{ selr.n }} σελίδ{{ "α" if selr.n == 1 else "ες" }}{% endif %}){% elif report.n_pages %} ({% if lang=='en' %}{{ report.n_pages }} page{{ "" if report.n_pages == 1 else "s" }}{% else %}{{ report.n_pages }} σελίδ{{ "α" if report.n_pages == 1 else "ες" }}{% endif %}){% endif %}
+    </button>
+    <span class="tt-indicator" id="tt-locr-busy-{{ report.entry_id }}">{{ t("τοπικό OCR…") }}</span>
+    {% endif %}
+    {% if ocr_available %}
     <button type="button" class="tt-btn tt-secondary"
             hx-post="/tables/ocr" hx-target="closest .tt-card" hx-swap="outerHTML"
             hx-vals='{"session_id": "{{ session_id }}", "entry_id": "{{ report.entry_id }}"}'
@@ -83,7 +108,7 @@
     <span class="tt-indicator" id="tt-ocr-busy-{{ report.entry_id }}">
       {{ t("αποστολή σελίδων στο Claude API — μπορεί να πάρει λίγο…") }}
     </span>
-    {% else %}
+    {% elif not local_ocr_available %}
     <p class="tt-truncated" style="margin-top:.4rem">
       {{ t('Το <code>ANTHROPIC_API_KEY</code> δεν είναι ορισμένο — η εξαγωγή μέσω Claude είναι ανενεργή.') | safe }}
     </p>

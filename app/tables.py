@@ -359,6 +359,59 @@ def _local_ocr_entry(entry, pages) -> str:
     return "\n".join(parts).strip()
 
 
+def _local_ocr_tables_entry(entry, pages):
+    """Local (Tesseract) TABLE reconstruction for one file entry — the free
+    counterpart of the Claude table path (safe_ocr_entry). Renders each page and
+    rebuilds a grid from Tesseract word boxes, wrapped in the standard table dict
+    via extractors._make_table (so relevance/save/export treat it identically).
+    Returns a FileReport; never raises. Locators mirror the Claude path so the
+    'OCR' badge shows."""
+    try:
+        from app.extractors import FileReport, _make_table
+    except ImportError:
+        from extractors import FileReport, _make_table
+    retry_status = "scanned" if entry.ext == ".pdf" else "image"
+    try:
+        import local_ocr
+    except Exception:
+        return FileReport(entry.source, retry_status, "Local OCR unavailable.")
+    if not local_ocr.enabled():
+        return FileReport(entry.source, retry_status, "Local OCR unavailable.")
+    if entry.ext not in (".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp"):
+        return FileReport(entry.source, retry_status, "Unsupported for OCR.")
+    if entry.ext == ".pdf":
+        if pages:
+            page_nums = sorted(pages)
+        else:
+            try:
+                total = safe_page_count(entry.data)
+            except Exception:
+                total = 1
+            page_nums = list(range(1, min(total, local_ocr.MAX_PAGES) + 1))
+    else:
+        page_nums = [1]
+    tables = []
+    for pg in page_nums:
+        try:
+            img = safe_render_full(entry, pg)
+        except Exception as e:
+            import logging
+            logging.getLogger("khmdhs").warning(
+                "local table OCR render failed for %s page %s: %s", entry.source, pg, e)
+            continue
+        grid = local_ocr.ocr_image_table(img)
+        if not grid:
+            continue
+        loc = f"Page {pg} (OCR)" if entry.ext == ".pdf" else "Image (OCR)"
+        t = _make_table(entry.source, loc, grid)
+        if t:
+            tables.append(t)
+    if not tables:
+        return FileReport(entry.source, retry_status,
+                          "Local OCR found no tables — try Claude.")
+    return FileReport(entry.source, "ok", tables=tables)
+
+
 # --------------------------------------------------------------------------- #
 # Router factory (mirrors admin.make_router)
 # --------------------------------------------------------------------------- #
@@ -392,6 +445,7 @@ def make_router(templates, cursor) -> APIRouter:
                 "n_stitched": n_stitched,
                 "n_relevant": n_relevant,
                 "ocr_available": api_key_present(),
+                "local_ocr_available": _local_ocr_enabled(),
                 "page_sel": _page_sel_view(session),
                 "adam": session.get("tables_adam", ""),
                 "PREVIEW_ROWS": 8,
@@ -695,6 +749,53 @@ def make_router(templates, cursor) -> APIRouter:
                 "PREVIEW_ROWS": 8,
                 "PREVIEW_COLS": 10,
                 "ocr_available": api_key_present(),
+                "local_ocr_available": _local_ocr_enabled(),
+                "ocr_swap": True,
+                "page_sel": _page_sel_view(session),
+            },
+        )
+
+    @router.post("/local-ocr", response_class=HTMLResponse)
+    def tables_local_ocr(
+        request: Request,
+        session_id: str = Form(...),
+        entry_id: str = Form(...),
+    ):
+        """Free local (Tesseract) TABLE reconstruction for a scanned file — the
+        tier before the paid Claude table OCR. Same swap-in card; the Claude
+        button stays available if the local grid isn't good enough."""
+        session = SESSIONS.get(session_id)
+        if session is None:
+            return HTMLResponse(
+                "<div class='tt-flash tt-error'>Η συνεδρία έληξε — "
+                "ξεκινήστε ξανά.</div>", status_code=410,
+            )
+        entry = session["entries"].get(entry_id)
+        if entry is None:
+            return HTMLResponse(
+                "<div class='tt-flash tt-error'>Άγνωστο αρχείο.</div>",
+                status_code=404,
+            )
+        if not _local_ocr_enabled():
+            return HTMLResponse(
+                "<div class='tt-flash tt-error'>Το τοπικό OCR (Tesseract) δεν "
+                "είναι διαθέσιμο σε αυτό το περιβάλλον.</div>", status_code=400,
+            )
+        sel = session["page_sel"].get(entry_id)
+        report = _local_ocr_tables_entry(entry, set(sel) if sel else None)
+        report.entry_id = entry_id
+        annotate_relevance(report.tables)
+        for t in report.tables:
+            session["tables"][t["id"]] = t
+        return templates.TemplateResponse(
+            request, "tables/_file_card.html",
+            {
+                "report": report,
+                "session_id": session_id,
+                "PREVIEW_ROWS": 8,
+                "PREVIEW_COLS": 10,
+                "ocr_available": api_key_present(),
+                "local_ocr_available": True,
                 "ocr_swap": True,
                 "page_sel": _page_sel_view(session),
             },
