@@ -28,5 +28,56 @@
       {% include "beta_contractors_results.html" %}
     </div>
   </form>
+
+  {% if is_admin %}
+  {# Admin-only: import selected contractors into the CRM as prospective leads.
+     A separate POST form (can't nest inside the GET filter form) built at submit
+     time from the checked rows. #}
+  <div class="lead-bar">
+    <span class="lead-count" id="lead-count">0 {{ t("επιλεγμένοι") }}</span>
+    <button type="button" class="go" onclick="leadImport(false)">{{ t("Εισαγωγή ως δυνητικοί πελάτες") }}</button>
+    <button type="button" class="lead-all" onclick="leadImport(true)">{{ t("Εισαγωγή όλων ανά φίλτρο") }}</button>
+  </div>
+  <form id="lead-form" method="post" action="/admin/crm/leads/review" style="display:none;"></form>
+  <script>
+    (function(){
+      function checked(){ return Array.prototype.slice.call(
+        document.querySelectorAll('.lead-check:checked')).map(function(c){return c.value;}); }
+      document.addEventListener('change', function(e){
+        if (e.target && e.target.classList.contains('lead-check')) {
+          var n = checked().length, el = document.getElementById('lead-count');
+          if (el) el.textContent = n + " {{ t('επιλεγμένοι') }}";
+        }
+      });
+      window.leadImport = function(all){
+        var f = document.getElementById('lead-form');
+        f.innerHTML = '';
+        var q = document.querySelector('#filters input[name=q]');
+        function hidden(name, val){ var i=document.createElement('input'); i.type='hidden'; i.name=name; i.value=val; f.appendChild(i); }
+        if (q) hidden('q', q.value || '');
+        if (all) {
+          hidden('select_all', '1');
+        } else {
+          var vats = checked();
+          if (!vats.length) { alert("{{ t('Επιλέξτε τουλάχιστον έναν ανάδοχο.') }}"); return; }
+          vats.forEach(function(v){ hidden('vat', v); });
+        }
+        // programmatic submit() bypasses the _csrf.html submit-event handler, so
+        // add the token from the meta tag ourselves.
+        var m = document.querySelector('meta[name="csrf-token"]');
+        if (m && m.getAttribute('content')) hidden('csrf_token', m.getAttribute('content'));
+        f.submit();
+      };
+    })();
+  </script>
+  {% endif %}
 </main>
+{% endblock %}
+{% block head_extra %}
+<style>
+  .lead-bar{position:sticky;bottom:0;display:flex;gap:10px;align-items:center;margin-top:14px;padding:10px 14px;
+    background:var(--paper);border:1px solid var(--rule);border-radius:12px;box-shadow:var(--shadow-sm);}
+  .lead-count{font-size:13px;color:var(--ink-2);margin-right:auto;}
+  .lead-all{background:none;border:1px solid var(--rule);border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer;color:var(--ink-2);}
+</style>
 {% endblock %}

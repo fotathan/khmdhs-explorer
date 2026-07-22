@@ -1,0 +1,41 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ t("Αποτέλεσμα εισαγωγής") }} · CRM{% endblock %}
+{% block admin_content %}
+<p style="margin:8px 0 0;"><a class="back" href="/admin/crm?segment=prospective" hx-boost="false">{{ t("‹ Δυνητικοί πελάτες") }}</a></p>
+<div class="detail-h">
+  <div class="kicker">CRM · {{ t("Δυνητικοί πελάτες") }}</div>
+  <h1 class="detail-title">{{ t("Αποτέλεσμα εισαγωγής") }}</h1>
+  <div class="detail-sub">
+    {{ created|length }} {{ t("δημιουργήθηκαν") }} ·
+    {{ updated|length }} {{ t("ενημερώθηκαν") }} ·
+    {{ skipped|length }} {{ t("παραλείφθηκαν") }}{% if errors %} · {{ errors|length }} {{ t("σφάλματα") }}{% endif %}
+  </div>
+</div>
+
+{% if errors %}
+<div class="u-flash u-err">
+  {% for name, msg in errors %}<div>{{ name }} — {{ msg }}</div>{% endfor %}
+</div>
+{% endif %}
+
+{% if created %}
+<div class="section-h">{{ t("Δημιουργήθηκαν") }} ({{ created|length }})</div>
+<ul class="lead-result">
+  {% for r in created %}<li><a href="/admin/crm/{{ r.uid }}">{{ r.name }}</a></li>{% endfor %}
+</ul>
+{% endif %}
+
+{% if updated %}
+<div class="section-h" style="margin-top:18px;">{{ t("Ενημερώθηκαν") }} ({{ updated|length }})</div>
+<ul class="lead-result">
+  {% for r in updated %}<li><a href="/admin/crm/{{ r.uid }}">{{ r.name }}</a></li>{% endfor %}
+</ul>
+{% endif %}
+
+{% if skipped %}
+<div class="section-h" style="margin-top:18px;">{{ t("Παραλείφθηκαν") }} ({{ skipped|length }})</div>
+<ul class="lead-result meta">{% for name in skipped %}<li>{{ name }}</li>{% endfor %}</ul>
+{% endif %}
+
+<style>.lead-result{margin:6px 0 0;padding-left:18px;} .lead-result li{margin:2px 0;}</style>
+{% endblock %}

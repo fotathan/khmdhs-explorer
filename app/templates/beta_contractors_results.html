@@ -7,6 +7,7 @@
 {% if rows %}
   {% for r in rows %}
   <div class="list-card">
+    {% if is_admin %}<input type="checkbox" class="lead-check" value="{{ r.vat_number }}" title="{{ t('Επιλογή για εισαγωγή ως δυνητικός πελάτης') }}" style="margin-right:10px;align-self:center;">{% endif %}
     <div class="lc-main">
       <div class="lc-name">
         <a href="/contractor/{{ r.vat_number }}">{{ r.name or '—' }}</a>

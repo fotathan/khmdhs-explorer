@@ -2,6 +2,7 @@
 {% block title %}{{ cust.full_name or cust.username }} · CRM{% endblock %}
 {% block admin_content %}
 {% set STATUS_LABELS = {
+  'prospective': 'Δυνητικός πελάτης',
   'tester': 'Δοκιμαστής', 'subscriber': 'Συνδρομητής',
   'expired_tester': 'Ληγμένος δοκιμαστής', 'expired_subscriber': 'Ληγμένη συνδρομή',
   'none': 'Χωρίς πρόσβαση'} %}
@@ -64,6 +65,49 @@
 
       <button type="submit" class="u-btn">{{ t("Αποθήκευση προφίλ") }}</button>
     </form>
+
+    {% if profile.crm_stage == 'prospective' or profile.creation_source or lead_operator or contacts %}
+    <div class="section-h" style="margin-top:28px;">{{ t("Στοιχεία δυνητικού πελάτη (lead)") }}</div>
+    <dl class="lead-meta">
+      {% if profile.creation_source %}<dt>{{ t("Προέλευση") }}</dt><dd>{{ profile.creation_source }}</dd>{% endif %}
+      {% if profile.service %}<dt>{{ t("Υπηρεσία") }}</dt><dd>{{ profile.service }}</dd>{% endif %}
+      {% if profile.manager_id %}<dt>{{ t("Υπεύθυνος") }}</dt><dd>
+        {% for a in admins %}{% if a.id == profile.manager_id %}{{ a.username }}{% endif %}{% endfor %}</dd>{% endif %}
+      {% if profile.tax_number %}<dt>{{ t("Αρ. φορολ. μητρώου") }}</dt><dd>{{ profile.tax_number }}</dd>{% endif %}
+      {% if profile.reg_number %}<dt>{{ t("Αρ. ΓΕΜΗ") }}</dt><dd>{{ profile.reg_number }}</dd>{% endif %}
+      {% if lead_operator %}<dt>{{ t("Ανάδοχος (OrgDB)") }}</dt><dd>
+        <a href="/contractor/{{ lead_operator.vat_number }}" target="_blank" rel="noopener">{{ lead_operator.name or lead_operator.vat_number }}</a></dd>{% endif %}
+    </dl>
+
+    <div class="section-h" style="margin-top:20px;">{{ t("Επαφές") }}</div>
+    {% if contacts %}
+    <table class="notices">
+      <thead><tr><th>{{ t("Όνομα") }}</th><th>Email</th><th>{{ t("Τηλέφωνο") }}</th><th>{{ t("Ρόλος") }}</th></tr></thead>
+      <tbody>
+        {% for ct in contacts %}
+        <tr {% if not ct.is_active %}style="opacity:.6;"{% endif %}>
+          <td>{{ (ct.first_name ~ ' ' ~ (ct.last_name or '')).strip() or '—' }}</td>
+          <td class="meta">{{ ct.email or '—' }}</td>
+          <td class="meta">{{ ct.phone or ct.mobile or '—' }}</td>
+          <td class="meta">
+            {% if ct.is_main %}<span class="lead-tag main">{{ t("κύρια") }}</span>{% endif %}
+            {% if not ct.is_active %}<span class="lead-tag off">{{ t("ανενεργή") }}</span>{% endif %}
+            {% if ct.is_recipient %}<span class="lead-tag rcp">{{ t("παραλήπτης") }}</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="meta">{{ t("Καμία επαφή.") }}</p>{% endif %}
+    <style>
+      .lead-meta{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px;margin:0 0 6px;}
+      .lead-meta dt{color:var(--ink-3);font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding-top:2px;}
+      .lead-meta dd{margin:0;}
+      .lead-tag{font-size:10px;font-weight:700;border-radius:6px;padding:0 5px;margin-right:3px;}
+      .lead-tag.main{background:#e8f0fb;color:#1a4f9c;} .lead-tag.off{background:var(--rule);color:var(--ink-3);}
+      .lead-tag.rcp{background:#eaf6ef;color:#1a7f47;}
+    </style>
+    {% endif %}
 
     <div class="section-h" style="margin-top:28px;">{{ t("Ιστορικό συνδρομών") }}</div>
     {% if history %}

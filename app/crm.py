@@ -23,8 +23,13 @@ except ImportError:  # run with --app-dir=app
     import auth as _auth
 
 # Segment values shown as tabs (order matters); mirror auth._status_label.
-SEGMENTS = ("all", "subscriber", "tester",
+SEGMENTS = ("all", "prospective", "subscriber", "tester",
             "expired_subscriber", "expired_tester", "none")
+
+try:
+    from app import leads as _leads
+except ImportError:                      # pragma: no cover
+    import leads as _leads
 
 
 def _vat_candidates(vat):
@@ -86,6 +91,89 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
             "customers": customers, "counts": counts, "segment": segment,
             "segments": SEGMENTS, "q": q, "admin_tab": "crm"})
 
+    # ---- import contractors as prospective leads (OrgDB → CRM) --------- #
+    def _op(c, oid):
+        c.execute("SELECT * FROM proc.economic_operator WHERE operator_id = %s", (oid,))
+        return c.fetchone()
+
+    @router.post("/leads/review", response_class=HTMLResponse)
+    async def leads_review(request: Request):
+        """Map the selected contractors + detect duplicates, then show the
+        three-group conflict-resolution table (clean / conflict / hard-blocked)."""
+        form = await request.form()
+        ids = [int(x) for x in form.getlist("operator_id") if str(x).strip().lstrip("-").isdigit()]
+        vats = [v.strip() for v in form.getlist("vat") if v and v.strip()]
+        q = (form.get("q") or "").strip()
+        with cursor() as c:
+            if vats:      # the contractors list is ΑΦΜ-keyed → resolve to operators
+                c.execute("SELECT operator_id FROM proc.economic_operator "
+                          "WHERE vat_number = ANY(%s)", (vats,))
+                ids += [r["operator_id"] for r in c.fetchall()]
+            if form.get("select_all") == "1" and not ids:
+                c.execute("""SELECT operator_id FROM proc.economic_operator
+                             WHERE (%(q)s = '' OR name ILIKE %(like)s OR vat_number ILIKE %(like)s)
+                             ORDER BY operator_id LIMIT %(cap)s""",
+                          {"q": q, "like": f"%{q}%", "cap": _leads.MAX_BATCH})
+                ids = [r["operator_id"] for r in c.fetchall()]
+            ids = ids[:_leads.MAX_BATCH]
+            clean, conflicts, blocked = [], [], []
+            for oid in ids:
+                op = _op(c, oid)
+                if not op:
+                    continue
+                lead = _leads.map_operator(c, op)
+                conf = _leads.detect_conflict(c, lead)
+                bucket = {"op": op, "lead": lead, "conf": conf}
+                (clean if conf["bucket"] == "clean"
+                 else conflicts if conf["bucket"] == "conflict" else blocked).append(bucket)
+        return templates.TemplateResponse(request, "admin_crm_leads_review.html", {
+            "clean": clean, "conflicts": conflicts, "blocked": blocked,
+            "n_total": len(ids), "capped": len(ids) >= _leads.MAX_BATCH,
+            "admin_tab": "crm"})
+
+    @router.post("/leads/import", response_class=HTMLResponse)
+    async def leads_import(request: Request):
+        """Execute the per-row decisions in one transaction; re-map + re-detect so
+        the allowed actions are enforced server-side."""
+        form = await request.form()
+        by = _admin_uid(request)
+        ids = [int(x) for x in form.getlist("operator_id") if str(x).strip().lstrip("-").isdigit()]
+        created, updated, skipped, errors = [], [], [], []
+        with cursor() as c, c.connection.transaction():
+            for oid in ids[:_leads.MAX_BATCH]:
+                op = _op(c, oid)
+                if not op:
+                    continue
+                name = op.get("name") or f"#{oid}"
+                action = (form.get(f"action_{oid}") or "skip").strip()
+                new_email = (form.get(f"email_{oid}") or "").strip()
+                lead = _leads.map_operator(c, op)
+                conf = _leads.detect_conflict(c, lead)
+                allowed = set(conf["allowed"])
+                if action == "create":
+                    if "create" not in allowed and "create_new_email" not in allowed:
+                        skipped.append(name)
+                        continue
+                    override = None
+                    if "create_new_email" in allowed:      # exact-email conflict → new email required
+                        if not new_email:
+                            errors.append((name, "νέο email απαιτείται"))
+                            continue
+                        override = new_email
+                    uid = _leads.create_lead(c, lead, by=by, override_email=override)
+                    created.append({"uid": uid, "name": name})
+                elif action == "update":
+                    if "update" not in allowed or not conf.get("existing_uid"):
+                        skipped.append(name)
+                        continue
+                    _leads.update_existing(c, conf["existing_uid"], lead, by=by)
+                    updated.append({"uid": conf["existing_uid"], "name": name})
+                else:
+                    skipped.append(name)
+        return templates.TemplateResponse(request, "admin_crm_leads_result.html", {
+            "created": created, "updated": updated, "skipped": skipped,
+            "errors": errors, "admin_tab": "crm"})
+
     # ---- cross-customer activity lists (declared before /{uid}) -------- #
     @router.get("/calls", response_class=HTMLResponse)
     def crm_calls(request: Request):
@@ -130,12 +218,20 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
             calls = _auth.list_calls(c, uid)
             tasks = _auth.list_tasks(c, uid)
             admins = _auth.admin_options(c)
+            contacts = _auth.list_customer_contacts(c, uid)
             # Link the customer's ΑΦΜ to a procurement contractor, if one matches.
             pvat = profile["vat_number"] if profile and profile.get("vat_number") else None
             linked_contractor = find_contractor_by_vat(c, pvat) if pvat else None
+            # The contractor this lead was created from (customer_profile.operator_id).
+            lead_operator = None
+            if profile and profile.get("operator_id"):
+                c.execute("SELECT operator_id, vat_number, name FROM proc.economic_operator "
+                          "WHERE operator_id = %s", (profile["operator_id"],))
+                lead_operator = c.fetchone()
         return {"cust": cust, "profile": profile or {}, "history": history,
                 "products": products, "current": current,
                 "fields": _auth.PROFILE_FIELDS,
+                "contacts": contacts, "lead_operator": lead_operator,
                 "linked_contractor": linked_contractor, "profile_vat": pvat,
                 "notes": notes, "calls": calls, "tasks": tasks, "admins": admins,
                 "call_directions": _auth.CALL_DIRECTIONS,

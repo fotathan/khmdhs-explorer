@@ -331,6 +331,7 @@ def subscription_history(c, uid):
 # The subscription status as a SQL expression (mirror of _status_label), so the
 # CRM can filter/group by it. `s` is the current-subscription lateral alias.
 _SEG_CASE = """CASE
+    WHEN s.product_code IS NULL AND p.crm_stage = 'prospective' THEN 'prospective'
     WHEN s.product_code IS NULL THEN 'none'
     WHEN s.product_code = 'paid' AND s.expires_at > now() THEN 'subscriber'
     WHEN s.product_code = 'paid' THEN 'expired_subscriber'
@@ -417,6 +418,7 @@ def get_customer(c, uid):
                s.product_code AS sub_product, s.expires_at AS sub_expires_at,
                {_SEG_CASE} AS status
         FROM proc.app_user u {_CUR_SUB_JOIN}
+        LEFT JOIN proc.customer_profile p ON p.user_id = u.id
         WHERE u.id = %s AND u.role = 'customer'
     """, (uid,))
     return c.fetchone()
@@ -425,6 +427,16 @@ def get_customer(c, uid):
 def get_profile(c, uid):
     c.execute("SELECT * FROM proc.customer_profile WHERE user_id = %s", (uid,))
     return c.fetchone()
+
+
+def list_customer_contacts(c, uid):
+    """Contacts for a customer (main first, then by order). Used on the CRM page
+    and by the prospective-lead import."""
+    c.execute("""SELECT id, ord, first_name, last_name, email, phone, mobile,
+                        job_title, is_main, is_active, is_recipient
+                 FROM proc.customer_contact WHERE user_id = %s
+                 ORDER BY is_main DESC, ord, id""", (uid,))
+    return c.fetchall()
 
 
 def upsert_profile(c, uid, values: dict, updated_by=None):

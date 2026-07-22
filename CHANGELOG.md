@@ -8,6 +8,27 @@ Dates are the day the change landed on `main` (which auto-deploys to prod on
 Render). This project has no version tags — the git history is the source of
 truth; this is a curated digest.
 
+## 2026-07-22
+
+### Added — create Prospective Leads directly from the Contractor Database
+- On **/contractors**, admins can select contractors and **Import as prospective
+  leads** — no XLS export / CSV round-trip. Each becomes a **non-login customer
+  account** (`app_user` role=customer, random password) with a stored
+  `customer_profile.crm_stage='prospective'`, appearing in the CRM customer list
+  under a new **Prospective** segment.
+- **Auto field mapping** from `economic_operator` (+ ΓΕΜΗ fallback): company, ΑΦΜ,
+  tax/GEMI number, address, and the contact person → a **main contact**; extra
+  contacts (from `act_contractor`) import as **inactive** (`proc.customer_contact`).
+  Missing email → generated `{customerID}@prospective.com`.
+- **Duplicate detection + conflict UI** (three buckets): exact email (update /
+  new-email / skip), same non-freemail domain (update / create / skip), strong
+  ΑΦΜ/ΓΕΜΗ/tax match (**hard block** — update / skip only), similar company name
+  (soft). Freemail domains are a seeded, configurable table.
+- Lead metadata: `service='TAS'`, **round-robin manager** across admins,
+  `creation_source='OrgDB'`, and a link back to the source contractor shown on
+  the CRM page. New migration `20260722144110_*` + `proc.customer_contact` /
+  `proc.crm_freemail_domain`.
+
 ## 2026-07-13
 
 ### Added — free local OCR tier for table extraction

@@ -1,0 +1,107 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ t("Εισαγωγή δυνητικών πελατών") }} · CRM{% endblock %}
+{% block admin_content %}
+{% set KIND_LABELS = {
+  'exact_email': 'Ίδιο email', 'email_domain': 'Ίδιος τομέας email',
+  'strong_id': 'Ίδιο ΑΦΜ/ΓΕΜΗ/ΑΦΜ φορ.', 'name_soft': 'Παρόμοια επωνυμία'} %}
+
+<p style="margin:8px 0 0;"><a class="back" href="/contractors" hx-boost="false">{{ t("‹ πίσω στους αναδόχους") }}</a></p>
+<div class="detail-h">
+  <div class="kicker">CRM · {{ t("Δυνητικοί πελάτες") }}</div>
+  <h1 class="detail-title">{{ t("Εισαγωγή ως δυνητικοί πελάτες") }}</h1>
+  <div class="detail-sub">{{ n_total }} {{ t("ανάδοχοι επιλέχθηκαν") }}
+    {% if capped %} · <span style="color:var(--accent);">{{ t("(όριο ανά εισαγωγή)") }}</span>{% endif %}</div>
+</div>
+
+<form method="post" action="/admin/crm/leads/import" class="leads-form">
+
+{# ---- A. Clean imports (auto-created) ---- #}
+{% if clean %}
+<div class="section-h">{{ t("Καθαρές εισαγωγές") }} <span class="meta">({{ clean|length }}) — {{ t("δημιουργούνται αυτόματα") }}</span></div>
+<table class="notices">
+  <thead><tr><th>{{ t("Ανάδοχος") }}</th><th>ΑΦΜ</th><th>Email</th><th>{{ t("Επαφή") }}</th></tr></thead>
+  <tbody>
+    {% for r in clean %}
+    <tr>
+      <input type="hidden" name="operator_id" value="{{ r.op.operator_id }}">
+      <input type="hidden" name="action_{{ r.op.operator_id }}" value="create">
+      <td>{{ r.lead.company or r.op.name }}{% if r.conf.soft %} <span class="meta" title="{{ r.conf.existing_label }}">⚠ {{ t("πιθανό διπλότυπο ονόματος") }}</span>{% endif %}</td>
+      <td class="meta">{{ r.lead.vat_number or '—' }}</td>
+      <td class="meta">{{ r.lead.contact_email or ('('~t('αυτόματο')~')') }}</td>
+      <td class="meta">{{ r.lead.contact_person or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{# ---- B. Conflicts requiring a decision ---- #}
+{% if conflicts %}
+<div class="section-h" style="margin-top:22px;">{{ t("Συγκρούσεις — απαιτείται απόφαση") }} <span class="meta">({{ conflicts|length }})</span></div>
+<table class="notices">
+  <thead><tr><th>{{ t("Ανάδοχος") }}</th><th>{{ t("Τύπος") }}</th><th>{{ t("Υπάρχων πελάτης") }}</th><th>{{ t("Ενέργεια") }}</th></tr></thead>
+  <tbody>
+    {% for r in conflicts %}
+    <tr>
+      <input type="hidden" name="operator_id" value="{{ r.op.operator_id }}">
+      <td>{{ r.lead.company or r.op.name }}<div class="meta">{{ r.lead.vat_number or '' }} {{ r.lead.contact_email or '' }}</div></td>
+      <td class="meta">{{ t(KIND_LABELS.get(r.conf.kind, r.conf.kind)) }}</td>
+      <td class="meta">{{ r.conf.existing_label }}</td>
+      <td style="white-space:nowrap;">
+        <select name="action_{{ r.op.operator_id }}" onchange="leadToggleEmail(this)" data-kind="{{ r.conf.kind }}">
+          {% if 'update' in r.conf.allowed %}<option value="update">{{ t("Ενημέρωση υπάρχοντος") }}</option>{% endif %}
+          {% if 'create' in r.conf.allowed or 'create_new_email' in r.conf.allowed %}<option value="create">{{ t("Δημιουργία νέου") }}{% if 'create_new_email' in r.conf.allowed %} ({{ t("νέο email") }}){% endif %}</option>{% endif %}
+          <option value="skip" selected>{{ t("Παράλειψη") }}</option>
+        </select>
+        {% if 'create_new_email' in r.conf.allowed %}
+        <input type="email" name="email_{{ r.op.operator_id }}" placeholder="{{ t('νέο email') }}" style="display:none;font-size:12px;padding:3px 6px;">
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{# ---- C. Hard-blocked (Update / Skip only) ---- #}
+{% if blocked %}
+<div class="section-h" style="margin-top:22px;">{{ t("Αποκλεισμένες — μόνο ενημέρωση ή παράλειψη") }} <span class="meta">({{ blocked|length }})</span></div>
+<table class="notices">
+  <thead><tr><th>{{ t("Ανάδοχος") }}</th><th>{{ t("Τύπος") }}</th><th>{{ t("Υπάρχων πελάτης") }}</th><th>{{ t("Ενέργεια") }}</th></tr></thead>
+  <tbody>
+    {% for r in blocked %}
+    <tr>
+      <input type="hidden" name="operator_id" value="{{ r.op.operator_id }}">
+      <td>{{ r.lead.company or r.op.name }}<div class="meta">{{ r.lead.vat_number or '' }}</div></td>
+      <td class="meta">{{ t(KIND_LABELS.get(r.conf.kind, r.conf.kind)) }}</td>
+      <td class="meta">{{ r.conf.existing_label }}</td>
+      <td>
+        <select name="action_{{ r.op.operator_id }}">
+          <option value="update">{{ t("Ενημέρωση υπάρχοντος") }}</option>
+          <option value="skip" selected>{{ t("Παράλειψη") }}</option>
+        </select>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if not clean and not conflicts and not blocked %}
+<p class="meta">{{ t("Δεν επιλέχθηκε κανένας ανάδοχος.") }}</p>
+{% else %}
+<div style="margin-top:22px;">
+  <button type="submit" class="u-btn">{{ t("Εκτέλεση εισαγωγής") }}</button>
+  <a class="back" href="/contractors" hx-boost="false" style="margin-left:12px;">{{ t("Άκυρο") }}</a>
+</div>
+{% endif %}
+</form>
+
+<script>
+function leadToggleEmail(sel){
+  var inp = sel.parentNode.querySelector('input[type="email"]');
+  if (!inp) return;
+  inp.style.display = (sel.value === 'create') ? '' : 'none';
+}
+</script>
+{% endblock %}

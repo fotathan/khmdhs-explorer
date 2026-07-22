@@ -1923,6 +1923,60 @@ _SCAN = {
 }
 
 # Merge into one flat catalog. Later groups override earlier ones on key clash
+# Prospective leads — import contractors into the CRM as leads.
+_LEADS = {
+    "Δυνητικός πελάτης": "Prospective lead",
+    "Δυνητικοί πελάτες": "Prospective leads",
+    # customer page (lead panel + contacts)
+    "Στοιχεία δυνητικού πελάτη (lead)": "Prospective-lead details",
+    "Προέλευση": "Source", "Υπηρεσία": "Service", "Υπεύθυνος": "Manager",
+    "Αρ. φορολ. μητρώου": "Tax number", "Αρ. ΓΕΜΗ": "GEMI number",
+    "Ανάδοχος (OrgDB)": "Contractor (OrgDB)",
+    "Επαφές": "Contacts", "Όνομα": "Name", "Ρόλος": "Role",
+    "κύρια": "main", "ανενεργή": "inactive", "παραλήπτης": "recipient",
+    "Καμία επαφή.": "No contacts.",
+    # contractors list action
+    "Επιλογή για εισαγωγή ως δυνητικός πελάτης": "Select to import as a prospective lead",
+    "επιλεγμένοι": "selected",
+    "Εισαγωγή ως δυνητικοί πελάτες": "Import as prospective leads",
+    "Εισαγωγή όλων ανά φίλτρο": "Import all matching the filter",
+    "Επιλέξτε τουλάχιστον έναν ανάδοχο.": "Select at least one contractor.",
+    # review
+    "Εισαγωγή δυνητικών πελατών": "Import prospective leads",
+    "‹ πίσω στους αναδόχους": "‹ back to contractors",
+    "Εισαγωγή ως δυνητικοί πελάτες": "Import as prospective leads",
+    "ανάδοχοι επιλέχθηκαν": "contractors selected",
+    "(όριο ανά εισαγωγή)": "(per-import limit reached)",
+    "Καθαρές εισαγωγές": "Clean imports",
+    "δημιουργούνται αυτόματα": "created automatically",
+    "Ανάδοχος": "Contractor", "Επαφή": "Contact", "αυτόματο": "auto",
+    "πιθανό διπλότυπο ονόματος": "possible name duplicate",
+    "Συγκρούσεις — απαιτείται απόφαση": "Conflicts — decision required",
+    "Τύπος": "Type", "Υπάρχων πελάτης": "Existing customer", "Ενέργεια": "Action",
+    "Ενημέρωση υπάρχοντος": "Update existing", "Δημιουργία νέου": "Create new",
+    "νέο email": "new email", "Παράλειψη": "Skip",
+    "Αποκλεισμένες — μόνο ενημέρωση ή παράλειψη": "Blocked — update or skip only",
+    "Δεν επιλέχθηκε κανένας ανάδοχος.": "No contractor selected.",
+    "Εκτέλεση εισαγωγής": "Run import",
+    "Ίδιο email": "Same email", "Ίδιος τομέας email": "Same email domain",
+    "Ίδιο ΑΦΜ/ΓΕΜΗ/ΑΦΜ φορ.": "Same VAT/GEMI/tax number",
+    "Παρόμοια επωνυμία": "Similar company name",
+    # result
+    "Αποτέλεσμα εισαγωγής": "Import result", "‹ Δυνητικοί πελάτες": "‹ Prospective leads",
+    "δημιουργήθηκαν": "created", "ενημερώθηκαν": "updated",
+    "παραλείφθηκαν": "skipped", "σφάλματα": "errors",
+    "Δημιουργήθηκαν": "Created", "Ενημερώθηκαν": "Updated", "Παραλείφθηκαν": "Skipped",
+    # help
+    "Δυνητικοί πελάτες από αναδόχους": "Prospective leads from contractors",
+    "Στους": "In",
+    "επιλέξτε αναδόχους (checkbox) και «Εισαγωγή ως δυνητικοί πελάτες»: δημιουργούνται εγγραφές CRM με κατάσταση «Δυνητικός πελάτης», αντιστοιχίζοντας αυτόματα επωνυμία/ΑΦΜ/ΓΕΜΗ/διεύθυνση/επαφές και δημιουργώντας email όπου λείπει. Οι νέες εγγραφές εμφανίζονται στο CRM στο φίλτρο «Δυνητικοί πελάτες».":
+        "tick contractors and choose “Import as prospective leads”: CRM records are created with status “Prospective lead”, auto-mapping company/VAT/GEMI/address/contacts and generating an email where missing. The new records appear in the CRM under the “Prospective leads” filter.",
+    "Πριν τη δημιουργία, ελέγχονται διπλότυπα: ίδιο email, ίδιος (μη-freemail) τομέας, ίδιο ΑΦΜ/ΓΕΜΗ (ισχυρό — μόνο ενημέρωση), παρόμοια επωνυμία. Αποφασίζετε ανά γραμμή: δημιουργία / ενημέρωση / παράλειψη.":
+        "Before creating, duplicates are checked: same email, same (non-freemail) domain, same VAT/GEMI (strong — update only), similar company name. You decide per row: create / update / skip.",
+    "Κάθε εγγραφή κρατά σύνδεσμο προς τον ανάδοχο-πηγή, ανατίθεται σε υπεύθυνο (εκ περιτροπής) και δεν έχει δυνατότητα σύνδεσης — είναι εγγραφή CRM, όχι λογαριασμός.":
+        "Each record keeps a link to the source contractor, is assigned a manager (round-robin), and cannot log in — it's a CRM record, not an account.",
+}
+
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
@@ -1930,5 +1984,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
              _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
              _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
-             _SEARCH_PROFILES, _EXPORT, _SCAN):
+             _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS):
     UI_EN.update(_grp)

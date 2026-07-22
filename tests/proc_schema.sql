@@ -818,7 +818,17 @@ CREATE TABLE proc.customer_profile (
     lead_source text,
     about text,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by bigint
+    updated_by bigint,
+    crm_stage text,
+    service text,
+    manager_id bigint,
+    creation_source text,
+    operator_id bigint,
+    orgdb_id text,
+    tax_number text,
+    reg_number text,
+    postal_code text,
+    is_recipient boolean DEFAULT false NOT NULL
 );
 
 
@@ -4439,6 +4449,39 @@ CREATE TABLE proc.ted_lot_result (
     raw_json           jsonb,
     PRIMARY KEY (publication_number, result_ordinal)
 );
+
+
+--
+-- Prospective-lead CRM: multi-value customer contacts + configurable freemail
+-- domains. Kept in sync with migrations/20260722144110_*.sql.
+--
+
+CREATE TABLE proc.customer_contact (
+    id           bigserial   PRIMARY KEY,
+    user_id      bigint      NOT NULL REFERENCES proc.app_user(id) ON DELETE CASCADE,
+    ord          smallint    NOT NULL DEFAULT 0,
+    first_name   text,
+    last_name    text,
+    email        text,
+    phone        text,
+    mobile       text,
+    job_title    text,
+    is_main      boolean     NOT NULL DEFAULT false,
+    is_active    boolean     NOT NULL DEFAULT true,
+    is_recipient boolean     NOT NULL DEFAULT false,
+    created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX ix_customer_contact_user ON proc.customer_contact (user_id);
+
+CREATE TABLE proc.crm_freemail_domain (
+    domain text PRIMARY KEY
+);
+INSERT INTO proc.crm_freemail_domain (domain) VALUES
+    ('gmail.com'), ('googlemail.com'), ('hotmail.com'), ('yahoo.com'),
+    ('outlook.com'), ('live.com'), ('icloud.com'), ('me.com'),
+    ('aol.com'), ('protonmail.com'), ('proton.me'),
+    ('hotmail.gr'), ('yahoo.gr'), ('windowslive.com'), ('otenet.gr')
+ON CONFLICT (domain) DO NOTHING;
 
 
 --

@@ -2,11 +2,13 @@
 {% block title %}CRM · {{ t("Διαχείριση") }}{% endblock %}
 {% block admin_content %}
 {% set STATUS_LABELS = {
+  'prospective': 'Δυνητικός πελάτης',
   'tester': 'Δοκιμαστής', 'subscriber': 'Συνδρομητής',
   'expired_tester': 'Ληγμένος δοκιμαστής', 'expired_subscriber': 'Ληγμένη συνδρομή',
   'none': 'Χωρίς πρόσβαση'} %}
 {% set SEG_LABELS = {
-  'all': 'Όλοι', 'subscriber': 'Συνδρομητές', 'tester': 'Δοκιμαστές',
+  'all': 'Όλοι', 'prospective': 'Δυνητικοί πελάτες',
+  'subscriber': 'Συνδρομητές', 'tester': 'Δοκιμαστές',
   'expired_subscriber': 'Ληγμένες συνδρομές', 'expired_tester': 'Ληγμένοι δοκιμαστές',
   'none': 'Χωρίς πρόσβαση'} %}
 
@@ -84,6 +86,7 @@
   .crm-seg-n{font-size:11px;background:rgba(0,0,0,.08);border-radius:9px;padding:0 6px;}
   .crm-seg.on .crm-seg-n{background:rgba(255,255,255,.25);}
   .sub-badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;}
+  .sub-prospective{background:#fff4e5;color:#a8620a;}
   .sub-tester{background:#eaf6ef;color:#1a7f47;}
   .sub-subscriber{background:#e8f0fb;color:#1a4f9c;}
   .sub-expired_tester,.sub-expired_subscriber{background:#fdeceb;color:#b3261e;}
