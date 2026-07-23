@@ -172,6 +172,34 @@ def test_review_and_import_flow(client, leads_clean):
     assert "ΚΑΘΑΡΗ ΑΕ" in html or "prospective" in html.lower()
 
 
+def test_freemail_crud_and_normalize(leads_clean):
+    assert L.normalize_domain(" @WWW.Foo.GR ") == "foo.gr"
+    with connect() as conn:
+        c = conn.cursor()
+        L.add_freemail(c, "Example.COM")
+        assert "example.com" in L.list_freemail(c)
+        with pytest.raises(ValueError):
+            L.add_freemail(c, "not a domain")
+        L.remove_freemail(c, "example.com")
+        assert "example.com" not in L.list_freemail(c)
+        conn.rollback()
+
+
+def test_freemail_admin_screen(client, leads_clean):
+    _admin(client)
+    tok = get_csrf(client)
+    r = client.post("/admin/crm/freemail/add", data={"domain": "@FooBar.gr"},
+                    headers={"X-CSRF-Token": tok}, follow_redirects=False)
+    assert r.status_code == 303
+    with connect() as conn:
+        assert "foobar.gr" in L.list_freemail(conn.cursor())
+    assert "foobar.gr" in client.get("/admin/crm/freemail").text
+    client.post("/admin/crm/freemail/delete", data={"domain": "foobar.gr"},
+                headers={"X-CSRF-Token": tok}, follow_redirects=False)
+    with connect() as conn:
+        assert "foobar.gr" not in L.list_freemail(conn.cursor())
+
+
 def test_import_requires_admin(client, leads_clean):
     with connect() as conn:
         c = conn.cursor()

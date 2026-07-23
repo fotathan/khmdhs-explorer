@@ -146,12 +146,44 @@ def build_contacts(lead: dict) -> list[dict]:
 # --------------------------------------------------------------------------- #
 # duplicate detection (PDF §5)
 # --------------------------------------------------------------------------- #
+_DOMAIN_RE = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
+
+
+def normalize_domain(s: str) -> str:
+    """Lowercase, trim, drop a leading '@' or 'www.' — so '@Gmail.com' and
+    'www.gmail.com' both become 'gmail.com'."""
+    s = _s(s).lower().lstrip("@").strip()
+    if s.startswith("www."):
+        s = s[4:]
+    return s
+
+
 def is_freemail(c, domain: str) -> bool:
     domain = _s(domain).lower()
     if not domain:
         return False
     c.execute("SELECT 1 FROM proc.crm_freemail_domain WHERE domain = %s", (domain,))
     return c.fetchone() is not None
+
+
+def list_freemail(c) -> list[str]:
+    c.execute("SELECT domain FROM proc.crm_freemail_domain ORDER BY domain")
+    return [r["domain"] for r in c.fetchall()]
+
+
+def add_freemail(c, domain: str) -> str:
+    """Add a freemail domain; raises ValueError on a malformed domain."""
+    d = normalize_domain(domain)
+    if not _DOMAIN_RE.match(d):
+        raise ValueError("invalid domain")
+    c.execute("INSERT INTO proc.crm_freemail_domain (domain) VALUES (%s) "
+              "ON CONFLICT (domain) DO NOTHING", (d,))
+    return d
+
+
+def remove_freemail(c, domain: str) -> None:
+    c.execute("DELETE FROM proc.crm_freemail_domain WHERE domain = %s",
+              (normalize_domain(domain),))
 
 
 def _customer_label(row) -> str:

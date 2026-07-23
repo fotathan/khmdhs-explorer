@@ -1,0 +1,46 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ t("Domains freemail") }} · CRM{% endblock %}
+{% block admin_content %}
+
+<p style="margin:8px 0 0;"><a class="back" href="/admin/crm" hx-boost="false">{{ t("‹ πίσω στο CRM") }}</a></p>
+<div class="detail-h">
+  <div class="kicker">CRM · {{ t("Ρυθμίσεις") }}</div>
+  <h1 class="detail-title">{{ t("Domains freemail") }}</h1>
+  <div class="detail-sub">{{ t("Χρησιμοποιούνται στον έλεγχο διπλότυπων κατά την εισαγωγή δυνητικών πελατών: ένας κοινός τομέας email θεωρείται πιθανό διπλότυπο μόνο αν ΔΕΝ είναι freemail.") }}</div>
+</div>
+
+{% if ok %}<div class="u-flash u-ok">{{ t("✓ Αποθηκεύτηκε.") }}</div>{% endif %}
+{% if err == 'invalid' %}<div class="u-flash u-err">{{ t("Μη έγκυρος τομέας (π.χ. gmail.com).") }}</div>{% endif %}
+
+<form method="post" action="/admin/crm/freemail/add" class="fm-add">
+  <input type="text" name="domain" placeholder="{{ t('π.χ. gmail.com') }}" required
+         autocomplete="off">
+  <button type="submit" class="u-btn">{{ t("Προσθήκη") }}</button>
+</form>
+
+<div class="section-h" style="margin-top:22px;">{{ t("Τομείς") }} <span class="meta">({{ domains|length }})</span></div>
+{% if domains %}
+<table class="notices fm-table">
+  <tbody>
+    {% for d in domains %}
+    <tr>
+      <td class="mono">{{ d }}</td>
+      <td style="text-align:right;white-space:nowrap;">
+        <form method="post" action="/admin/crm/freemail/delete" style="display:inline"
+              onsubmit="return confirm('{{ t('Αφαίρεση τομέα;') }} {{ d }}');">
+          <input type="hidden" name="domain" value="{{ d }}">
+          <button type="submit" class="u-mini">{{ t("αφαίρεση") }}</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}<p class="meta">{{ t("Κανένας τομέας.") }}</p>{% endif %}
+
+<style>
+  .fm-add{display:flex;gap:8px;align-items:center;margin-top:16px;max-width:420px;}
+  .fm-add input{flex:1;font-size:13px;padding:7px 10px;border:1px solid var(--rule);border-radius:8px;font-family:var(--mono);}
+  .fm-table{max-width:420px;} .fm-table td{padding:6px 10px;}
+</style>
+{% endblock %}

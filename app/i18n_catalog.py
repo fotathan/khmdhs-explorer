@@ -1966,6 +1966,13 @@ _LEADS = {
     "δημιουργήθηκαν": "created", "ενημερώθηκαν": "updated",
     "παραλείφθηκαν": "skipped", "σφάλματα": "errors",
     "Δημιουργήθηκαν": "Created", "Ενημερώθηκαν": "Updated", "Παραλείφθηκαν": "Skipped",
+    # freemail-domain settings
+    "Domains freemail": "Freemail domains", "Ρυθμίσεις": "Settings",
+    "Χρησιμοποιούνται στον έλεγχο διπλότυπων κατά την εισαγωγή δυνητικών πελατών: ένας κοινός τομέας email θεωρείται πιθανό διπλότυπο μόνο αν ΔΕΝ είναι freemail.":
+        "Used in duplicate detection when importing prospective leads: a shared email domain counts as a possible duplicate only when it is NOT freemail.",
+    "Μη έγκυρος τομέας (π.χ. gmail.com).": "Invalid domain (e.g. gmail.com).",
+    "π.χ. gmail.com": "e.g. gmail.com", "Τομείς": "Domains",
+    "Αφαίρεση τομέα;": "Remove domain?", "Κανένας τομέας.": "No domains.",
     # help
     "Δυνητικοί πελάτες από αναδόχους": "Prospective leads from contractors",
     "Στους": "In",

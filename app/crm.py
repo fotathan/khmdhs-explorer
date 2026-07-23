@@ -174,6 +174,31 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
             "created": created, "updated": updated, "skipped": skipped,
             "errors": errors, "admin_tab": "crm"})
 
+    # ---- freemail-domain settings (used by lead duplicate detection) ---- #
+    @router.get("/freemail", response_class=HTMLResponse)
+    def crm_freemail(request: Request, ok: str = None, err: str = None):
+        with cursor() as c:
+            domains = _leads.list_freemail(c)
+        return templates.TemplateResponse(request, "admin_crm_freemail.html", {
+            "domains": domains, "ok": ok, "err": err, "admin_tab": "freemail"})
+
+    @router.post("/freemail/add")
+    async def crm_freemail_add(request: Request):
+        form = await request.form()
+        try:
+            with cursor() as c:
+                _leads.add_freemail(c, form.get("domain") or "")
+        except ValueError:
+            return RedirectResponse("/admin/crm/freemail?err=invalid", status_code=303)
+        return RedirectResponse("/admin/crm/freemail?ok=added", status_code=303)
+
+    @router.post("/freemail/delete")
+    async def crm_freemail_delete(request: Request):
+        form = await request.form()
+        with cursor() as c:
+            _leads.remove_freemail(c, form.get("domain") or "")
+        return RedirectResponse("/admin/crm/freemail?ok=removed", status_code=303)
+
     # ---- cross-customer activity lists (declared before /{uid}) -------- #
     @router.get("/calls", response_class=HTMLResponse)
     def crm_calls(request: Request):
