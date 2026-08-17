@@ -23,6 +23,12 @@ truth; this is a curated digest.
 - Number matching is locale-aware (`phonenumbers`, trailing-digits key) so
   `+30`, `0030`, and national formats resolve to the same record. Widget UI is
   fully EL/EN localised.
+- The softphone is present on **every** page (both `base.html` and
+  `beta_base.html`, so admin/CRM/legacy pages included). The screen-pop
+  **Open record** link opens in a **new tab** so viewing a caller's page never
+  tears down the in-progress call (an active WebRTC call can't survive a
+  same-tab reload); the AOR allows multiple concurrent registrations so a
+  second tab doesn't evict the call tab.
 - **Gated on `TELEPHONY_ENABLED`** — a complete no-op on prod until configured.
   New: migration `20260817100404` (`proc.sip_extension`, CTI columns on
   `customer_call`), `app/telephony.py`, `telephony/` Asterisk compose + configs.

@@ -228,5 +228,6 @@
 </main>
 
 {% include "_footer.html" %}
+{% if is_authenticated and telephony_enabled %}{% include "_softphone.html" %}{% endif %}
 </body>
 </html>
