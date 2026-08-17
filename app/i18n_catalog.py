@@ -1984,6 +1984,39 @@ _LEADS = {
         "Each record keeps a link to the source contractor, is assigned a manager (round-robin), and cannot log in — it's a CRM record, not an account.",
 }
 
+# CTI telephony softphone widget (_softphone.html + telephony.js).
+# ('Τηλέφωνο' -> Phone and 'Κλείσιμο' -> Close already exist above.)
+_TELEPHONY = {
+    "Σύνδεση…": "Connecting…",
+    "Σε σύνδεση": "Online",
+    "Εκτός σύνδεσης": "Offline",
+    "Αριθμός ή εσωτερικό": "Number or extension",
+    "Κλήση": "Call",
+    "Κλήση…": "Calling…",
+    "Σε κλήση": "In call",
+    "Εισερχόμενη κλήση": "Incoming call",
+    "Άγνωστος καλών": "Unknown caller",
+    "Άνοιγμα καρτέλας": "Open record",
+    "Απάντηση": "Answer",
+    "Απόρριψη": "Decline",
+    "Σίγαση": "Mute",
+    "Κατάργηση σίγασης": "Unmute",
+    "Τερματισμός": "Hang up",
+    "Δεν δόθηκε πρόσβαση στο μικρόφωνο": "Microphone access was denied",
+    # help section
+    "Τηλεφωνία (softphone & αναγνώριση κλήσης)": "Telephony (softphone & caller ID)",
+    "Όταν είναι ενεργή η τηλεφωνία, ένα softphone εμφανίζεται κάτω δεξιά σε κάθε σελίδα. Μια πράσινη κουκκίδα σημαίνει ότι είναι συνδεδεμένο και έτοιμο.":
+        "When telephony is enabled, a softphone appears at the bottom-right of every page. A green dot means it is connected and ready.",
+    "Κλήση με ένα κλικ: κάθε αριθμός τηλεφώνου με σύνδεσμο καλείται απευθείας από το softphone — δεν χρειάζεται εφαρμογή ή πρόσθετο.":
+        "Click-to-call: any linked phone number dials straight from the softphone — no app or plugin needed.",
+    "Αναγνώριση εισερχόμενης κλήσης: σε μια εισερχόμενη κλήση, ο αριθμός αναζητείται στο CRM και η καρτέλα του πελάτη/επαφής/αναδόχου εμφανίζεται αυτόματα, με σύνδεσμο στην εγγραφή.":
+        "Incoming caller ID: on an incoming call the number is looked up in the CRM and the matching customer/contact/contractor pops up automatically, with a link to the record.",
+    "Οι κλήσεις που απαντώνται προς γνωστό πελάτη καταγράφονται αυτόματα στις Κλήσεις του πελάτη.":
+        "Answered calls to a known customer are logged automatically under that customer's Calls.",
+    "Η τηλεφωνία ενεργοποιείται με διαμόρφωση και απαιτεί εκχωρημένο εσωτερικό ανά χρήστη. Όπου είναι ανενεργή, το softphone απλώς δεν εμφανίζεται.":
+        "Telephony is enabled by configuration and needs a per-user extension assigned. Where it is off, the softphone simply doesn't appear.",
+}
+
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
@@ -1991,5 +2024,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
              _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
              _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
-             _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS):
+             _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY):
     UI_EN.update(_grp)

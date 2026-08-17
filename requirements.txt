@@ -18,3 +18,4 @@ itsdangerous==2.2.0
 boto3==1.43.45      # S3-compatible object storage for act attachments (ATTACHMENTS_BACKEND=s3)
 pyotp==2.10.0      # TOTP two-factor auth
 segno==1.6.6       # QR codes for TOTP enrollment (pure-python, inline SVG)
+phonenumbers==8.13.55  # phone-number parsing/normalisation for CTI caller lookup

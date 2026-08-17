@@ -971,7 +971,14 @@ _CSRF_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
 _CSRF_EXEMPT = ("/login", "/register")
 
 
-async def csrf_protect(request: Request) -> None:
+async def csrf_protect(request: Request = None) -> None:
+    # This runs as an app-level dependency for EVERY route, including WebSocket
+    # routes (e.g. /telephony/ws). FastAPI cannot inject a Request on a websocket
+    # scope, so `request` is None there. CSRF protects cookie-authenticated state
+    # changes over HTTP; the WS handshake carries no such body and the endpoint
+    # authenticates the session itself, so there is nothing to check here.
+    if request is None:
+        return
     if request.method in _CSRF_SAFE_METHODS:
         return
     path = request.url.path
@@ -1024,7 +1031,19 @@ async def _lifespan(_app):
         except Exception as e:      # noqa: BLE001 — never block app startup
             print(f"inline worker failed to start: {e!r}", flush=True)
 
+    # Start the CTI screen-pop listener (no-op unless TELEPHONY_ENABLED). Needs a
+    # running event loop, so it starts here rather than at import.
+    try:
+        from app import telephony as _tele
+    except ImportError:            # run with --app-dir=app
+        import telephony as _tele  # type: ignore
+    if _tele.SERVICE is not None:
+        _tele.SERVICE.start()
+
     yield
+
+    if _tele.SERVICE is not None:
+        await _tele.SERVICE.stop()
 
     # Stop the inline worker, then close the DB pool on shutdown so its background
     # maintenance thread is stopped cleanly (instead of ConnectionPool.__del__
@@ -1263,13 +1282,30 @@ app.add_middleware(
 # negligible marginal relaxation. Override the whole policy with
 # CONTENT_SECURITY_POLICY if needed.
 # ---------------------------------------------------------------------------- #
+# CTI telephony needs the browser to reach two things the base policy forbids:
+# the Asterisk SIP WebSocket (a different origin -> connect-src) and the
+# microphone (Permissions-Policy). Both are widened ONLY when telephony is on,
+# and connect-src is widened to exactly the SIP_WS_URL origin, not a wildcard.
+_CSP_CONNECT = ["'self'"]
+_MIC_POLICY = "microphone=()"
+try:
+    from app import telephony as _tele_cfg
+except ImportError:  # run with --app-dir=app
+    import telephony as _tele_cfg  # type: ignore
+if _tele_cfg.TELEPHONY_ENABLED:
+    from urllib.parse import urlsplit as _urlsplit
+    _wsu = _urlsplit(_tele_cfg.SIP_WS_URL)
+    if _wsu.scheme and _wsu.netloc:
+        _CSP_CONNECT.append(f"{_wsu.scheme}://{_wsu.netloc}")
+    _MIC_POLICY = "microphone=(self)"
+
 _CSP = os.environ.get("CONTENT_SECURITY_POLICY", "; ".join([
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     "img-src 'self' data:",
-    "connect-src 'self'",
+    "connect-src " + " ".join(_CSP_CONNECT),
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -1285,7 +1321,7 @@ async def _security_headers(request: Request, call_next):
     h.setdefault("X-Frame-Options", "DENY")
     h.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     h.setdefault("Cross-Origin-Opener-Policy", "same-origin")
-    h.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+    h.setdefault("Permissions-Policy", f"geolocation=(), {_MIC_POLICY}, camera=()")
     if _CSP:
         h.setdefault("Content-Security-Policy", _CSP)
     # HSTS only in prod (served over HTTPS at Render's edge); ignored over local
@@ -1594,6 +1630,19 @@ try:
 except ImportError:
     from search_profiles import make_router as _make_sp_router
 app.include_router(_make_sp_router(templates, cursor))
+
+# CTI telephony (WebRTC softphone + screen-pop) — mounted under /telephony. The
+# service singleton is created here (so the /ws handler can reach the screen-pop
+# hub) and started from the lifespan. Everything is a no-op unless
+# TELEPHONY_ENABLED is set, so this stays dormant on prod until configured.
+try:
+    from app import telephony as _telephony
+except ImportError:
+    import telephony as _telephony  # run with --app-dir=app
+_telephony.init_service(cursor)
+_telephony.configure_secret(_SECRET_KEY)  # sign WS tokens with the session secret
+app.include_router(_telephony.make_router(templates, cursor))
+templates.env.globals["telephony_enabled"] = _telephony.TELEPHONY_ENABLED
 
 # Tender-table extraction UI (separate module, mounted under /tables). Gated by
 # the TABLES_ENABLED env flag so the deployed Render copy can carry the feature

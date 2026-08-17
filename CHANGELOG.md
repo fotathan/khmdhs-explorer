@@ -8,6 +8,37 @@ Dates are the day the change landed on `main` (which auto-deploys to prod on
 Render). This project has no version tags — the git history is the source of
 truth; this is a curated digest.
 
+## 2026-08-17
+
+### Added — CTI telephony: in-browser softphone, click-to-call, caller-ID screen-pop
+- An open-source stand-in for NFON *Cloudya CRM Connect / NCTI Premium*, built on
+  **Asterisk** + a **WebRTC softphone** (JsSIP) embedded in every page — no
+  desktop app, browser plugin, or OS protocol handler.
+- **Click-to-call** from any `tel:`/`[data-call]` number (or
+  `window.khmdhsPhone.call()`); **screen-pop** on incoming calls via a
+  background **AMI listener** that looks the caller up **live** in the CRM
+  (`customer_profile` → `customer_contact` → `economic_operator`) and pushes the
+  match to the agent's browser over a WebSocket. Held calls log to
+  `proc.customer_call`.
+- Number matching is locale-aware (`phonenumbers`, trailing-digits key) so
+  `+30`, `0030`, and national formats resolve to the same record. Widget UI is
+  fully EL/EN localised.
+- **One-click call from the CRM customer page** — a Call button (the customer's
+  phone/mobile) plus click-to-call contact numbers, logged against the customer.
+- **Incoming recognition is routed to the customer's assigned manager**
+  (`customer_profile.manager_id`), falling back to all online admins; a
+  recognition toast shows to whoever is not the one actually answering.
+- The softphone is present on **every** page (both `base.html` and
+  `beta_base.html`, so admin/CRM/legacy pages included). The screen-pop
+  **Open record** link opens in a **new tab** so viewing a caller's page never
+  tears down the in-progress call (an active WebRTC call can't survive a
+  same-tab reload); the AOR allows multiple concurrent registrations so a
+  second tab doesn't evict the call tab.
+- **Gated on `TELEPHONY_ENABLED`** — a complete no-op on prod until configured.
+  New: migration `20260817100404` (`proc.sip_extension`, CTI columns on
+  `customer_call`), `app/telephony.py`, `telephony/` Asterisk compose + configs.
+  See **`TELEPHONY_RUNBOOK.md`**.
+
 ## 2026-07-22
 
 ### Added — create Prospective Leads directly from the Contractor Database

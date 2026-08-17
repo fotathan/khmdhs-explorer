@@ -24,6 +24,16 @@
     {% if cust.email %} · {{ cust.email }}{% endif %}
     {% if not cust.is_active %} · <span style="color:var(--accent);">{{ t("ανενεργός") }}</span>{% endif %}
   </div>
+  {% if telephony_enabled and (profile.phone or profile.mobile) %}
+  <div style="margin-top:10px;">
+    <button type="button" class="tp-call-btn"
+            data-call="{{ profile.phone or profile.mobile }}"
+            data-name="{{ profile.full_name or cust.username }}"
+            data-customer-id="{{ cust.id }}">
+      <span aria-hidden="true">☎</span> {{ t("Κλήση") }} {{ profile.phone or profile.mobile }}
+    </button>
+  </div>
+  {% endif %}
 </div>
 
 {% if error %}<div class="u-flash u-err">{{ error | t }}</div>{% endif %}
@@ -88,7 +98,14 @@
         <tr {% if not ct.is_active %}style="opacity:.6;"{% endif %}>
           <td>{{ (ct.first_name ~ ' ' ~ (ct.last_name or '')).strip() or '—' }}</td>
           <td class="meta">{{ ct.email or '—' }}</td>
-          <td class="meta">{{ ct.phone or ct.mobile or '—' }}</td>
+          <td class="meta">
+            {% set cph = ct.phone or ct.mobile %}
+            {% if telephony_enabled and cph %}
+              <a href="#" class="tp-callable" data-call="{{ cph }}"
+                 data-name="{{ (ct.first_name ~ ' ' ~ (ct.last_name or '')).strip() or cust.username }}"
+                 data-customer-id="{{ cust.id }}">{{ cph }}</a>
+            {% else %}{{ cph or '—' }}{% endif %}
+          </td>
           <td class="meta">
             {% if ct.is_main %}<span class="lead-tag main">{{ t("κύρια") }}</span>{% endif %}
             {% if not ct.is_active %}<span class="lead-tag off">{{ t("ανενεργή") }}</span>{% endif %}
