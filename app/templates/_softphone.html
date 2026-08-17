@@ -65,6 +65,17 @@
     </div>
   </section>
 
+  <!-- Recognition toast: shown to the assigned manager / admins when a call
+       comes in that they are NOT the one answering (no local ringing session). -->
+  <div id="tp-notify" class="tp-notify" hidden aria-live="polite">
+    <button id="tp-notify-x" class="tp-x" type="button" aria-label="{{ t('Κλείσιμο') }}">×</button>
+    <div class="tp-notify-label"><span aria-hidden="true">☎</span> {{ t('Εισερχόμενη κλήση') }}</div>
+    <div id="tp-notify-name" class="tp-caller-name"></div>
+    <div id="tp-notify-sub" class="tp-caller-sub"></div>
+    <div id="tp-notify-num" class="tp-caller-num"></div>
+    <a id="tp-notify-link" class="tp-caller-link" href="#" target="_blank" rel="noopener" hidden>{{ t('Άνοιγμα καρτέλας') }}</a>
+  </div>
+
   <audio id="tp-audio" autoplay></audio>
 </div>
 

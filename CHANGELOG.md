@@ -23,6 +23,11 @@ truth; this is a curated digest.
 - Number matching is locale-aware (`phonenumbers`, trailing-digits key) so
   `+30`, `0030`, and national formats resolve to the same record. Widget UI is
   fully EL/EN localised.
+- **One-click call from the CRM customer page** — a Call button (the customer's
+  phone/mobile) plus click-to-call contact numbers, logged against the customer.
+- **Incoming recognition is routed to the customer's assigned manager**
+  (`customer_profile.manager_id`), falling back to all online admins; a
+  recognition toast shows to whoever is not the one actually answering.
 - The softphone is present on **every** page (both `base.html` and
   `beta_base.html`, so admin/CRM/legacy pages included). The screen-pop
   **Open record** link opens in a **new tab** so viewing a caller's page never

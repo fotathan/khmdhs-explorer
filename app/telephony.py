@@ -249,6 +249,14 @@ def extensions_map(cur) -> dict[str, int]:
     return {r["extension"]: r["user_id"] for r in cur.fetchall()}
 
 
+def manager_of(cur, customer_user_id: int) -> int | None:
+    """The app_user id of the admin assigned to manage this customer, if any."""
+    cur.execute("SELECT manager_id FROM proc.customer_profile WHERE user_id = %s",
+                (customer_user_id,))
+    row = cur.fetchone()
+    return row["manager_id"] if row and row.get("manager_id") else None
+
+
 # --------------------------------------------------------------------------- #
 # AMI event parsing  (pure — unit-tested)
 # --------------------------------------------------------------------------- #
@@ -275,31 +283,54 @@ def screenpop_from_event(ev: dict) -> tuple[str, str] | None:
     return dest_ext, caller
 
 
+def route_recipients(dest_ext: str | None, manager_id: int | None,
+                     manager_online: bool) -> dict:
+    """Decide who sees an incoming-call screen-pop. Always the agent whose
+    extension is ringing; plus the customer's assigned manager if they're
+    online, otherwise all admins (also the fallback for unknown callers or
+    customers with no manager). Returned as selectors for _Hub.push()."""
+    exts = {dest_ext} if dest_ext else set()
+    if manager_id and manager_online:
+        return {"exts": exts, "user_ids": {manager_id}, "admins": False}
+    return {"exts": exts, "user_ids": set(), "admins": True}
+
+
 # --------------------------------------------------------------------------- #
 # WebSocket hub + AMI listener service
 # --------------------------------------------------------------------------- #
 class _Hub:
-    """Routes screen-pops to the browser(s) registered for an extension."""
+    """Tracks connected screen-pop sockets with per-connection metadata
+    (user_id, extension, admin) so pops can be routed to a specific extension,
+    a specific user (the customer's manager), or all admins."""
 
     def __init__(self) -> None:
-        self._by_ext: dict[str, set[WebSocket]] = {}
+        self._conns: dict[WebSocket, dict] = {}
 
-    def add(self, ext: str, ws: WebSocket) -> None:
-        self._by_ext.setdefault(ext, set()).add(ws)
+    def add(self, ws: WebSocket, user_id: int, ext: str, admin: bool) -> None:
+        self._conns[ws] = {"user_id": user_id, "ext": ext, "admin": admin}
 
-    def remove(self, ext: str, ws: WebSocket) -> None:
-        conns = self._by_ext.get(ext)
-        if conns:
-            conns.discard(ws)
-            if not conns:
-                self._by_ext.pop(ext, None)
+    def remove(self, ws: WebSocket) -> None:
+        self._conns.pop(ws, None)
 
-    async def push(self, ext: str, payload: dict) -> None:
-        for ws in list(self._by_ext.get(ext, ())):
-            try:
-                await ws.send_json(payload)
-            except Exception:  # noqa: BLE001 — drop dead sockets silently
-                self.remove(ext, ws)
+    def user_connected(self, user_id: int) -> bool:
+        return any(c["user_id"] == user_id for c in self._conns.values())
+
+    async def _send(self, ws: WebSocket, payload: dict) -> None:
+        try:
+            await ws.send_json(payload)
+        except Exception:  # noqa: BLE001 — drop dead sockets silently
+            self.remove(ws)
+
+    async def push(self, payload: dict, *, exts: set[str] = frozenset(),
+                   user_ids: set[int] = frozenset(), admins: bool = False) -> int:
+        """Send to every connection matching ANY selector, each socket once.
+        Returns the number of sockets reached."""
+        targets = [ws for ws, c in self._conns.items()
+                   if c["ext"] in exts or c["user_id"] in user_ids
+                   or (admins and c["admin"])]
+        for ws in targets:
+            await self._send(ws, payload)
+        return len(targets)
 
 
 class TelephonyService:
@@ -343,6 +374,10 @@ class TelephonyService:
     def _known_ext_sync(self, ext: str) -> bool:
         with self._cursor() as c:
             return ext in extensions_map(c)
+
+    def _manager_sync(self, customer_user_id: int) -> int | None:
+        with self._cursor() as c:
+            return manager_of(c, customer_user_id)
 
     # -- AMI loop ----------------------------------------------------------- #
     async def _run(self) -> None:
@@ -412,15 +447,26 @@ class TelephonyService:
         except Exception as e:  # noqa: BLE001 — a bad lookup must not kill the loop
             log.warning("screen-pop lookup failed for %s: %s", caller, e)
             return
+        # Route to the customer's assigned manager (fallback: all admins).
+        manager_id = None
+        cust_id = match.get("customer_user_id") if match else None
+        if cust_id:
+            try:
+                manager_id = await loop.run_in_executor(None, self._manager_sync, cust_id)
+            except Exception:  # noqa: BLE001
+                manager_id = None
+        manager_online = bool(manager_id and self.hub.user_connected(manager_id))
+        route = route_recipients(dest_ext, manager_id, manager_online)
         norm = normalize_number(caller)
-        await self.hub.push(dest_ext, {
+        reached = await self.hub.push({
             "type": "incoming",
             "number": norm["national"] or norm["e164"] or caller,
             "raw_number": caller,
             "match": match,
-        })
-        log.info("screen-pop -> ext %s: caller %s matched=%s",
-                 dest_ext, caller, bool(match))
+        }, exts=route["exts"], user_ids=route["user_ids"], admins=route["admins"])
+        log.info("screen-pop caller %s -> %d socket(s) (ext=%s matched=%s "
+                 "manager=%s online=%s)", caller, reached, dest_ext, bool(match),
+                 manager_id, manager_online)
 
 
 # Module-level singleton, wired up in main.py.
@@ -555,7 +601,7 @@ def make_router(templates, cursor) -> APIRouter:
             await websocket.close(code=1008)
             return
         await websocket.accept()
-        SERVICE.hub.add(ext, websocket)
+        SERVICE.hub.add(websocket, u["id"], ext, u.get("role") == "admin")
         try:
             await websocket.send_json({"type": "ready", "extension": ext})
             while True:
@@ -567,6 +613,6 @@ def make_router(templates, cursor) -> APIRouter:
         except Exception:  # noqa: BLE001
             pass
         finally:
-            SERVICE.hub.remove(ext, websocket)
+            SERVICE.hub.remove(websocket)
 
     return router

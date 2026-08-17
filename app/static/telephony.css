@@ -61,10 +61,31 @@
 .tp-incoming { animation: tp-pulse 1.2s ease-in-out infinite; }
 @keyframes tp-pulse { 0%,100% { background:#fff; } 50% { background:#eefbf1; } }
 
-/* Click-to-call affordance on tagged phone numbers across the app. */
+/* Click-to-call affordances on CRM pages (outside #tp-root, so unscoped). */
 .tp-callable { cursor: pointer; border-bottom: 1px dotted currentColor; }
+.tp-call-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border: none; border-radius: 8px;
+  background: #2ea043; color: #fff; font-weight: 600; font-size: 14px;
+  cursor: pointer; font-variant-numeric: tabular-nums;
+}
+.tp-call-btn:hover { background: #2c974b; }
+
+/* Recognition toast (manager / admin who isn't answering the call). */
+.tp-notify {
+  position: fixed; right: 20px; bottom: 88px; z-index: 9999;
+  width: 260px; padding: 14px 16px; border-radius: 12px;
+  background: #ffffff; color: #1a1a1a; text-align: center;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25); border-left: 4px solid #1f6feb;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  animation: tp-pulse 1.4s ease-in-out infinite;
+}
+.tp-notify .tp-x { position: absolute; top: 6px; right: 10px; color: #57606a; }
+.tp-notify-label { font-size: 12px; color: #57606a; margin-bottom: 4px; }
 
 @media (prefers-color-scheme: dark) {
+  .tp-notify { background: #161b22; color: #e6edf3; }
+  .tp-notify .tp-x, .tp-notify-label { color: #8b949e; }
   .tp-panel { background: #161b22; color: #e6edf3; }
   .tp-num { background: #0d1117; color: #e6edf3; border-color: #30363d; }
   .tp-match-hint, .tp-caller-sub { color: #8b949e; }

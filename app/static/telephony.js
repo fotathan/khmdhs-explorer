@@ -131,6 +131,7 @@
     });
 
     if (s.direction === "incoming") {
+      hideNotify();  // we ARE the party ringing — the full card supersedes the toast
       var num = (s.remote_identity && s.remote_identity.uri && s.remote_identity.uri.user) || "";
       var match = (pendingPop && pendingPop.raw_number &&
         endsWith(num, pendingPop.raw_number)) ? pendingPop.match :
@@ -165,6 +166,25 @@
     }
   }
 
+  // ---- recognition toast (for managers/admins not answering) ------------- //
+  var notifyTimer = null;
+  function showNotify(m) {
+    var match = m.match;
+    $("tp-notify-name").textContent = (match && match.name) || I.unknown || m.number || "";
+    $("tp-notify-sub").textContent = (match && match.subtitle) || "";
+    $("tp-notify-num").textContent = m.number || "";
+    var link = $("tp-notify-link");
+    if (match && match.url) { link.href = match.url; link.hidden = false; }
+    else { link.hidden = true; }
+    $("tp-notify").hidden = false;
+    if (notifyTimer) clearTimeout(notifyTimer);
+    notifyTimer = setTimeout(hideNotify, 20000);  // auto-dismiss
+  }
+  function hideNotify() {
+    if (notifyTimer) { clearTimeout(notifyTimer); notifyTimer = null; }
+    $("tp-notify").hidden = true;
+  }
+
   // ---- screen-pop socket ------------------------------------------------- //
   function connectPop() {
     var proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -179,11 +199,15 @@
       var m; try { m = JSON.parse(ev.data); } catch (_) { return; }
       if (m.type !== "incoming") return;
       pendingPop = m;
-      // If the SIP INVITE already arrived, enrich the visible card now.
       if (session && session.direction === "incoming") {
+        // This browser is the one ringing — enrich the incoming card.
         applyIncoming(m.number, m.match);
         dialInfo = { number: m.raw_number || m.number,
                      customer_user_id: m.match ? m.match.customer_user_id : null };
+      } else {
+        // Routed here as recognition (assigned manager / admin) but we're not
+        // the party answering — show a lightweight notification toast.
+        showNotify(m);
       }
     };
     popWs.onclose = function () { setTimeout(connectPop, 3000); };
@@ -219,6 +243,8 @@
   // ---- controls ---------------------------------------------------------- //
   $("tp-fab").addEventListener("click", openPanel);
   $("tp-close").addEventListener("click", closePanel);
+  $("tp-notify-x").addEventListener("click", hideNotify);
+  $("tp-notify-link").addEventListener("click", hideNotify);
   $("tp-dial").addEventListener("click", function () {
     var n = $("tp-num").value.trim();
     if (n) { dialInfo = { number: n }; dial(n); }

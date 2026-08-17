@@ -105,3 +105,42 @@ def test_lookup_skips_query_for_too_short_number():
     cur = FakeCursor([{"user_id": 1, "full_name": "x", "company": None}])
     assert t.lookup_caller(cur, "123") is None
     assert cur.seen_params == []  # never queried
+
+
+# --------------------------------------------------------------------------- #
+# Screen-pop routing (assigned manager -> fallback all admins)
+# --------------------------------------------------------------------------- #
+def test_route_to_manager_when_online():
+    r = t.route_recipients("1002", manager_id=42, manager_online=True)
+    assert r == {"exts": {"1002"}, "user_ids": {42}, "admins": False}
+
+
+def test_route_falls_back_to_admins_when_manager_offline():
+    r = t.route_recipients("1002", manager_id=42, manager_online=False)
+    assert r == {"exts": {"1002"}, "user_ids": set(), "admins": True}
+
+
+def test_route_broadcasts_when_no_manager():
+    # unknown caller / customer with no assigned manager
+    r = t.route_recipients("1002", manager_id=None, manager_online=False)
+    assert r["admins"] is True and r["user_ids"] == set()
+    assert r["exts"] == {"1002"}  # the ringing agent always included
+
+
+def test_hub_push_dedupes_and_selects():
+    import asyncio
+
+    class FakeWS:
+        def __init__(self): self.sent = []
+        async def send_json(self, p): self.sent.append(p)
+
+    hub = t._Hub()
+    agent = FakeWS(); manager = FakeWS(); other = FakeWS()
+    hub.add(agent, user_id=1, ext="1002", admin=True)     # ringing agent
+    hub.add(manager, user_id=42, ext="1009", admin=True)  # the manager
+    hub.add(other, user_id=7, ext="1050", admin=True)     # uninvolved admin
+    reached = asyncio.run(
+        hub.push({"type": "incoming"}, exts={"1002"}, user_ids={42}, admins=False))
+    assert reached == 2
+    assert len(agent.sent) == 1 and len(manager.sent) == 1 and other.sent == []
+    assert hub.user_connected(42) and not hub.user_connected(999)
