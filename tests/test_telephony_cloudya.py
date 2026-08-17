@@ -123,3 +123,42 @@ def test_pop_unmatched_lands_on_fallback(client, monkeypatch):
                    follow_redirects=False)
     assert r.status_code == 302
     assert r.headers["location"] == "/admin/crm"
+
+
+# --------------------------------------------------------------------------- #
+# Template click-to-call markup (tel: links for the CRM Connect plugin)
+# --------------------------------------------------------------------------- #
+def _customer_with_phone(phone="2101234567", name="Nikos"):
+    from tests.helpers import make_user, connect
+    uid = make_user("cloudya-cust")
+    with connect() as c:
+        c.execute("INSERT INTO proc.customer_profile (user_id, full_name, phone) "
+                  "VALUES (%s,%s,%s)", (uid, name, phone))
+    return uid
+
+
+def _login_admin(client):
+    from tests.helpers import make_user, login
+    make_user("cloudya-boss", "goodpassword1", role="admin")
+    login(client, "cloudya-boss", "goodpassword1")
+
+
+def test_customer_page_renders_tel_link_in_cloudya_mode(client, monkeypatch):
+    from app.main import templates
+    # Cloudya on, Asterisk softphone off — the page should offer a plain tel: link.
+    monkeypatch.setitem(templates.env.globals, "cloudya_enabled", True)
+    monkeypatch.setitem(templates.env.globals, "telephony_enabled", False)
+    _login_admin(client)
+    uid = _customer_with_phone(phone="2101234567")
+    html = client.get(f"/admin/crm/{uid}").text
+    assert 'href="tel:2101234567"' in html
+
+
+def test_customer_page_no_tel_link_when_all_backends_off(client, monkeypatch):
+    from app.main import templates
+    monkeypatch.setitem(templates.env.globals, "cloudya_enabled", False)
+    monkeypatch.setitem(templates.env.globals, "telephony_enabled", False)
+    _login_admin(client)
+    uid = _customer_with_phone(phone="2105550000")
+    html = client.get(f"/admin/crm/{uid}").text
+    assert 'href="tel:2105550000"' not in html

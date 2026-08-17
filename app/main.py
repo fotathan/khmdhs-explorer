@@ -1653,6 +1653,9 @@ try:
 except ImportError:
     import telephony_cloudya as _telephony_cloudya  # run with --app-dir=app
 app.include_router(_telephony_cloudya.make_router(templates, cursor))
+# Templates use this to render plain tel: links (the CRM Connect plugin dials
+# them) when the Cloudya backend is active instead of the softphone.
+templates.env.globals["cloudya_enabled"] = _telephony_cloudya.CLOUDYA_ENABLED
 
 # Tender-table extraction UI (separate module, mounted under /tables). Gated by
 # the TABLES_ENABLED env flag so the deployed Render copy can carry the feature

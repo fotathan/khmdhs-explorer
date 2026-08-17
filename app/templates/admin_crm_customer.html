@@ -33,6 +33,13 @@
       <span aria-hidden="true">☎</span> {{ t("Κλήση") }} {{ profile.phone or profile.mobile }}
     </button>
   </div>
+  {% elif cloudya_enabled and (profile.phone or profile.mobile) %}
+  {# Cloudya backend: a plain tel: link the CRM Connect plugin dials. #}
+  <div style="margin-top:10px;">
+    <a href="tel:{{ profile.phone or profile.mobile }}">
+      <span aria-hidden="true">☎</span> {{ t("Κλήση") }} {{ profile.phone or profile.mobile }}
+    </a>
+  </div>
   {% endif %}
 </div>
 
@@ -104,6 +111,8 @@
               <a href="#" class="tp-callable" data-call="{{ cph }}"
                  data-name="{{ (ct.first_name ~ ' ' ~ (ct.last_name or '')).strip() or cust.username }}"
                  data-customer-id="{{ cust.id }}">{{ cph }}</a>
+            {% elif cloudya_enabled and cph %}
+              <a href="tel:{{ cph }}">{{ cph }}</a>
             {% else %}{{ cph or '—' }}{% endif %}
           </td>
           <td class="meta">
