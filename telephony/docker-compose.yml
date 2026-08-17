@@ -1,0 +1,26 @@
+# Asterisk PBX for the CTI prototype — see TELEPHONY_RUNBOOK.md.
+#
+# One container: an Asterisk with two WebRTC endpoints (1001, 1002), a WebSocket
+# transport for the browser softphones, and AMI enabled for the screen-pop
+# listener. No SIP trunk — the demo is extension-to-extension, which is enough
+# to prove click-to-call + caller-ID screen-pop end to end.
+#
+#   docker compose -f telephony/docker-compose.yml up
+#
+# Any Asterisk 18+ image that reads /etc/asterisk works; andrius/asterisk is a
+# convenient prebuilt one.
+services:
+  asterisk:
+    image: andrius/asterisk:20-alpine
+    container_name: khmdhs-asterisk
+    ports:
+      - "8088:8088"                    # HTTP + SIP-over-WebSocket (browser → PBX)
+      - "5038:5038"                    # AMI (backend screen-pop listener → PBX)
+      - "10000-10200:10000-10200/udp"  # RTP media (see runbook re: macOS audio)
+    volumes:
+      - ./asterisk/pjsip.conf:/etc/asterisk/pjsip.conf:ro
+      - ./asterisk/http.conf:/etc/asterisk/http.conf:ro
+      - ./asterisk/extensions.conf:/etc/asterisk/extensions.conf:ro
+      - ./asterisk/manager.conf:/etc/asterisk/manager.conf:ro
+      - ./asterisk/rtp.conf:/etc/asterisk/rtp.conf:ro
+    restart: unless-stopped

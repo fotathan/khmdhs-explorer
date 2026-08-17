@@ -1,0 +1,74 @@
+/* telephony.css — WebRTC softphone widget (CTI prototype). Scoped under #tp-root. */
+#tp-root, #tp-root * { box-sizing: border-box; }
+/* `hidden` must win over the display rules below (e.g. .tp-body{display:flex}),
+   otherwise hidden panel states all render at once. */
+#tp-root [hidden] { display: none !important; }
+
+.tp-fab {
+  position: fixed; right: 20px; bottom: 20px; z-index: 9998;
+  width: 56px; height: 56px; border-radius: 50%; border: none;
+  background: #1f6feb; color: #fff; font-size: 24px; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,.25); display: grid; place-items: center;
+}
+.tp-fab:hover { background: #1a5fd0; }
+.tp-fab-icon { line-height: 1; }
+
+.tp-panel {
+  position: fixed; right: 20px; bottom: 20px; z-index: 9999;
+  width: 300px; border-radius: 14px; overflow: hidden;
+  background: #ffffff; color: #1a1a1a;
+  box-shadow: 0 10px 30px rgba(0,0,0,.28);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.tp-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; background: #0d1117; color: #e6edf3; font-size: 13px;
+}
+.tp-status { display: flex; align-items: center; gap: 6px; flex: 1; }
+.tp-ext { font-variant-numeric: tabular-nums; opacity: .8; }
+.tp-x { background: none; border: none; color: #e6edf3; font-size: 20px; cursor: pointer; line-height: 1; }
+
+.tp-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.tp-dot-on  { background: #2ea043; box-shadow: 0 0 0 3px rgba(46,160,67,.25); }
+.tp-dot-off { background: #6e7681; }
+.tp-dot-busy{ background: #d29922; box-shadow: 0 0 0 3px rgba(210,153,34,.25); }
+
+.tp-body { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.tp-num {
+  width: 100%; padding: 10px 12px; font-size: 18px; text-align: center;
+  border: 1px solid #d0d7de; border-radius: 10px; letter-spacing: 1px;
+}
+.tp-match-hint { min-height: 16px; font-size: 12px; color: #57606a; text-align: center; }
+
+.tp-btn {
+  padding: 10px 12px; border: none; border-radius: 10px; font-size: 14px;
+  font-weight: 600; cursor: pointer; flex: 1;
+}
+.tp-btn-call { background: #2ea043; color: #fff; }
+.tp-btn-call:hover { background: #2c974b; }
+.tp-btn-hang { background: #cf222e; color: #fff; }
+.tp-btn-hang:hover { background: #b91c26; }
+.tp-btn-mute { background: #eaeef2; color: #24292f; }
+.tp-btn-mute.tp-on { background: #d29922; color: #fff; }
+.tp-row { display: flex; gap: 10px; }
+
+.tp-caller { text-align: center; }
+.tp-caller-name { font-size: 18px; font-weight: 700; }
+.tp-caller-sub  { font-size: 13px; color: #57606a; }
+.tp-caller-num  { font-size: 14px; color: #24292f; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.tp-caller-link { display: inline-block; margin-top: 6px; font-size: 13px; color: #1f6feb; }
+.tp-timer { text-align: center; font-size: 22px; font-variant-numeric: tabular-nums; color: #24292f; }
+.tp-incoming { animation: tp-pulse 1.2s ease-in-out infinite; }
+@keyframes tp-pulse { 0%,100% { background:#fff; } 50% { background:#eefbf1; } }
+
+/* Click-to-call affordance on tagged phone numbers across the app. */
+.tp-callable { cursor: pointer; border-bottom: 1px dotted currentColor; }
+
+@media (prefers-color-scheme: dark) {
+  .tp-panel { background: #161b22; color: #e6edf3; }
+  .tp-num { background: #0d1117; color: #e6edf3; border-color: #30363d; }
+  .tp-match-hint, .tp-caller-sub { color: #8b949e; }
+  .tp-caller-num, .tp-timer { color: #e6edf3; }
+  .tp-btn-mute { background: #21262d; color: #e6edf3; }
+  @keyframes tp-pulse { 0%,100% { background:#161b22; } 50% { background:#12261a; } }
+}

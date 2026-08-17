@@ -1,0 +1,88 @@
+{# _softphone.html — WebRTC softphone widget (CTI prototype).
+   Included from beta_base.html's {% block body_end %} only for authenticated
+   users when telephony is enabled. All behaviour is in /static/telephony.js;
+   this file is markup + scoped styles + the i18n string bootstrap. #}
+<link rel="stylesheet" href="/static/telephony.css">
+<div id="tp-root" hidden
+     data-config-url="/telephony/config"
+     data-ws-url="/telephony/ws"
+     data-lookup-url="/telephony/lookup"
+     data-log-url="/telephony/log-call">
+
+  <!-- Floating launcher -->
+  <button id="tp-fab" class="tp-fab" type="button" aria-label="{{ t('Τηλέφωνο') }}" hidden>
+    <span class="tp-fab-icon" aria-hidden="true">☎</span>
+    <span id="tp-fab-dot" class="tp-dot tp-dot-off"></span>
+  </button>
+
+  <!-- Panel -->
+  <section id="tp-panel" class="tp-panel" hidden aria-live="polite">
+    <header class="tp-head">
+      <span class="tp-status">
+        <span id="tp-reg-dot" class="tp-dot tp-dot-off"></span>
+        <span id="tp-reg-text">{{ t('Σύνδεση…') }}</span>
+      </span>
+      <span id="tp-ext" class="tp-ext"></span>
+      <button id="tp-close" class="tp-x" type="button" aria-label="{{ t('Κλείσιμο') }}">×</button>
+    </header>
+
+    <!-- Idle: dialpad -->
+    <div id="tp-idle" class="tp-body">
+      <input id="tp-num" class="tp-num" type="tel" inputmode="tel"
+             placeholder="{{ t('Αριθμός ή εσωτερικό') }}" autocomplete="off">
+      <div id="tp-num-match" class="tp-match-hint"></div>
+      <button id="tp-dial" class="tp-btn tp-btn-call" type="button">
+        {{ t('Κλήση') }}
+      </button>
+    </div>
+
+    <!-- Incoming: ringing -->
+    <div id="tp-incoming" class="tp-body tp-incoming" hidden>
+      <div class="tp-caller">
+        <div id="tp-in-name" class="tp-caller-name">{{ t('Εισερχόμενη κλήση') }}</div>
+        <div id="tp-in-sub" class="tp-caller-sub"></div>
+        <div id="tp-in-num" class="tp-caller-num"></div>
+        <a id="tp-in-link" class="tp-caller-link" href="#" hidden>{{ t('Άνοιγμα καρτέλας') }}</a>
+      </div>
+      <div class="tp-row">
+        <button id="tp-answer" class="tp-btn tp-btn-call" type="button">{{ t('Απάντηση') }}</button>
+        <button id="tp-decline" class="tp-btn tp-btn-hang" type="button">{{ t('Απόρριψη') }}</button>
+      </div>
+    </div>
+
+    <!-- Active call -->
+    <div id="tp-active" class="tp-body tp-active" hidden>
+      <div class="tp-caller">
+        <div id="tp-act-name" class="tp-caller-name"></div>
+        <div id="tp-act-sub" class="tp-caller-sub"></div>
+        <div id="tp-act-num" class="tp-caller-num"></div>
+      </div>
+      <div id="tp-timer" class="tp-timer">00:00</div>
+      <div class="tp-row">
+        <button id="tp-mute" class="tp-btn tp-btn-mute" type="button">{{ t('Σίγαση') }}</button>
+        <button id="tp-hang" class="tp-btn tp-btn-hang" type="button">{{ t('Τερματισμός') }}</button>
+      </div>
+    </div>
+  </section>
+
+  <audio id="tp-audio" autoplay></audio>
+</div>
+
+<script>
+  // i18n strings the JS needs at runtime. Greek is the source (passes through);
+  // English is the overlay resolved by t(). Keep in sync with i18n_catalog.py.
+  window.TP_I18N = {
+    registered:  {{ t('Σε σύνδεση')|tojson }},
+    connecting:  {{ t('Σύνδεση…')|tojson }},
+    offline:     {{ t('Εκτός σύνδεσης')|tojson }},
+    calling:     {{ t('Κλήση…')|tojson }},
+    in_call:     {{ t('Σε κλήση')|tojson }},
+    incoming:    {{ t('Εισερχόμενη κλήση')|tojson }},
+    unknown:     {{ t('Άγνωστος καλών')|tojson }},
+    mic_denied:  {{ t('Δεν δόθηκε πρόσβαση στο μικρόφωνο')|tojson }},
+    mute:        {{ t('Σίγαση')|tojson }},
+    unmute:      {{ t('Κατάργηση σίγασης')|tojson }},
+  };
+</script>
+<script src="/static/vendor/jssip-3.11.1.min.js"></script>
+<script src="/static/telephony.js" defer></script>

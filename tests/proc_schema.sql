@@ -4490,3 +4490,24 @@ ON CONFLICT (domain) DO NOTHING;
 
 \unrestrict ui3WVvTuYFkVuAyhDo8UOcl6P6lhwaAHakQq2pxP2ferrzFVEA5rV9z5FfyzMcp
 
+--
+-- CTI telephony (migration 20260817100404) — appended to keep the test schema
+-- in sync until the next full pg_dump regeneration.
+--
+CREATE TABLE IF NOT EXISTS proc.sip_extension (
+    user_id      bigint      PRIMARY KEY REFERENCES proc.app_user(id) ON DELETE CASCADE,
+    extension    text        NOT NULL UNIQUE,
+    sip_user     text        NOT NULL UNIQUE,
+    sip_secret   text        NOT NULL,
+    display_name text,
+    is_active    boolean     NOT NULL DEFAULT true,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    updated_at   timestamptz
+);
+
+ALTER TABLE proc.customer_call
+    ADD COLUMN IF NOT EXISTS external_number text,
+    ADD COLUMN IF NOT EXISTS started_at      timestamptz,
+    ADD COLUMN IF NOT EXISTS ended_at        timestamptz,
+    ADD COLUMN IF NOT EXISTS duration_s      integer;
+
