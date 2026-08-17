@@ -1644,6 +1644,19 @@ _telephony.configure_secret(_SECRET_KEY)  # sign WS tokens with the session secr
 app.include_router(_telephony.make_router(templates, cursor))
 templates.env.globals["telephony_enabled"] = _telephony.TELEPHONY_ENABLED
 
+# Alternative telephony backend: NFON Cloudya CTI (B3) — token-gated caller
+# lookup + URL-pop endpoints under /telephony/cloudya, called by the CRM Connect
+# desktop client. Reuses telephony.lookup_caller; adds no softphone/AMI. A no-op
+# unless CLOUDYA_ENABLED is set, so it coexists dormantly with the Asterisk path.
+try:
+    from app import telephony_cloudya as _telephony_cloudya
+except ImportError:
+    import telephony_cloudya as _telephony_cloudya  # run with --app-dir=app
+app.include_router(_telephony_cloudya.make_router(templates, cursor))
+# Templates use this to render plain tel: links (the CRM Connect plugin dials
+# them) when the Cloudya backend is active instead of the softphone.
+templates.env.globals["cloudya_enabled"] = _telephony_cloudya.CLOUDYA_ENABLED
+
 # Tender-table extraction UI (separate module, mounted under /tables). Gated by
 # the TABLES_ENABLED env flag so the deployed Render copy can carry the feature
 # turned off until the public conversation happens for real — locally it
