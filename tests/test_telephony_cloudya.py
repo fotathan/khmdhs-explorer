@@ -162,3 +162,17 @@ def test_customer_page_no_tel_link_when_all_backends_off(client, monkeypatch):
     uid = _customer_with_phone(phone="2105550000")
     html = client.get(f"/admin/crm/{uid}").text
     assert 'href="tel:2105550000"' not in html
+
+
+def test_contractor_page_renders_tel_link_in_cloudya_mode(client, monkeypatch):
+    from app.main import templates
+    from tests.helpers import connect
+    # The contractor page is where lookup_caller's economic_operator match lands.
+    monkeypatch.setitem(templates.env.globals, "cloudya_enabled", True)
+    monkeypatch.setitem(templates.env.globals, "telephony_enabled", False)
+    _login_admin(client)
+    with connect() as c:
+        c.execute("INSERT INTO proc.economic_operator (vat_number, name, country, contact_phone) "
+                  "VALUES (%s,%s,%s,%s)", ("EL999888777", "Beta AE", "GR", "2310123456"))
+    html = client.get("/contractor/EL999888777").text
+    assert 'href="tel:2310123456"' in html

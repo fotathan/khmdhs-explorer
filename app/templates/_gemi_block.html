@@ -81,7 +81,7 @@
     <div>
       <div class="gemi-lbl">{{ t("Επικοινωνία") }}</div>
       <div>
-        {% if gemi.phone %}<div>{{ t("τηλ.") }} {{ gemi.phone }}</div>{% endif %}
+        {% if gemi.phone %}<div>{{ t("τηλ.") }} {% if cloudya_enabled %}<a href="tel:{{ gemi.phone }}">{{ gemi.phone }}</a>{% else %}{{ gemi.phone }}{% endif %}</div>{% endif %}
         {% if gemi.email %}<div><a href="mailto:{{ gemi.email | lower }}" style="color:var(--accent);">{{ gemi.email | lower }}</a></div>{% endif %}
         {% if gemi.url %}<div><a href="{{ gemi.url if '://' in gemi.url else 'https://' ~ gemi.url }}" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">{{ gemi.url }}</a></div>{% endif %}
       </div>

@@ -44,7 +44,7 @@
       {% if op.postal_code %}<dt>{{ t("Τ.Κ.") }}</dt><dd>{{ op.postal_code }}</dd>{% endif %}
       {% if op.street_address %}<dt>{{ t("Διεύθυνση") }}</dt><dd>{{ op.street_address }}</dd>{% endif %}
       {% if op.contact_email %}<dt>Email</dt><dd><a href="mailto:{{ op.contact_email }}" style="color:var(--accent);">{{ op.contact_email }}</a></dd>{% endif %}
-      {% if op.contact_phone %}<dt>{{ t("Τηλέφωνο") }}</dt><dd>{{ op.contact_phone }}</dd>{% endif %}
+      {% if op.contact_phone %}<dt>{{ t("Τηλέφωνο") }}</dt><dd>{% if cloudya_enabled %}<a href="tel:{{ op.contact_phone }}">{{ op.contact_phone }}</a>{% else %}{{ op.contact_phone }}{% endif %}</dd>{% endif %}
       {% if op.contact_fax %}<dt>{{ t("Φαξ") }}</dt><dd>{{ op.contact_fax }}</dd>{% endif %}
       {% if op.contact_url %}<dt>{{ t("Ιστότοπος") }}</dt><dd><a href="{{ op.contact_url }}" target="_blank" rel="noopener" style="color:var(--accent);">{{ op.contact_url }}</a></dd>{% endif %}
     </dl>
