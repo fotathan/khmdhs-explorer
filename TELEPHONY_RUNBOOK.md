@@ -182,7 +182,8 @@ has no built-in speech-to-text, so the pipeline is **record → transcribe → s
 Orchestrated by `app/call_pipeline.py` in a background thread; `summary_status`
 (`queued`→`running`→`done`/`error`) drives the CRM UI. Trigger it from the
 **"Σύνοψη AI"** button on a call in `/admin/crm/<id>` (shown when a recording exists
-and the feature is configured). The whole feature is inert until configured.
+and the feature is configured), or set `CALL_SUMMARY_AUTO` to run it automatically
+the moment a call is logged (on hangup). The whole feature is inert until configured.
 
 ### Config (env)
 
@@ -195,6 +196,7 @@ and the feature is configured). The whole feature is inert until configured.
 | `TRANSCRIBE_MODEL` / `TRANSCRIBE_LANGUAGE` | `whisper-1` / `el` | STT model + language (`""` = auto-detect). |
 | `ANTHROPIC_API_KEY` | — | Required for the summary step (same key as OCR). |
 | `CALL_SUMMARY_MODEL` | `claude-sonnet-4-6` | Claude model for summaries (override to trade cost/quality). |
+| `CALL_SUMMARY_AUTO` | *(off)* | When set, auto-transcribe + summarise a call the moment it's logged (on hangup), if it has a recording — no admin click. Needs the feature configured. |
 
 No schema migration beyond `20260818120000_call_recording_transcript_summary.sql`
 (adds `recording_path`, `transcript`, `summary`, `summary_status`, … to

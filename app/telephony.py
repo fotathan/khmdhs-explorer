@@ -34,6 +34,7 @@ import asyncio
 import logging
 import os
 import re
+import threading
 import time
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
@@ -49,6 +50,11 @@ try:
     from app import auth as _auth
 except ImportError:  # run with --app-dir=app
     import auth as _auth  # type: ignore
+
+try:
+    from app import call_pipeline as _pipeline
+except ImportError:  # run with --app-dir=app
+    import call_pipeline as _pipeline  # type: ignore
 
 log = logging.getLogger("telephony")
 
@@ -81,6 +87,10 @@ MATCH_ACTS = _env_bool("TELEPHONY_MATCH_ACTS")
 # the app process can read (a shared volume, in Docker).
 CALL_RECORDING_DIR = os.environ.get("CALL_RECORDING_DIR", "/var/spool/asterisk/monitor")
 CALL_RECORDING_EXT = os.environ.get("CALL_RECORDING_EXT", ".wav")
+# When set, a logged call that has a recording is transcribed + summarised
+# automatically (in a background thread) the moment it's logged — no admin click.
+# Off by default; needs the summary feature configured (STT backend + Claude key).
+SUMMARY_AUTO = _env_bool("CALL_SUMMARY_AUTO")
 
 # A match key shorter than this is treated as "not enough to identify anyone"
 # (avoids popping a record for a 3-digit internal code).
@@ -638,7 +648,20 @@ def make_router(templates, cursor) -> APIRouter:
                  body.get("external_number"), body.get("duration_s"),
                  u["id"], u["id"], recording_path))
             call_id = c.fetchone()["id"]
-        return {"logged": True, "id": call_id, "recording": bool(recording_path)}
+        # Auto-summarise on hangup: if enabled and the call has a recording, kick
+        # off transcription + summary in the background so the CRM shows it without
+        # an admin clicking "Σύνοψη AI". summary_status='queued' both drives the UI
+        # and stops the manual endpoint from double-running it.
+        auto = False
+        if recording_path and SUMMARY_AUTO and _pipeline.feature_configured():
+            with cursor() as c:
+                c.execute("UPDATE proc.customer_call SET summary_status = 'queued' "
+                          "WHERE id = %s", (call_id,))
+            threading.Thread(target=_pipeline.run_summary, args=(cursor, call_id),
+                             daemon=True).start()
+            auto = True
+        return {"logged": True, "id": call_id,
+                "recording": bool(recording_path), "summary_queued": auto}
 
     @router.websocket("/ws")
     async def ws(websocket: WebSocket):
