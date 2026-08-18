@@ -315,12 +315,24 @@ _POOL_MIN = int(os.environ.get("DB_POOL_MIN", "1"))
 _POOL_MAX = int(os.environ.get("DB_POOL_MAX", "10"))
 _POOL_TIMEOUT = float(os.environ.get("DB_POOL_TIMEOUT", "20"))
 _STMT_TIMEOUT_MS = int(os.environ.get("DB_STATEMENT_TIMEOUT_MS", "15000"))
+# Session time zone for every pooled connection, so timestamptz values render in
+# local wall-clock time app-wide (Greek app → Europe/Athens) instead of UTC. Uses
+# the named zone, so EET/EEST DST is handled automatically. `timezone` is one of
+# the parameters the Supabase/pgbouncer transaction pooler tracks and replays to
+# each physical backend, so this session SET survives the pooler; but for
+# GUARANTEED enforcement also set it at the DB role level
+# (ALTER ROLE <app_role> SET timezone = 'Europe/Athens'), mirroring statement_timeout.
+_APP_TIMEZONE = os.environ.get("APP_TIMEZONE", "Europe/Athens").strip()
 
 
 def _configure_conn(c: psycopg.Connection) -> None:
-    if _STMT_TIMEOUT_MS > 0:
-        with c.cursor() as cur:
+    with c.cursor() as cur:
+        if _STMT_TIMEOUT_MS > 0:
             cur.execute(f"SET statement_timeout = {_STMT_TIMEOUT_MS}")  # int, injection-safe
+        if _APP_TIMEZONE:
+            # set_config takes the zone as a bound parameter (injection-safe, unlike
+            # SET TIME ZONE which can't parameterise the zone name).
+            cur.execute("SELECT set_config('timezone', %s, false)", (_APP_TIMEZONE,))
 
 
 _pool = ConnectionPool(

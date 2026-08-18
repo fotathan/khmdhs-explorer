@@ -1975,7 +1975,8 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 adam = "MANUAL-" + uuid.uuid4().hex[:12].upper()
             # data_source: keep what the form set, else 'manual'
             ds = data.get("data_source") or "manual"
-            base_vals = [adam, "authored", ds, curator, curator, dt.datetime.now()]
+            base_vals = [adam, "authored", ds, curator, curator,
+                         dt.datetime.now(dt.timezone.utc)]
             # avoid double-setting data_source (it's in data too)
             field_cols = [c2 for c2 in data.keys() if c2 != "data_source"]
             all_cols = ["adam", "origin", "data_source", "authored_by",
@@ -1994,7 +1995,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                              "full_text_source", "full_text_extracted_at"]
                 all_vals += [ft,
                              sanitize_full_text_html(form.get("full_text_html") or ""),
-                             f"manual:{adam}", dt.datetime.now()]
+                             f"manual:{adam}", dt.datetime.now(dt.timezone.utc)]
             placeholders = ", ".join(["%s"] * len(all_cols))
             with cursor() as c:
                 c.execute("SELECT 1 FROM proc.procurement_act WHERE adam = %s", (adam,))
