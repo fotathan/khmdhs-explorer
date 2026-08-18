@@ -519,13 +519,9 @@ def add_call(c, uid, subject, direction, status, scheduled_at, outcome,
 
 
 def list_calls(c, uid):
-    c.execute("""SELECT k.id, k.subject, k.direction, k.status,
-                        (k.scheduled_at AT TIME ZONE 'Europe/Athens') AS scheduled_at,
-                        k.outcome,
-                        (k.created_at AT TIME ZONE 'Europe/Athens') AS created_at,
-                        (k.started_at AT TIME ZONE 'Europe/Athens') AS started_at,
-                        (k.ended_at   AT TIME ZONE 'Europe/Athens') AS ended_at,
-                        k.duration_s, k.external_number,
+    c.execute("""SELECT k.id, k.subject, k.direction, k.status, k.scheduled_at,
+                        k.outcome, k.created_at,
+                        k.started_at, k.ended_at, k.duration_s, k.external_number,
                         asg.username AS assigned_name, cr.username AS created_name
                  FROM proc.customer_call k
                  LEFT JOIN proc.app_user asg ON asg.id = k.assigned_to
@@ -626,12 +622,8 @@ def search_calls(c, q=None, status=None, assigned_to=None,
                  "coalesce(x.scheduled_at, x.created_at)")
     c.execute(f"""
         SELECT x.id, x.user_id, x.subject, x.direction, x.status,
-               (x.scheduled_at AT TIME ZONE 'Europe/Athens') AS scheduled_at,
-               x.outcome,
-               (x.created_at AT TIME ZONE 'Europe/Athens') AS created_at,
-               (x.started_at AT TIME ZONE 'Europe/Athens') AS started_at,
-               (x.ended_at   AT TIME ZONE 'Europe/Athens') AS ended_at,
-               x.duration_s, x.external_number,
+               x.scheduled_at, x.outcome, x.created_at,
+               x.started_at, x.ended_at, x.duration_s, x.external_number,
                u.username AS customer_username, p.full_name AS customer_name,
                p.company AS customer_company, asg.username AS assigned_name
         {_ACT_CUSTOMER_JOIN.format(table="customer_call")}
