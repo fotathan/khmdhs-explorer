@@ -29,3 +29,30 @@ services:
       # TELEPHONY_RUNBOOK.md → "Call summarisation".
       - ./recordings:/var/spool/asterisk/monitor
     restart: unless-stopped
+
+  # Self-hosted, OpenAI-compatible speech-to-text (faster-whisper) for call
+  # summarisation — so transcription needs no OpenAI key. app/transcribe.py talks
+  # the OpenAI /v1/audio/transcriptions shape, so point it at this service:
+  #   export TRANSCRIBE_BASE_URL=http://localhost:8000/v1
+  #   export TRANSCRIBE_API_KEY=            # empty — this server needs no auth
+  #   export TRANSCRIBE_MODEL=Systran/faster-whisper-small   # multilingual (incl. Greek)
+  # The first request downloads the model into the named volume (cached after).
+  # This is the CPU image; for GPU use `:latest-cuda` + a GPU runtime and set
+  # WHISPER__INFERENCE_DEVICE=cuda. `whisper` is an extra profile so it only
+  # starts when asked:  docker compose -f telephony/docker-compose.yml --profile whisper up
+  whisper:
+    image: fedirz/faster-whisper-server:latest-cpu
+    container_name: khmdhs-whisper
+    profiles: ["whisper"]
+    ports:
+      - "8000:8000"                     # OpenAI-compatible STT (app → whisper)
+    environment:
+      - WHISPER__MODEL=Systran/faster-whisper-small
+      - WHISPER__INFERENCE_DEVICE=cpu
+      - WHISPER__COMPUTE_TYPE=int8
+    volumes:
+      - whisper-cache:/root/.cache/huggingface
+    restart: unless-stopped
+
+volumes:
+  whisper-cache:

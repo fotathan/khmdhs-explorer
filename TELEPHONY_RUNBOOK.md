@@ -201,6 +201,28 @@ No schema migration beyond `20260818120000_call_recording_transcript_summary.sql
 `proc.customer_call`). No new Python dependencies — both modules use the stdlib
 (+`certifi`) like `app/ocr.py`.
 
+### Self-hosted transcription (no OpenAI key)
+
+`docker-compose.yml` includes a **faster-whisper** service (OpenAI-compatible STT)
+behind a `whisper` profile, so the whole pipeline can run with no OpenAI account.
+
+```bash
+# start Asterisk + the whisper server (the profile keeps whisper opt-in)
+docker compose -f telephony/docker-compose.yml --profile whisper up
+
+# point the app at it (no key needed) and run the app as usual
+export TRANSCRIBE_BASE_URL=http://localhost:8000/v1
+export TRANSCRIBE_API_KEY=                 # empty — the server needs no auth
+export TRANSCRIBE_MODEL=Systran/faster-whisper-small   # multilingual, incl. Greek
+```
+
+The first transcription downloads the model (cached in the `whisper-cache` volume),
+so it's slow once, then fast. CPU inference is fine for the demo; for GPU use the
+`:latest-cuda` image tag + `WHISPER__INFERENCE_DEVICE=cuda`. Bump
+`WHISPER__MODEL`/`TRANSCRIBE_MODEL` to `…-medium` for better Greek accuracy at the
+cost of speed. To use hosted OpenAI Whisper instead, drop the `whisper` profile and
+set `TRANSCRIBE_API_KEY` (or `OPENAI_API_KEY`) with the default `TRANSCRIBE_BASE_URL`.
+
 > **Prod note:** on an ephemeral web dyno (Render free plan) local recordings don't
 > survive a restart — put `CALL_RECORDING_DIR` on shared/object storage, or run the
 > transcription close to Asterisk, before relying on it in production.
