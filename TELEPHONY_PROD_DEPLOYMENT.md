@@ -111,6 +111,10 @@ CIDR.
 
 > Full spec: **`TELEPHONY_PROD_PHASE4_CREDENTIALS.md`** (schema, app/JS/Asterisk
 > changes, tests, effort, and the A-vs-B decision).
+>
+> **App side is now implemented** (Option A, behind `SIP_AUTH_MODE=realtime`) — see
+> the companion doc's "Implementation status" note. What remains for prod is the
+> **Asterisk-side realtime wiring on the VPS** (A.4) plus setting `SIP_AUTH_MODE=realtime`.
 
 The runbook flags this and I confirmed it in `app/telephony.py`:
 
@@ -138,6 +142,8 @@ Add the telephony env to the **web service** in the Render dashboard (not
 | `SIP_WS_URL` | `wss://pbx.<yourdomain>/ws` |
 | `SIP_DOMAIN` | `pbx.<yourdomain>` |
 | `TELEPHONY_REGION` | `GR` |
+| `SIP_AUTH_MODE` | `realtime` — mint short-lived SIP secrets (Phase 4). Requires Asterisk wired to PJSIP realtime auth (see the Phase 4 doc A.4). Omit / `static` keeps the durable-secret path. |
+| `SIP_CRED_TTL` | `3600` (optional) — ephemeral secret lifetime in seconds. |
 
 Redeploy the web service (env is read once at startup). On boot, the AMI
 listener connects over the tunnel; `/telephony/config` starts returning

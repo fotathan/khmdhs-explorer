@@ -23,6 +23,9 @@
   var pendingPop = null;  // last screen-pop, matched to the ringing call by number
   var dialInfo = null;    // {number, name, customer_user_id} for an outgoing call
   var callStart = 0, timer = null, muted = false;
+  // Short-lived SIP credential refresh (SIP_AUTH_MODE=realtime): /config returns
+  // sip_password_ttl and we re-register with a fresh secret before it expires.
+  var refreshTimer = null, pendingCfg = null, lastRefreshAt = 0;
 
   // ---- view helpers ------------------------------------------------------ //
   function setReg(state, text) {
@@ -78,8 +81,42 @@
       $("tp-fab").hidden = false;
       startUA(c);
       connectPop();
+      scheduleRefresh(c.sip_password_ttl);
     })
     .catch(function () { /* telephony simply unavailable */ });
+
+  // ---- short-lived credential refresh ------------------------------------ //
+  function scheduleRefresh(ttl) {
+    if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
+    if (!ttl || ttl <= 0) return;                 // static mode: no rotation
+    // Refresh at 80% of the TTL, but never sooner than 15s.
+    var ms = Math.max(15, Math.floor(ttl * 0.8)) * 1000;
+    refreshTimer = setTimeout(refreshConfig, ms);
+  }
+
+  function refreshConfig() {
+    lastRefreshAt = Date.now();
+    fetch(root.dataset.configUrl, { credentials: "same-origin" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (c) {
+        if (!c || !c.enabled || !c.provisioned) return;
+        var changed = !cfg || c.sip_password !== cfg.sip_password;
+        if (changed) applyNewCfg(c);
+        else cfg = c;                              // keep ws_token/ttl fresh
+        scheduleRefresh(c.sip_password_ttl);
+      })
+      .catch(function () { scheduleRefresh(60); });  // transient: retry in ~48s
+  }
+
+  // Re-register with a new secret. JsSIP fixes credentials at UA construction,
+  // so this is stop-then-start. An active call must survive it, so defer the
+  // restart to endCall() when one is in progress (out-of-dialog anyway).
+  function applyNewCfg(c) {
+    if (session) { pendingCfg = c; return; }
+    cfg = c;
+    try { if (ua) ua.stop(); } catch (_) {}
+    startUA(c);
+  }
 
   // ---- SIP UA ------------------------------------------------------------ //
   function startUA(c) {
@@ -96,7 +133,12 @@
     ua.on("connecting", function () { setReg("busy", I.connecting); });
     ua.on("registered", function () { setReg("on", I.registered); });
     ua.on("unregistered", function () { setReg("off", I.offline); });
-    ua.on("registrationFailed", function () { setReg("off", I.offline); });
+    ua.on("registrationFailed", function () {
+      setReg("off", I.offline);
+      // A short-lived secret may have expired while the tab slept — refetch once
+      // (debounced) and re-register when idle. No-op in static mode (no TTL).
+      if (cfg && cfg.sip_password_ttl && Date.now() - lastRefreshAt > 5000) refreshConfig();
+    });
     ua.on("disconnected", function () { setReg("off", I.offline); });
     ua.on("newRTCSession", onSession);
     ua.start();
@@ -238,6 +280,8 @@
     setReg(ua && ua.isRegistered && ua.isRegistered() ? "on" : "off",
            ua && ua.isRegistered && ua.isRegistered() ? I.registered : I.offline);
     showBody("idle");
+    // Apply a credential refresh that arrived mid-call, now that we're idle.
+    if (pendingCfg) { var nc = pendingCfg; pendingCfg = null; applyNewCfg(nc); }
   }
 
   // ---- controls ---------------------------------------------------------- //

@@ -4523,3 +4523,22 @@ ALTER TABLE proc.customer_call
     ADD COLUMN IF NOT EXISTS transcribed_at  timestamptz,
     ADD COLUMN IF NOT EXISTS summarized_at   timestamptz;
 
+
+-- Ephemeral SIP credentials (migration
+-- 20260818140000_sip_ephemeral_credentials.sql). Kept in the snapshot so the
+-- test DB has the tables the credential-rotation tests exercise.
+CREATE TABLE IF NOT EXISTS proc.sip_credential (
+    user_id    bigint      PRIMARY KEY REFERENCES proc.app_user(id) ON DELETE CASCADE,
+    auth_id    text        NOT NULL,
+    secret     text        NOT NULL,
+    expires_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS proc.ps_auths (
+    id         text PRIMARY KEY,
+    auth_type  text NOT NULL DEFAULT 'userpass',
+    username   text NOT NULL,
+    password   text NOT NULL,
+    realm      text
+);
