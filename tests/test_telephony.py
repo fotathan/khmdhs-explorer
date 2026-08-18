@@ -179,3 +179,66 @@ def test_recent_recording_expires_after_max_age():
                          "Channel": "PJSIP/1002-1", "DestChannel": "PJSIP/1001-2"})
     assert svc.recent_recording_for("1002", max_age_s=3600) is not None
     assert svc.recent_recording_for("1002", max_age_s=0) is None  # too old for a 0s window
+
+
+# --------------------------------------------------------------------------- #
+# Ephemeral SIP credentials (Phase 4, Option A — SIP_AUTH_MODE=realtime).
+# DB-backed: mint/reuse/rotate/revoke against the test schema.
+# --------------------------------------------------------------------------- #
+def test_mint_creates_ps_auths_and_credential(db):
+    from tests.helpers import make_user
+    uid = make_user("agent_mint")
+    cur = db.cursor()
+    secret, exp = t.mint_or_reuse_credential(cur, uid, "1002", "1002-auth")
+    assert secret and exp is not None
+    cur.execute("SELECT username, password FROM proc.ps_auths WHERE id='1002-auth'")
+    row = cur.fetchone()
+    assert row["username"] == "1002" and row["password"] == secret   # Asterisk reads this
+    cur.execute("SELECT secret FROM proc.sip_credential WHERE user_id=%s", (uid,))
+    assert cur.fetchone()["secret"] == secret
+
+
+def test_mint_reuses_secret_within_ttl(db):
+    from tests.helpers import make_user
+    uid = make_user("agent_reuse")
+    cur = db.cursor()
+    s1, _ = t.mint_or_reuse_credential(cur, uid, "1002", "1002-auth")
+    s2, _ = t.mint_or_reuse_credential(cur, uid, "1002", "1002-auth")
+    assert s1 == s2   # still fresh -> same secret, no needless rotation
+
+
+def test_mint_rotates_when_expired(db):
+    from tests.helpers import make_user
+    uid = make_user("agent_rotate")
+    cur = db.cursor()
+    s1, _ = t.mint_or_reuse_credential(cur, uid, "1002", "1002-auth")
+    cur.execute("UPDATE proc.sip_credential SET expires_at = now() - interval '1 hour' "
+                "WHERE user_id=%s", (uid,))
+    s2, _ = t.mint_or_reuse_credential(cur, uid, "1002", "1002-auth")
+    assert s1 != s2   # expired -> new secret
+    cur.execute("SELECT password FROM proc.ps_auths WHERE id='1002-auth'")
+    assert cur.fetchone()["password"] == s2   # realtime auth updated to the new one
+
+
+def test_revoke_deletes_both_rows(db):
+    from tests.helpers import make_user
+    uid = make_user("agent_revoke")
+    cur = db.cursor()
+    t.mint_or_reuse_credential(cur, uid, "1002", "1002-auth")
+    t.revoke_credential(cur, uid)
+    cur.execute("SELECT 1 FROM proc.ps_auths WHERE id='1002-auth'")
+    assert cur.fetchone() is None
+    cur.execute("SELECT 1 FROM proc.sip_credential WHERE user_id=%s", (uid,))
+    assert cur.fetchone() is None
+
+
+def test_set_password_revokes_credential(db):
+    """Invalidating sessions (password change) also kills the softphone."""
+    from tests.helpers import make_user
+    from app import auth as _auth
+    uid = make_user("agent_pwrevoke")
+    cur = db.cursor()
+    t.mint_or_reuse_credential(cur, uid, "1002", "1002-auth")
+    _auth.set_password(cur, uid, "new-password-123")
+    cur.execute("SELECT 1 FROM proc.sip_credential WHERE user_id=%s", (uid,))
+    assert cur.fetchone() is None

@@ -3,6 +3,30 @@
 Companion to `TELEPHONY_PROD_DEPLOYMENT.md` §Phase 4. The one code change that
 must land before telephony is enabled on a public prod deployment.
 
+> **Implementation status (app side — DONE).** Option A is implemented behind an
+> opt-in flag **`SIP_AUTH_MODE`** (`static` default, `realtime` to enable), so it
+> ships without breaking local dev / the demo `pjsip.conf` (which stay on the
+> durable static secret). Landed:
+> - migration `20260818140000_sip_ephemeral_credentials.sql` — `proc.sip_credential`
+>   + `proc.ps_auths` (the durable `sip_extension.sip_secret` is **kept**, not
+>   dropped, so static mode still works; a prod host fully on realtime can drop it
+>   later).
+> - `app/telephony.py` — `mint_or_reuse_credential` / `revoke_credential` / `_auth_id`;
+>   `/telephony/config` mints a short-lived secret + returns `sip_password_ttl` in
+>   realtime mode. `SIP_CRED_TTL` (default 3600s) tunes the TTL.
+> - `app/auth.py` — revocation hooked into `set_password` / `set_role` /
+>   `set_active(False)`, so invalidating an agent's sessions also kills their softphone.
+> - `app/static/telephony.js` — refreshes `/config` at 80% of the TTL and re-registers
+>   with the new secret (deferred if a call is in progress; retried on
+>   `registrationFailed`).
+> - Tests in `tests/test_telephony.py` (mint/reuse/rotate/revoke + password-change
+>   revocation); snapshot updated.
+>
+> **Still required on the VPS to actually use realtime (A.4 below):** wire Asterisk
+> to PJSIP realtime auth (`res_config_pgsql`/ODBC → `ps_auths`, `sorcery.conf`
+> `auth=realtime`), remove the static `[agentN-auth]` blocks from `pjsip.conf`, set
+> `SIP_AUTH_MODE=realtime` in Render, and (optionally) drop `sip_extension.sip_secret`.
+
 ## The problem (confirmed in code)
 
 `proc.sip_extension.sip_secret` is a **durable plaintext** SIP password. It is:

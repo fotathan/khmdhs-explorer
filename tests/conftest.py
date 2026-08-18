@@ -100,6 +100,7 @@ def _clean(_schema):
         c.execute("TRUNCATE proc.app_user CASCADE")       # cascades to subs/profile/etc.
         c.execute("TRUNCATE proc.login_throttle")
         c.execute("TRUNCATE proc.admin_action CASCADE")
+        c.execute("TRUNCATE proc.ps_auths")               # no FK to cascade through
     yield
 
 

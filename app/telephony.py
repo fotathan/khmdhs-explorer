@@ -34,8 +34,10 @@ import asyncio
 import logging
 import os
 import re
+import secrets
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
@@ -91,6 +93,17 @@ CALL_RECORDING_EXT = os.environ.get("CALL_RECORDING_EXT", ".wav")
 # automatically (in a background thread) the moment it's logged — no admin click.
 # Off by default; needs the summary feature configured (STT backend + Claude key).
 SUMMARY_AUTO = _env_bool("CALL_SUMMARY_AUTO")
+
+# SIP credential mode (see TELEPHONY_PROD_PHASE4_CREDENTIALS.md):
+#   "static"   — default; the browser gets the durable proc.sip_extension.sip_secret,
+#                which must match the static pjsip.conf auth (local dev / the demo).
+#   "realtime" — /config mints a SHORT-LIVED secret per agent, writes it to
+#                proc.ps_auths (PJSIP realtime auth) + proc.sip_credential, and
+#                returns it with a TTL so the browser re-registers before it
+#                expires. Requires Asterisk wired to PJSIP realtime auth on the host.
+SIP_AUTH_MODE = os.environ.get("SIP_AUTH_MODE", "static").strip().lower()
+CRED_TTL_S = int(os.environ.get("SIP_CRED_TTL", "3600"))
+_REFRESH_SKEW_S = 300   # reuse the current secret only if this much life remains
 
 # A match key shorter than this is treated as "not enough to identify anyone"
 # (avoids popping a record for a 3-digit internal code).
@@ -260,6 +273,58 @@ def get_extension(cur, user_id: int) -> dict | None:
              FROM proc.sip_extension
             WHERE user_id = %s AND is_active""", (user_id,))
     return cur.fetchone()
+
+
+# --------------------------------------------------------------------------- #
+# Ephemeral SIP credentials (SIP_AUTH_MODE=realtime — see
+# TELEPHONY_PROD_PHASE4_CREDENTIALS.md). The browser must present a SIP secret to
+# REGISTER; making it short-lived + rotatable is the real mitigation. The app
+# writes proc.ps_auths (the PJSIP realtime auth Asterisk reads) and mirrors the
+# current secret in proc.sip_credential for reuse/expiry bookkeeping.
+# --------------------------------------------------------------------------- #
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _auth_id(ext: dict) -> str:
+    """The `auth=` object name for an agent's pjsip.conf endpoint block."""
+    return f"{ext['sip_user']}-auth"
+
+
+def mint_or_reuse_credential(cur, user_id: int, sip_user: str, auth_id: str):
+    """Return (secret, expires_at). Reuse the current secret while it still has
+    more than _REFRESH_SKEW_S life; otherwise rotate — write a fresh secret to
+    proc.ps_auths (what Asterisk authenticates against) and proc.sip_credential."""
+    cur.execute("SELECT secret, expires_at FROM proc.sip_credential WHERE user_id = %s",
+                (user_id,))
+    row = cur.fetchone()
+    if row and (row["expires_at"] - _now()).total_seconds() > _REFRESH_SKEW_S:
+        return row["secret"], row["expires_at"]
+    secret = secrets.token_urlsafe(18)
+    exp = _now() + timedelta(seconds=CRED_TTL_S)
+    cur.execute("""INSERT INTO proc.ps_auths (id, auth_type, username, password, realm)
+                   VALUES (%s, 'userpass', %s, %s, %s)
+                   ON CONFLICT (id) DO UPDATE SET username = EXCLUDED.username,
+                        password = EXCLUDED.password, realm = EXCLUDED.realm""",
+                (auth_id, sip_user, secret, SIP_DOMAIN))
+    cur.execute("""INSERT INTO proc.sip_credential (user_id, auth_id, secret, expires_at, updated_at)
+                   VALUES (%s, %s, %s, %s, now())
+                   ON CONFLICT (user_id) DO UPDATE SET auth_id = EXCLUDED.auth_id,
+                        secret = EXCLUDED.secret, expires_at = EXCLUDED.expires_at,
+                        updated_at = now()""",
+                (user_id, auth_id, secret, exp))
+    return secret, exp
+
+
+def revoke_credential(cur, user_id: int) -> None:
+    """Immediately invalidate an agent's softphone (deactivation / log-out-all):
+    drop both the realtime auth row and the bookkeeping row so the next REGISTER
+    with the old secret fails. A no-op when the agent has no minted credential."""
+    cur.execute("SELECT auth_id FROM proc.sip_credential WHERE user_id = %s", (user_id,))
+    r = cur.fetchone()
+    if r:
+        cur.execute("DELETE FROM proc.ps_auths WHERE id = %s", (r["auth_id"],))
+        cur.execute("DELETE FROM proc.sip_credential WHERE user_id = %s", (user_id,))
 
 
 def extensions_map(cur) -> dict[str, int]:
@@ -590,22 +655,36 @@ def make_router(templates, cursor) -> APIRouter:
             return JSONResponse({"enabled": False}, status_code=401)
         if not TELEPHONY_ENABLED:
             return {"enabled": False}
+        ttl = None
         with cursor() as c:
             ext = get_extension(c, u["id"])
-        if not ext:
-            # Enabled globally, but this agent has no SIP endpoint provisioned.
-            return {"enabled": True, "provisioned": False}
-        return {
+            if not ext:
+                # Enabled globally, but this agent has no SIP endpoint provisioned.
+                return {"enabled": True, "provisioned": False}
+            if SIP_AUTH_MODE == "realtime":
+                # Mint/rotate a short-lived secret (written to PJSIP realtime auth)
+                # and hand it to the browser with a TTL so it refreshes in time.
+                secret, exp = mint_or_reuse_credential(
+                    c, u["id"], ext["sip_user"], _auth_id(ext))
+                ttl = int((exp - _now()).total_seconds())
+            else:
+                # Static mode (local dev / demo): the durable pjsip.conf secret.
+                secret = ext["sip_secret"]
+        resp = {
             "enabled": True, "provisioned": True,
             "ws_url": SIP_WS_URL, "domain": SIP_DOMAIN,
             "extension": ext["extension"], "sip_user": ext["sip_user"],
             # The browser must present this to REGISTER (inherent to WebRTC
-            # softphones). Only ever returned to the authenticated owner.
-            "sip_password": ext["sip_secret"],
+            # softphones). Only ever returned to the authenticated owner; in
+            # realtime mode it is short-lived and rotated.
+            "sip_password": secret,
             "display_name": ext["display_name"] or u.get("username"),
             # Bearer token for the screen-pop WebSocket (see make_ws_token).
             "ws_token": make_ws_token(u["id"], ext["extension"]),
         }
+        if ttl is not None:
+            resp["sip_password_ttl"] = ttl   # seconds — drives the client refresh
+        return resp
 
     @router.get("/lookup")
     def lookup(request: Request, number: str = ""):

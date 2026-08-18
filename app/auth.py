@@ -145,6 +145,22 @@ def create_user(c, username, password, role="customer", email=None):
     return c.fetchone()
 
 
+def _revoke_sip_credential(c, uid):
+    """Best-effort: drop an agent's ephemeral SIP secret (proc.ps_auths +
+    proc.sip_credential) so invalidating their sessions also kills their WebRTC
+    softphone — the next REGISTER with the old secret fails. Only relevant under
+    telephony realtime auth (SIP_AUTH_MODE=realtime); a no-op otherwise, and
+    swallowed entirely if the telephony tables aren't migrated in this DB."""
+    try:
+        c.execute("SELECT auth_id FROM proc.sip_credential WHERE user_id = %s", (uid,))
+        r = c.fetchone()
+        if r:
+            c.execute("DELETE FROM proc.ps_auths WHERE id = %s", (r["auth_id"],))
+            c.execute("DELETE FROM proc.sip_credential WHERE user_id = %s", (uid,))
+    except Exception:      # noqa: BLE001 — revocation is best-effort, never blocks auth
+        pass
+
+
 def set_password(c, uid, password, must_change=False):
     if not password_ok(password):
         raise ValueError("password must be 8–200 characters")
@@ -160,6 +176,7 @@ def set_password(c, uid, password, must_change=False):
               "SET password_hash = %s, session_version = session_version + 1, "
               "    must_change_password = %s "
               "WHERE id = %s", (hash_password(password), bool(must_change), uid))
+    _revoke_sip_credential(c, uid)
 
 
 def gen_temp_password() -> str:
@@ -175,6 +192,7 @@ def set_role(c, uid, role):
     c.execute("UPDATE proc.app_user "
               "SET role = %s, session_version = session_version + 1 "
               "WHERE id = %s", (role, uid))
+    _revoke_sip_credential(c, uid)
 
 
 def session_version(c, uid) -> int:
@@ -189,6 +207,8 @@ def session_version(c, uid) -> int:
 def set_active(c, uid, active: bool):
     c.execute("UPDATE proc.app_user SET is_active = %s WHERE id = %s",
               (bool(active), uid))
+    if not active:
+        _revoke_sip_credential(c, uid)   # deactivation also kills the softphone
 
 
 def touch_last_login(c, uid):
