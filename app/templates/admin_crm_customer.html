@@ -225,6 +225,10 @@
       <input type="text" name="outcome" placeholder="{{ t('Έκβαση') }}">
       <button type="submit" class="u-mini">{{ t("Προσθήκη") }}</button>
     </form>
+    {% macro dur(s) -%}
+      {%- if s >= 3600 -%}{{ s // 3600 }}:{{ '%02d' | format((s % 3600) // 60) }}:{{ '%02d' | format(s % 60) }}
+      {%- else -%}{{ s // 60 }}:{{ '%02d' | format(s % 60) }}{%- endif -%}
+    {%- endmacro %}
     {% if calls %}
     <ul class="act-list">
       {% for k in calls %}
@@ -235,9 +239,10 @@
           <span class="act-badge st-{{ k.status }}">{{ CALL_LABELS[k.status] | t }}</span>
         </div>
         <div class="act-meta">
+          {% if k.started_at %}<span class="call-time">🕑 {{ k.started_at.strftime('%Y-%m-%d %H:%M:%S') }}{% if k.ended_at %} – {{ k.ended_at.strftime('%H:%M:%S') }}{% endif %}</span>{% if k.duration_s is not none %} · {{ t('διάρκεια') }} {{ dur(k.duration_s) }}{% endif %}{% if k.external_number %} · {{ k.external_number }}{% endif %} · {% endif %}
           {% if k.scheduled_at %}{{ t('προγρ.') }} {{ k.scheduled_at.strftime('%Y-%m-%d') }} · {% endif %}
           {% if k.assigned_name %}{{ t('υπεύθυνος') }}: {{ k.assigned_name }} · {% endif %}
-          {{ k.created_at.strftime('%Y-%m-%d') }}{% if k.created_name %} · {{ k.created_name }}{% endif %}
+          {{ k.created_at.strftime('%Y-%m-%d %H:%M') }}{% if k.created_name %} · {{ k.created_name }}{% endif %}
         </div>
         {% if k.outcome %}<div class="act-out">{{ k.outcome }}</div>{% endif %}
         <form method="post" action="/admin/crm/{{ cust.id }}/call/{{ k.id }}/status" class="act-status">

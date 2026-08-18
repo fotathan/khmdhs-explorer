@@ -4,6 +4,10 @@
 {% set CALL_LABELS = {
   'planned': 'Προγραμματισμένη', 'held': 'Πραγματοποιήθηκε', 'not_held': 'Δεν έγινε',
   'not_answered': 'Αναπάντητη', 'cancelled': 'Ακυρώθηκε'} %}
+{% macro dur(s) -%}
+  {%- if s >= 3600 -%}{{ s // 3600 }}:{{ '%02d' | format((s % 3600) // 60) }}:{{ '%02d' | format(s % 60) }}
+  {%- else -%}{{ s // 60 }}:{{ '%02d' | format(s % 60) }}{%- endif -%}
+{%- endmacro %}
 
 <div class="detail-h">
   <div class="kicker">CRM</div>
@@ -31,7 +35,7 @@
 <table class="notices">
   <thead><tr>
     <th>{{ t("Πελάτης") }}</th><th>{{ t("Θέμα") }}</th><th>{{ t("Κατάσταση") }}</th>
-    <th>{{ t("Προγρ.") }}</th><th>{{ t("Υπεύθυνος") }}</th>
+    <th>{{ t("Χρόνος") }}</th><th>{{ t("Διάρκεια") }}</th><th>{{ t("Υπεύθυνος") }}</th>
   </tr></thead>
   <tbody>
     {% for r in rows %}
@@ -41,7 +45,13 @@
       <td>{{ '↗' if r.direction=='outgoing' else '↙' }} {{ r.subject or t("(χωρίς θέμα)") }}
         {% if r.outcome %}<div class="meta">{{ r.outcome }}</div>{% endif %}</td>
       <td><span class="sub-badge st-{{ r.status }}">{{ CALL_LABELS[r.status] | t }}</span></td>
-      <td class="meta">{{ r.scheduled_at.strftime('%Y-%m-%d') if r.scheduled_at else '—' }}</td>
+      <td class="meta">
+        {%- if r.started_at %}{{ r.started_at.strftime('%Y-%m-%d %H:%M:%S') }}
+          {%- if r.ended_at %}<div class="meta">→ {{ r.ended_at.strftime('%H:%M:%S') }}</div>{% endif %}
+        {%- elif r.scheduled_at %}{{ t('προγρ.') }} {{ r.scheduled_at.strftime('%Y-%m-%d') }}
+        {%- else %}{{ r.created_at.strftime('%Y-%m-%d %H:%M') }}{% endif -%}
+      </td>
+      <td class="meta">{{ dur(r.duration_s) if r.duration_s is not none else '—' }}</td>
       <td class="meta">{{ r.assigned_name or '—' }}</td>
     </tr>
     {% endfor %}
