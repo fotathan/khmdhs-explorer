@@ -1,0 +1,6 @@
+# Prod call recordings (MixMonitor). Keep the dir, ignore the audio.
+*.wav
+*.WAV
+*.gsm
+*.ulaw
+!.gitignore
