@@ -23,4 +23,9 @@ services:
       - ./asterisk/extensions.conf:/etc/asterisk/extensions.conf:ro
       - ./asterisk/manager.conf:/etc/asterisk/manager.conf:ro
       - ./asterisk/rtp.conf:/etc/asterisk/rtp.conf:ro
+      # Call recordings (MixMonitor) — shared with the app for post-call
+      # summarisation. Point the app's CALL_RECORDING_DIR at the host side of
+      # this mount (the absolute path to telephony/recordings). See
+      # TELEPHONY_RUNBOOK.md → "Call summarisation".
+      - ./recordings:/var/spool/asterisk/monitor
     restart: unless-stopped

@@ -245,6 +245,23 @@
           {{ k.created_at.strftime('%Y-%m-%d %H:%M') }}{% if k.created_name %} · {{ k.created_name }}{% endif %}
         </div>
         {% if k.outcome %}<div class="act-out">{{ k.outcome }}</div>{% endif %}
+        {# --- AI call summary (post-call transcription + Claude) --- #}
+        {% if k.summary %}
+        <div class="call-summary">
+          <div class="call-sum-label">🤖 {{ t('Σύνοψη AI') }}</div>
+          <div class="call-sum-text">{{ k.summary }}</div>
+          {% if k.transcript %}<details class="call-transcript"><summary>{{ t('Απομαγνητοφώνηση') }}</summary><div class="call-tx-text">{{ k.transcript }}</div></details>{% endif %}
+        </div>
+        {% elif k.summary_status in ('running', 'queued') %}
+        <div class="act-meta call-sum-pending">⏳ {{ t('Δημιουργία σύνοψης…') }}</div>
+        {% elif k.summary_status == 'error' %}
+        <div class="act-meta call-sum-error">⚠ {{ k.summary_error or t('Αποτυχία σύνοψης') }}</div>
+        {% endif %}
+        {% if summary_configured and k.recording_path and k.summary_status not in ('running', 'queued') %}
+        <form method="post" action="/admin/crm/{{ cust.id }}/call/{{ k.id }}/summarize" class="act-status">
+          <button type="submit" class="u-mini">🤖 {{ t('Ανανέωση σύνοψης') if k.summary else t('Σύνοψη AI') }}</button>
+        </form>
+        {% endif %}
         <form method="post" action="/admin/crm/{{ cust.id }}/call/{{ k.id }}/status" class="act-status">
           <select name="status">{% for s in call_statuses %}<option value="{{ s }}" {% if s==k.status %}selected{% endif %}>{{ CALL_LABELS[s] | t }}</option>{% endfor %}</select>
           <input type="text" name="outcome" placeholder="{{ t('Έκβαση') }}">
@@ -341,5 +358,13 @@
   .act-status{display:flex;gap:5px;align-items:center;margin-top:8px;flex-wrap:wrap;}
   .act-status select,.act-status input{font-size:11px;padding:4px 6px;border:1px solid var(--rule);border-radius:6px;}
   .act-status input[type=text]{flex:1;min-width:90px;}
+  .call-summary{margin-top:6px;padding:7px 10px;border-left:3px solid var(--accent);background:var(--rule-soft,#f6f8fb);border-radius:0 6px 6px 0;}
+  .call-sum-label{font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.03em;}
+  .call-sum-text{font-size:13px;color:var(--ink-1);white-space:pre-wrap;margin-top:2px;}
+  .call-transcript{margin-top:5px;}
+  .call-transcript summary{font-size:11px;color:var(--ink-3);cursor:pointer;}
+  .call-tx-text{font-size:12px;color:var(--ink-2);white-space:pre-wrap;margin-top:4px;max-height:220px;overflow:auto;}
+  .call-sum-pending{color:var(--ink-2);}
+  .call-sum-error{color:#b3261e;}
 </style>
 {% endblock %}

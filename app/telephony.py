@@ -34,6 +34,7 @@ import asyncio
 import logging
 import os
 import re
+import time
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
@@ -72,6 +73,14 @@ SIP_WS_URL = os.environ.get("SIP_WS_URL", "ws://localhost:8088/ws")
 SIP_DOMAIN = os.environ.get("SIP_DOMAIN", "localhost")
 DEFAULT_REGION = os.environ.get("TELEPHONY_REGION", "GR")
 MATCH_ACTS = _env_bool("TELEPHONY_MATCH_ACTS")
+
+# Where Asterisk's MixMonitor writes call recordings (see TELEPHONY_RUNBOOK.md →
+# "Call summarisation"). The dialplan records to <Uniqueid>.wav in this dir; the
+# AMI listener derives the same path from the DialBegin Uniqueid and attaches it
+# to the logged call so it can be transcribed + summarised. Must be a directory
+# the app process can read (a shared volume, in Docker).
+CALL_RECORDING_DIR = os.environ.get("CALL_RECORDING_DIR", "/var/spool/asterisk/monitor")
+CALL_RECORDING_EXT = os.environ.get("CALL_RECORDING_EXT", ".wav")
 
 # A match key shorter than this is treated as "not enough to identify anyone"
 # (avoids popping a record for a 3-digit internal code).
@@ -342,6 +351,10 @@ class TelephonyService:
         self.hub = _Hub()
         self._task: asyncio.Task | None = None
         self._stop = asyncio.Event()
+        # ext -> (recording_path, monotonic_ts): the recording of the most recent
+        # call touching that extension, so /log-call can attach it (see
+        # _note_recording / recent_recording_for).
+        self._recent_rec: dict[str, tuple[str, float]] = {}
 
     # -- lifecycle ---------------------------------------------------------- #
     def start(self) -> None:
@@ -434,7 +447,36 @@ class TelephonyService:
                 fields[k.strip()] = v.strip()
             # non key:value lines (e.g. the login banner) are ignored
 
+    # -- recording correlation ---------------------------------------------- #
+    def _note_recording(self, ev: dict) -> None:
+        """On a ringing (DialBegin) event, remember the recording path for the
+        extensions on the call. The dialplan records MixMonitor(${UNIQUEID}.wav),
+        and the DialBegin Uniqueid is that same channel's id, so the path lines up
+        without the browser ever needing to know Asterisk's call id."""
+        if ev.get("Event") != "DialBegin":
+            return
+        base = ev.get("Uniqueid") or ev.get("Linkedid")
+        if not base:
+            return
+        path = os.path.join(CALL_RECORDING_DIR, f"{base}{CALL_RECORDING_EXT}")
+        now = time.monotonic()
+        for ch in (ev.get("Channel"), ev.get("DestChannel")):
+            ext = channel_extension(ch)
+            if ext:
+                self._recent_rec[ext] = (path, now)
+        # prune entries older than an hour so the map can't grow unbounded
+        for k in [k for k, (_, ts) in self._recent_rec.items() if now - ts > 3600]:
+            self._recent_rec.pop(k, None)
+
+    def recent_recording_for(self, ext: str, max_age_s: float = 1800) -> str | None:
+        rec = self._recent_rec.get(ext)
+        if not rec:
+            return None
+        path, ts = rec
+        return path if (time.monotonic() - ts) <= max_age_s else None
+
     async def _handle(self, ev: dict) -> None:
+        self._note_recording(ev)
         popped = screenpop_from_event(ev)
         if not popped:
             return
@@ -576,18 +618,27 @@ def make_router(templates, cursor) -> APIRouter:
             return {"logged": False, "reason": "no_customer"}
         direction = "incoming" if body.get("direction") == "incoming" else "outgoing"
         status = body.get("status") or "held"
+        # Attach the server-side recording for this agent's extension, if the AMI
+        # listener saw the call (dialplan MixMonitor + DialBegin correlation).
+        recording_path = None
+        if SERVICE is not None:
+            with cursor() as c:
+                ext = get_extension(c, u["id"])
+            if ext:
+                recording_path = SERVICE.recent_recording_for(ext["extension"])
         with cursor() as c:
             c.execute(
                 """INSERT INTO proc.customer_call
                        (user_id, subject, direction, status, external_number,
-                        started_at, ended_at, duration_s, assigned_to, created_by)
-                   VALUES (%s, %s, %s, %s, %s, now(), now(), %s, %s, %s)
+                        started_at, ended_at, duration_s, assigned_to, created_by,
+                        recording_path)
+                   VALUES (%s, %s, %s, %s, %s, now(), now(), %s, %s, %s, %s)
                    RETURNING id""",
                 (customer_user_id, body.get("subject"), direction, status,
                  body.get("external_number"), body.get("duration_s"),
-                 u["id"], u["id"]))
+                 u["id"], u["id"], recording_path))
             call_id = c.fetchone()["id"]
-        return {"logged": True, "id": call_id}
+        return {"logged": True, "id": call_id, "recording": bool(recording_path)}
 
     @router.websocket("/ws")
     async def ws(websocket: WebSocket):

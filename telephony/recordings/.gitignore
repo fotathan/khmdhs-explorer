@@ -1,0 +1,7 @@
+# Call recordings written by Asterisk MixMonitor (see docker-compose.yml).
+# Keep the directory, ignore the audio.
+*.wav
+*.WAV
+*.gsm
+*.ulaw
+!.gitignore

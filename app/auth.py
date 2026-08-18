@@ -522,6 +522,8 @@ def list_calls(c, uid):
     c.execute("""SELECT k.id, k.subject, k.direction, k.status, k.scheduled_at,
                         k.outcome, k.created_at,
                         k.started_at, k.ended_at, k.duration_s, k.external_number,
+                        k.recording_path, k.transcript, k.summary, k.summary_status,
+                        k.summary_error, k.summarized_at,
                         asg.username AS assigned_name, cr.username AS created_name
                  FROM proc.customer_call k
                  LEFT JOIN proc.app_user asg ON asg.id = k.assigned_to
