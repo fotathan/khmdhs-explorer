@@ -4511,3 +4511,15 @@ ALTER TABLE proc.customer_call
     ADD COLUMN IF NOT EXISTS ended_at        timestamptz,
     ADD COLUMN IF NOT EXISTS duration_s      integer;
 
+-- Post-call AI summarisation columns (migration
+-- 20260818120000_call_recording_transcript_summary.sql).
+ALTER TABLE proc.customer_call
+    ADD COLUMN IF NOT EXISTS recording_path  text,
+    ADD COLUMN IF NOT EXISTS transcript      text,
+    ADD COLUMN IF NOT EXISTS summary         text,
+    ADD COLUMN IF NOT EXISTS summary_model   text,
+    ADD COLUMN IF NOT EXISTS summary_status  text,
+    ADD COLUMN IF NOT EXISTS summary_error   text,
+    ADD COLUMN IF NOT EXISTS transcribed_at  timestamptz,
+    ADD COLUMN IF NOT EXISTS summarized_at   timestamptz;
+
