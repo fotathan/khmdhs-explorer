@@ -144,3 +144,38 @@ def test_hub_push_dedupes_and_selects():
     assert reached == 2
     assert len(agent.sent) == 1 and len(manager.sent) == 1 and other.sent == []
     assert hub.user_connected(42) and not hub.user_connected(999)
+
+
+# --------------------------------------------------------------------------- #
+# Recording correlation (DialBegin Uniqueid -> per-extension recording path),
+# which feeds recording_path onto a logged call for post-call summarisation.
+# --------------------------------------------------------------------------- #
+def _svc():
+    return t.TelephonyService(lambda: None)
+
+
+def test_note_recording_maps_both_extensions_to_uniqueid_path():
+    svc = _svc()
+    svc._note_recording({
+        "Event": "DialBegin", "Uniqueid": "call-abc",
+        "Channel": "PJSIP/1002-0001", "DestChannel": "PJSIP/1001-0002",
+        "CallerIDNum": "2101234567"})
+    want = t.os.path.join(t.CALL_RECORDING_DIR, "call-abc" + t.CALL_RECORDING_EXT)
+    assert svc.recent_recording_for("1002") == want   # the agent leg
+    assert svc.recent_recording_for("1001") == want   # the customer leg
+    assert svc.recent_recording_for("9999") is None    # unknown extension
+
+
+def test_note_recording_ignores_non_dialbegin_and_missing_uniqueid():
+    svc = _svc()
+    svc._note_recording({"Event": "Hangup", "Uniqueid": "x", "Channel": "PJSIP/1002-1"})
+    svc._note_recording({"Event": "DialBegin", "Channel": "PJSIP/1002-1"})  # no Uniqueid
+    assert svc.recent_recording_for("1002") is None
+
+
+def test_recent_recording_expires_after_max_age():
+    svc = _svc()
+    svc._note_recording({"Event": "DialBegin", "Uniqueid": "call-old",
+                         "Channel": "PJSIP/1002-1", "DestChannel": "PJSIP/1001-2"})
+    assert svc.recent_recording_for("1002", max_age_s=3600) is not None
+    assert svc.recent_recording_for("1002", max_age_s=0) is None  # too old for a 0s window

@@ -13,6 +13,8 @@ Phase 2 will add notes / calls / tasks.
 
 from __future__ import annotations
 
+import threading
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -21,6 +23,11 @@ try:
     from app import auth as _auth
 except ImportError:  # run with --app-dir=app
     import auth as _auth
+
+try:
+    from app import call_pipeline as _pipeline
+except ImportError:  # run with --app-dir=app
+    import call_pipeline as _pipeline
 
 # Segment values shown as tabs (order matters); mirror auth._status_label.
 SEGMENTS = ("all", "prospective", "subscriber", "tester",
@@ -262,6 +269,7 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 "call_directions": _auth.CALL_DIRECTIONS,
                 "call_statuses": _auth.CALL_STATUSES,
                 "task_statuses": _auth.TASK_STATUSES,
+                "summary_configured": _pipeline.feature_configured(),
                 "error": error, "ok": ok, "warn": warn, "admin_tab": "crm"}
 
     @router.get("/{uid}", response_class=HTMLResponse)
@@ -380,6 +388,30 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
         except ValueError:
             pass
         return RedirectResponse(f"/admin/crm/{uid}?ok=call", status_code=303)
+
+    @router.post("/{uid}/call/{cid}/summarize")
+    async def crm_call_summarize(uid: int, cid: int, request: Request):
+        """Kick off transcription + AI summary for one recorded call. Runs in a
+        background thread so the request returns immediately; the row's
+        summary_status ('queued'→'running'→'done'/'error') drives the UI."""
+        if not _pipeline.feature_configured():
+            return RedirectResponse(f"/admin/crm/{uid}?warn=summary_off", status_code=303)
+        with cursor() as c:
+            c.execute("SELECT summary_status, recording_path FROM proc.customer_call "
+                      "WHERE id = %s AND user_id = %s", (cid, uid))
+            row = c.fetchone()
+            if not row:
+                raise HTTPException(404, "call not found")
+            if row["summary_status"] in ("queued", "running"):
+                return RedirectResponse(f"/admin/crm/{uid}?ok=summary", status_code=303)
+            if not row["recording_path"]:
+                return RedirectResponse(f"/admin/crm/{uid}?warn=no_recording", status_code=303)
+            c.execute("UPDATE proc.customer_call "
+                      "SET summary_status = 'queued', summary_error = NULL WHERE id = %s",
+                      (cid,))
+        threading.Thread(target=_pipeline.run_summary, args=(cursor, cid),
+                         daemon=True).start()
+        return RedirectResponse(f"/admin/crm/{uid}?ok=summary", status_code=303)
 
     @router.post("/{uid}/task")
     async def crm_task(uid: int, request: Request):

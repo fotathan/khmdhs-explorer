@@ -157,3 +157,74 @@ call setup regardless.
 - Adding a real **SIP trunk** (to place/receive PSTN calls) is Asterisk config
   only — no application change. Inbound DIDs land in the `internal` context;
   route them to an agent's endpoint and the same screen-pop fires.
+
+---
+
+## Call summarisation (post-call AI)
+
+Optional, opt-in: record each call, transcribe it, and store a Claude-generated
+summary on the `proc.customer_call` row so it shows on the CRM call views. Asterisk
+has no built-in speech-to-text, so the pipeline is **record → transcribe → summarise**:
+
+1. **Record** — the demo dialplan runs `MixMonitor(${UNIQUEID}.wav,b)` on each call,
+   writing to Asterisk's monitor spool. `docker-compose.yml` bind-mounts that spool
+   to `telephony/recordings/` so the app can read it. The AMI listener sees the
+   `DialBegin` `Uniqueid` (same value as the recording filename) and remembers the
+   path per extension; `/telephony/log-call` then attaches `recording_path` to the
+   logged call — no browser knowledge of Asterisk call ids required.
+2. **Transcribe** (`app/transcribe.py`) — talks the OpenAI `audio/transcriptions`
+   (Whisper) HTTP shape, so it works against the hosted OpenAI API **or** any
+   self-hosted OpenAI-compatible Whisper server (point `TRANSCRIBE_BASE_URL` at it
+   to avoid OpenAI entirely). Greek by default.
+3. **Summarise** (`app/call_summary.py`) — sends the transcript to the Claude API
+   (same raw-HTTP convention as `app/ocr.py`), returns a short summary + action items.
+
+Orchestrated by `app/call_pipeline.py` in a background thread; `summary_status`
+(`queued`→`running`→`done`/`error`) drives the CRM UI. Trigger it from the
+**"Σύνοψη AI"** button on a call in `/admin/crm/<id>` (shown when a recording exists
+and the feature is configured), or set `CALL_SUMMARY_AUTO` to run it automatically
+the moment a call is logged (on hangup). The whole feature is inert until configured.
+
+### Config (env)
+
+| Env | Default | Meaning |
+|---|---|---|
+| `CALL_RECORDING_DIR` | `/var/spool/asterisk/monitor` | Where recordings are read from. Set to the **host** path of the `telephony/recordings` mount when the app runs outside the Asterisk container. |
+| `TRANSCRIBE_BACKEND` | `openai` | `openai` (Whisper HTTP shape) or `none` (disable). |
+| `TRANSCRIBE_BASE_URL` | `https://api.openai.com/v1` | Point at a self-hosted Whisper server to avoid OpenAI. |
+| `TRANSCRIBE_API_KEY` | *(falls back to `OPENAI_API_KEY`)* | Auth for the STT endpoint; may be empty for a keyless self-hosted server. |
+| `TRANSCRIBE_MODEL` / `TRANSCRIBE_LANGUAGE` | `whisper-1` / `el` | STT model + language (`""` = auto-detect). |
+| `ANTHROPIC_API_KEY` | — | Required for the summary step (same key as OCR). |
+| `CALL_SUMMARY_MODEL` | `claude-sonnet-4-6` | Claude model for summaries (override to trade cost/quality). |
+| `CALL_SUMMARY_AUTO` | *(off)* | When set, auto-transcribe + summarise a call the moment it's logged (on hangup), if it has a recording — no admin click. Needs the feature configured. |
+
+No schema migration beyond `20260818120000_call_recording_transcript_summary.sql`
+(adds `recording_path`, `transcript`, `summary`, `summary_status`, … to
+`proc.customer_call`). No new Python dependencies — both modules use the stdlib
+(+`certifi`) like `app/ocr.py`.
+
+### Self-hosted transcription (no OpenAI key)
+
+`docker-compose.yml` includes a **faster-whisper** service (OpenAI-compatible STT)
+behind a `whisper` profile, so the whole pipeline can run with no OpenAI account.
+
+```bash
+# start Asterisk + the whisper server (the profile keeps whisper opt-in)
+docker compose -f telephony/docker-compose.yml --profile whisper up
+
+# point the app at it (no key needed) and run the app as usual
+export TRANSCRIBE_BASE_URL=http://localhost:8000/v1
+export TRANSCRIBE_API_KEY=                 # empty — the server needs no auth
+export TRANSCRIBE_MODEL=Systran/faster-whisper-small   # multilingual, incl. Greek
+```
+
+The first transcription downloads the model (cached in the `whisper-cache` volume),
+so it's slow once, then fast. CPU inference is fine for the demo; for GPU use the
+`:latest-cuda` image tag + `WHISPER__INFERENCE_DEVICE=cuda`. Bump
+`WHISPER__MODEL`/`TRANSCRIBE_MODEL` to `…-medium` for better Greek accuracy at the
+cost of speed. To use hosted OpenAI Whisper instead, drop the `whisper` profile and
+set `TRANSCRIBE_API_KEY` (or `OPENAI_API_KEY`) with the default `TRANSCRIBE_BASE_URL`.
+
+> **Prod note:** on an ephemeral web dyno (Render free plan) local recordings don't
+> survive a restart — put `CALL_RECORDING_DIR` on shared/object storage, or run the
+> transcription close to Asterisk, before relying on it in production.
