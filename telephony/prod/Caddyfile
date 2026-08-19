@@ -1,0 +1,22 @@
+# Caddyfile — PRODUCTION template. TLS termination for the browser's wss://.
+#
+# Caddy auto-provisions a Let's Encrypt cert for the domain and reverse-proxies
+# the SIP WebSocket to Asterisk's localhost HTTP server. This is the secure
+# context browsers require off localhost. Set SIP_WS_URL=wss://<domain>/ws in the
+# Render web-service env (Phase 5).
+#
+# Replace <PBX_DOMAIN> and <ADMIN_EMAIL>. Only /ws is exposed; everything else 404s.
+
+{
+	email <ADMIN_EMAIL>
+}
+
+<PBX_DOMAIN> {
+	# WebSocket upgrade is handled automatically by reverse_proxy.
+	handle /ws {
+		reverse_proxy 127.0.0.1:8088
+	}
+	handle {
+		respond "not found" 404
+	}
+}

@@ -1,0 +1,44 @@
+# docker-compose.yml — PRODUCTION Asterisk + Caddy for the VPS.
+# See telephony/prod/README.md. Run on the PBX host (NOT Render).
+#
+#   docker compose -f telephony/prod/docker-compose.yml up -d
+#
+# host networking (Linux VPS) keeps RTP simple: Asterisk binds the real public
+# IP for media and the Tailscale IP for AMI, and Caddy binds :443 directly.
+# Install Tailscale on the HOST (not a container) and bind AMI to its interface
+# (manager.conf bindaddr=<tailscale ip>).
+services:
+  asterisk:
+    # IMPORTANT: use an Asterisk 20+ image built WITH PJSIP realtime + Postgres
+    # (res_config_pgsql) — the demo andrius/asterisk:20-alpine may not include it.
+    # See README "Realtime DB driver" for options (pgsql image, or ODBC + a
+    # custom Dockerfile). Pin a digest in real use.
+    image: <ASTERISK_IMAGE_WITH_PGSQL_REALTIME>
+    container_name: khmdhs-asterisk
+    network_mode: host           # public IP for RTP + tailnet IP for AMI (Linux)
+    volumes:
+      - ./asterisk/pjsip.conf:/etc/asterisk/pjsip.conf:ro
+      - ./asterisk/http.conf:/etc/asterisk/http.conf:ro
+      - ./asterisk/extensions.conf:/etc/asterisk/extensions.conf:ro
+      - ./asterisk/manager.conf:/etc/asterisk/manager.conf:ro
+      - ./asterisk/rtp.conf:/etc/asterisk/rtp.conf:ro
+      - ./asterisk/sorcery.conf:/etc/asterisk/sorcery.conf:ro
+      - ./asterisk/extconfig.conf:/etc/asterisk/extconfig.conf:ro
+      - ./asterisk/res_pgsql.conf:/etc/asterisk/res_pgsql.conf:ro
+      # Shared recordings for post-call summarisation (optional).
+      - ./recordings:/var/spool/asterisk/monitor
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    container_name: khmdhs-caddy
+    network_mode: host           # binds :443 directly; proxies to 127.0.0.1:8088
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy-data:
+  caddy-config:
