@@ -2850,4 +2850,67 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             att.remove(row["storage_ref"])
         return HTMLResponse("")
 
+    # ------------------------------------------------------------------ #
+    # Email templates (bodies for the CRM email builder, app/crm.py).
+    # Kept in the database rather than in source so changing a word is an
+    # edit here, not a deploy. One row per (slug, lang).
+    # ------------------------------------------------------------------ #
+    try:
+        from app import email_builder as _email
+    except ImportError:                  # pragma: no cover
+        import email_builder as _email
+
+    def _email_templates_ctx(request, edit_id=None, error=None, ok=None,
+                             draft=None):
+        with cursor() as c:
+            rows = _auth.list_email_templates(c)
+            editing = _auth.get_email_template_by_id(c, edit_id) if edit_id else None
+        # Which [[fields]] the edited body and subject ask for, so the author
+        # can see what a customer's profile will have to supply.
+        source = ""
+        if draft:
+            source = (draft.get("body_html") or "") + " " + (draft.get("subject") or "")
+        elif editing:
+            source = (editing["body_html"] or "") + " " + (editing["subject"] or "")
+        return {"rows": rows, "editing": editing, "draft": draft,
+                "fields": _email.field_names(source),
+                "langs": _auth.EMAIL_TEMPLATE_LANGS,
+                "error": error, "ok": ok, "admin_tab": "email-templates"}
+
+    @router.get("/email-templates", response_class=HTMLResponse)
+    def admin_email_templates(request: Request, edit: int = None, ok: str = None):
+        return templates.TemplateResponse(
+            request, "admin_email_templates.html",
+            _email_templates_ctx(request, edit_id=edit, ok=ok))
+
+    @router.post("/email-templates")
+    async def admin_email_template_save(request: Request):
+        form = await request.form()
+        draft = {k: (form.get(k) or "").strip()
+                 for k in ("slug", "lang", "name", "subject", "body_html")}
+        try:
+            with cursor() as c:
+                _auth.upsert_email_template(
+                    c, slug=draft["slug"], lang=draft["lang"], name=draft["name"],
+                    subject=draft["subject"], body_html=draft["body_html"],
+                    updated_by=(getattr(request.state, "user", None) or {}).get("id"))
+        except ValueError:
+            # upsert_email_template raises for a blank slug/name/body or an
+            # unsupported language; its message is developer English, so say it
+            # in the UI's language instead. Redisplay what they typed rather
+            # than losing a pasted body.
+            return templates.TemplateResponse(
+                request, "admin_email_templates.html",
+                _email_templates_ctx(
+                    request, draft=draft,
+                    error="Ελέγξτε τα υποχρεωτικά πεδία: κωδικός, όνομα, σώμα."),
+                status_code=400)
+        return RedirectResponse("/admin/email-templates?ok=saved", status_code=303)
+
+    @router.post("/email-templates/{tid}/delete")
+    def admin_email_template_delete(tid: int, request: Request):
+        with cursor() as c:
+            _auth.delete_email_template(c, tid)
+        return RedirectResponse("/admin/email-templates?ok=deleted", status_code=303)
+
     return router

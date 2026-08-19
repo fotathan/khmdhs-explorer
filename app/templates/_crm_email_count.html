@@ -1,0 +1,11 @@
+{# _crm_email_count.html — live block counts under the paste box.
+   Context: paragraphs, lists (ints, from email_builder.segment_counts)
+
+   Served by POST /admin/crm/{uid}/email/count rather than counted in JS: the
+   segmenter is the single source of truth for how text splits into blocks, and
+   a JS re-implementation would drift from the one generation actually uses. #}
+<div id="crm-email-count" class="eb-counts">
+  {% if paragraphs or lists %}
+    {{ paragraphs }} {{ t("παράγραφοι") }} · {{ lists }} {{ t("λίστες") }}
+  {% endif %}
+</div>

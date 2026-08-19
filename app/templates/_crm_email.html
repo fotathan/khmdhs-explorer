@@ -1,0 +1,52 @@
+{# _crm_email.html — output pane of the CRM email builder (app/crm.py,
+   POST /admin/crm/{uid}/email/preview).
+   Context:
+     cust    — the customer row (only for the download filename)
+     result  — email_builder.MergeResult (.html, .text, .filled, .created,
+               .removed), or None when nothing could be generated
+     subject — the template's subject with its [[fields]] resolved, or None
+     error   — a message to show instead of output (missing template, missing
+               profile fields, text over the cap)
+
+   Wrapped in #crm-email-out so the form can swap this pane on its own and the
+   pasted text in the textarea survives. The HTML/plain-text switch is two
+   radios plus a sibling selector — no script, so it keeps working after every
+   swap. Copy and download are delegated handlers living on the page itself
+   (admin_crm_customer.html), for the same reason.
+
+   Nothing here sends anything: the app has no mailer, so the output exists to
+   be copied into one. #}
+<div id="crm-email-out">
+{% if error %}
+  <div class="eb-error">{{ error }}</div>
+{% elif result %}
+  <div class="eb-meta">
+    {{ t("Συμπληρώθηκαν") }}: {{ result.filled }}
+    · {{ t("προστέθηκαν") }}: {{ result.created }}
+    · {{ t("αφαιρέθηκαν") }}: {{ result.removed }}
+  </div>
+
+  {% if subject %}
+  <div class="eb-subject"><span>{{ t("Θέμα") }}:</span> {{ subject }}</div>
+  {% endif %}
+
+  <input type="radio" name="eb-view" id="eb-view-html" class="eb-radio" checked>
+  <input type="radio" name="eb-view" id="eb-view-text" class="eb-radio">
+  <div class="eb-switch">
+    <label for="eb-view-html">{{ t("Κώδικας HTML") }}</label>
+    <label for="eb-view-text">{{ t("Απλό κείμενο") }}</label>
+    {# Both buttons act on whichever pane the radios are showing; the handler
+       reads the checked radio rather than each button carrying a fixed target. #}
+    <button type="button" class="u-mini eb-copy">{{ t("Αντιγραφή") }}</button>
+    <button type="button" class="u-mini eb-dl"
+            data-eb-stem="email-{{ cust.id }}">{{ t("Λήψη") }}</button>
+  </div>
+
+  <div class="eb-pane eb-pane-html">
+    <textarea readonly rows="14" spellcheck="false" id="eb-out-html">{{ result.html }}</textarea>
+  </div>
+  <div class="eb-pane eb-pane-text">
+    <textarea readonly rows="14" spellcheck="false" id="eb-out-text">{{ result.text }}</textarea>
+  </div>
+{% endif %}
+</div>
