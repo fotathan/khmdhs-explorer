@@ -308,6 +308,42 @@
     </ul>
     {% else %}<div class="act-empty">{{ t("Καμία εργασία.") }}</div>{% endif %}
   </section>
+
+  <!-- ===== EMAIL BUILDER ===== -->
+  <section class="act-sec">
+    <div class="section-h">{{ t("Σύνθεση email") }}</div>
+    {% if email_templates %}
+    <form class="act-add act-form"
+          hx-post="/admin/crm/{{ cust.id }}/email/preview"
+          hx-target="#crm-email-out" hx-swap="outerHTML"
+          hx-indicator="#eb-busy" hx-disabled-elt="find button[type=submit]">
+      <select name="template" title="{{ t('Πρότυπο') }}">
+        {% for tpl in email_templates %}<option value="{{ tpl.slug }}">{{ tpl.name }}</option>{% endfor %}
+      </select>
+      <select name="lang" title="{{ t('Γλώσσα') }}">
+        {% for l in email_langs %}<option value="{{ l }}">{{ l | upper }}</option>{% endfor %}
+      </select>
+      <textarea name="text" rows="8" required
+                placeholder="{{ t('Επικολλήστε το μεταφρασμένο κείμενο. Κενή γραμμή = νέα παράγραφος· γραμμές που ξεκινούν με - ή * γίνονται λίστα.') }}"
+                hx-post="/admin/crm/{{ cust.id }}/email/count"
+                hx-trigger="keyup changed delay:400ms, change"
+                hx-target="#crm-email-count" hx-swap="outerHTML"
+                {# Must not inherit the form's hx-disabled-elt: `find ...` would
+                   resolve against this textarea, which has no descendants, and
+                   htmx throws on the null element and silently sends nothing. #}
+                hx-disabled-elt="this"></textarea>
+      <div id="crm-email-count" class="eb-counts"></div>
+      <button type="submit" class="u-mini">{{ t("Δημιουργία") }}</button>
+      <span id="eb-busy" class="tt-indicator eb-busy">{{ t("σύνθεση…") }}</span>
+    </form>
+    <div id="crm-email-out"></div>
+    {% else %}
+    <div class="act-empty">
+      {{ t("Δεν υπάρχουν πρότυπα email.") }}
+      <a href="/admin/email-templates" hx-boost="false">{{ t("Δημιουργήστε ένα.") }}</a>
+    </div>
+    {% endif %}
+  </section>
 </div>
 
 <style>
@@ -366,5 +402,82 @@
   .call-tx-text{font-size:12px;color:var(--ink-2);white-space:pre-wrap;margin-top:4px;max-height:220px;overflow:auto;}
   .call-sum-pending{color:var(--ink-2);}
   .call-sum-error{color:#b3261e;}
+  /* ---- email builder panel ---- */
+  .eb-counts{font-size:11px;color:var(--ink-3);font-family:var(--sans);width:100%;min-height:14px;}
+  .eb-busy{font-size:11px;color:var(--ink-3);}
+  .eb-error{font-size:13px;color:#b3261e;background:#fdeceb;border:1px solid #f4c7c3;
+    border-radius:8px;padding:9px 12px;}
+  .eb-meta{font-size:11px;color:var(--ink-3);font-family:var(--sans);margin:0 0 8px;}
+  .eb-subject{font-size:13px;margin:0 0 10px;}
+  .eb-subject span{font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em;}
+  /* The pane switch is CSS-only so it survives every HTMX swap without script. */
+  .eb-radio{position:absolute;opacity:0;pointer-events:none;}
+  .eb-switch{display:flex;gap:6px;align-items:center;margin:0 0 6px;}
+  .eb-switch label{font-size:11px;font-family:var(--sans);font-weight:600;padding:4px 10px;
+    border:1px solid var(--rule);border-radius:6px;cursor:pointer;color:var(--ink-2);}
+  .eb-switch .u-mini{margin-left:auto;}
+  .eb-switch .eb-dl{margin-left:0;}
+  #eb-view-html:checked ~ .eb-switch label[for=eb-view-html],
+  #eb-view-text:checked ~ .eb-switch label[for=eb-view-text]{
+    color:var(--accent);border-color:var(--accent);}
+  #eb-view-html:checked ~ .eb-pane-text,
+  #eb-view-text:checked ~ .eb-pane-html{display:none;}
+  .eb-pane textarea{width:100%;font-family:var(--mono);font-size:12px;line-height:1.5;
+    border:1px solid var(--rule);border-radius:8px;padding:9px 11px;background:var(--paper);
+    color:var(--ink);resize:vertical;}
 </style>
+
+<script>
+// Copy / download for the email builder's output pane. Delegated from the page
+// rather than inlined in _crm_email.html, so an HTMX swap never re-registers a
+// handler or leaves a stale one behind. Both act on whichever pane the radios
+// are currently showing.
+(function () {
+  function visiblePane() {
+    var asText = document.getElementById('eb-view-text');
+    var showText = asText && asText.checked;
+    return {
+      node: document.getElementById(showText ? 'eb-out-text' : 'eb-out-html'),
+      ext: showText ? '.txt' : '.html',
+      mime: showText ? 'text/plain' : 'text/html'
+    };
+  }
+
+  document.addEventListener('click', function (e) {
+    var copy = e.target.closest('.eb-copy');
+    var dl = e.target.closest('.eb-dl');
+    if (!copy && !dl) return;
+    var pane = visiblePane();
+    if (!pane.node) return;
+
+    if (copy) {
+      // Select first: if the clipboard API is missing or refuses (insecure
+      // context, denied permission), the text is already selected and the hint
+      // tells the user to finish it by hand rather than failing silently.
+      pane.node.select();
+      var was = copy.textContent;
+      var flash = function (label, ms) {
+        copy.textContent = label;
+        setTimeout(function () { copy.textContent = was; }, ms);
+      };
+      if (!navigator.clipboard) { flash('Ctrl+C', 1800); return; }
+      navigator.clipboard.writeText(pane.node.value).then(
+        function () { flash('\u2713', 1200); },
+        function () { flash('Ctrl+C', 1800); }
+      );
+      return;
+    }
+
+    var blob = new Blob([pane.node.value], {type: pane.mime + ';charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = (dl.getAttribute('data-eb-stem') || 'email') + pane.ext;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+})();
+</script>
 {% endblock %}

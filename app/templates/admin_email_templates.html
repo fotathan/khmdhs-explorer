@@ -1,0 +1,134 @@
+{# admin_email_templates.html — CRUD for the bodies the CRM email builder
+   merges into (app/crm.py's customer panel, app/email_builder.py's merge).
+   Context:
+     rows     — every proc.email_template row
+     editing  — the row being edited (?edit=<id>), or None for a new one
+     draft    — what the author typed when a save was rejected, or None
+     fields   — [[field]] names the edited body/subject reference
+     langs    — auth.EMAIL_TEMPLATE_LANGS
+   Bodies are stored, not deployed, so changing a word is an edit here. #}
+{% extends "admin_base.html" %}
+{% block title %}{{ t("Πρότυπα email") }} · {{ t("Διαχείριση") }}{% endblock %}
+{% block admin_content %}
+{% set cur = draft or editing %}
+
+<div class="detail-h">
+  <div class="kicker">{{ t("Διαχείριση") }}</div>
+  <h1 class="detail-title">{{ t("Πρότυπα email") }}</h1>
+  <div class="detail-sub">
+    {{ t("Τα σώματα που συμπληρώνει ο συνθέτης email στην καρτέλα πελάτη. Ένα ανά συνδυασμό προτύπου και γλώσσας.") }}
+  </div>
+</div>
+
+{% if error %}<div class="u-flash u-err">{{ error | t }}</div>{% endif %}
+{% if ok == 'saved' %}<div class="u-flash u-ok">{{ t("✓ Αποθηκεύτηκε.") }}</div>{% endif %}
+{% if ok == 'deleted' %}<div class="u-flash u-ok">{{ t("✓ Διαγράφηκε.") }}</div>{% endif %}
+
+<div class="section-h">{{ t("Πρότυπα") }}</div>
+{% if rows %}
+<table class="notices">
+  <thead><tr>
+    <th>{{ t("Όνομα") }}</th><th>{{ t("Κωδικός") }}</th><th>{{ t("Γλώσσα") }}</th>
+    <th>{{ t("Θέμα") }}</th><th>{{ t("Ενημερώθηκε") }}</th><th></th>
+  </tr></thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td><strong>{{ r.name }}</strong></td>
+      <td><code class="adam">{{ r.slug }}</code></td>
+      <td>{{ r.lang | upper }}</td>
+      <td class="meta">{{ r.subject or '—' }}</td>
+      <td class="meta">{{ r.updated_at.strftime('%Y-%m-%d %H:%M') if r.updated_at else '—' }}</td>
+      <td style="white-space:nowrap;">
+        <a href="/admin/email-templates?edit={{ r.id }}" class="u-mini-link">{{ t("επεξεργασία") }}</a>
+        <form method="post" action="/admin/email-templates/{{ r.id }}/delete" style="display:inline"
+              onsubmit="return confirm('{{ t('Διαγραφή του προτύπου; Δεν αναιρείται.') }}');">
+          <button type="submit" class="u-mini">{{ t("διαγραφή") }}</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="act-empty">{{ t("Κανένα πρότυπο ακόμη.") }}</div>
+{% endif %}
+
+<div class="section-h" style="margin-top:26px;">
+  {% if editing %}{{ t("Επεξεργασία προτύπου") }}{% else %}{{ t("Νέο πρότυπο") }}{% endif %}
+</div>
+
+<form method="post" action="/admin/email-templates" class="et-form">
+  <div class="et-row">
+    <label>{{ t("Κωδικός") }}
+      <input type="text" name="slug" required pattern="[A-Za-z0-9_\-]+"
+             value="{{ cur.slug if cur else '' }}"
+             title="{{ t('Σταθερός κωδικός, κοινός σε όλες τις γλώσσες — π.χ. outreach') }}">
+    </label>
+    <label>{{ t("Γλώσσα") }}
+      <select name="lang">
+        {% for l in langs %}
+        <option value="{{ l }}" {% if cur and cur.lang == l %}selected{% endif %}>{{ l | upper }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="et-grow">{{ t("Όνομα") }}
+      <input type="text" name="name" required value="{{ cur.name if cur else '' }}">
+    </label>
+  </div>
+
+  <label class="et-block">{{ t("Θέμα") }}
+    <input type="text" name="subject" value="{{ cur.subject if cur else '' }}"
+           placeholder="{{ t('Προαιρετικό — δέχεται [[πεδία]]') }}">
+  </label>
+
+  <label class="et-block">{{ t("Σώμα (απόσπασμα HTML)") }}
+    <textarea name="body_html" rows="16" required spellcheck="false">{{ cur.body_html if cur else '' }}</textarea>
+  </label>
+
+  <div class="et-help">
+    {# Real angle brackets here: Jinja autoescapes on output, so writing the
+       entities in the source would show them literally. #}
+    <strong>{{ t("Απόσπασμα, όχι σελίδα") }}</strong> — {{ t("χωρίς <html> ή <body>.") }}
+    {{ t("Κάθε <p> και <ul> είναι θέση που γεμίζει το επικολλημένο κείμενο, με τη σειρά που εμφανίζονται.") }}
+    <br>
+    <code>@@token</code> {{ t("προστατεύει μια παράγραφο (χαιρετισμός, υπογραφή): δεν γεμίζει ποτέ και δεν αφαιρείται.") }}
+    {{ t("Το ίδιο κάνει και το") }} <code>[[πεδίο]]</code>, {{ t("που αντικαθίσταται από τα στοιχεία του πελάτη.") }}
+    {{ t("Ίδιο αποτέλεσμα έχουν τα") }} <code>data-keep</code> {{ t("και") }} <code>data-no-translate</code>.
+    {% if fields %}
+    <div style="margin-top:6px;">
+      {{ t("Πεδία που ζητά αυτό το πρότυπο") }}:
+      {% for f in fields %}<code class="cpv">[[{{ f }}]]</code> {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="et-actions">
+    <button type="submit" class="crm-fbtn">{{ t("Αποθήκευση") }}</button>
+    {% if editing %}
+    <a href="/admin/email-templates" class="crm-fclear">{{ t("άκυρο") }}</a>
+    {% endif %}
+  </div>
+</form>
+
+<style>
+  .et-form{margin-top:10px;max-width:900px;}
+  .et-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+  .et-form label{display:block;font-size:11px;font-weight:600;color:var(--ink-3);
+    text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px;}
+  .et-form .et-grow{flex:1;min-width:220px;}
+  .et-form .et-block{display:block;}
+  .et-form input,.et-form select,.et-form textarea{display:block;width:100%;margin-top:4px;
+    font-family:var(--sans);font-size:13px;font-weight:400;color:var(--ink);
+    text-transform:none;letter-spacing:normal;
+    padding:8px 10px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);}
+  .et-form textarea{font-family:var(--mono);font-size:12px;line-height:1.5;resize:vertical;}
+  .et-help{font-size:12px;color:var(--ink-2);background:var(--paper-2);border:1px solid var(--rule);
+    border-radius:8px;padding:10px 12px;margin:0 0 14px;line-height:1.6;}
+  .et-help code{font-family:var(--mono);font-size:11.5px;background:var(--paper);
+    padding:1px 5px;border-radius:4px;}
+  .et-actions{display:flex;gap:14px;align-items:center;}
+  .u-mini-link{font-size:12px;color:var(--accent);text-decoration:none;margin-right:8px;}
+  .u-mini-link:hover{text-decoration:underline;}
+</style>
+{% endblock %}

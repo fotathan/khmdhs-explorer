@@ -14,6 +14,9 @@ python-multipart==0.0.31   # bumped from 0.0.29 (CVE-2026-53538/53539/53540 in f
 xlrd==2.0.2
 httpx==0.28.1
 nh3>=0.2.17,<0.3   # HTML sanitiser for curator-authored full_text_html
+# fragment-mode HTML parsing for the CRM email merge (app/email_builder.py); already a
+# transitive dep of python-docx, pinned here now that the app imports it directly
+lxml==6.1.2
 itsdangerous==2.2.0
 boto3==1.43.45      # S3-compatible object storage for act attachments (ATTACHMENTS_BACKEND=s3)
 pyotp==2.10.0      # TOTP two-factor auth

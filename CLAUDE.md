@@ -14,8 +14,13 @@ KHMDHS Opendata API (`cerpp.eprocurement.gov.gr`) and enriched from Diavgeia
    There is no separate JSON API layer: every HTML route also serves JSON if
    the client sends `Accept: application/json`.
 
-There is no automated test suite. The root-level `test_*.sql` files are
-ad-hoc scratch queries, not a test framework — don't treat them as such.
+Tests live in `tests/` (pytest, run in CI). They build a throwaway database
+from `tests/proc_schema.sql` — a schema-only snapshot — so DB-backed tests need
+`TEST_DATABASE_URL` (or `DATABASE_URL`) pointing at a database you don't mind
+losing, plus `psql` on PATH; they skip without one. Pure-unit files such as
+`tests/test_email_builder.py` and `tests/test_auth_unit.py` need neither. The
+root-level `test_*.sql` files are unrelated — ad-hoc scratch queries, not a
+test framework, so don't treat them as such.
 
 ## Commands
 
@@ -40,6 +45,15 @@ python3 db.py progress [--errors-only]
 # "PRODUCTION" for prod). Prefer this over calling db.py directly.
 ./ingest.sh local backfill --start 2026-06-01 --end 2026-06-19 --types notice
 ./ingest.sh prod   catchup  --types notice contract
+
+# Tests
+export TEST_DATABASE_URL="postgresql://user:pass@host:5432/khmdhs_test"
+pytest -q
+
+# Migrations (see "Data model" below)
+python3 migrate.py new "add foo table"   # scaffold + append to the manifest
+python3 migrate.py up                    # apply pending, record in the ledger
+python3 migrate.py status                # applied / pending / drifted
 ```
 
 Legacy React frontend (see "Two UIs" below) — not the primary app:
@@ -64,14 +78,28 @@ KHMDHS enumerations arrive as `{key, value}` pairs; the table stores the
 in `app/main.py` like `TYPE_LABELS`, `CONTRACT_TYPES`), so labels stay
 consistent even when the API's wording drifts between endpoints.
 
-Beyond `schema.sql`, the database evolves through many standalone
-`*_migration.sql` files at the repo root (e.g. `analytics_exclusion_migration.sql`,
-`merge_migration.sql`, `procedure_family_migration.sql`) — there's no
-migration framework or version table; apply them by hand, in the order
-implied by what they depend on. Several maintain materialized views
-(`proc.mv_analytics_*`, used by `/analytics`) that must be refreshed after
-data changes — the `REFRESH MATERIALIZED VIEW` statements live at the bottom
-of the relevant migration file.
+Beyond `schema.sql`, the database evolves through migrations, in two
+generations. The older one is standalone `*_migration.sql` files at the repo
+root (e.g. `analytics_exclusion_migration.sql`, `merge_migration.sql`,
+`procedure_family_migration.sql`), applied by hand in dependency order. The
+current one is `migrations/` — timestamped files listed in
+`migrations/manifest.txt` and tracked in `proc.schema_migration` by
+`migrate.py` (`new` scaffolds a file and appends it to the manifest, `up`
+applies what's pending via `psql` and records it, `status` reports drift,
+`baseline` adopts a database that was already migrated by hand). **New work
+goes in `migrations/`**; a CI guard fails if a file there is missing from the
+manifest. Several migrations maintain materialized views (`proc.mv_analytics_*`,
+used by `/analytics`) that must be refreshed after data changes — the
+`REFRESH MATERIALIZED VIEW` statements live at the bottom of the relevant file.
+
+Adding a table also means regenerating `tests/proc_schema.sql`, or DB-backed
+tests won't see it: `tests/conftest.py` builds the test schema from that
+snapshot and only replays `*seed*` migrations on top. It is a `pg_dump
+--schema-only --no-owner --no-privileges -n proc`. One trap — the harness
+creates `pg_trgm`/`unaccent` in schema `proc`, so if the database you dump from
+has them in `public`, rewrite the `public.` references the dump emits
+(`f_unaccent`'s body and the `gin_trgm_ops` operator classes) or the schema
+build fails outright.
 
 ### Ingestion (`db.py`, `khmdhs_ingest.py`)
 
@@ -116,6 +144,19 @@ type with no prior backfill needs an explicit `--start`.
   CLI) — ΓΕΜΗ business-registry enrichment by ΑΦΜ, used both on-demand (admin
   button on contractor/authority pages) and offline. Keep parsing/upsert
   logic in `gemi_client.py` so both paths stay identical.
+- `app/email_builder.py` — the CRM email builder's merge: pasted text is split
+  into paragraph/list blocks and merged into a stored template body, returning
+  the merged HTML plus a plain-text alternative derived from it. A port of the
+  standalone Multilingual-HTML-Template-Builder, so behaviour should stay in
+  step with that tool; the places it deliberately doesn't are marked
+  `DIVERGENCE` in the source. Pure logic — no DB, no FastAPI — with the HTTP
+  surface in `app/crm.py` (the panel on a customer's page) and the bodies in
+  `proc.email_template`, edited at `/admin/email-templates` so wording changes
+  need no deploy. Bodies are HTML **fragments**: every `<p>`/`<ul>` is a slot
+  filled in document order, while `@@token`, `[[field]]`, `data-keep` and
+  `data-no-translate` protect a paragraph from being filled or removed, and
+  `[[field]]` is then resolved from the customer's profile. Nothing is ever
+  sent — the repo has no mailer, so the panel ends at copy/download.
 - Templates (`app/templates/`) are server-rendered Jinja2 + HTMX partials
   (`_*.html` are partial fragments returned to HTMX swaps, not full pages).
   The `beta_*.html` templates are the **current, default** UI (promoted from

@@ -38,6 +38,11 @@ try:
 except ImportError:                      # pragma: no cover
     import leads as _leads
 
+try:
+    from app import email_builder as _email
+except ImportError:                      # pragma: no cover
+    import email_builder as _email
+
 
 def _vat_candidates(vat):
     """Normalised forms of an ΑΦΜ to match against proc.economic_operator,
@@ -77,6 +82,18 @@ def find_contractor_by_vat(c, vat):
                  FROM proc.economic_operator
                  WHERE vat_number = ANY(%s) LIMIT 1""", (cands,))
     return c.fetchone()
+
+
+def merge_values(cust, profile):
+    """The [[field]] vocabulary a template may draw on: the customer's profile
+    fields plus the account's own email/username. Profile wins over the account
+    for full_name, since the profile is what the CRM edits."""
+    values = {k: (profile or {}).get(k) for k in _auth.PROFILE_FIELDS}
+    values["email"] = (cust or {}).get("email")
+    values["username"] = (cust or {}).get("username")
+    if not values.get("full_name"):
+        values["full_name"] = (cust or {}).get("full_name")
+    return values
 
 
 def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
@@ -251,6 +268,7 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
             tasks = _auth.list_tasks(c, uid)
             admins = _auth.admin_options(c)
             contacts = _auth.list_customer_contacts(c, uid)
+            email_templates = _auth.email_template_options(c)
             # Link the customer's ΑΦΜ to a procurement contractor, if one matches.
             pvat = profile["vat_number"] if profile and profile.get("vat_number") else None
             linked_contractor = find_contractor_by_vat(c, pvat) if pvat else None
@@ -270,6 +288,8 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 "call_statuses": _auth.CALL_STATUSES,
                 "task_statuses": _auth.TASK_STATUSES,
                 "summary_configured": _pipeline.feature_configured(),
+                "email_templates": email_templates,
+                "email_langs": _auth.EMAIL_TEMPLATE_LANGS,
                 "error": error, "ok": ok, "warn": warn, "admin_tab": "crm"}
 
     @router.get("/{uid}", response_class=HTMLResponse)
@@ -442,5 +462,58 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
         except ValueError:
             pass
         return RedirectResponse(f"/admin/crm/{uid}?ok=task", status_code=303)
+
+    # ---- email builder: merge pasted text into a stored template ---------- #
+    @router.post("/{uid}/email/preview", response_class=HTMLResponse)
+    async def crm_email_preview(uid: int, request: Request):
+        """Merge the pasted text into the chosen template and return the output
+        pane. An HTMX partial rather than the 303-redirect the other CRM forms
+        use, because a redirect would throw away what the admin just pasted.
+
+        Nothing is sent or stored — the panel ends at copy/download.
+        """
+        form = await request.form()
+        slug = (form.get("template") or "").strip()
+        lang = (form.get("lang") or "el").strip()
+        source = form.get("text") or ""
+
+        with cursor() as c:
+            cust = _auth.get_customer(c, uid)
+            if not cust:
+                raise HTTPException(404, "customer not found")
+            profile = _auth.get_profile(c, uid)
+            try:
+                tpl = _auth.get_email_template(c, slug, lang)
+            except ValueError:           # unsupported language
+                tpl = None
+
+        ctx = {"cust": cust, "result": None, "subject": None, "error": None}
+        if not tpl:
+            ctx["error"] = "Δεν βρέθηκε πρότυπο για αυτόν τον συνδυασμό γλώσσας."
+            return templates.TemplateResponse(request, "_crm_email.html", ctx)
+
+        values = merge_values(cust, profile)
+        try:
+            ctx["result"] = _email.build_email(source, tpl["body_html"], values)
+            ctx["subject"] = _email.resolve_fields(tpl["subject"] or "", values)
+        except _email.UnresolvedFieldsError as exc:
+            # Refuse rather than send a half-filled greeting; the admin fills the
+            # profile in and retries.
+            ctx["error"] = ("Λείπουν στοιχεία του πελάτη για τα πεδία: "
+                            + ", ".join(exc.fields))
+        except ValueError as exc:        # over MAX_SOURCE_CHARS
+            ctx["error"] = str(exc)
+
+        return templates.TemplateResponse(request, "_crm_email.html", ctx)
+
+    @router.post("/{uid}/email/count", response_class=HTMLResponse)
+    async def crm_email_count(uid: int, request: Request):
+        """Block counts for the paste box, as the admin types. Served rather
+        than counted in the browser so the number shown is the one the merge
+        will actually produce — segment_text is the single source of truth."""
+        form = await request.form()
+        paragraphs, lists = _email.segment_counts(form.get("text") or "")
+        return templates.TemplateResponse(request, "_crm_email_count.html",
+                                          {"paragraphs": paragraphs, "lists": lists})
 
     return router

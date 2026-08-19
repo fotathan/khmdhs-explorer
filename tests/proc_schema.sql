@@ -2,10 +2,10 @@
 -- PostgreSQL database dump
 --
 
-\restrict ui3WVvTuYFkVuAyhDo8UOcl6P6lhwaAHakQq2pxP2ferrzFVEA5rV9z5FfyzMcp
+\restrict i3jfnifLUd0hHuRfqa90LQWeocHjeC3be58n1eN9wk4dkrP1uwG7xQZzw1QeF4i
 
--- Dumped from database version 17.6
--- Dumped by pg_dump version 17.10 (Homebrew)
+-- Dumped from database version 18.6
+-- Dumped by pg_dump version 18.6
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -188,7 +188,7 @@ $$;
 --
 
 CREATE FUNCTION proc.f_unaccent(text) RETURNS text
-    LANGUAGE sql IMMUTABLE
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
     AS $_$ SELECT proc.unaccent($1) $_$;
 
 
@@ -294,6 +294,76 @@ CREATE FUNCTION proc.resolved_value(p_adam text, p_source numeric) RETURNS numer
 $$;
 
 
+--
+-- Name: tg_act_lot_scope_same_group(); Type: FUNCTION; Schema: proc; Owner: -
+--
+
+CREATE FUNCTION proc.tg_act_lot_scope_same_group() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    act_group  bigint;
+    lot_group  bigint;
+    kind       text;
+BEGIN
+    SELECT group_id INTO act_group FROM proc.act_group_member WHERE adam = NEW.adam;
+    IF act_group IS NULL THEN
+        RAISE EXCEPTION 'act % is not a member of any group', NEW.adam
+            USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
+
+    SELECT group_id INTO lot_group FROM proc.tender_lot WHERE id = NEW.lot_id;
+    IF lot_group IS DISTINCT FROM act_group THEN
+        RAISE EXCEPTION 'lot % (group %) is not in act %''s group %',
+            NEW.lot_id, lot_group, NEW.adam, act_group
+            USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
+
+    SELECT scope_kind INTO kind FROM proc.act_scope WHERE adam = NEW.adam;
+    IF kind IS DISTINCT FROM 'specific_lots' THEN
+        RAISE EXCEPTION 'act % scope is % (must be specific_lots to link lots)',
+            NEW.adam, COALESCE(kind, 'unknown')
+            USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: tg_act_scope_no_orphan_links(); Type: FUNCTION; Schema: proc; Owner: -
+--
+
+CREATE FUNCTION proc.tg_act_scope_no_orphan_links() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF NEW.scope_kind IN ('whole_tender', 'unknown')
+       AND EXISTS (SELECT 1 FROM proc.act_lot_scope WHERE adam = NEW.adam) THEN
+        RAISE EXCEPTION 'act % has lot links; clear them before setting scope %',
+            NEW.adam, NEW.scope_kind
+            USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: tg_tender_lot_touch(); Type: FUNCTION; Schema: proc; Owner: -
+--
+
+CREATE FUNCTION proc.tg_tender_lot_touch() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    NEW.updated_at := now();
+    RETURN NEW;
+END;
+$$;
+
+
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -346,12 +416,108 @@ ALTER SEQUENCE proc.act_annotation_id_seq OWNED BY proc.act_annotation.id;
 
 
 --
+-- Name: act_attachment; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.act_attachment (
+    id bigint NOT NULL,
+    adam text NOT NULL,
+    filename text,
+    mimetype text,
+    size_bytes bigint,
+    checksum text,
+    storage_backend text DEFAULT 'local_fs'::text,
+    storage_ref text,
+    extracted_text text,
+    content_tsv tsvector GENERATED ALWAYS AS (to_tsvector('greek'::regconfig, COALESCE(extracted_text, ''::text))) STORED,
+    n_inner integer,
+    uploaded_by text,
+    uploaded_at timestamp with time zone DEFAULT now()
+);
+
+
+--
+-- Name: act_attachment_id_seq; Type: SEQUENCE; Schema: proc; Owner: -
+--
+
+CREATE SEQUENCE proc.act_attachment_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: act_attachment_id_seq; Type: SEQUENCE OWNED BY; Schema: proc; Owner: -
+--
+
+ALTER SEQUENCE proc.act_attachment_id_seq OWNED BY proc.act_attachment.id;
+
+
+--
+-- Name: act_authority; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.act_authority (
+    adam text NOT NULL,
+    ord smallint DEFAULT 0 NOT NULL,
+    name text,
+    afm text,
+    external_id text,
+    source_code text,
+    type_code text,
+    activity_code text,
+    street text,
+    postal_code text,
+    city text,
+    country text,
+    phone text,
+    email text,
+    fax text,
+    url text,
+    address_text text,
+    notes text,
+    authority_id text
+);
+
+
+--
 -- Name: act_centralized_market; Type: TABLE; Schema: proc; Owner: -
 --
 
 CREATE TABLE proc.act_centralized_market (
     adam text NOT NULL,
     market_code text NOT NULL
+);
+
+
+--
+-- Name: act_contractor; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.act_contractor (
+    adam text NOT NULL,
+    ord smallint DEFAULT 0 NOT NULL,
+    name text,
+    afm text,
+    tax_number text,
+    street text,
+    postal_code text,
+    city text,
+    country text,
+    email text,
+    phone text,
+    fax text,
+    url text,
+    address_text text,
+    contact_person text,
+    notes text,
+    award_amount numeric(18,2),
+    award_currency text,
+    award_vat_rate numeric,
+    award_vat_included boolean,
+    operator_id bigint
 );
 
 
@@ -416,7 +582,8 @@ CREATE TABLE proc.act_group (
     id bigint NOT NULL,
     label text,
     created_by text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    auto boolean DEFAULT false NOT NULL
 );
 
 
@@ -447,6 +614,20 @@ ALTER SEQUENCE proc.act_group_id_seq OWNED BY proc.act_group.id;
 
 
 --
+-- Name: act_group_identifier; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.act_group_identifier (
+    group_id bigint NOT NULL,
+    scheme text NOT NULL,
+    value text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT act_group_identifier_scheme_check CHECK ((btrim(scheme) <> ''::text)),
+    CONSTRAINT act_group_identifier_value_check CHECK ((btrim(value) <> ''::text))
+);
+
+
+--
 -- Name: act_group_member; Type: TABLE; Schema: proc; Owner: -
 --
 
@@ -469,6 +650,19 @@ CREATE TABLE proc.act_link (
     target_adam text NOT NULL,
     relation proc.link_relation NOT NULL,
     discovered_at timestamp with time zone DEFAULT now()
+);
+
+
+--
+-- Name: act_lot_scope; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.act_lot_scope (
+    adam text NOT NULL,
+    lot_id bigint NOT NULL,
+    coverage_amount numeric(18,2),
+    coverage_percent numeric(7,4),
+    note text
 );
 
 
@@ -558,6 +752,22 @@ CREATE SEQUENCE proc.act_operator_id_seq
 --
 
 ALTER SEQUENCE proc.act_operator_id_seq OWNED BY proc.act_operator.id;
+
+
+--
+-- Name: act_scope; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.act_scope (
+    adam text NOT NULL,
+    scope_kind text NOT NULL,
+    scope_source text DEFAULT 'curator'::text NOT NULL,
+    note text,
+    updated_by text,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT act_scope_scope_kind_check CHECK ((scope_kind = ANY (ARRAY['unknown'::text, 'whole_tender'::text, 'specific_lots'::text]))),
+    CONSTRAINT act_scope_scope_source_check CHECK ((scope_source = ANY (ARRAY['import'::text, 'curator'::text])))
+);
 
 
 --
@@ -728,6 +938,15 @@ CREATE TABLE proc.cpv_code (
 
 
 --
+-- Name: crm_freemail_domain; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.crm_freemail_domain (
+    domain text NOT NULL
+);
+
+
+--
 -- Name: customer_call; Type: TABLE; Schema: proc; Owner: -
 --
 
@@ -743,6 +962,18 @@ CREATE TABLE proc.customer_call (
     created_by bigint,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
+    external_number text,
+    started_at timestamp with time zone,
+    ended_at timestamp with time zone,
+    duration_s integer,
+    recording_path text,
+    transcript text,
+    summary text,
+    summary_model text,
+    summary_status text,
+    summary_error text,
+    transcribed_at timestamp with time zone,
+    summarized_at timestamp with time zone,
     CONSTRAINT customer_call_direction_check CHECK ((direction = ANY (ARRAY['incoming'::text, 'outgoing'::text]))),
     CONSTRAINT customer_call_status_check CHECK ((status = ANY (ARRAY['planned'::text, 'held'::text, 'not_held'::text, 'not_answered'::text, 'cancelled'::text])))
 );
@@ -765,6 +996,46 @@ CREATE SEQUENCE proc.customer_call_id_seq
 --
 
 ALTER SEQUENCE proc.customer_call_id_seq OWNED BY proc.customer_call.id;
+
+
+--
+-- Name: customer_contact; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.customer_contact (
+    id bigint NOT NULL,
+    user_id bigint NOT NULL,
+    ord smallint DEFAULT 0 NOT NULL,
+    first_name text,
+    last_name text,
+    email text,
+    phone text,
+    mobile text,
+    job_title text,
+    is_main boolean DEFAULT false NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    is_recipient boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: customer_contact_id_seq; Type: SEQUENCE; Schema: proc; Owner: -
+--
+
+CREATE SEQUENCE proc.customer_contact_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: customer_contact_id_seq; Type: SEQUENCE OWNED BY; Schema: proc; Owner: -
+--
+
+ALTER SEQUENCE proc.customer_contact_id_seq OWNED BY proc.customer_contact.id;
 
 
 --
@@ -1145,6 +1416,42 @@ CREATE SEQUENCE proc.economic_operator_operator_id_seq
 --
 
 ALTER SEQUENCE proc.economic_operator_operator_id_seq OWNED BY proc.economic_operator.operator_id;
+
+
+--
+-- Name: email_template; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.email_template (
+    id bigint NOT NULL,
+    slug text NOT NULL,
+    lang text NOT NULL,
+    name text NOT NULL,
+    subject text,
+    body_html text NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by bigint,
+    CONSTRAINT email_template_lang_ck CHECK ((lang = ANY (ARRAY['el'::text, 'en'::text])))
+);
+
+
+--
+-- Name: email_template_id_seq; Type: SEQUENCE; Schema: proc; Owner: -
+--
+
+CREATE SEQUENCE proc.email_template_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: email_template_id_seq; Type: SEQUENCE OWNED BY; Schema: proc; Owner: -
+--
+
+ALTER SEQUENCE proc.email_template_id_seq OWNED BY proc.email_template.id;
 
 
 --
@@ -1544,6 +1851,7 @@ CREATE TABLE proc.procurement_act (
     full_text text,
     full_text_extracted_at timestamp with time zone,
     full_text_source text,
+    full_text_tsv tsvector GENERATED ALWAYS AS (to_tsvector('greek'::regconfig, COALESCE(full_text, ''::text))) STORED,
     origin text DEFAULT 'import'::text NOT NULL,
     data_source text,
     source_url text,
@@ -1906,6 +2214,19 @@ COMMENT ON TABLE proc.product IS 'Subscription products. Access is identical; de
 
 
 --
+-- Name: ps_auths; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.ps_auths (
+    id text NOT NULL,
+    auth_type text DEFAULT 'userpass'::text NOT NULL,
+    username text NOT NULL,
+    password text NOT NULL,
+    realm text
+);
+
+
+--
 -- Name: schema_migration; Type: TABLE; Schema: proc; Owner: -
 --
 
@@ -1968,6 +2289,42 @@ CREATE TABLE proc.signer (
     role_title text,
     authority_id text
 );
+
+
+--
+-- Name: sip_credential; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.sip_credential (
+    user_id bigint NOT NULL,
+    auth_id text NOT NULL,
+    secret text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: sip_extension; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.sip_extension (
+    user_id bigint NOT NULL,
+    extension text NOT NULL,
+    sip_user text NOT NULL,
+    sip_secret text NOT NULL,
+    display_name text,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: TABLE sip_extension; Type: COMMENT; Schema: proc; Owner: -
+--
+
+COMMENT ON TABLE proc.sip_extension IS 'Maps an app_user to a SIP endpoint on the PBX (CTI prototype). One row per agent who can place/receive calls from the browser softphone.';
 
 
 --
@@ -2102,6 +2459,21 @@ ALTER SEQUENCE proc.ted_ingest_window_id_seq OWNED BY proc.ted_ingest_window.id;
 
 
 --
+-- Name: ted_lot_result; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.ted_lot_result (
+    publication_number text NOT NULL,
+    result_ordinal integer NOT NULL,
+    lot_identifier text,
+    result_status text,
+    maximum_value numeric(18,2),
+    currency text,
+    raw_json jsonb
+);
+
+
+--
 -- Name: ted_notice; Type: TABLE; Schema: proc; Owner: -
 --
 
@@ -2151,6 +2523,45 @@ CREATE TABLE proc.ted_notice_cpv (
 
 
 --
+-- Name: ted_notice_lot; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.ted_notice_lot (
+    publication_number text NOT NULL,
+    lot_identifier text NOT NULL,
+    lot_number text,
+    title text,
+    description text,
+    status text,
+    estimated_value numeric(18,2),
+    currency text,
+    raw_json jsonb
+);
+
+
+--
+-- Name: ted_notice_lot_cpv; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.ted_notice_lot_cpv (
+    publication_number text NOT NULL,
+    lot_identifier text NOT NULL,
+    cpv_code text NOT NULL
+);
+
+
+--
+-- Name: ted_notice_lot_nuts; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.ted_notice_lot_nuts (
+    publication_number text NOT NULL,
+    lot_identifier text NOT NULL,
+    nuts_code text NOT NULL
+);
+
+
+--
 -- Name: tender_category; Type: TABLE; Schema: proc; Owner: -
 --
 
@@ -2158,6 +2569,72 @@ CREATE TABLE proc.tender_category (
     id integer NOT NULL,
     name text NOT NULL,
     name_en text
+);
+
+
+--
+-- Name: tender_lot; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.tender_lot (
+    id bigint NOT NULL,
+    group_id bigint NOT NULL,
+    source text NOT NULL,
+    source_key text NOT NULL,
+    lot_number text,
+    title text,
+    description text,
+    status text,
+    estimated_value numeric(18,2),
+    awarded_value numeric(18,2),
+    currency_code text,
+    raw_json jsonb,
+    origin text DEFAULT 'import'::text NOT NULL,
+    created_by text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT tender_lot_origin_check CHECK ((origin = ANY (ARRAY['import'::text, 'authored'::text]))),
+    CONSTRAINT tender_lot_source_check CHECK ((btrim(source) <> ''::text)),
+    CONSTRAINT tender_lot_source_key_check CHECK ((btrim(source_key) <> ''::text))
+);
+
+
+--
+-- Name: tender_lot_cpv; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.tender_lot_cpv (
+    lot_id bigint NOT NULL,
+    cpv_code character varying(10) NOT NULL
+);
+
+
+--
+-- Name: tender_lot_id_seq; Type: SEQUENCE; Schema: proc; Owner: -
+--
+
+CREATE SEQUENCE proc.tender_lot_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: tender_lot_id_seq; Type: SEQUENCE OWNED BY; Schema: proc; Owner: -
+--
+
+ALTER SEQUENCE proc.tender_lot_id_seq OWNED BY proc.tender_lot.id;
+
+
+--
+-- Name: tender_lot_nuts; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.tender_lot_nuts (
+    lot_id bigint NOT NULL,
+    nuts_code character varying(8) NOT NULL
 );
 
 
@@ -2225,6 +2702,36 @@ ALTER SEQUENCE proc.user_subscription_id_seq OWNED BY proc.user_subscription.id;
 
 
 --
+-- Name: v_act_chain; Type: VIEW; Schema: proc; Owner: -
+--
+
+CREATE VIEW proc.v_act_chain AS
+ WITH RECURSIVE chain AS (
+         SELECT act_link.source_adam AS root,
+            act_link.source_adam AS adam,
+            0 AS depth,
+            ARRAY[act_link.source_adam] AS path,
+            NULL::text AS via
+           FROM proc.act_link
+        UNION ALL
+         SELECT c.root,
+            l.target_adam,
+            (c.depth + 1),
+            (c.path || l.target_adam),
+            (l.relation)::text AS relation
+           FROM (chain c
+             JOIN proc.act_link l ON ((l.source_adam = c.adam)))
+          WHERE ((c.depth < 12) AND (NOT (l.target_adam = ANY (c.path))) AND (l.relation = ANY (ARRAY['request_to_notice'::proc.link_relation, 'request_to_auction'::proc.link_relation, 'request_to_contract'::proc.link_relation, 'request_to_payment'::proc.link_relation, 'notice_to_auction'::proc.link_relation, 'auction_to_contract'::proc.link_relation, 'auction_to_payment'::proc.link_relation, 'contract_to_payment'::proc.link_relation, 'contract_next'::proc.link_relation])))
+        )
+ SELECT DISTINCT root,
+    adam,
+    depth,
+    via,
+    path
+   FROM chain;
+
+
+--
 -- Name: v_act_chain_any; Type: VIEW; Schema: proc; Owner: -
 --
 
@@ -2289,6 +2796,13 @@ ALTER TABLE ONLY proc.act_annotation ALTER COLUMN id SET DEFAULT nextval('proc.a
 
 
 --
+-- Name: act_attachment id; Type: DEFAULT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_attachment ALTER COLUMN id SET DEFAULT nextval('proc.act_attachment_id_seq'::regclass);
+
+
+--
 -- Name: act_funding id; Type: DEFAULT; Schema: proc; Owner: -
 --
 
@@ -2338,6 +2852,13 @@ ALTER TABLE ONLY proc.customer_call ALTER COLUMN id SET DEFAULT nextval('proc.cu
 
 
 --
+-- Name: customer_contact id; Type: DEFAULT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.customer_contact ALTER COLUMN id SET DEFAULT nextval('proc.customer_contact_id_seq'::regclass);
+
+
+--
 -- Name: customer_note id; Type: DEFAULT; Schema: proc; Owner: -
 --
 
@@ -2377,6 +2898,13 @@ ALTER TABLE ONLY proc.diavgeia_ingest_window ALTER COLUMN id SET DEFAULT nextval
 --
 
 ALTER TABLE ONLY proc.economic_operator ALTER COLUMN operator_id SET DEFAULT nextval('proc.economic_operator_operator_id_seq'::regclass);
+
+
+--
+-- Name: email_template id; Type: DEFAULT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.email_template ALTER COLUMN id SET DEFAULT nextval('proc.email_template_id_seq'::regclass);
 
 
 --
@@ -2450,6 +2978,13 @@ ALTER TABLE ONLY proc.ted_ingest_window ALTER COLUMN id SET DEFAULT nextval('pro
 
 
 --
+-- Name: tender_lot id; Type: DEFAULT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.tender_lot ALTER COLUMN id SET DEFAULT nextval('proc.tender_lot_id_seq'::regclass);
+
+
+--
 -- Name: user_subscription id; Type: DEFAULT; Schema: proc; Owner: -
 --
 
@@ -2473,11 +3008,35 @@ ALTER TABLE ONLY proc.act_annotation
 
 
 --
+-- Name: act_attachment act_attachment_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_attachment
+    ADD CONSTRAINT act_attachment_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: act_authority act_authority_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_authority
+    ADD CONSTRAINT act_authority_pkey PRIMARY KEY (adam, ord);
+
+
+--
 -- Name: act_centralized_market act_centralized_market_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
 --
 
 ALTER TABLE ONLY proc.act_centralized_market
     ADD CONSTRAINT act_centralized_market_pkey PRIMARY KEY (adam, market_code);
+
+
+--
+-- Name: act_contractor act_contractor_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_contractor
+    ADD CONSTRAINT act_contractor_pkey PRIMARY KEY (adam, ord);
 
 
 --
@@ -2505,6 +3064,14 @@ ALTER TABLE ONLY proc.act_funding
 
 
 --
+-- Name: act_group_identifier act_group_identifier_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_group_identifier
+    ADD CONSTRAINT act_group_identifier_pkey PRIMARY KEY (scheme, value);
+
+
+--
 -- Name: act_group_member act_group_member_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
 --
 
@@ -2526,6 +3093,14 @@ ALTER TABLE ONLY proc.act_group
 
 ALTER TABLE ONLY proc.act_link
     ADD CONSTRAINT act_link_pkey PRIMARY KEY (source_adam, target_adam, relation);
+
+
+--
+-- Name: act_lot_scope act_lot_scope_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_lot_scope
+    ADD CONSTRAINT act_lot_scope_pkey PRIMARY KEY (adam, lot_id);
 
 
 --
@@ -2558,6 +3133,14 @@ ALTER TABLE ONLY proc.act_operator
 
 ALTER TABLE ONLY proc.act_operator
     ADD CONSTRAINT act_operator_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: act_scope act_scope_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_scope
+    ADD CONSTRAINT act_scope_pkey PRIMARY KEY (adam);
 
 
 --
@@ -2617,11 +3200,27 @@ ALTER TABLE ONLY proc.cpv_code
 
 
 --
+-- Name: crm_freemail_domain crm_freemail_domain_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.crm_freemail_domain
+    ADD CONSTRAINT crm_freemail_domain_pkey PRIMARY KEY (domain);
+
+
+--
 -- Name: customer_call customer_call_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
 --
 
 ALTER TABLE ONLY proc.customer_call
     ADD CONSTRAINT customer_call_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: customer_contact customer_contact_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.customer_contact
+    ADD CONSTRAINT customer_contact_pkey PRIMARY KEY (id);
 
 
 --
@@ -2758,6 +3357,14 @@ ALTER TABLE ONLY proc.economic_operator
 
 ALTER TABLE ONLY proc.economic_operator
     ADD CONSTRAINT economic_operator_vat_number_key UNIQUE (vat_number);
+
+
+--
+-- Name: email_template email_template_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.email_template
+    ADD CONSTRAINT email_template_pkey PRIMARY KEY (id);
 
 
 --
@@ -2905,6 +3512,14 @@ ALTER TABLE ONLY proc.product
 
 
 --
+-- Name: ps_auths ps_auths_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.ps_auths
+    ADD CONSTRAINT ps_auths_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: schema_migration schema_migration_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
 --
 
@@ -2926,6 +3541,38 @@ ALTER TABLE ONLY proc.search_profile
 
 ALTER TABLE ONLY proc.signer
     ADD CONSTRAINT signer_pkey PRIMARY KEY (signer_id);
+
+
+--
+-- Name: sip_credential sip_credential_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.sip_credential
+    ADD CONSTRAINT sip_credential_pkey PRIMARY KEY (user_id);
+
+
+--
+-- Name: sip_extension sip_extension_extension_key; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.sip_extension
+    ADD CONSTRAINT sip_extension_extension_key UNIQUE (extension);
+
+
+--
+-- Name: sip_extension sip_extension_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.sip_extension
+    ADD CONSTRAINT sip_extension_pkey PRIMARY KEY (user_id);
+
+
+--
+-- Name: sip_extension sip_extension_sip_user_key; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.sip_extension
+    ADD CONSTRAINT sip_extension_sip_user_key UNIQUE (sip_user);
 
 
 --
@@ -2969,11 +3616,43 @@ ALTER TABLE ONLY proc.ted_ingest_window
 
 
 --
+-- Name: ted_lot_result ted_lot_result_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.ted_lot_result
+    ADD CONSTRAINT ted_lot_result_pkey PRIMARY KEY (publication_number, result_ordinal);
+
+
+--
 -- Name: ted_notice_cpv ted_notice_cpv_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
 --
 
 ALTER TABLE ONLY proc.ted_notice_cpv
     ADD CONSTRAINT ted_notice_cpv_pkey PRIMARY KEY (publication_number, cpv_code);
+
+
+--
+-- Name: ted_notice_lot_cpv ted_notice_lot_cpv_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.ted_notice_lot_cpv
+    ADD CONSTRAINT ted_notice_lot_cpv_pkey PRIMARY KEY (publication_number, lot_identifier, cpv_code);
+
+
+--
+-- Name: ted_notice_lot_nuts ted_notice_lot_nuts_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.ted_notice_lot_nuts
+    ADD CONSTRAINT ted_notice_lot_nuts_pkey PRIMARY KEY (publication_number, lot_identifier, nuts_code);
+
+
+--
+-- Name: ted_notice_lot ted_notice_lot_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.ted_notice_lot
+    ADD CONSTRAINT ted_notice_lot_pkey PRIMARY KEY (publication_number, lot_identifier);
 
 
 --
@@ -2990,6 +3669,38 @@ ALTER TABLE ONLY proc.ted_notice
 
 ALTER TABLE ONLY proc.tender_category
     ADD CONSTRAINT tender_category_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tender_lot_cpv tender_lot_cpv_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.tender_lot_cpv
+    ADD CONSTRAINT tender_lot_cpv_pkey PRIMARY KEY (lot_id, cpv_code);
+
+
+--
+-- Name: tender_lot tender_lot_group_id_source_source_key_key; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.tender_lot
+    ADD CONSTRAINT tender_lot_group_id_source_source_key_key UNIQUE (group_id, source, source_key);
+
+
+--
+-- Name: tender_lot_nuts tender_lot_nuts_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.tender_lot_nuts
+    ADD CONSTRAINT tender_lot_nuts_pkey PRIMARY KEY (lot_id, nuts_code);
+
+
+--
+-- Name: tender_lot tender_lot_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.tender_lot
+    ADD CONSTRAINT tender_lot_pkey PRIMARY KEY (id);
 
 
 --
@@ -3066,6 +3777,20 @@ CREATE INDEX ix_act_authority ON proc.procurement_act USING btree (authority_id)
 
 
 --
+-- Name: ix_act_authority_afm; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_act_authority_afm ON proc.act_authority USING btree (afm) WHERE (afm IS NOT NULL);
+
+
+--
+-- Name: ix_act_authority_link; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_act_authority_link ON proc.act_authority USING btree (authority_id) WHERE (authority_id IS NOT NULL);
+
+
+--
 -- Name: ix_act_authority_signed; Type: INDEX; Schema: proc; Owner: -
 --
 
@@ -3091,6 +3816,20 @@ CREATE INDEX ix_act_cancelled ON proc.procurement_act USING btree (cancelled);
 --
 
 CREATE INDEX ix_act_contract_type ON proc.procurement_act USING btree (contract_type_code);
+
+
+--
+-- Name: ix_act_contractor_afm; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_act_contractor_afm ON proc.act_contractor USING btree (afm) WHERE (afm IS NOT NULL);
+
+
+--
+-- Name: ix_act_contractor_link; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_act_contractor_link ON proc.act_contractor USING btree (operator_id) WHERE (operator_id IS NOT NULL);
 
 
 --
@@ -3129,10 +3868,38 @@ CREATE INDEX ix_act_full_text_gr ON proc.procurement_act USING gin (to_tsvector(
 
 
 --
+-- Name: ix_act_full_text_tsv; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_act_full_text_tsv ON proc.procurement_act USING gin (full_text_tsv);
+
+
+--
+-- Name: ix_act_group_identifier_group; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_act_group_identifier_group ON proc.act_group_identifier USING btree (group_id);
+
+
+--
 -- Name: ix_act_group_member_group; Type: INDEX; Schema: proc; Owner: -
 --
 
 CREATE INDEX ix_act_group_member_group ON proc.act_group_member USING btree (group_id);
+
+
+--
+-- Name: ix_act_lot_scope_lot; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_act_lot_scope_lot ON proc.act_lot_scope USING btree (lot_id);
+
+
+--
+-- Name: ix_act_nuts_pattern; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_act_nuts_pattern ON proc.procurement_act USING btree (nuts_code text_pattern_ops);
 
 
 --
@@ -3276,6 +4043,20 @@ CREATE INDEX ix_annotation_tags ON proc.act_annotation USING gin (tags);
 
 
 --
+-- Name: ix_attachment_adam; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_attachment_adam ON proc.act_attachment USING btree (adam);
+
+
+--
+-- Name: ix_attachment_content; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_attachment_content ON proc.act_attachment USING gin (content_tsv);
+
+
+--
 -- Name: ix_auth_name_trgm; Type: INDEX; Schema: proc; Owner: -
 --
 
@@ -3325,10 +4106,31 @@ CREATE INDEX ix_customer_call_user ON proc.customer_call USING btree (user_id, C
 
 
 --
+-- Name: ix_customer_contact_user; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_customer_contact_user ON proc.customer_contact USING btree (user_id);
+
+
+--
 -- Name: ix_customer_note_user; Type: INDEX; Schema: proc; Owner: -
 --
 
 CREATE INDEX ix_customer_note_user ON proc.customer_note USING btree (user_id, created_at DESC);
+
+
+--
+-- Name: ix_customer_profile_operator; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_customer_profile_operator ON proc.customer_profile USING btree (operator_id) WHERE (operator_id IS NOT NULL);
+
+
+--
+-- Name: ix_customer_profile_stage; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_customer_profile_stage ON proc.customer_profile USING btree (crm_stage) WHERE (crm_stage IS NOT NULL);
 
 
 --
@@ -3668,6 +4470,20 @@ CREATE INDEX ix_tel_job ON proc.table_extract_log USING btree (job_id, id DESC);
 
 
 --
+-- Name: ix_tender_lot_group; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_tender_lot_group ON proc.tender_lot USING btree (group_id);
+
+
+--
+-- Name: ix_tender_lot_source; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_tender_lot_source ON proc.tender_lot USING btree (source, source_key);
+
+
+--
 -- Name: ix_tet_job; Type: INDEX; Schema: proc; Owner: -
 --
 
@@ -3693,6 +4509,13 @@ CREATE UNIQUE INDEX ux_app_user_email ON proc.app_user USING btree (lower(email)
 --
 
 CREATE UNIQUE INDEX ux_app_user_username ON proc.app_user USING btree (lower(username));
+
+
+--
+-- Name: ux_email_template_slug_lang; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_email_template_slug_lang ON proc.email_template USING btree (slug, lang);
 
 
 --
@@ -3724,6 +4547,27 @@ CREATE UNIQUE INDEX ux_mv_explore_contractor_name ON proc.mv_explore_contractor_
 
 
 --
+-- Name: act_lot_scope trg_act_lot_scope_same_group; Type: TRIGGER; Schema: proc; Owner: -
+--
+
+CREATE TRIGGER trg_act_lot_scope_same_group BEFORE INSERT OR UPDATE ON proc.act_lot_scope FOR EACH ROW EXECUTE FUNCTION proc.tg_act_lot_scope_same_group();
+
+
+--
+-- Name: act_scope trg_act_scope_no_orphan_links; Type: TRIGGER; Schema: proc; Owner: -
+--
+
+CREATE TRIGGER trg_act_scope_no_orphan_links BEFORE UPDATE ON proc.act_scope FOR EACH ROW EXECUTE FUNCTION proc.tg_act_scope_no_orphan_links();
+
+
+--
+-- Name: tender_lot trg_tender_lot_touch; Type: TRIGGER; Schema: proc; Owner: -
+--
+
+CREATE TRIGGER trg_tender_lot_touch BEFORE UPDATE ON proc.tender_lot FOR EACH ROW EXECUTE FUNCTION proc.tg_tender_lot_touch();
+
+
+--
 -- Name: act_additional_contract_type act_additional_contract_type_adam_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
 --
 
@@ -3732,11 +4576,51 @@ ALTER TABLE ONLY proc.act_additional_contract_type
 
 
 --
+-- Name: act_attachment act_attachment_adam_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_attachment
+    ADD CONSTRAINT act_attachment_adam_fkey FOREIGN KEY (adam) REFERENCES proc.procurement_act(adam) ON DELETE CASCADE;
+
+
+--
+-- Name: act_authority act_authority_adam_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_authority
+    ADD CONSTRAINT act_authority_adam_fkey FOREIGN KEY (adam) REFERENCES proc.procurement_act(adam) ON DELETE CASCADE;
+
+
+--
+-- Name: act_authority act_authority_authority_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_authority
+    ADD CONSTRAINT act_authority_authority_id_fkey FOREIGN KEY (authority_id) REFERENCES proc.authority(org_id) ON DELETE SET NULL;
+
+
+--
 -- Name: act_centralized_market act_centralized_market_adam_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
 --
 
 ALTER TABLE ONLY proc.act_centralized_market
     ADD CONSTRAINT act_centralized_market_adam_fkey FOREIGN KEY (adam) REFERENCES proc.procurement_act(adam) ON DELETE CASCADE;
+
+
+--
+-- Name: act_contractor act_contractor_adam_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_contractor
+    ADD CONSTRAINT act_contractor_adam_fkey FOREIGN KEY (adam) REFERENCES proc.procurement_act(adam) ON DELETE CASCADE;
+
+
+--
+-- Name: act_contractor act_contractor_operator_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_contractor
+    ADD CONSTRAINT act_contractor_operator_id_fkey FOREIGN KEY (operator_id) REFERENCES proc.economic_operator(operator_id) ON DELETE SET NULL;
 
 
 --
@@ -3764,6 +4648,14 @@ ALTER TABLE ONLY proc.act_funding
 
 
 --
+-- Name: act_group_identifier act_group_identifier_group_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_group_identifier
+    ADD CONSTRAINT act_group_identifier_group_id_fkey FOREIGN KEY (group_id) REFERENCES proc.act_group(id) ON DELETE CASCADE;
+
+
+--
 -- Name: act_group_member act_group_member_adam_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
 --
 
@@ -3785,6 +4677,22 @@ ALTER TABLE ONLY proc.act_group_member
 
 ALTER TABLE ONLY proc.act_group_member
     ADD CONSTRAINT act_group_member_group_id_fkey FOREIGN KEY (group_id) REFERENCES proc.act_group(id) ON DELETE CASCADE;
+
+
+--
+-- Name: act_lot_scope act_lot_scope_adam_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_lot_scope
+    ADD CONSTRAINT act_lot_scope_adam_fkey FOREIGN KEY (adam) REFERENCES proc.act_scope(adam) ON DELETE CASCADE;
+
+
+--
+-- Name: act_lot_scope act_lot_scope_lot_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_lot_scope
+    ADD CONSTRAINT act_lot_scope_lot_id_fkey FOREIGN KEY (lot_id) REFERENCES proc.tender_lot(id) ON DELETE CASCADE;
 
 
 --
@@ -3825,6 +4733,14 @@ ALTER TABLE ONLY proc.act_operator
 
 ALTER TABLE ONLY proc.act_operator
     ADD CONSTRAINT act_operator_operator_id_fkey FOREIGN KEY (operator_id) REFERENCES proc.economic_operator(operator_id);
+
+
+--
+-- Name: act_scope act_scope_adam_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_scope
+    ADD CONSTRAINT act_scope_adam_fkey FOREIGN KEY (adam) REFERENCES proc.procurement_act(adam) ON DELETE CASCADE;
 
 
 --
@@ -3900,6 +4816,14 @@ ALTER TABLE ONLY proc.customer_call
 
 
 --
+-- Name: customer_contact customer_contact_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.customer_contact
+    ADD CONSTRAINT customer_contact_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.app_user(id) ON DELETE CASCADE;
+
+
+--
 -- Name: customer_note customer_note_author_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
 --
 
@@ -3913,6 +4837,22 @@ ALTER TABLE ONLY proc.customer_note
 
 ALTER TABLE ONLY proc.customer_note
     ADD CONSTRAINT customer_note_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.app_user(id) ON DELETE CASCADE;
+
+
+--
+-- Name: customer_profile customer_profile_manager_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.customer_profile
+    ADD CONSTRAINT customer_profile_manager_id_fkey FOREIGN KEY (manager_id) REFERENCES proc.app_user(id) ON DELETE SET NULL;
+
+
+--
+-- Name: customer_profile customer_profile_operator_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.customer_profile
+    ADD CONSTRAINT customer_profile_operator_id_fkey FOREIGN KEY (operator_id) REFERENCES proc.economic_operator(operator_id) ON DELETE SET NULL;
 
 
 --
@@ -4025,6 +4965,14 @@ ALTER TABLE ONLY proc.diavgeia_decision_thematic
 
 ALTER TABLE ONLY proc.diavgeia_decision_unit
     ADD CONSTRAINT diavgeia_decision_unit_ada_fkey FOREIGN KEY (ada) REFERENCES proc.diavgeia_decision(ada) ON DELETE CASCADE;
+
+
+--
+-- Name: email_template email_template_updated_by_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.email_template
+    ADD CONSTRAINT email_template_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES proc.app_user(id) ON DELETE SET NULL;
 
 
 --
@@ -4164,6 +5112,22 @@ ALTER TABLE ONLY proc.signer
 
 
 --
+-- Name: sip_credential sip_credential_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.sip_credential
+    ADD CONSTRAINT sip_credential_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.app_user(id) ON DELETE CASCADE;
+
+
+--
+-- Name: sip_extension sip_extension_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.sip_extension
+    ADD CONSTRAINT sip_extension_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.app_user(id) ON DELETE CASCADE;
+
+
+--
 -- Name: table_extract_log table_extract_log_job_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
 --
 
@@ -4180,11 +5144,83 @@ ALTER TABLE ONLY proc.table_extract_target
 
 
 --
+-- Name: ted_lot_result ted_lot_result_publication_number_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.ted_lot_result
+    ADD CONSTRAINT ted_lot_result_publication_number_fkey FOREIGN KEY (publication_number) REFERENCES proc.ted_notice(publication_number) ON DELETE CASCADE;
+
+
+--
 -- Name: ted_notice_cpv ted_notice_cpv_publication_number_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
 --
 
 ALTER TABLE ONLY proc.ted_notice_cpv
     ADD CONSTRAINT ted_notice_cpv_publication_number_fkey FOREIGN KEY (publication_number) REFERENCES proc.ted_notice(publication_number) ON DELETE CASCADE;
+
+
+--
+-- Name: ted_notice_lot_cpv ted_notice_lot_cpv_publication_number_lot_identifier_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.ted_notice_lot_cpv
+    ADD CONSTRAINT ted_notice_lot_cpv_publication_number_lot_identifier_fkey FOREIGN KEY (publication_number, lot_identifier) REFERENCES proc.ted_notice_lot(publication_number, lot_identifier) ON DELETE CASCADE;
+
+
+--
+-- Name: ted_notice_lot_nuts ted_notice_lot_nuts_publication_number_lot_identifier_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.ted_notice_lot_nuts
+    ADD CONSTRAINT ted_notice_lot_nuts_publication_number_lot_identifier_fkey FOREIGN KEY (publication_number, lot_identifier) REFERENCES proc.ted_notice_lot(publication_number, lot_identifier) ON DELETE CASCADE;
+
+
+--
+-- Name: ted_notice_lot ted_notice_lot_publication_number_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.ted_notice_lot
+    ADD CONSTRAINT ted_notice_lot_publication_number_fkey FOREIGN KEY (publication_number) REFERENCES proc.ted_notice(publication_number) ON DELETE CASCADE;
+
+
+--
+-- Name: tender_lot_cpv tender_lot_cpv_cpv_code_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.tender_lot_cpv
+    ADD CONSTRAINT tender_lot_cpv_cpv_code_fkey FOREIGN KEY (cpv_code) REFERENCES proc.cpv_code(cpv_code);
+
+
+--
+-- Name: tender_lot_cpv tender_lot_cpv_lot_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.tender_lot_cpv
+    ADD CONSTRAINT tender_lot_cpv_lot_id_fkey FOREIGN KEY (lot_id) REFERENCES proc.tender_lot(id) ON DELETE CASCADE;
+
+
+--
+-- Name: tender_lot tender_lot_group_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.tender_lot
+    ADD CONSTRAINT tender_lot_group_id_fkey FOREIGN KEY (group_id) REFERENCES proc.act_group(id) ON DELETE CASCADE;
+
+
+--
+-- Name: tender_lot_nuts tender_lot_nuts_lot_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.tender_lot_nuts
+    ADD CONSTRAINT tender_lot_nuts_lot_id_fkey FOREIGN KEY (lot_id) REFERENCES proc.tender_lot(id) ON DELETE CASCADE;
+
+
+--
+-- Name: tender_lot_nuts tender_lot_nuts_nuts_code_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.tender_lot_nuts
+    ADD CONSTRAINT tender_lot_nuts_nuts_code_fkey FOREIGN KEY (nuts_code) REFERENCES proc.nuts_code(nuts_code);
 
 
 --
@@ -4220,325 +5256,8 @@ ALTER TABLE ONLY proc.user_subscription
 
 
 --
--- Party detail child tables (act_authority / act_contractor) — kept in sync with
--- migrations/20260713073607_*.sql. Appended after the base dump; the referenced
--- procurement_act / authority / economic_operator tables are defined above.
---
-
-CREATE TABLE proc.act_authority (
-    adam          text     NOT NULL REFERENCES proc.procurement_act(adam) ON DELETE CASCADE,
-    ord           smallint NOT NULL DEFAULT 0,
-    name          text,
-    afm           text,
-    external_id   text,
-    source_code   text,
-    type_code     text,
-    activity_code text,
-    street        text,
-    postal_code   text,
-    city          text,
-    country       text,
-    phone         text,
-    email         text,
-    fax           text,
-    url           text,
-    address_text  text,
-    notes         text,
-    authority_id  text     REFERENCES proc.authority(org_id) ON DELETE SET NULL,
-    PRIMARY KEY (adam, ord)
-);
-
-CREATE TABLE proc.act_contractor (
-    adam            text     NOT NULL REFERENCES proc.procurement_act(adam) ON DELETE CASCADE,
-    ord             smallint NOT NULL DEFAULT 0,
-    name            text,
-    afm             text,
-    tax_number      text,
-    street          text,
-    postal_code     text,
-    city            text,
-    country         text,
-    email           text,
-    phone           text,
-    fax             text,
-    url             text,
-    address_text    text,
-    contact_person  text,
-    notes           text,
-    award_amount        numeric(18,2),
-    award_currency      text,
-    award_vat_rate      numeric,
-    award_vat_included  boolean,
-    operator_id     bigint   REFERENCES proc.economic_operator(operator_id) ON DELETE SET NULL,
-    PRIMARY KEY (adam, ord)
-);
-
-
---
--- Structured tender lots + act scope + TED lot snapshots — kept in sync with
--- migrations/20260713135342_*.sql. Appended after the base dump; the referenced
--- act_group / act_group_member / procurement_act / cpv_code / nuts_code /
--- ted_notice tables are all defined above. Grants are omitted (tests connect as
--- the owner). The triggers ARE included so the DB-level rejection tests exercise
--- the same enforcement as production.
---
-
-ALTER TABLE proc.act_group ADD COLUMN auto boolean NOT NULL DEFAULT false;
-
-CREATE TABLE proc.act_group_identifier (
-    group_id   bigint      NOT NULL REFERENCES proc.act_group(id) ON DELETE CASCADE,
-    scheme     text        NOT NULL CHECK (btrim(scheme) <> ''),
-    value      text        NOT NULL CHECK (btrim(value)  <> ''),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY (scheme, value)
-);
-CREATE INDEX ix_act_group_identifier_group ON proc.act_group_identifier (group_id);
-
-CREATE TABLE proc.tender_lot (
-    id              bigserial   PRIMARY KEY,
-    group_id        bigint      NOT NULL REFERENCES proc.act_group(id) ON DELETE CASCADE,
-    source          text        NOT NULL CHECK (btrim(source)     <> ''),
-    source_key      text        NOT NULL CHECK (btrim(source_key) <> ''),
-    lot_number      text,
-    title           text,
-    description     text,
-    status          text,
-    estimated_value numeric(18,2),
-    awarded_value   numeric(18,2),
-    currency_code   text,
-    raw_json        jsonb,
-    origin          text        NOT NULL DEFAULT 'import' CHECK (origin IN ('import', 'authored')),
-    created_by      text,
-    created_at      timestamptz NOT NULL DEFAULT now(),
-    updated_at      timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (group_id, source, source_key)
-);
-CREATE INDEX ix_tender_lot_group  ON proc.tender_lot (group_id);
-CREATE INDEX ix_tender_lot_source ON proc.tender_lot (source, source_key);
-
-CREATE TABLE proc.tender_lot_cpv (
-    lot_id   bigint             NOT NULL REFERENCES proc.tender_lot(id) ON DELETE CASCADE,
-    cpv_code character varying(10) NOT NULL REFERENCES proc.cpv_code(cpv_code),
-    PRIMARY KEY (lot_id, cpv_code)
-);
-
-CREATE TABLE proc.tender_lot_nuts (
-    lot_id    bigint            NOT NULL REFERENCES proc.tender_lot(id) ON DELETE CASCADE,
-    nuts_code character varying(8) NOT NULL REFERENCES proc.nuts_code(nuts_code),
-    PRIMARY KEY (lot_id, nuts_code)
-);
-
-CREATE FUNCTION proc.tg_tender_lot_touch() RETURNS trigger AS $$
-BEGIN
-    NEW.updated_at := now();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_tender_lot_touch
-    BEFORE UPDATE ON proc.tender_lot
-    FOR EACH ROW EXECUTE FUNCTION proc.tg_tender_lot_touch();
-
-CREATE TABLE proc.act_scope (
-    adam         text        PRIMARY KEY REFERENCES proc.procurement_act(adam) ON DELETE CASCADE,
-    scope_kind   text        NOT NULL CHECK (scope_kind   IN ('unknown', 'whole_tender', 'specific_lots')),
-    scope_source text        NOT NULL DEFAULT 'curator' CHECK (scope_source IN ('import', 'curator')),
-    note         text,
-    updated_by   text,
-    updated_at   timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE TABLE proc.act_lot_scope (
-    adam             text          NOT NULL REFERENCES proc.act_scope(adam) ON DELETE CASCADE,
-    lot_id           bigint        NOT NULL REFERENCES proc.tender_lot(id)  ON DELETE CASCADE,
-    coverage_amount  numeric(18,2),
-    coverage_percent numeric(7,4),
-    note             text,
-    PRIMARY KEY (adam, lot_id)
-);
-CREATE INDEX ix_act_lot_scope_lot ON proc.act_lot_scope (lot_id);
-
-CREATE FUNCTION proc.tg_act_lot_scope_same_group() RETURNS trigger AS $$
-DECLARE
-    act_group  bigint;
-    lot_group  bigint;
-    kind       text;
-BEGIN
-    SELECT group_id INTO act_group FROM proc.act_group_member WHERE adam = NEW.adam;
-    IF act_group IS NULL THEN
-        RAISE EXCEPTION 'act % is not a member of any group', NEW.adam
-            USING ERRCODE = 'integrity_constraint_violation';
-    END IF;
-
-    SELECT group_id INTO lot_group FROM proc.tender_lot WHERE id = NEW.lot_id;
-    IF lot_group IS DISTINCT FROM act_group THEN
-        RAISE EXCEPTION 'lot % (group %) is not in act %''s group %',
-            NEW.lot_id, lot_group, NEW.adam, act_group
-            USING ERRCODE = 'integrity_constraint_violation';
-    END IF;
-
-    SELECT scope_kind INTO kind FROM proc.act_scope WHERE adam = NEW.adam;
-    IF kind IS DISTINCT FROM 'specific_lots' THEN
-        RAISE EXCEPTION 'act % scope is % (must be specific_lots to link lots)',
-            NEW.adam, COALESCE(kind, 'unknown')
-            USING ERRCODE = 'integrity_constraint_violation';
-    END IF;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_act_lot_scope_same_group
-    BEFORE INSERT OR UPDATE ON proc.act_lot_scope
-    FOR EACH ROW EXECUTE FUNCTION proc.tg_act_lot_scope_same_group();
-
-CREATE FUNCTION proc.tg_act_scope_no_orphan_links() RETURNS trigger AS $$
-BEGIN
-    IF NEW.scope_kind IN ('whole_tender', 'unknown')
-       AND EXISTS (SELECT 1 FROM proc.act_lot_scope WHERE adam = NEW.adam) THEN
-        RAISE EXCEPTION 'act % has lot links; clear them before setting scope %',
-            NEW.adam, NEW.scope_kind
-            USING ERRCODE = 'integrity_constraint_violation';
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_act_scope_no_orphan_links
-    BEFORE UPDATE ON proc.act_scope
-    FOR EACH ROW EXECUTE FUNCTION proc.tg_act_scope_no_orphan_links();
-
-CREATE TABLE proc.ted_notice_lot (
-    publication_number text NOT NULL REFERENCES proc.ted_notice(publication_number) ON DELETE CASCADE,
-    lot_identifier     text NOT NULL,
-    lot_number         text,
-    title              text,
-    description        text,
-    status             text,
-    estimated_value    numeric(18,2),
-    currency           text,
-    raw_json           jsonb,
-    PRIMARY KEY (publication_number, lot_identifier)
-);
-
-CREATE TABLE proc.ted_notice_lot_cpv (
-    publication_number text NOT NULL,
-    lot_identifier     text NOT NULL,
-    cpv_code           text NOT NULL,
-    PRIMARY KEY (publication_number, lot_identifier, cpv_code),
-    FOREIGN KEY (publication_number, lot_identifier)
-        REFERENCES proc.ted_notice_lot(publication_number, lot_identifier) ON DELETE CASCADE
-);
-
-CREATE TABLE proc.ted_notice_lot_nuts (
-    publication_number text NOT NULL,
-    lot_identifier     text NOT NULL,
-    nuts_code          text NOT NULL,
-    PRIMARY KEY (publication_number, lot_identifier, nuts_code),
-    FOREIGN KEY (publication_number, lot_identifier)
-        REFERENCES proc.ted_notice_lot(publication_number, lot_identifier) ON DELETE CASCADE
-);
-
-CREATE TABLE proc.ted_lot_result (
-    publication_number text    NOT NULL REFERENCES proc.ted_notice(publication_number) ON DELETE CASCADE,
-    result_ordinal     integer NOT NULL,
-    lot_identifier     text,
-    result_status      text,
-    maximum_value      numeric(18,2),
-    currency           text,
-    raw_json           jsonb,
-    PRIMARY KEY (publication_number, result_ordinal)
-);
-
-
---
--- Prospective-lead CRM: multi-value customer contacts + configurable freemail
--- domains. Kept in sync with migrations/20260722144110_*.sql.
---
-
-CREATE TABLE proc.customer_contact (
-    id           bigserial   PRIMARY KEY,
-    user_id      bigint      NOT NULL REFERENCES proc.app_user(id) ON DELETE CASCADE,
-    ord          smallint    NOT NULL DEFAULT 0,
-    first_name   text,
-    last_name    text,
-    email        text,
-    phone        text,
-    mobile       text,
-    job_title    text,
-    is_main      boolean     NOT NULL DEFAULT false,
-    is_active    boolean     NOT NULL DEFAULT true,
-    is_recipient boolean     NOT NULL DEFAULT false,
-    created_at   timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX ix_customer_contact_user ON proc.customer_contact (user_id);
-
-CREATE TABLE proc.crm_freemail_domain (
-    domain text PRIMARY KEY
-);
-INSERT INTO proc.crm_freemail_domain (domain) VALUES
-    ('gmail.com'), ('googlemail.com'), ('hotmail.com'), ('yahoo.com'),
-    ('outlook.com'), ('live.com'), ('icloud.com'), ('me.com'),
-    ('aol.com'), ('protonmail.com'), ('proton.me'),
-    ('hotmail.gr'), ('yahoo.gr'), ('windowslive.com'), ('otenet.gr')
-ON CONFLICT (domain) DO NOTHING;
-
-
---
 -- PostgreSQL database dump complete
 --
 
-\unrestrict ui3WVvTuYFkVuAyhDo8UOcl6P6lhwaAHakQq2pxP2ferrzFVEA5rV9z5FfyzMcp
+\unrestrict i3jfnifLUd0hHuRfqa90LQWeocHjeC3be58n1eN9wk4dkrP1uwG7xQZzw1QeF4i
 
---
--- CTI telephony (migration 20260817100404) — appended to keep the test schema
--- in sync until the next full pg_dump regeneration.
---
-CREATE TABLE IF NOT EXISTS proc.sip_extension (
-    user_id      bigint      PRIMARY KEY REFERENCES proc.app_user(id) ON DELETE CASCADE,
-    extension    text        NOT NULL UNIQUE,
-    sip_user     text        NOT NULL UNIQUE,
-    sip_secret   text        NOT NULL,
-    display_name text,
-    is_active    boolean     NOT NULL DEFAULT true,
-    created_at   timestamptz NOT NULL DEFAULT now(),
-    updated_at   timestamptz
-);
-
-ALTER TABLE proc.customer_call
-    ADD COLUMN IF NOT EXISTS external_number text,
-    ADD COLUMN IF NOT EXISTS started_at      timestamptz,
-    ADD COLUMN IF NOT EXISTS ended_at        timestamptz,
-    ADD COLUMN IF NOT EXISTS duration_s      integer;
-
--- Post-call AI summarisation columns (migration
--- 20260818120000_call_recording_transcript_summary.sql).
-ALTER TABLE proc.customer_call
-    ADD COLUMN IF NOT EXISTS recording_path  text,
-    ADD COLUMN IF NOT EXISTS transcript      text,
-    ADD COLUMN IF NOT EXISTS summary         text,
-    ADD COLUMN IF NOT EXISTS summary_model   text,
-    ADD COLUMN IF NOT EXISTS summary_status  text,
-    ADD COLUMN IF NOT EXISTS summary_error   text,
-    ADD COLUMN IF NOT EXISTS transcribed_at  timestamptz,
-    ADD COLUMN IF NOT EXISTS summarized_at   timestamptz;
-
-
--- Ephemeral SIP credentials (migration
--- 20260818140000_sip_ephemeral_credentials.sql). Kept in the snapshot so the
--- test DB has the tables the credential-rotation tests exercise.
-CREATE TABLE IF NOT EXISTS proc.sip_credential (
-    user_id    bigint      PRIMARY KEY REFERENCES proc.app_user(id) ON DELETE CASCADE,
-    auth_id    text        NOT NULL,
-    secret     text        NOT NULL,
-    expires_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS proc.ps_auths (
-    id         text PRIMARY KEY,
-    auth_type  text NOT NULL DEFAULT 'userpass',
-    username   text NOT NULL,
-    password   text NOT NULL,
-    realm      text
-);

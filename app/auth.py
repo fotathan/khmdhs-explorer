@@ -991,3 +991,86 @@ def can_manage_profile(user, profile):
     if profile["scope"] == "portal":
         return is_admin
     return is_admin or bool(user and user.get("id") == profile["owner_user_id"])
+
+
+# --------------------------------------------------------------------------- #
+# Email templates (CRM email builder)
+#
+# One body per (slug, lang): the slug identifies the template across languages
+# ('outreach'), the lang picks the wording. app/email_builder.py merges pasted
+# text into body_html; app/crm.py serves the customer-page panel and /admin
+# edits the bodies, so changing a word never needs a deploy.
+#
+# body_html is an HTML *fragment* — the merge parses it as one, and a body
+# wrapped in <html>/<body> would come back mangled. Two markup conventions live
+# inside it, both enforced by email_builder rather than here: @@token protects a
+# paragraph, [[field]] is replaced with a value from the customer's profile.
+# --------------------------------------------------------------------------- #
+EMAIL_TEMPLATE_LANGS = ("el", "en")     # mirrors email_template_lang_ck
+
+
+def _template_lang(lang):
+    lang = (lang or "").strip().lower()
+    if lang not in EMAIL_TEMPLATE_LANGS:
+        raise ValueError(f"unsupported template language: {lang!r}")
+    return lang
+
+
+def list_email_templates(c, lang=None):
+    """Every template, by name within a language. `lang` filters to one."""
+    if lang:
+        c.execute("""SELECT id, slug, lang, name, subject, body_html, updated_at
+                     FROM proc.email_template WHERE lang = %s
+                     ORDER BY lower(name)""", (_template_lang(lang),))
+    else:
+        c.execute("""SELECT id, slug, lang, name, subject, body_html, updated_at
+                     FROM proc.email_template ORDER BY slug, lang""")
+    return c.fetchall()
+
+
+def email_template_options(c):
+    """(slug, name) pairs for the CRM picker — one entry per slug, labelled from
+    whichever language row comes first. The panel picks the language separately,
+    so offering the same template twice would only be noise."""
+    c.execute("""SELECT DISTINCT ON (slug) slug, name
+                 FROM proc.email_template ORDER BY slug, lang""")
+    return c.fetchall()
+
+
+def get_email_template(c, slug, lang):
+    c.execute("""SELECT id, slug, lang, name, subject, body_html, updated_at
+                 FROM proc.email_template WHERE slug = %s AND lang = %s""",
+              ((slug or "").strip().lower(), _template_lang(lang)))
+    return c.fetchone()
+
+
+def get_email_template_by_id(c, tid):
+    c.execute("""SELECT id, slug, lang, name, subject, body_html, updated_at
+                 FROM proc.email_template WHERE id = %s""", (tid,))
+    return c.fetchone()
+
+
+def upsert_email_template(c, *, slug, lang, name, subject, body_html, updated_by=None):
+    """Insert or replace the body for one (slug, lang). Returns the row id."""
+    slug = (slug or "").strip().lower()
+    name = (name or "").strip()
+    body_html = (body_html or "").strip()
+    if not slug or not name or not body_html:
+        raise ValueError("slug, name and body_html are required")
+    c.execute("""INSERT INTO proc.email_template
+                   (slug, lang, name, subject, body_html, updated_by)
+                 VALUES (%s,%s,%s,%s,%s,%s)
+                 ON CONFLICT (slug, lang) DO UPDATE
+                   SET name = EXCLUDED.name,
+                       subject = EXCLUDED.subject,
+                       body_html = EXCLUDED.body_html,
+                       updated_at = now(),
+                       updated_by = EXCLUDED.updated_by
+                 RETURNING id""",
+              (slug, _template_lang(lang), name, _nullable(subject),
+               body_html, _as_uid(updated_by)))
+    return c.fetchone()["id"]
+
+
+def delete_email_template(c, tid):
+    c.execute("DELETE FROM proc.email_template WHERE id = %s", (tid,))
