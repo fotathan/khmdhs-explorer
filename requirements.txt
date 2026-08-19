@@ -2,7 +2,7 @@ fastapi==0.139.0   # was 0.115.6; pulls starlette>=1.3.1 (clears PYSEC-2026-161/
 starlette==1.3.1   # explicit transitive pin so the CVE fix can't drift out under fastapi's range
 uvicorn[standard]==0.34.0
 jinja2==3.1.6   # was 3.1.5 (PYSEC-2026-1471: sandbox escape via str.format)
-psycopg[binary,pool]==3.2.3
+psycopg[binary,pool]==3.2.13   # was 3.2.3; 3.2.3 has no cp314 binary wheel, so installs failed on Python 3.14 (still a 3.2.x patch — no API change)
 requests==2.33.0   # was 2.32.3 (PYSEC-2026-1872 + CVE-2026-25645)
 certifi==2026.5.20
 openpyxl==3.1.5
