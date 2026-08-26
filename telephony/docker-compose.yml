@@ -19,6 +19,9 @@ services:
       - "10000-10200:10000-10200/udp"  # RTP media (see runbook re: macOS audio)
     volumes:
       - ./asterisk/pjsip.conf:/etc/asterisk/pjsip.conf:ro
+      # PSTN trunk creds (git-ignored; holds the SIP password). Pulled into
+      # pjsip.conf via `#tryinclude`, so it's optional — absent = softphone-only.
+      - ./asterisk/pjsip_trunk.conf:/etc/asterisk/pjsip_trunk.conf:ro
       - ./asterisk/http.conf:/etc/asterisk/http.conf:ro
       - ./asterisk/extensions.conf:/etc/asterisk/extensions.conf:ro
       - ./asterisk/manager.conf:/etc/asterisk/manager.conf:ro

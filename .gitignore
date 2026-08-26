@@ -13,6 +13,8 @@ venv/
 .env
 .env.*
 *.secret
+# PSTN SIP trunk credentials (pulled into pjsip.conf via #tryinclude)
+telephony/asterisk/pjsip_trunk.conf
 
 # Local job logs
 /tmp/khmdhs-jobs/

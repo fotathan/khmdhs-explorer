@@ -2009,6 +2009,8 @@ _TELEPHONY = {
         "When telephony is enabled, a softphone appears at the bottom-right of every page. A green dot means it is connected and ready.",
     "Κλήση με ένα κλικ: κάθε αριθμός τηλεφώνου με σύνδεσμο καλείται απευθείας από το softphone — δεν χρειάζεται εφαρμογή ή πρόσθετο.":
         "Click-to-call: any linked phone number dials straight from the softphone — no app or plugin needed.",
+    "Κλήσεις προς εξωτερικούς αριθμούς: όταν έχει ρυθμιστεί τηλεφωνικό κύκλωμα (trunk), το softphone καλεί πραγματικά σταθερά και κινητά μέσω του τηλεφωνικού δικτύου — οι ελληνικοί αριθμοί μετατρέπονται αυτόματα σε διεθνή μορφή.":
+        "External calls: when a phone trunk is configured, the softphone reaches real landlines and mobiles over the phone network — Greek numbers are converted to international format automatically.",
     "Αναγνώριση εισερχόμενης κλήσης: σε μια εισερχόμενη κλήση, ο αριθμός αναζητείται στο CRM και η καρτέλα του πελάτη/επαφής/αναδόχου εμφανίζεται αυτόματα, με σύνδεσμο στην εγγραφή.":
         "Incoming caller ID: on an incoming call the number is looked up in the CRM and the matching customer/contact/contractor pops up automatically, with a link to the record.",
     "Οι κλήσεις που απαντώνται προς γνωστό πελάτη καταγράφονται αυτόματα στις Κλήσεις του πελάτη.":

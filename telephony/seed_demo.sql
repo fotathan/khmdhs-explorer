@@ -12,8 +12,8 @@
 --
 -- SIP secrets here must match pjsip.conf (1001pass / 1002pass).
 
-\set caller_username 'alice'
-\set agent_username  'bob'
+\set caller_username 'cust1'
+\set agent_username  'admin1'
 
 -- caller  -> ext 1001
 INSERT INTO proc.sip_extension (user_id, extension, sip_user, sip_secret, display_name)

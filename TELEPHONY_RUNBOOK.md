@@ -130,6 +130,76 @@ call setup regardless.
 
 ---
 
+## PSTN trunk (Twilio) — real outbound calls
+
+The demo is extension-to-extension. To place calls to **real phone numbers**, add
+a SIP trunk. This is **Asterisk-config-only — no application change**. We use
+Twilio Elastic SIP Trunking; the setup is credential-based (per-INVITE digest
+auth, no registration), so it works from behind home/Docker NAT for **outbound**.
+Receiving PSTN calls (inbound DIDs) needs a public-IP host — see the prod deploy
+docs — and is deliberately left for a later phase.
+
+### Files
+
+- **`telephony/asterisk/pjsip_trunk.conf`** — the trunk endpoint + credentials.
+  **Git-ignored** (holds the SIP password). Pulled into `pjsip.conf` via
+  `#tryinclude pjsip_trunk.conf`, so if it's absent the softphone demo still
+  loads — only the trunk is skipped. Endpoint name is the neutral `trunk`.
+- **`telephony/asterisk/extensions.conf`** — the `[internal]` context gains
+  outbound routes that normalise Greek numbers to E.164 and `Dial(PJSIP/…@trunk)`:
+  `_69XXXXXXXX`/`_2XXXXXXXXX` → `+30…`, `_00X.` → `+…`, `_+X.` as-is. Internal
+  extensions and the demo number are more specific, so they still match first.
+- **`[globals] TRUNK_CALLERID`** — the caller-ID number presented outbound. Twilio
+  **requires** this to be a Twilio number you own or a **verified** caller ID,
+  else the call is rejected. Set it in E.164 (`+30…`).
+
+### Twilio console (region: IE1 / Ireland — EU data residency; resources are
+region-scoped, so create everything in the same region)
+
+1. **Verify your mobile** as a caller ID (Phone Numbers → Verified Caller IDs). On
+   a trial account this both provides a valid caller ID *and* lets you call that
+   number without upgrading.
+2. **Elastic SIP Trunking → Trunks → Create a SIP Trunk** (friendly name).
+3. **Termination** → set a Termination SIP URI subdomain, e.g. `khmdhs` →
+   `khmdhs.pstn.twilio.com`.
+4. Under Termination → **Authentication → Credential Lists → +**: create a
+   username + password (password: ≥12 chars, upper+lower+number). **Save.**
+
+### Wire it locally
+
+1. Fill `pjsip_trunk.conf`: `username`, `password`, and the subdomain (2 places —
+   `<subdomain>.pstn.twilio.com`). Optionally pin an EU edge:
+   `<subdomain>.pstn.frankfurt.twilio.com`.
+2. Set `TRUNK_CALLERID=+30…` in `extensions.conf` `[globals]`.
+3. **Recreate** the container so the new/edited single-file mount is picked up — a
+   plain `reload` or `restart` is **not** enough on Docker Desktop (the container
+   stays pinned to the old file inode):
+
+   ```bash
+   docker compose -f telephony/docker-compose.yml up -d --force-recreate
+   ```
+
+4. Verify: `docker exec khmdhs-asterisk asterisk -rx "pjsip show endpoint trunk"`
+   → State `Not in use`, `OutAuth` shows your username, contact is the pstn URI.
+5. From the softphone (Chrome — Arc blocks the mic), dial a real number.
+
+### Watching a call / debugging
+
+```bash
+docker exec khmdhs-asterisk asterisk -rx "pjsip set logger on"   # SIP trace to the console
+docker logs --since 5m khmdhs-asterisk | grep -iE "INVITE|SIP/2.0|Dial\("
+docker exec khmdhs-asterisk asterisk -rx "pjsip set logger off"  # stop the spam
+```
+
+A healthy outbound call: `INVITE → 407 Proxy Authentication required →`
+(re-INVITE with `Proxy-Authorization`) `→ 100 Trying → 183/180 Ringing → 200 OK`.
+Common failures: **401/403** = wrong Credential List username/password; **403** on
+the call = caller ID not owned/verified, or (trial) calling a non-verified number.
+Rings but no/one-way audio = the macOS-Docker RTP limit above — the fix is the
+public-IP VPS, not the trunk config.
+
+---
+
 ## Configuration reference
 
 | Env | Default | Meaning |
@@ -155,8 +225,9 @@ call setup regardless.
 - For a public deployment, terminate **TLS** in front of Asterisk (`wss://`) and
   point `SIP_WS_URL` at it; browsers require a secure context off `localhost`.
 - Adding a real **SIP trunk** (to place/receive PSTN calls) is Asterisk config
-  only — no application change. Inbound DIDs land in the `internal` context;
-  route them to an agent's endpoint and the same screen-pop fires.
+  only — no application change. See **PSTN trunk (Twilio)** above for the outbound
+  setup that's in place. For inbound, route the DID from the `from-trunk` context
+  to an agent's endpoint and the same screen-pop fires.
 
 ---
 
