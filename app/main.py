@@ -2695,6 +2695,7 @@ def act_detail(adam: str, request: Request):
                  "line_items": [], "operators": [], "act_cpvs": [],
                  "attachments": [], "act_categories": [], "downstream": [],
                  "incoming": [], "annotation": None, "excluded_reason": None,
+                 "top_cpv_contractors": [],
                  "has_extended_fields": False, "nav_active": "search"})
 
         # Line items + their CPVs (some types use objectDetails, others
@@ -2771,6 +2772,49 @@ def act_detail(adam: str, request: Request):
                 _cat_idx[r["category_id"]] = cat
                 act_categories.append(cat)
             cat["subs"].append({"id": r["subcategory_id"], "name": r["subcategory_name"]})
+
+        # Top contractors previously awarded a contract carrying any of this
+        # act's line-item CPV codes. "Awarded" = a.type='contract' (role is
+        # always 'winner' in practice — see khmdhs_ingest.Ingester.record_contractors
+        # — and 'contract' avoids double-counting an auction and its follow-on
+        # contract as two separate wins, same convention as contractor_detail's
+        # top_buyers/top_cpv queries). Ranked by number of matching wins, not
+        # value, so a specialist beats a single outlier contract. The current
+        # act is excluded so an already-awarded tender doesn't trivially rank
+        # its own winner first.
+        cpv_codes = [r["cpv_code"] for r in act_cpvs] or None
+        top_cpv_contractors = []
+        if not cpv_codes:
+            # Curated act_cpv is frequently empty; fall back to the same
+            # line-item CPVs the Categories panel above derives from.
+            c.execute("""
+                SELECT DISTINCT oc.cpv_code
+                FROM proc.act_object_detail od
+                JOIN proc.object_detail_cpv oc ON oc.object_detail_id = od.id
+                WHERE od.adam = %s
+            """, (adam,))
+            cpv_codes = [r["cpv_code"] for r in c.fetchall()] or None
+        if cpv_codes:
+            c.execute("""
+                SELECT eo.vat_number, eo.name, eo.is_greek_vat, eo.country,
+                       count(DISTINCT a.adam) AS n_won,
+                       coalesce(sum(coalesce(ao.awarded_value_with_vat,
+                                             proc.resolved_value(a.adam, a.total_cost_with_vat))), 0) AS total_value,
+                       max(coalesce(a.signed_date, a.submission_date)) AS last_won,
+                       array_agg(DISTINCT oc.cpv_code ORDER BY oc.cpv_code) AS matched_cpvs
+                FROM proc.object_detail_cpv oc
+                JOIN proc.act_object_detail od ON od.id = oc.object_detail_id
+                JOIN proc.procurement_act a    ON a.adam = od.adam
+                JOIN proc.act_operator ao      ON ao.adam = a.adam AND ao.role = 'winner'
+                JOIN proc.economic_operator eo ON eo.operator_id = ao.operator_id
+                WHERE oc.cpv_code = ANY(%s)
+                  AND a.type = 'contract'
+                  AND a.adam <> %s
+                GROUP BY eo.vat_number, eo.name, eo.is_greek_vat, eo.country
+                ORDER BY n_won DESC, total_value DESC NULLS LAST
+                LIMIT 10
+            """, (cpv_codes, adam))
+            top_cpv_contractors = c.fetchall()
 
         # Downstream chain — root-anchored recursion.
         # PERF: the old version queried proc.v_act_chain, a view whose recursion
@@ -2895,6 +2939,7 @@ def act_detail(adam: str, request: Request):
          "act_cpvs": act_cpvs,
          "attachments": attachments,
          "act_categories": act_categories,
+         "top_cpv_contractors": top_cpv_contractors,
          "downstream": downstream,
          "incoming": incoming,
          "annotation": annotation,

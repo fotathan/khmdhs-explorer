@@ -270,6 +270,39 @@
       </div>
       {% endif %}
 
+      {% if top_cpv_contractors %}
+      <div class="panel">
+        <h3 class="panel-h">{{ t("Κορυφαίοι ανάδοχοι σε αυτούς τους κωδικούς CPV") }}</h3>
+        <table class="dtable">
+          <thead><tr>
+            <th>{{ t("Ανάδοχος") }}</th>
+            <th>CPV</th>
+            <th class="val">{{ t("Κατακυρωμένες συμβάσεις") }}</th>
+            <th class="val">{{ t("Συνολική αξία") }}</th>
+            <th class="val">{{ t("Πιο πρόσφατη") }}</th>
+          </tr></thead>
+          <tbody>
+            {% for row in top_cpv_contractors %}
+            <tr>
+              <td><a href="/contractor/{{ row.vat_number }}">{{ row.name or row.vat_number }}</a></td>
+              <td style="font-size:12.5px;">
+                {% for code in row.matched_cpvs %}
+                <code class="adam">{{ code }}</code>{% if not loop.last %} {% endif %}
+                {% endfor %}
+              </td>
+              <td class="val">{{ row.n_won }}</td>
+              <td class="val">
+                {% if row.total_value %}€ {{ "{:,.2f}".format(row.total_value).replace(",", ".") }}
+                {% else %}—{% endif %}
+              </td>
+              <td class="val">{{ row.last_won.strftime("%d/%m/%Y") if row.last_won else "—" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
       {# lazy-loaded published extracted tables — collapses to nothing if none #}
       {% if tables_enabled %}
       <div id="tt-pub-tables-mount" hx-get="/tables/public/{{ n.adam }}" hx-trigger="load" hx-swap="outerHTML"></div>
