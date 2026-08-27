@@ -110,10 +110,22 @@ type with no prior backfill needs an explicit `--start`.
   `cursor()` context manager (one autocommit connection, `prepare_threshold=None`
   because Supabase's pooler can route consecutive queries to different
   physical connections — disabling prepared statements keeps it pooler-safe)
-  and the `BasicAuthMiddleware` (single shared password via `APP_PASSWORD`/
-  `APP_USERNAME`; a no-op if `APP_PASSWORD` is unset, e.g. local dev).
-  `/admin` and `/tables` sit behind this same middleware — there's no
-  separate auth layer for them.
+  and `AuthMiddleware`, which resolves the session to a live account on every
+  request and enforces the role gate.
+- `app/auth.py` — real accounts in `proc.app_user`, not a shared password.
+  Three tiers: anonymous (public teaser), customer (full read), admin (adds
+  `/admin`). Passwords are stdlib scrypt; sessions are a signed cookie
+  (Starlette `SessionMiddleware`) carrying a `session_version` that the
+  middleware re-checks against the DB, so a password/role/2FA change kills
+  existing sessions immediately. Optional TOTP 2FA with hashed recovery codes.
+  `app/login_links.py` adds passwordless sign-in links mailed to the account
+  address — a second path onto `/login` that completes the PASSWORD step only,
+  so 2FA still applies.
+- Admin surfaces are gated by `_is_admin_path` + `AuthMiddleware` (role check
+  plus an audit row in `proc.admin_action`), not by a path prefix alone:
+  `/admin`, `/help`, `/tables` (except `/tables/public`), and the inline
+  mutating routes that live under the public trees (`/name-edit`,
+  `/name-cancel`, `/gemi-refresh`).
 - `app/admin.py` — mounted at `/admin`: launches backfills as detached
   subprocesses (`db.py backfill ...`) tracked in `proc.ingest_job`, so the web
   request returns immediately; survives uvicorn restarts since jobs aren't
@@ -160,8 +172,10 @@ otherwise; don't assume changes to `app/templates/` need a corresponding
 
 ### Deployment
 
-`Dockerfile` runs `uvicorn app.main:app` on `$PORT`, reading `DATABASE_URL`
-and the optional `APP_PASSWORD`/`APP_USERNAME` auth gate from the
-environment at runtime — no secrets baked into the image. `render.yaml`
-deploys it as a Render Blueprint with those two vars marked `sync: false`
-(set in the dashboard, not in git).
+`Dockerfile` runs `uvicorn app.main:app` on `$PORT`, reading `DATABASE_URL` and
+`SECRET_KEY` (which signs the session cookies — without it the app falls back
+to an insecure built-in key and sessions are forgeable) from the environment at
+runtime — no secrets baked into the image. `render.yaml` deploys it as a Render
+Blueprint with both vars marked `sync: false` (set in the dashboard, not in
+git). The Blueprint also declares a worker and two cron services; they exist
+only once the Blueprint is applied, and are not created by pushing.

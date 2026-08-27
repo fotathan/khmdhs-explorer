@@ -108,11 +108,13 @@ and add a `CHANGELOG.md` entry.
 
 ## Never commit
 
-This repo is public and the app handles a shared credential and procurement data.
+This repo is public and the app handles user credentials and procurement data.
 Do **not** commit:
 
-- Secrets / connection strings — `DATABASE_URL`, `APP_PASSWORD` / `APP_USERNAME`,
-  `ANTHROPIC_API_KEY`, `GEMI_API_KEY`, `ATTACH_S3_*`, any `.env` / `.env.*` file.
+- Secrets / connection strings — `DATABASE_URL`, `SECRET_KEY` (signs the session
+  cookies; a leaked one makes admin sessions forgeable), `ANTHROPIC_API_KEY`,
+  `GEMI_API_KEY`, `SMTP_PASSWORD`, `AMI_PASSWORD`, `ATTACH_S3_*`, any `.env` /
+  `.env.*` file.
 - Database dumps or exported procurement data.
 - Local machine paths, personal tokens, or attachment files.
 

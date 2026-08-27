@@ -3762,7 +3762,8 @@ def contractor_detail(vat: str, request: Request,
 
 
 # ---------------------------------------------------------------------------- #
-# On-demand ΓΕΜΗ enrichment (admin-only via the app-wide BasicAuth middleware).
+# On-demand ΓΕΜΗ enrichment (admin-only: the /gemi-refresh suffix is matched by
+# _is_admin_path, so AuthMiddleware enforces role == 'admin' and audits it).
 # A button on the contractor/authority page POSTs here; we call the registry
 # for that single ΑΦΜ, upsert, and return the refreshed _gemi_block partial for
 # HTMX to swap in place. Same fetch/flatten/upsert as the batch script (shared
@@ -3846,16 +3847,18 @@ def _gemi_status_message(status: str) -> tuple[str, str]:
 
 
 # ---------------------------------------------------------------------------- #
-# Editable entity names (admin-only via app-wide BasicAuth). Curators can
+# Editable entity names (admin-only, see the gate note below). Curators can
 # correct garbled / wrong names. The edit overwrites `name`; the first edit
 # snapshots the original ingested value into name_original (recoverable). The
 # heading on the detail page is an HTMX-swappable fragment: a pencil reveals an
 # inline form, submit swaps the heading back with the new name.
 #
-# NOTE on future roles: these routes sit behind the same BasicAuth as the rest
-# of the app, so they're curator-only today. When real ADMIN/curator roles
-# arrive, gate THESE routes (and the gemi-refresh routes) behind the new
-# permission check — the templates/logic don't change, only the gate.
+# The gate: these routes live under the PUBLIC /authority/ and /contractor/
+# trees so they can sit inline on the detail page, which means no path prefix
+# protects them. _is_admin_path matches them by suffix (/name-edit,
+# /name-cancel) instead, and AuthMiddleware then enforces role == 'admin' and
+# writes the attempt to proc.admin_action. Hiding the pencil in the template is
+# the affordance, not the control — this is what actually stops a POST.
 # ---------------------------------------------------------------------------- #
 def _name_heading(request: Request, kind: str, ident: str, name: str,
                   editing: bool = False, edited: bool = False):
