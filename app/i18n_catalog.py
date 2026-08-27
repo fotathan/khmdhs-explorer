@@ -1366,6 +1366,20 @@ _CRM2 = {
 }
 
 # Admin console: grouped side-nav + CRM aggregate/search pages.
+# CRM customer card: the at-a-glance strip and the tabs (admin_crm_customer.html)
+_CRMCARD = {
+    "Στοιχεία": "Details",
+    "Ειδοποιήσεις": "Alerts",
+    "Δραστηριότητα": "Activity",
+    "Προϊόν": "Product",
+    "κανένα": "none",
+    "καμία": "none",
+    "ενεργές": "active",
+    "σημ./κλήσ./εργ.": "notes/calls/tasks",
+    # The email builder's own heading, now also a tab label.
+    "Σύνθεση email": "Compose email",
+}
+
 _CRMNAV = {
     "CRM": "CRM",
     "Διαχείριση Δεδομένων": "Data Management",
@@ -2123,6 +2137,47 @@ _DIGESTS = {
         "\u201cHistory\u201d records every attempt: how many results, to whom, and what went wrong.",
     "Η αποστολή εξαρτάται από τη διαμόρφωση: χωρίς ρυθμισμένο διακομιστή email τα μηνύματα καταγράφονται τοπικά αντί να σταλούν. Η γραμμή στην κορυφή της σελίδας δείχνει πάντα πού καταλήγουν.":
         "Sending depends on configuration: with no mail server configured, messages are logged locally instead of sent. The bar at the top of the page always shows where they end up.",
+    # ---- multiple recipients + the summary body ----
+    "Λίστα αποτελεσμάτων": "Result list",
+    "Σύνοψη με στατιστικά": "Summary with statistics",
+    "Μορφή email": "Email format",
+    "Παραλήπτες": "Recipients",
+    "παραλήπτες": "recipients",
+    "παραλήπτης": "recipient",
+    "Προσθήκη παραλήπτη": "Add recipient",
+    "Προσφώνηση": "Salutation",
+    # "Όνομα" is already the catalog's table-header "Name"; a given-name field
+    # next to a surname field needs its own, unambiguous string.
+    "Μικρό όνομα": "First name",
+    "Επώνυμο": "Last name",
+    "π.χ. Αξιότιμε κύριε": "e.g. Dear",
+    "Αφαίρεση": "Remove",
+    "Αφαίρεση αυτού του παραλήπτη;": "Remove this recipient?",
+    "λογαριασμός": "account",
+    "εξαιρείται": "excluded",
+    "(χωρίς email)": "(no email address)",
+    "Αποστολή και στο email του λογαριασμού": "Also send to the account's email",
+    "όχι στον λογαριασμό": "not to the account",
+    "Ρυθμίσεις αποστολής": "Sending settings",
+    "Τελευταίες αποστολές": "Recent sends",
+    "τελευταία αποστολή": "last sent",
+    "Νέα ειδοποίηση": "New alert",
+    "Το όνομα και η προσφώνηση χρησιμοποιούνται στον χαιρετισμό του email αυτού του παραλήπτη ([[salutation]], [[first_name]], [[full_name]]).":
+        "The name and salutation are used in the greeting of this recipient's own copy ([[salutation]], [[first_name]], [[full_name]]).",
+    "«Μέγιστα αποτελέσματα» αφορά μόνο τη μορφή λίστας — η σύνοψη δεν παραθέτει πράξεις.":
+        "\u201cMaximum results\u201d applies to the list format only \u2014 the summary lists no acts.",
+    "Μία εγγραφή ανά προφίλ — η επαναποθήκευση ενημερώνει την υπάρχουσα. Οι επιπλέον παραλήπτες προστίθενται μετά, στην κάρτα της ειδοποίησης.":
+        "One subscription per profile \u2014 saving again updates the existing one. Extra recipients are added afterwards, on the alert's own card.",
+    # the summary email body
+    "Σύνοψη αποτελεσμάτων": "Results summary",
+    "Συνολικός προϋπολογισμός": "Total budget",
+    "Αναθέτουσες αρχές": "Contracting authorities",
+    "Ανοιχτές προθεσμίες": "Open deadlines",
+    "Ακυρωμένες": "Cancelled",
+    "ακυρωμένες": "cancelled",
+    "Ανά είδος πράξης": "By act type",
+    "Κυριότερες αναθέτουσες": "Top authorities",
+    "επόμενη": "next",
     # ---- the result set one email contained (/digests/<token>) ----
     "Αποτελέσματα ειδοποίησης": "Alert results",
     "Αποθηκευμένη αναζήτηση": "Saved search",
@@ -2174,6 +2229,15 @@ _DIGESTS = {
         "Each email contains only the acts that entered the database after the previous email sent to that particular customer. If a send does not happen (an empty period, an error, a lapsed customer), the period is not lost — it rolls into the next email.",
     "Το κουμπί «Δείτε όλα τα αποτελέσματα» μέσα στο email ανοίγει τη λίστα ακριβώς αυτών των πράξεων — όχι μια νέα αναζήτηση. Αν το email εμφάνιζε τις πρώτες 25 από 80, η σελίδα δείχνει και τις 80. Ο σύνδεσμος απαιτεί σύνδεση και ανοίγει μόνο για τον ίδιο τον πελάτη (ή για διαχειριστή).":
         "The \u201csee all results\u201d button inside the email opens the list of exactly those acts — not a fresh search. If the email showed the first 25 of 80, the page shows all 80. The link requires signing in and opens only for that customer (or an admin).",
+    "Η καρτέλα πελάτη": "The customer card",
+    "Η καρτέλα κάθε πελάτη χωρίζεται σε καρτέλες: «Στοιχεία» (το προφίλ, οι επαφές, τα προϊόντα), «Ειδοποιήσεις» (αποθηκευμένες αναζητήσεις και email αποτελεσμάτων), «Δραστηριότητα» (σημειώσεις, κλήσεις, εργασίες) και «Σύνθεση email». Πάνω από αυτές μια γραμμή με τα βασικά — εταιρεία, ΑΦΜ, τηλέφωνο, τρέχον προϊόν, ενεργές ειδοποιήσεις — παραμένει ορατή σε όποια καρτέλα κι αν βρίσκεστε.":
+        "Each customer's card is split into tabs: \u201cDetails\u201d (the profile, contacts and products), \u201cAlerts\u201d (saved searches and result emails), \u201cActivity\u201d (notes, calls, tasks) and \u201cCompose email\u201d. Above them a strip of essentials \u2014 company, tax id, phone, current product, active alerts \u2014 stays visible whichever tab you are on.",
+    "Κάθε ειδοποίηση μπορεί να έχει περισσότερους από έναν παραλήπτες: το email του λογαριασμού στέλνεται από προεπιλογή (μπορεί και να εξαιρεθεί) και δίπλα του προσθέτετε συναδέλφους με δική τους προσφώνηση, όνομα και επώνυμο. Κάθε παραλήπτης λαμβάνει το δικό του αντίγραφο, με χαιρετισμό στο δικό του όνομα.":
+        "One alert can have more than one recipient: the account's own email is included by default (and can be excluded), and next to it you add colleagues with their own salutation, first name and surname. Each recipient gets their own copy, greeting them by name.",
+    "Δύο μορφές email: η «Λίστα αποτελεσμάτων» παραθέτει τις νέες πράξεις, ενώ η «Σύνοψη με στατιστικά» δίνει πλήθος ανά είδος πράξης, συνολικό προϋπολογισμό, αριθμό αναθετουσών, ανοιχτές προθεσμίες και τις κυριότερες αναθέτουσες — με κουμπί για την αναλυτική λίστα μέσα στην εφαρμογή.":
+        "Two email formats: \u201cResult list\u201d prints the new acts, while \u201cSummary with statistics\u201d gives counts per act type, total budget, how many authorities, open deadlines and the top authorities \u2014 with a button through to the detailed list inside the app.",
+    "Το κείμενο του email (θέμα και εισαγωγή) είναι τα πρότυπα «digest» και «digest_summary» στα":
+        "The email wording (subject and intro) is the \u201cdigest\u201d and \u201cdigest_summary\u201d templates under",
     "Το «Ιστορικό» καταγράφει κάθε προσπάθεια: πόσα αποτελέσματα, σε ποιον, τι πήγε στραβά, και σύνδεσμο «τι στάλθηκε» για κάθε email που έφυγε.":
         "\u201cHistory\u201d records every attempt: how many results, to whom, what went wrong, and a \u201cwhat was sent\u201d link for every email that left.",
     "Αποθηκευμένες αναζητήσεις & ειδοποιήσεις στην καρτέλα πελάτη":
@@ -2202,6 +2266,6 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PARTIALS, _EXPLORE_ANALYTICS, _ADMIN1, _ADMIN2, _ADMIN3, _FORMLABELS,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
              _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
-             _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
+             _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMCARD, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
              _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY, _DIGESTS):
     UI_EN.update(_grp)

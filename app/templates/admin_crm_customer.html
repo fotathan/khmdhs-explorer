@@ -11,6 +11,10 @@
   'not_answered': 'Αναπάντητη', 'cancelled': 'Ακυρώθηκε'} %}
 {% set TASK_LABELS = {'open': 'Ανοιχτή', 'done': 'Ολοκληρωμένη', 'cancelled': 'Ακυρώθηκε'} %}
 {% set DIR_LABELS = {'outgoing': 'Εξερχόμενη', 'incoming': 'Εισερχόμενη'} %}
+{# The two shapes of result email (digests.LAYOUTS). 'list' prints the acts;
+   'summary' prints the statistics and links out to the full set. #}
+{% set LAYOUT_LABELS = {'list': 'Λίστα αποτελεσμάτων',
+                        'summary': 'Σύνοψη με στατιστικά'} %}
 
 
 <p style="margin:8px 0 0;"><a class="back" href="/admin/crm" hx-boost="false">{{ t("‹ πίσω στο CRM") }}</a></p>
@@ -46,7 +50,60 @@
 {% if error %}<div class="u-flash u-err">{{ error | t }}</div>{% endif %}
 {% if warn %}<div class="u-flash u-warn">⚠ {{ warn | t }}</div>{% endif %}
 {% if ok %}<div class="u-flash u-ok">{{ t("✓ Αποθηκεύτηκε.") }}</div>{% endif %}
+{# Feedback from the shared digest endpoints, which redirect back here with
+   ?flash=. Without this the "test send" button looked like it did nothing. #}
+{% if flash %}<div class="u-flash u-info">{{ flash }}</div>{% endif %}
 
+{# ===== AT A GLANCE =========================================================
+   The handful of facts an admin checks before doing anything else. It sits
+   ABOVE the tabs on purpose: whichever tab is open, "who is this and are they
+   paying" must stay on screen. #}
+<div class="glance">
+  {% if profile.company %}
+  <div><dt>{{ t("Εταιρεία") }}</dt><dd>{{ profile.company }}</dd></div>{% endif %}
+  {% if profile.vat_number %}
+  <div><dt>{{ t("ΑΦΜ") }}</dt><dd>{{ profile.vat_number }}</dd></div>{% endif %}
+  {% if profile.phone or profile.mobile %}
+  <div><dt>{{ t("Τηλέφωνο") }}</dt><dd>{{ profile.phone or profile.mobile }}</dd></div>{% endif %}
+  <div><dt>{{ t("Προϊόν") }}</dt><dd>
+    {% if current %}{{ current.product_name | t }}
+      <span class="glance-sub">{{ t("λήγει") }} {{ current.expires_at.strftime('%Y-%m-%d') }}</span>
+    {% else %}<span class="glance-sub">{{ t("κανένα") }}</span>{% endif %}</dd></div>
+  <div><dt>{{ t("Ειδοποιήσεις") }}</dt><dd>
+    {% set n_on = digest_subs | selectattr('is_active') | list | length %}
+    {% if n_on %}{{ n_on }} {{ t("ενεργές") }}
+    {% else %}<span class="glance-sub">{{ t("καμία") }}</span>{% endif %}</dd></div>
+  <div><dt>{{ t("Δραστηριότητα") }}</dt><dd>
+    {{ notes|length }} · {{ calls|length }} · {{ tasks|length }}
+    <span class="glance-sub">{{ t("σημ./κλήσ./εργ.") }}</span></dd></div>
+</div>
+
+{# ===== TABS ================================================================
+   The card had grown to four unrelated jobs stacked down one page: the record
+   itself, the alerts, the activity log and the email composer. Each is a
+   different task, and scrolling past three of them to reach the fourth is the
+   whole problem. The panels are the SAME markup as before, just gated.
+
+   No-JS is the safety net, not an afterthought: the `js-tabs` class is added by
+   the script at the bottom, so without it every panel renders stacked exactly
+   as it used to. #}
+{% set tab_defs = [
+     ('details',  t("Στοιχεία"),        none),
+     ('alerts',   t("Ειδοποιήσεις"),    digest_subs | length),
+     ('activity', t("Δραστηριότητα"),   notes|length + calls|length + tasks|length),
+     ('email',    t("Σύνθεση email"),   none)] %}
+<div class="ctabs" role="tablist" id="crm-tabs">
+  {% for key, label, count in tab_defs %}
+  <button type="button" role="tab" class="ctab{% if loop.first %} on{% endif %}"
+          id="ctab-btn-{{ key }}" data-tab="{{ key }}"
+          aria-controls="ctab-{{ key }}" aria-selected="{{ 'true' if loop.first else 'false' }}">
+    {{ label }}{% if count %}<span class="ctab-n">{{ count }}</span>{% endif %}
+  </button>
+  {% endfor %}
+</div>
+
+<section class="cpanel on" id="ctab-details" role="tabpanel"
+         aria-labelledby="ctab-btn-details">
 <div class="detail-grid">
   <div>
     <div class="section-h">{{ t("Στοιχεία πελάτη") }}</div>
@@ -192,7 +249,10 @@
     </form>
   </aside>
 </div>
+</section>
 
+<section class="cpanel" id="ctab-alerts" role="tabpanel"
+         aria-labelledby="ctab-btn-alerts">
 {# ===== SAVED SEARCHES + RESULT EMAILS =====================================
    Both live on the customer's own card. Which saved searches someone has, and
    which of them they are mailed about, is a per-customer question — asking it
@@ -257,123 +317,221 @@
       <a href="/admin/digests?tab=schedules" hx-boost="false">/admin/digests</a>
     </div>
 
-    {% if digest_subs %}
-    <table class="crm-tbl">
-      <thead><tr>
-        <th>{{ t("Προφίλ") }}</th>
-        <th>{{ t("Πρόγραμμα") }}</th>
-        <th>{{ t("Τελευταία αποστολή") }}</th>
-        <th></th>
-      </tr></thead>
-      <tbody>
-      {% for s in digest_subs %}
-        <tr>
-          <td>
-            <b>{{ s.profile_name }}</b>
-            <div class="crm-tbl-sub">
-              {{ s.lang | upper }} · {{ t("έως") }} {{ s.max_results }}
-              {%- if s.send_empty %} · {{ t("και κενά") }}{% endif %}
-              {% if not s.is_active %} · <span class="dg-tag off">{{ t("ανενεργή") }}</span>{% endif %}
-            </div>
-          </td>
-          <td>
-            {{ s.schedule_label }}
-            <div class="crm-tbl-sub">
-              {% if s.inherited %}<span class="dg-tag portal">{{ t("προεπιλογή πύλης") }}</span>
-              {% else %}<span class="dg-tag own">{{ t("ειδική ρύθμιση") }}</span>{% endif %}
-              {% if s.next_run_at %} · {{ t("επόμενη") }} {{ s.next_run_at.strftime('%d/%m %H:%M') }} UTC{% endif %}
-            </div>
-          </td>
-          <td class="crm-tbl-sub">
-            {{ s.last_sent_at.strftime('%d/%m/%Y %H:%M') if s.last_sent_at else '—' }}
-            {% if s.runs %}
-            <div>
-              {% for r in s.runs %}
-                <div>
-                  <span class="dg-tag {{ r.status }}">{{ r.status }}</span>
-                  {% if r.n_results %}{{ r.n_results }}{% endif %}
-                  {% if r.token %}
-                    <a href="/digests/{{ r.token }}" target="_blank" hx-boost="false">{{ t("αποτελέσματα") }}</a>
-                  {% endif %}
-                  {% if r.error %}<span class="crm-tbl-sub">{{ r.error }}</span>{% endif %}
-                </div>
+    {# One card per alert instead of one table row. A subscription now carries a
+       recipient list and a body choice as well as a cadence; squeezed into a
+       row those become unreadable, and the settings had to be edited by
+       retyping them into a shared form at the bottom of the page. Everything
+       about one alert is now in one place, and the two folds keep the card
+       short until you actually want to change something. #}
+    {% for s in digest_subs %}
+    <article class="dg-card{% if not s.is_active %} is-off{% endif %}">
+      <div class="dg-card-h">
+        <b>{{ s.profile_name }}</b>
+        <span class="dg-tag {{ 'layout-summary' if s.layout == 'summary' else 'layout-list' }}">
+          {{ LAYOUT_LABELS.get(s.layout, s.layout) | t }}</span>
+        {% if not s.is_active %}<span class="dg-tag off">{{ t("ανενεργή") }}</span>{% endif %}
+      </div>
+      <div class="crm-tbl-sub dg-card-meta">
+        {{ s.schedule_label }} ·
+        {% if s.inherited %}{{ t("προεπιλογή πύλης") }}{% else %}{{ t("ειδική ρύθμιση") }}{% endif %}
+        {% if s.next_run_at %} · {{ t("επόμενη") }} {{ s.next_run_at.strftime('%d/%m %H:%M') }} UTC{% endif %}
+        · {{ s.lang | upper }} · {{ t("έως") }} {{ s.max_results }}
+        {%- if s.send_empty %} · {{ t("και κενά") }}{% endif %}
+        · {{ t("τελευταία αποστολή") }}
+        {{ s.last_sent_at.strftime('%d/%m/%Y %H:%M') if s.last_sent_at else '—' }}
+      </div>
+
+      {# ---- recipients ---- #}
+      <div class="dg-rcp">
+        <div class="dg-sub-label">{{ t("Παραλήπτες") }}</div>
+        <ul class="dg-rcp-list">
+          {# The account address is the default reader and is not a row in the
+             recipient table — it follows the customer's own email, so an admin
+             correcting that email does not have to remember to fix the alert
+             too. It can be switched off in the settings fold. #}
+          <li class="{% if not s.include_primary %}is-off{% endif %}">
+            <span class="dg-rcp-name">{{ profile.full_name or cust.username }}</span>
+            <span class="dg-rcp-mail">{{ cust.email or t("(χωρίς email)") }}</span>
+            <span class="dg-tag portal">{{ t("λογαριασμός") }}</span>
+            {% if not s.include_primary %}<span class="dg-tag off">{{ t("εξαιρείται") }}</span>{% endif %}
+          </li>
+          {% for r in s.recipients %}
+          <li class="{% if not r.is_active %}is-off{% endif %}">
+            <span class="dg-rcp-name">
+              {{ ((r.salutation or '') ~ ' ' ~ (r.first_name or '') ~ ' ' ~ (r.last_name or '')).strip() or '—' }}
+            </span>
+            <span class="dg-rcp-mail">{{ r.email }}</span>
+            {% if not r.is_active %}<span class="dg-tag off">{{ t("ανενεργός") }}</span>{% endif %}
+            <form method="post" class="dg-rcp-del"
+                  action="/admin/digests/subscriptions/{{ s.id }}/recipients/{{ r.id }}/delete"
+                  onsubmit="return confirm('{{ t('Αφαίρεση αυτού του παραλήπτη;') }}')">
+              <input type="hidden" name="back" value="/admin/crm/{{ cust.id }}?tab=alerts">
+              <button type="submit" class="dg-x" title="{{ t('Αφαίρεση') }}">×</button>
+            </form>
+          </li>
+          {% endfor %}
+        </ul>
+        <details class="dg-fold">
+          <summary>+ {{ t("Προσθήκη παραλήπτη") }}</summary>
+          <form method="post" action="/admin/digests/subscriptions/{{ s.id }}/recipients"
+                class="dg-form">
+            <input type="hidden" name="back" value="/admin/crm/{{ cust.id }}?tab=alerts">
+            <label>Email<input type="email" name="email" required
+                   placeholder="name@example.gr"></label>
+            <label>{{ t("Προσφώνηση") }}<input type="text" name="salutation"
+                   placeholder="{{ t('π.χ. Αξιότιμε κύριε') }}"></label>
+            <label>{{ t("Μικρό όνομα") }}<input type="text" name="first_name"></label>
+            <label>{{ t("Επώνυμο") }}<input type="text" name="last_name"></label>
+            <button type="submit" class="dg-btn">{{ t("Προσθήκη") }}</button>
+          </form>
+          <div class="crm-tbl-sub">
+            {{ t("Το όνομα και η προσφώνηση χρησιμοποιούνται στον χαιρετισμό του email αυτού του παραλήπτη ([[salutation]], [[first_name]], [[full_name]]).") }}
+          </div>
+        </details>
+      </div>
+
+      {# ---- settings, folded ---- #}
+      <details class="dg-fold">
+        <summary>{{ t("Ρυθμίσεις αποστολής") }}</summary>
+        <form method="post" action="/admin/digests/subscriptions" class="dg-form">
+          <input type="hidden" name="user_id" value="{{ cust.id }}">
+          <input type="hidden" name="search_profile_id" value="{{ s.search_profile_id }}">
+          <input type="hidden" name="back" value="/admin/crm/{{ cust.id }}?tab=alerts">
+          <label>{{ t("Πρόγραμμα") }}
+            <select name="schedule_id">
+              <option value="">{{ t("Προεπιλογή πύλης") }}{% if digest_default_schedule %} — {{ digest_default_schedule.name }}{% endif %}</option>
+              {% for sc in digest_schedules %}
+              <option value="{{ sc.id }}" {% if sc.id == s.schedule_id %}selected{% endif %}>{{ sc.name }} — {{ sc.label }}</option>
               {% endfor %}
-            </div>
-            {% endif %}
-          </td>
-          <td>
-            <div class="dg-actions">
-              <a class="dg-btn" href="/admin/digests/subscriptions/{{ s.id }}/preview"
-                 target="_blank" hx-boost="false">{{ t("Προεπισκόπηση") }}</a>
-              <form method="post" action="/admin/digests/subscriptions/{{ s.id }}/send">
-                <input type="hidden" name="mode" value="test">
-                <input type="hidden" name="back" value="/admin/crm/{{ cust.id }}">
-                <button class="dg-btn" type="submit">{{ t("Δοκιμαστική αποστολή") }}</button>
-              </form>
-              <form method="post" action="/admin/digests/subscriptions/{{ s.id }}/send"
-                    onsubmit="return confirm('{{ t('Αποστολή τώρα στον πελάτη;') }}')">
-                <input type="hidden" name="mode" value="real">
-                <input type="hidden" name="back" value="/admin/crm/{{ cust.id }}">
-                <button class="dg-btn" type="submit">{{ t("Αποστολή τώρα") }}</button>
-              </form>
-              <form method="post" action="/admin/digests/subscriptions/{{ s.id }}/delete"
-                    onsubmit="return confirm('{{ t('Διαγραφή αυτής της εγγραφής;') }}')">
-                <input type="hidden" name="back" value="/admin/crm/{{ cust.id }}">
-                <button class="dg-btn" type="submit">{{ t("Διαγραφή") }}</button>
-              </form>
-            </div>
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+            </select></label>
+          <label>{{ t("Μορφή email") }}
+            <select name="layout">
+              {% for key in digest_layouts %}
+              <option value="{{ key }}" {% if key == s.layout %}selected{% endif %}>{{ LAYOUT_LABELS.get(key, key) | t }}</option>
+              {% endfor %}
+            </select></label>
+          <label>{{ t("Γλώσσα") }}
+            <select name="lang">
+              <option value="el" {% if s.lang == 'el' %}selected{% endif %}>Ελληνικά</option>
+              <option value="en" {% if s.lang == 'en' %}selected{% endif %}>English</option>
+            </select></label>
+          <label>{{ t("Μέγιστα αποτελέσματα") }}
+            <input type="number" name="max_results" value="{{ s.max_results }}" min="1" max="200"></label>
+          <label class="check"><input type="checkbox" name="include_primary" value="1"
+                 {% if s.include_primary %}checked{% endif %}> {{ t("Αποστολή και στο email του λογαριασμού") }}</label>
+          <label class="check"><input type="checkbox" name="send_empty" value="1"
+                 {% if s.send_empty %}checked{% endif %}> {{ t("Αποστολή και χωρίς νέα") }}</label>
+          <label class="check"><input type="checkbox" name="is_active" value="1"
+                 {% if s.is_active %}checked{% endif %}> {{ t("Ενεργή") }}</label>
+          <button type="submit" class="dg-btn">{{ t("Αποθήκευση") }}</button>
+        </form>
+        <div class="crm-tbl-sub">
+          {{ t("«Μέγιστα αποτελέσματα» αφορά μόνο τη μορφή λίστας — η σύνοψη δεν παραθέτει πράξεις.") }}
+        </div>
+      </details>
+
+      {% if s.runs %}
+      <div class="dg-runs">
+        <div class="dg-sub-label">{{ t("Τελευταίες αποστολές") }}</div>
+        {% for r in s.runs %}
+        <div class="dg-run">
+          <span class="dg-tag {{ r.status }}">{{ r.status }}</span>
+          <span class="crm-tbl-sub">{{ r.started_at.strftime('%d/%m %H:%M') }}</span>
+          {% if r.n_results %}<span>{{ r.n_results }}</span>{% endif %}
+          {% if r.n_recipients %}<span class="crm-tbl-sub">→ {{ r.n_recipients }}
+            {{ t("παραλήπτες") }}</span>{% endif %}
+          {% if r.token %}
+            <a href="/digests/{{ r.token }}" target="_blank" hx-boost="false">{{ t("αποτελέσματα") }}</a>
+          {% endif %}
+          {% if r.error %}<span class="crm-tbl-sub dg-run-err">{{ r.error }}</span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="dg-actions">
+        <a class="dg-btn" href="/admin/digests/subscriptions/{{ s.id }}/preview"
+           target="_blank" hx-boost="false">{{ t("Προεπισκόπηση") }}</a>
+        <form method="post" action="/admin/digests/subscriptions/{{ s.id }}/send">
+          <input type="hidden" name="mode" value="test">
+          <input type="hidden" name="back" value="/admin/crm/{{ cust.id }}?tab=alerts">
+          <button class="dg-btn" type="submit">{{ t("Δοκιμαστική αποστολή") }}</button>
+        </form>
+        <form method="post" action="/admin/digests/subscriptions/{{ s.id }}/send"
+              onsubmit="return confirm('{{ t('Αποστολή τώρα στον πελάτη;') }}')">
+          <input type="hidden" name="mode" value="real">
+          <input type="hidden" name="back" value="/admin/crm/{{ cust.id }}?tab=alerts">
+          <button class="dg-btn" type="submit">{{ t("Αποστολή τώρα") }}</button>
+        </form>
+        <form method="post" action="/admin/digests/subscriptions/{{ s.id }}/delete"
+              onsubmit="return confirm('{{ t('Διαγραφή αυτής της εγγραφής;') }}')">
+          <input type="hidden" name="back" value="/admin/crm/{{ cust.id }}?tab=alerts">
+          <button class="dg-btn dg-btn-danger" type="submit">{{ t("Διαγραφή") }}</button>
+        </form>
+      </div>
+    </article>
     {% else %}
     <div class="act-empty">{{ t("Καμία ειδοποίηση για αυτόν τον πελάτη.") }}</div>
-    {% endif %}
+    {% endfor %}
 
-    <form method="post" action="/admin/digests/subscriptions" class="alert-form">
-      <input type="hidden" name="user_id" value="{{ cust.id }}">
-      <input type="hidden" name="back" value="/admin/crm/{{ cust.id }}">
-      <div class="row">
-        <div>
-          <label for="dgc-profile">{{ t("Προφίλ αναζήτησης") }}</label>
-          <select id="dgc-profile" name="search_profile_id" required>
-            {% for p in digest_profile_options %}
-            <option value="{{ p.id }}">{{ p.name }}{% if p.scope == 'portal' %} — {{ t("Πύλη") }}{% endif %}</option>
-            {% endfor %}
-          </select>
+    <details class="alert-new" {% if not digest_subs %}open{% endif %}>
+      <summary>+ {{ t("Νέα ειδοποίηση") }}</summary>
+      <form method="post" action="/admin/digests/subscriptions" class="alert-form">
+        <input type="hidden" name="user_id" value="{{ cust.id }}">
+        <input type="hidden" name="back" value="/admin/crm/{{ cust.id }}?tab=alerts">
+        <div class="row">
+          <div>
+            <label for="dgc-profile">{{ t("Προφίλ αναζήτησης") }}</label>
+            <select id="dgc-profile" name="search_profile_id" required>
+              {% for p in digest_profile_options %}
+              <option value="{{ p.id }}">{{ p.name }}{% if p.scope == 'portal' %} — {{ t("Πύλη") }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label for="dgc-sched">{{ t("Πρόγραμμα") }}</label>
+            <select id="dgc-sched" name="schedule_id">
+              <option value="">{{ t("Προεπιλογή πύλης") }}{% if digest_default_schedule %} — {{ digest_default_schedule.name }}{% endif %}</option>
+              {% for sc in digest_schedules %}
+              <option value="{{ sc.id }}">{{ sc.name }} — {{ sc.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label for="dgc-layout">{{ t("Μορφή email") }}</label>
+            <select id="dgc-layout" name="layout">
+              {% for key in digest_layouts %}
+              <option value="{{ key }}">{{ LAYOUT_LABELS.get(key, key) | t }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label for="dgc-lang">{{ t("Γλώσσα") }}</label>
+            <select id="dgc-lang" name="lang">
+              <option value="el">Ελληνικά</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+          <div>
+            <label for="dgc-max">{{ t("Μέγιστα αποτελέσματα") }}</label>
+            <input id="dgc-max" type="number" name="max_results" value="25" min="1" max="200">
+          </div>
+          <label class="check"><input type="checkbox" name="include_primary" value="1" checked> {{ t("Αποστολή και στο email του λογαριασμού") }}</label>
+          <label class="check"><input type="checkbox" name="send_empty" value="1"> {{ t("Αποστολή και χωρίς νέα") }}</label>
+          <label class="check"><input type="checkbox" name="is_active" value="1" checked> {{ t("Ενεργή") }}</label>
+          <button type="submit" class="u-btn" style="margin-top:0;">{{ t("Αποθήκευση") }}</button>
         </div>
-        <div>
-          <label for="dgc-sched">{{ t("Πρόγραμμα") }}</label>
-          <select id="dgc-sched" name="schedule_id">
-            <option value="">{{ t("Προεπιλογή πύλης") }}{% if digest_default_schedule %} — {{ digest_default_schedule.name }}{% endif %}</option>
-            {% for sc in digest_schedules %}
-            <option value="{{ sc.id }}">{{ sc.name }} — {{ sc.label }}</option>
-            {% endfor %}
-          </select>
+        <div class="crm-tbl-sub" style="margin-top:8px;">
+          {{ t("Μία εγγραφή ανά προφίλ — η επαναποθήκευση ενημερώνει την υπάρχουσα. Οι επιπλέον παραλήπτες προστίθενται μετά, στην κάρτα της ειδοποίησης.") }}
         </div>
-        <div>
-          <label for="dgc-lang">{{ t("Γλώσσα") }}</label>
-          <select id="dgc-lang" name="lang">
-            <option value="el">Ελληνικά</option>
-            <option value="en">English</option>
-          </select>
-        </div>
-        <div>
-          <label for="dgc-max">{{ t("Μέγιστα αποτελέσματα") }}</label>
-          <input id="dgc-max" type="number" name="max_results" value="25" min="1" max="200">
-        </div>
-        <label class="check"><input type="checkbox" name="send_empty" value="1"> {{ t("Αποστολή και χωρίς νέα") }}</label>
-        <label class="check"><input type="checkbox" name="is_active" value="1" checked> {{ t("Ενεργή") }}</label>
-        <button type="submit" class="u-btn" style="margin-top:0;">{{ t("Αποθήκευση") }}</button>
-      </div>
-      <div class="crm-tbl-sub" style="margin-top:8px;">
-        {{ t("Μία εγγραφή ανά προφίλ — η επαναποθήκευση ενημερώνει την υπάρχουσα.") }}
-      </div>
-    </form>
+      </form>
+    </details>
   </section>
 </div>
+</section>
 
+<section class="cpanel" id="ctab-activity" role="tabpanel"
+         aria-labelledby="ctab-btn-activity">
 <div class="crm-activity">
   <!-- ===== NOTES ===== -->
   <section class="act-sec">
@@ -490,8 +648,15 @@
     {% else %}<div class="act-empty">{{ t("Καμία εργασία.") }}</div>{% endif %}
   </section>
 
-  <!-- ===== EMAIL BUILDER ===== -->
-  <section class="act-sec">
+</div>
+</section>
+
+<section class="cpanel" id="ctab-email" role="tabpanel"
+         aria-labelledby="ctab-btn-email">
+  <!-- ===== EMAIL BUILDER =====
+       Its own tab rather than a fourth column under the activity log: it is a
+       composing surface, and it wants the width. -->
+  <div class="crm-compose">
     <div class="section-h">{{ t("Σύνθεση email") }}</div>
     {% if email_templates %}
     <form class="act-add act-form"
@@ -524,14 +689,41 @@
       <a href="/admin/email-templates" hx-boost="false">{{ t("Δημιουργήστε ένα.") }}</a>
     </div>
     {% endif %}
-  </section>
-</div>
+  </div>
+</section>
 
 <style>
   .u-flash{padding:9px 14px;border-radius:8px;font-size:13px;margin:14px 0;}
   .u-err{background:#fdeceb;border:1px solid #f4c7c3;color:#b3261e;}
   .u-ok{background:#eaf6ef;border:1px solid #b7e0c7;color:#1a7f47;}
   .u-warn{background:#fff5e6;border:1px solid #f3d9a6;color:#9a6a12;}
+  .u-info{background:#eef2f8;border:1px solid #ccd8ea;color:#1a4f9c;}
+  /* ---- at a glance: always visible, whichever tab is open ---- */
+  .glance{display:flex;flex-wrap:wrap;gap:0 30px;margin:16px 0 4px;padding:12px 16px;
+    background:var(--paper);border:1px solid var(--rule);border-radius:10px;}
+  .glance>div{padding:3px 0;min-width:0;}
+  .glance dt{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink-3);}
+  .glance dd{margin:1px 0 0;font-size:13px;color:var(--ink);}
+  .glance-sub{font-size:11px;color:var(--ink-3);}
+  /* ---- tabs ----
+     `js-tabs` is set by the script at the bottom of this page. Without it none
+     of these rules bite and every panel stays visible, which is exactly the
+     no-JS behaviour we want — the page then reads as it did before tabs. */
+  .ctabs{display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--rule);
+    margin:18px 0 22px;}
+  .ctab{background:none;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;
+    padding:9px 15px;font-family:var(--sans);font-size:13px;font-weight:600;
+    color:var(--ink-2);cursor:pointer;display:flex;align-items:center;gap:6px;}
+  .ctab:hover{color:var(--accent);}
+  .ctab.on{color:var(--accent);border-bottom-color:var(--accent);}
+  .ctab-n{font-size:10.5px;font-weight:700;background:var(--rule);color:var(--ink-3);
+    border-radius:9px;padding:1px 6px;}
+  .ctab.on .ctab-n{background:var(--accent);color:var(--paper);}
+  .js-tabs .cpanel{display:none;}
+  .js-tabs .cpanel.on{display:block;}
+  .cpanel:focus{outline:none;}
+  .crm-compose{max-width:760px;}
   .u-mini{background:none;border:0;color:var(--accent);cursor:pointer;font-size:11px;padding:0 4px;text-decoration:underline;}
   .u-btn{background:var(--ink);color:var(--paper);border:0;padding:11px;border-radius:8px;font-size:12px;
     letter-spacing:.08em;text-transform:uppercase;cursor:pointer;margin-top:8px;}
@@ -552,8 +744,11 @@
   .sub-expired_tester,.sub-expired_subscriber{background:#fdeceb;color:#b3261e;}
   .sub-none{background:var(--rule);color:var(--ink-3);}
   /* ---- saved searches + result-email alerts ---- */
-  .crm-alerts{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:36px;}
-  @media (max-width:1100px){.crm-alerts{grid-template-columns:1fr;}}
+  /* The alert column carries the cards (recipients, folds, forms) and needs the
+     extra width; the saved-search column is a compact table. */
+  .crm-alerts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);
+    gap:28px;margin-top:4px;}
+  @media (max-width:1180px){.crm-alerts{grid-template-columns:1fr;}}
   .alert-sec{min-width:0;}
   .crm-tbl{width:100%;border-collapse:collapse;background:var(--paper);
     border:1px solid var(--rule);border-radius:10px;overflow:hidden;}
@@ -583,8 +778,51 @@
   .alert-form input[type=number]{min-width:70px;}
   .alert-form .check{display:flex;align-items:center;gap:5px;font-size:12px;padding-bottom:7px;}
   .alert-form .check input{min-width:0;}
+  /* ---- one alert = one card ---- */
+  .dg-card{border:1px solid var(--rule);border-radius:10px;background:var(--paper);
+    padding:12px 14px;margin-bottom:12px;}
+  .dg-card.is-off{opacity:.62;}
+  .dg-card-h{display:flex;gap:7px;align-items:baseline;flex-wrap:wrap;font-size:13.5px;}
+  .dg-card-meta{margin-top:3px;}
+  .dg-sub-label{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink-3);margin:10px 0 4px;}
+  .dg-rcp-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;}
+  .dg-rcp-list li{display:flex;gap:7px;align-items:baseline;flex-wrap:wrap;font-size:12.5px;
+    padding:3px 0;border-bottom:1px solid var(--rule-2,#f0f1f4);}
+  .dg-rcp-list li:last-child{border-bottom:0;}
+  .dg-rcp-list li.is-off{opacity:.55;}
+  .dg-rcp-name{color:var(--ink);}
+  .dg-rcp-mail{color:var(--ink-3);font-size:11.5px;}
+  .dg-rcp-del{display:inline;margin:0 0 0 auto;}
+  .dg-x{border:0;background:none;color:var(--ink-3);cursor:pointer;font-size:15px;
+    line-height:1;padding:0 3px;}
+  .dg-x:hover{color:#b3261e;}
+  .dg-fold{margin-top:8px;}
+  .dg-fold>summary{font-size:11.5px;color:var(--accent);cursor:pointer;
+    font-family:var(--sans);}
+  .dg-form{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:8px 0 4px;}
+  .dg-form label{display:flex;flex-direction:column;gap:3px;font-size:11px;
+    font-weight:600;color:var(--ink-2);}
+  .dg-form label.check{flex-direction:row;align-items:center;gap:5px;font-weight:400;
+    font-size:12px;padding-bottom:5px;}
+  .dg-form input,.dg-form select{border:1px solid var(--rule);border-radius:7px;
+    padding:5px 8px;font-family:var(--sans);font-size:12.5px;min-width:130px;}
+  .dg-form input[type=number]{min-width:70px;}
+  .dg-form label.check input{min-width:0;}
+  .dg-runs{margin-top:8px;}
+  .dg-run{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;font-size:12px;
+    padding:1px 0;}
+  .dg-run-err{color:#b3261e;}
+  .dg-tag.layout-summary{background:#f3ecfa;color:#5b3a86;}
+  .dg-tag.layout-list{background:#eef2f8;color:#1a4f9c;}
+  .dg-btn-danger:hover{border-color:#b3261e;color:#b3261e;}
+  .dg-actions{margin-top:10px;}
+  .alert-new{margin-top:14px;}
+  .alert-new>summary{font-size:12.5px;font-weight:600;color:var(--accent);cursor:pointer;
+    font-family:var(--sans);}
+  .alert-new .alert-form{margin-top:10px;}
   /* activities */
-  .crm-activity{display:grid;grid-template-columns:1fr 1fr 1fr;gap:28px;margin-top:36px;}
+  .crm-activity{display:grid;grid-template-columns:1fr 1fr 1fr;gap:28px;margin-top:4px;}
   @media (max-width:1100px){.crm-activity{grid-template-columns:1fr;}}
   .act-sec{min-width:0;}
   .act-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:14px;}
@@ -641,6 +879,81 @@
 </style>
 
 <script>
+// ---------------------------------------------------------------------------
+// Tabs.
+//
+// The panels are hidden by CSS only once this script has marked the page, so a
+// browser with JS off (or a swap that never runs scripts) shows the old stacked
+// page rather than a blank one.
+//
+// Which tab is open has to survive a POST: every form on this card redirects
+// back here, and landing on "Details" after saving an alert is exactly the
+// annoyance tabs were meant to remove. Three sources, in order of authority:
+//   ?tab=      — what the redirect asked for (the alert forms set it)
+//   #hash      — a link someone shared or bookmarked
+//   sessionStorage — where the admin was before the round trip
+// The chosen tab is written back into the URL with replaceState, so a plain
+// reload also stays put without adding a history entry per click.
+// ---------------------------------------------------------------------------
+(function () {
+  var bar = document.getElementById('crm-tabs');
+  if (!bar) return;
+  var buttons = [].slice.call(bar.querySelectorAll('.ctab'));
+  var panels = [].slice.call(document.querySelectorAll('.cpanel'));
+  if (!buttons.length || !panels.length) return;
+  var KEY = 'crm-customer-tab';
+  var names = buttons.map(function (b) { return b.getAttribute('data-tab'); });
+
+  document.documentElement.classList.add('js-tabs');
+
+  function remember(name) {
+    // Private mode and disabled site data both throw here; the tabs still work,
+    // they just forget across the redirect.
+    try { sessionStorage.setItem(KEY, name); } catch (e) {}
+  }
+
+  function show(name, push) {
+    if (names.indexOf(name) === -1) name = names[0];
+    buttons.forEach(function (b) {
+      var on = b.getAttribute('data-tab') === name;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    panels.forEach(function (p) {
+      p.classList.toggle('on', p.id === 'ctab-' + name);
+    });
+    remember(name);
+    if (push && window.history && history.replaceState) {
+      var url = new URL(window.location.href);
+      url.searchParams.set('tab', name);
+      url.hash = '';
+      history.replaceState(null, '', url.toString());
+    }
+  }
+
+  bar.addEventListener('click', function (e) {
+    var btn = e.target.closest('.ctab');
+    if (btn) show(btn.getAttribute('data-tab'), true);
+  });
+
+  // Left/right arrows move between tabs, as a tablist is expected to.
+  bar.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    var i = buttons.indexOf(document.activeElement);
+    if (i === -1) return;
+    var next = buttons[(i + (e.key === 'ArrowRight' ? 1 : -1) + buttons.length)
+                       % buttons.length];
+    next.focus();
+    show(next.getAttribute('data-tab'), true);
+    e.preventDefault();
+  });
+
+  var wanted = new URLSearchParams(window.location.search).get('tab')
+            || (window.location.hash || '').replace(/^#/, '');
+  if (!wanted) { try { wanted = sessionStorage.getItem(KEY) || ''; } catch (e) {} }
+  show(wanted || names[0], false);
+})();
+
 // Copy / download for the email builder's output pane. Delegated from the page
 // rather than inlined in _crm_email.html, so an HTMX swap never re-registers a
 // handler or leaves a stale one behind. Both act on whichever pane the radios
