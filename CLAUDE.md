@@ -76,7 +76,10 @@ app/login_links.py owns it; the routes live next to /login in main.py.
   the admin-editable fragment.
 - A completed link login stamps app_user.email_verified_at — the only proof in
   the system that an address is real (registration never confirmed it).
-- LOGIN_LINKS_ENABLED=0 removes the routes and the link on /login.
+- LOGIN_LINKS_ENABLED=0 removes the routes and the link on /login. The
+  switch fails towards OFF: 0/false/no/off/n/f/disabled (any case) all
+  disable it. Don't narrow that back to == "0" — a dashboard-typed "false"
+  silently leaving the feature on is how it went out live once already.
 
 ## CRM customer card
 /admin/crm/<uid> is tabbed (Details / Alerts / Activity / Compose email) with an

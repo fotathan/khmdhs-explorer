@@ -42,7 +42,11 @@ truth; this is a curated digest.
   address, so nothing in the system knew whether an account's email was real; a
   completed link login is that proof, and it is now recorded — a prerequisite
   for the deliverability work.
-- `LOGIN_LINKS_ENABLED=0` removes the routes and the link on `/login`.
+- `LOGIN_LINKS_ENABLED` removes the routes and the link on `/login`. It fails
+  towards off — `0`, `false`, `no`, `off`, `disabled` in any case all disable
+  it. (It first shipped understanding only the literal `0`, which left the
+  feature quietly ON in prod for anyone who typed `false` into the Render
+  dashboard. A safety switch has to fail the safe way.)
   `LOGIN_LINK_TTL_SECONDS` sets the lifetime. **Not for real customers until
   SPF/DKIM/DMARC are done** — a digest in a spam folder is an annoyance, a
   sign-in link in one is a locked-out customer.

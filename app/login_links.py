@@ -89,11 +89,27 @@ def base_url() -> str:
     return (os.environ.get("APP_BASE_URL") or "http://localhost:8000").rstrip("/")
 
 
+# Spellings of "no". A kill switch that only recognises the single character
+# "0" is a trap: an operator typing LOGIN_LINKS_ENABLED=false in a hosting
+# dashboard gets the feature LEFT ON, with nothing to tell them so. This is a
+# safety switch for a deployment whose mail is not trustworthy yet, and it has
+# to fail towards off. Mirrors mailer._flag's vocabulary, inverted.
+_OFF_VALUES = frozenset({"0", "false", "no", "off", "n", "f", "disabled"})
+
+
 def enabled() -> bool:
-    """LOGIN_LINKS_ENABLED=0 hides the feature entirely (form, routes, link on
-    /login). On by default: with EMAIL_BACKEND=console it is harmless, and the
-    switch exists for the deployment that has not sorted out mail yet."""
-    return (os.environ.get("LOGIN_LINKS_ENABLED", "1") or "1").strip() != "0"
+    """Is the passwordless sign-in link offered at all?
+
+    LOGIN_LINKS_ENABLED=0 (or false/no/off/disabled, any case) hides the feature
+    entirely — the form, the routes, and the link on /login. On by default: with
+    EMAIL_BACKEND=console it is harmless, and the switch exists for the
+    deployment that has not sorted out mail deliverability yet.
+
+    Anything unrecognised is treated as ON, matching the default rather than
+    guessing — an operator who meant "off" has six spellings that work, and one
+    who typed something else entirely has not asked for anything."""
+    raw = (os.environ.get("LOGIN_LINKS_ENABLED") or "").strip().lower()
+    return raw not in _OFF_VALUES if raw else True
 
 
 # --------------------------------------------------------------------------- #
