@@ -23,6 +23,16 @@ services:
         sync: false            # set in dashboard (secret)
       - key: SECRET_KEY
         sync: false            # set in dashboard (secret) — signs session cookies
+      # Passwordless sign-in links ("email me a link" on /login). OFF in prod
+      # until deliverability is done: this app has no SPF/DKIM/DMARC yet, and a
+      # digest in a spam folder is an annoyance while a SIGN-IN LINK in one is a
+      # locked-out customer. The app defaults this ON (harmless with
+      # EMAIL_BACKEND=console), so prod has to say no explicitly.
+      # Flip to "1" only once SMTP + domain auth are configured AND
+      # EMAIL_REDIRECT_TO is unset here — with it set, every customer's link
+      # would go to that one mailbox.
+      - key: LOGIN_LINKS_ENABLED
+        value: "0"
 
   # Background job worker — drains the admin job queue OFF the web process.
   # The admin UI enqueues backfills / table-extraction jobs (proc.ingest_job,
