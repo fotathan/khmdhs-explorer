@@ -45,6 +45,7 @@ Where the pieces live
 from __future__ import annotations
 
 import datetime as dt
+import html as _html
 import os
 import re
 import zoneinfo
@@ -461,7 +462,11 @@ def intro_html(c, subscription, profile, customer):
                     if lang == "el" else
                     "<p>New results for your saved search <strong>{p}</strong>.</p>")
         return (values["profile_name"], fallback.format(p=values["profile_name"]))
-    subject = _strip_markers(_email.resolve_fields(tpl.get("subject") or "", values))
+    # resolve_fields HTML-escapes what it substitutes, which is right for the
+    # body but wrong for the subject — that is a plain-text header, so a profile
+    # named "Καύσιμα & πετρελαιοειδή" would arrive as "... &amp; ...".
+    subject = _html.unescape(
+        _strip_markers(_email.resolve_fields(tpl.get("subject") or "", values)))
     body = _strip_markers(_email.resolve_fields(tpl.get("body_html") or "", values))
     return subject, body
 

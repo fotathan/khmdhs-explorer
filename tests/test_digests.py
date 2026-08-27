@@ -506,6 +506,26 @@ def test_the_digest_wording_comes_from_the_editable_template(clean_digests,
     assert "Γεια σου" in built["html"] and "[[" not in built["html"]
 
 
+def test_an_ampersand_in_the_subject_is_not_html_escaped(clean_digests, memory_mail):
+    """The subject is a plain-text header, not markup: a profile called
+    "Καύσιμα & πετρελαιοειδή" must not arrive as "... &amp; ..."."""
+    from app import auth as _auth
+    from app import digests as dg
+    cur = clean_digests
+    _, _, prof, sub_id = _subscribed(cur, "amp")
+    _auth.update_search_profile(cur, prof, name="Καύσιμα & πετρελαιοειδή",
+                                params={"q": "καθαριότητα"}, based_on_id=None,
+                                is_published=False)
+    _auth.upsert_email_template(cur, slug="digest", lang="el", name="Ειδ.",
+                                subject="Νέα: [[profile_name]]",
+                                body_html="<p>[[profile_name]]</p>")
+
+    built = dg.build(cur, dg.get_subscription(cur, sub_id))
+    assert built["subject"] == "Νέα: Καύσιμα & πετρελαιοειδή"
+    # the BODY is markup, so there the escaping must stay
+    assert "&amp;" in built["html"]
+
+
 def test_a_crm_style_marker_never_reaches_the_customer(clean_digests, memory_mail):
     """@@token survives the CRM merge on purpose (a human replaces it before
     sending). A digest sends unattended, so it must be stripped."""
