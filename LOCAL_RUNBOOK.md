@@ -98,7 +98,7 @@ No `--reload` — it double-starts the background threads.
 | Local OCR (Tesseract) | `LOCAL_OCR=1` | needs `tesseract` + the `ell` language pack; both are installed |
 | Table relevance classifier | `TABLE_RELEVANCE=1` | default on |
 | Rate limiting | `RATELIMIT_ENABLED=1` | the recipe turns it **off** so you don't throttle yourself while clicking around |
-| Passwordless sign-in links | `LOGIN_LINKS_ENABLED=1` | default on; needs a working `EMAIL_BACKEND` to be useful. `LOGIN_LINK_TTL_SECONDS=900` sets how long a link lives |
+| Passwordless sign-in links | `LOGIN_LINKS_ENABLED=1` | default on; needs a working `EMAIL_BACKEND` to be useful. To switch **off**, any of `0` / `false` / `no` / `off` / `disabled`. `LOGIN_LINK_TTL_SECONDS=900` sets how long a link lives |
 
 **Off by default — the recipe turns these on**
 

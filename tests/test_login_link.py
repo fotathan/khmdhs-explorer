@@ -396,3 +396,27 @@ def test_routes_are_gone_when_the_feature_is_switched_off(client, monkeypatch):
     assert client.get("/login/link", follow_redirects=False).status_code == 404
     assert client.post("/login/link", data={"email": "a@b.com"},
                        follow_redirects=False).status_code == 404
+
+
+@pytest.mark.parametrize("value", ["0", "false", "FALSE", "False", "no", "No",
+                                   "off", "OFF", "n", "f", "disabled", " 0 "])
+def test_every_spelling_of_no_switches_it_off(monkeypatch, value):
+    """The kill switch must fail towards OFF.
+
+    It guards a deployment whose mail is not trustworthy yet, and it is set by
+    a human in a hosting dashboard. A switch that only understands the single
+    character "0" silently leaves the feature ON for anyone who types "false" —
+    which is exactly what it must never do."""
+    monkeypatch.setenv("LOGIN_LINKS_ENABLED", value)
+    assert login_links.enabled() is False
+
+
+@pytest.mark.parametrize("value", ["1", "true", "yes", "on", ""])
+def test_the_feature_is_on_by_default_and_when_told_yes(monkeypatch, value):
+    monkeypatch.setenv("LOGIN_LINKS_ENABLED", value)
+    assert login_links.enabled() is True
+
+
+def test_unset_means_on(monkeypatch):
+    monkeypatch.delenv("LOGIN_LINKS_ENABLED", raising=False)
+    assert login_links.enabled() is True
