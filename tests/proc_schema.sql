@@ -2,10 +2,10 @@
 -- PostgreSQL database dump
 --
 
-\restrict i3jfnifLUd0hHuRfqa90LQWeocHjeC3be58n1eN9wk4dkrP1uwG7xQZzw1QeF4i
+\restrict n5lnrONzZzOXf6YfwCO3dC1oMiOi3wfFAHbPhH1fCzC8xjPtReIQPRyW4zs7BcC
 
--- Dumped from database version 18.6
--- Dumped by pg_dump version 18.6
+-- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
+-- Dumped by pg_dump version 18.4
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -1368,6 +1368,135 @@ CREATE TABLE proc.diavgeia_unit (
     label text,
     category text
 );
+
+
+--
+-- Name: digest_run; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.digest_run (
+    id bigint NOT NULL,
+    subscription_id bigint,
+    trigger text DEFAULT 'schedule'::text NOT NULL,
+    status text NOT NULL,
+    n_results integer DEFAULT 0 NOT NULL,
+    cursor_from timestamp with time zone,
+    cursor_to timestamp with time zone,
+    recipient text,
+    subject text,
+    error text,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    finished_at timestamp with time zone,
+    CONSTRAINT digest_run_status_ck CHECK ((status = ANY (ARRAY['sent'::text, 'empty'::text, 'error'::text]))),
+    CONSTRAINT digest_run_trigger_ck CHECK ((trigger = ANY (ARRAY['schedule'::text, 'manual'::text, 'test'::text])))
+);
+
+
+--
+-- Name: digest_run_id_seq; Type: SEQUENCE; Schema: proc; Owner: -
+--
+
+CREATE SEQUENCE proc.digest_run_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: digest_run_id_seq; Type: SEQUENCE OWNED BY; Schema: proc; Owner: -
+--
+
+ALTER SEQUENCE proc.digest_run_id_seq OWNED BY proc.digest_run.id;
+
+
+--
+-- Name: digest_schedule; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.digest_schedule (
+    id bigint NOT NULL,
+    name text NOT NULL,
+    cadence text NOT NULL,
+    hour smallint DEFAULT 8 NOT NULL,
+    minute smallint DEFAULT 0 NOT NULL,
+    weekday smallint,
+    day_of_month smallint,
+    tz text DEFAULT 'Europe/Athens'::text NOT NULL,
+    is_default boolean DEFAULT false NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by bigint,
+    CONSTRAINT digest_schedule_cadence_ck CHECK ((cadence = ANY (ARRAY['daily'::text, 'weekdays'::text, 'weekly'::text, 'monthly'::text]))),
+    CONSTRAINT digest_schedule_dom_ck CHECK ((((cadence = 'monthly'::text) AND ((day_of_month >= 1) AND (day_of_month <= 28))) OR ((cadence <> 'monthly'::text) AND (day_of_month IS NULL)))),
+    CONSTRAINT digest_schedule_hour_ck CHECK (((hour >= 0) AND (hour <= 23))),
+    CONSTRAINT digest_schedule_minute_ck CHECK (((minute >= 0) AND (minute <= 59))),
+    CONSTRAINT digest_schedule_weekday_ck CHECK ((((cadence = 'weekly'::text) AND ((weekday >= 0) AND (weekday <= 6))) OR ((cadence <> 'weekly'::text) AND (weekday IS NULL))))
+);
+
+
+--
+-- Name: digest_schedule_id_seq; Type: SEQUENCE; Schema: proc; Owner: -
+--
+
+CREATE SEQUENCE proc.digest_schedule_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: digest_schedule_id_seq; Type: SEQUENCE OWNED BY; Schema: proc; Owner: -
+--
+
+ALTER SEQUENCE proc.digest_schedule_id_seq OWNED BY proc.digest_schedule.id;
+
+
+--
+-- Name: digest_subscription; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.digest_subscription (
+    id bigint NOT NULL,
+    user_id bigint NOT NULL,
+    search_profile_id bigint NOT NULL,
+    schedule_id bigint,
+    is_active boolean DEFAULT true NOT NULL,
+    send_empty boolean DEFAULT false NOT NULL,
+    max_results integer DEFAULT 25 NOT NULL,
+    lang text DEFAULT 'el'::text NOT NULL,
+    last_cursor timestamp with time zone,
+    last_run_at timestamp with time zone,
+    last_sent_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by bigint,
+    CONSTRAINT digest_subscription_lang_ck CHECK ((lang = ANY (ARRAY['el'::text, 'en'::text]))),
+    CONSTRAINT digest_subscription_max_ck CHECK (((max_results >= 1) AND (max_results <= 200)))
+);
+
+
+--
+-- Name: digest_subscription_id_seq; Type: SEQUENCE; Schema: proc; Owner: -
+--
+
+CREATE SEQUENCE proc.digest_subscription_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: digest_subscription_id_seq; Type: SEQUENCE OWNED BY; Schema: proc; Owner: -
+--
+
+ALTER SEQUENCE proc.digest_subscription_id_seq OWNED BY proc.digest_subscription.id;
 
 
 --
@@ -2894,6 +3023,27 @@ ALTER TABLE ONLY proc.diavgeia_ingest_window ALTER COLUMN id SET DEFAULT nextval
 
 
 --
+-- Name: digest_run id; Type: DEFAULT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_run ALTER COLUMN id SET DEFAULT nextval('proc.digest_run_id_seq'::regclass);
+
+
+--
+-- Name: digest_schedule id; Type: DEFAULT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_schedule ALTER COLUMN id SET DEFAULT nextval('proc.digest_schedule_id_seq'::regclass);
+
+
+--
+-- Name: digest_subscription id; Type: DEFAULT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_subscription ALTER COLUMN id SET DEFAULT nextval('proc.digest_subscription_id_seq'::regclass);
+
+
+--
 -- Name: economic_operator operator_id; Type: DEFAULT; Schema: proc; Owner: -
 --
 
@@ -3341,6 +3491,30 @@ ALTER TABLE ONLY proc.diavgeia_signer
 
 ALTER TABLE ONLY proc.diavgeia_unit
     ADD CONSTRAINT diavgeia_unit_pkey PRIMARY KEY (uid);
+
+
+--
+-- Name: digest_run digest_run_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_run
+    ADD CONSTRAINT digest_run_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: digest_schedule digest_schedule_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_schedule
+    ADD CONSTRAINT digest_schedule_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: digest_subscription digest_subscription_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_subscription
+    ADD CONSTRAINT digest_subscription_pkey PRIMARY KEY (id);
 
 
 --
@@ -4211,6 +4385,34 @@ CREATE INDEX ix_diavgeia_type ON proc.diavgeia_decision USING btree (decision_ty
 
 
 --
+-- Name: ix_digest_run_started; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_digest_run_started ON proc.digest_run USING btree (started_at DESC);
+
+
+--
+-- Name: ix_digest_run_subscription; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_digest_run_subscription ON proc.digest_run USING btree (subscription_id, started_at DESC);
+
+
+--
+-- Name: ix_digest_subscription_due; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_digest_subscription_due ON proc.digest_subscription USING btree (is_active, last_run_at);
+
+
+--
+-- Name: ix_digest_subscription_schedule; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_digest_subscription_schedule ON proc.digest_subscription USING btree (schedule_id) WHERE (schedule_id IS NOT NULL);
+
+
+--
 -- Name: ix_entity_member_group; Type: INDEX; Schema: proc; Owner: -
 --
 
@@ -4400,6 +4602,13 @@ CREATE INDEX ix_obj_adam ON proc.act_object_detail USING btree (adam);
 
 
 --
+-- Name: ix_object_detail_cpv_code; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_object_detail_cpv_code ON proc.object_detail_cpv USING btree (cpv_code);
+
+
+--
 -- Name: ix_operator_name; Type: INDEX; Schema: proc; Owner: -
 --
 
@@ -4432,6 +4641,13 @@ CREATE INDEX ix_pa_protocol_number_bt ON proc.procurement_act USING btree (btrim
 --
 
 CREATE INDEX ix_postal_nuts_nuts ON proc.postal_nuts USING btree (nuts_code);
+
+
+--
+-- Name: ix_procurement_act_ingested_at; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_procurement_act_ingested_at ON proc.procurement_act USING btree (ingested_at);
 
 
 --
@@ -4509,6 +4725,20 @@ CREATE UNIQUE INDEX ux_app_user_email ON proc.app_user USING btree (lower(email)
 --
 
 CREATE UNIQUE INDEX ux_app_user_username ON proc.app_user USING btree (lower(username));
+
+
+--
+-- Name: ux_digest_schedule_default; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_digest_schedule_default ON proc.digest_schedule USING btree ((true)) WHERE is_default;
+
+
+--
+-- Name: ux_digest_subscription_user_profile; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_digest_subscription_user_profile ON proc.digest_subscription USING btree (user_id, search_profile_id);
 
 
 --
@@ -4968,6 +5198,54 @@ ALTER TABLE ONLY proc.diavgeia_decision_unit
 
 
 --
+-- Name: digest_run digest_run_subscription_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_run
+    ADD CONSTRAINT digest_run_subscription_id_fkey FOREIGN KEY (subscription_id) REFERENCES proc.digest_subscription(id) ON DELETE CASCADE;
+
+
+--
+-- Name: digest_schedule digest_schedule_created_by_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_schedule
+    ADD CONSTRAINT digest_schedule_created_by_fkey FOREIGN KEY (created_by) REFERENCES proc.app_user(id) ON DELETE SET NULL;
+
+
+--
+-- Name: digest_subscription digest_subscription_created_by_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_subscription
+    ADD CONSTRAINT digest_subscription_created_by_fkey FOREIGN KEY (created_by) REFERENCES proc.app_user(id) ON DELETE SET NULL;
+
+
+--
+-- Name: digest_subscription digest_subscription_schedule_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_subscription
+    ADD CONSTRAINT digest_subscription_schedule_id_fkey FOREIGN KEY (schedule_id) REFERENCES proc.digest_schedule(id) ON DELETE SET NULL;
+
+
+--
+-- Name: digest_subscription digest_subscription_search_profile_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_subscription
+    ADD CONSTRAINT digest_subscription_search_profile_id_fkey FOREIGN KEY (search_profile_id) REFERENCES proc.search_profile(id) ON DELETE CASCADE;
+
+
+--
+-- Name: digest_subscription digest_subscription_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_subscription
+    ADD CONSTRAINT digest_subscription_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.app_user(id) ON DELETE CASCADE;
+
+
+--
 -- Name: email_template email_template_updated_by_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
 --
 
@@ -5259,5 +5537,5 @@ ALTER TABLE ONLY proc.user_subscription
 -- PostgreSQL database dump complete
 --
 
-\unrestrict i3jfnifLUd0hHuRfqa90LQWeocHjeC3be58n1eN9wk4dkrP1uwG7xQZzw1QeF4i
+\unrestrict n5lnrONzZzOXf6YfwCO3dC1oMiOi3wfFAHbPhH1fCzC8xjPtReIQPRyW4zs7BcC
 

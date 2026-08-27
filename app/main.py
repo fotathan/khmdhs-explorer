@@ -1025,11 +1025,22 @@ _RUN_INLINE_WORKER = os.environ.get(
 _worker_stop = None
 _worker_thread = None
 
+# Digest scheduler: the same idea for scheduled result emails (app/digests.py).
+# A daemon thread that wakes every DIGEST_POLL_SECONDS and sends whatever has
+# come due — which is what makes the feature testable with no cron service and
+# no paid plan. OFF by default everywhere, because a second web container would
+# race this one for the same subscriptions; a multi-container deploy runs
+# cron_digests.py instead. Turn it on locally with DIGEST_SCHEDULER=1.
+_RUN_DIGEST_SCHEDULER = os.environ.get("DIGEST_SCHEDULER", "0") == "1"
+_DIGEST_POLL_SECONDS = float(os.environ.get("DIGEST_POLL_SECONDS", "60"))
+_digest_stop = None
+_digest_thread = None
+
 
 @asynccontextmanager
 async def _lifespan(_app):
     import threading
-    global _worker_stop, _worker_thread
+    global _worker_stop, _worker_thread, _digest_stop, _digest_thread
     # Start the inline worker (lazy import so worker.py is never loaded on Render,
     # where the flag is off and repo-root imports may differ).
     if _RUN_INLINE_WORKER and os.environ.get("DATABASE_URL"):
@@ -1042,6 +1053,18 @@ async def _lifespan(_app):
             _worker_thread.start()
         except Exception as e:      # noqa: BLE001 — never block app startup
             print(f"inline worker failed to start: {e!r}", flush=True)
+
+    if _RUN_DIGEST_SCHEDULER and os.environ.get("DATABASE_URL"):
+        try:
+            from app import digests as _digests
+            _digest_stop = threading.Event()
+            _digest_thread = threading.Thread(
+                target=_digests.run_loop,
+                args=(_digest_stop, cursor, _DIGEST_POLL_SECONDS),
+                name="khmdhs-digest-scheduler", daemon=True)
+            _digest_thread.start()
+        except Exception as e:      # noqa: BLE001 — never block app startup
+            print(f"digest scheduler failed to start: {e!r}", flush=True)
 
     # Start the CTI screen-pop listener (no-op unless TELEPHONY_ENABLED). Needs a
     # running event loop, so it starts here rather than at import.
@@ -1062,8 +1085,12 @@ async def _lifespan(_app):
     # trying to join it at interpreter finalization — a noisy trace).
     if _worker_stop is not None:
         _worker_stop.set()
+    if _digest_stop is not None:
+        _digest_stop.set()
     if _worker_thread is not None:
         _worker_thread.join(timeout=10)
+    if _digest_thread is not None:
+        _digest_thread.join(timeout=10)
     try:
         _pool.close()
     except Exception:      # noqa: BLE001 — best-effort on the way out
@@ -1642,6 +1669,15 @@ try:
 except ImportError:
     from search_profiles import make_router as _make_sp_router
 app.include_router(_make_sp_router(templates, cursor))
+
+# Scheduled result emails (/admin/digests) — one subscription per customer ×
+# search profile, sent on a schedule that defaults to the portal's and can be
+# overridden per subscription. Admin-only, enforced inside the router.
+try:
+    from app.digests import make_router as _make_digest_router
+except ImportError:
+    from digests import make_router as _make_digest_router
+app.include_router(_make_digest_router(templates, cursor))
 
 # CTI telephony (WebRTC softphone + screen-pop) — mounted under /telephony. The
 # service singleton is created here (so the /ws handler can reach the screen-pop

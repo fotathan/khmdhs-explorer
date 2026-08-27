@@ -41,6 +41,11 @@ python3 db.py fulltext-backfill  # backfill attachment full text for existing ac
 python3 db.py stats              # row counts
 python3 db.py progress [--errors-only]
 
+# Digest emails — nothing leaves the machine with the default console backend
+python3 cron_digests.py                       # send whatever is due, then exit
+DIGEST_DRY_RUN=1 python3 cron_digests.py      # show what would be sent
+EMAIL_BACKEND=file EMAIL_FILE_DIR=outbox python3 cron_digests.py   # write .eml files
+
 # Ingestion (guarded — confirms target DB, masks credentials, requires typing
 # "PRODUCTION" for prod). Prefer this over calling db.py directly.
 ./ingest.sh local backfill --start 2026-06-01 --end 2026-06-19 --types notice
@@ -155,8 +160,25 @@ type with no prior backfill needs an explicit `--start`.
   need no deploy. Bodies are HTML **fragments**: every `<p>`/`<ul>` is a slot
   filled in document order, while `@@token`, `[[field]]`, `data-keep` and
   `data-no-translate` protect a paragraph from being filled or removed, and
-  `[[field]]` is then resolved from the customer's profile. Nothing is ever
-  sent — the repo has no mailer, so the panel ends at copy/download.
+  `[[field]]` is then resolved from the customer's profile. The CRM panel itself
+  sends nothing — it ends at copy/download.
+- `app/mailer.py` + `app/digests.py` — scheduled "new results" emails. `mailer`
+  is the only place the app sends mail from: `EMAIL_BACKEND=console|memory|file|smtp`
+  (console is the default, so nothing leaves the machine until SMTP is
+  configured; `EMAIL_REDIRECT_TO` diverts every message while testing).
+  `digests` owns a subscription = (customer × search profile): on a schedule it
+  replays that profile's filters over acts whose `ingested_at` falls in
+  `(last_cursor, now]` and mails what is new — the cursor is per subscription,
+  so a missed run is absorbed by the next one and nothing is sent twice. Which
+  schedule applies falls back `subscription.schedule_id` → the `is_default` row
+  of `proc.digest_schedule`, so an admin sets the portal cadence once and
+  overrides only the customers who ask. Admin UI at `/admin/digests` (schedules,
+  subscriptions, run history, preview, test send); the wording is the `digest`
+  slug in `proc.email_template`; the results table is
+  `app/templates/email_digest.html`. Two ways to fire it, never both at once:
+  `cron_digests.py` from any scheduler, or `DIGEST_SCHEDULER=1` for an
+  in-process thread in local dev. **Deliverability (SPF/DKIM/DMARC, bounces, an
+  unsubscribe endpoint) is not implemented** — this is testing-grade sending.
 - Templates (`app/templates/`) are server-rendered Jinja2 + HTMX partials
   (`_*.html` are partial fragments returned to HTMX swaps, not full pages).
   The `beta_*.html` templates are the **current, default** UI (promoted from

@@ -1,0 +1,337 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ t("Ειδοποιήσεις email") }}{% endblock %}
+
+{# admin_digests.html — scheduled result emails: who gets what, on which
+   cadence, and what actually went out. Three panes selected by ?tab=:
+   subscriptions | schedules | runs. Plain POST forms (the CSRF token is
+   injected globally by _csrf.html), no HTMX — every action here changes state
+   and a full redirect keeps the page honest about the result. #}
+
+{% block admin_content %}
+<style>
+  .dg-wrap{max-width:1100px;}
+  .dg-head h1{font-size:20px;margin:0 0 4px;}
+  .dg-head p{color:var(--ink-2);font-size:13px;margin:0 0 16px;}
+  .dg-tabs{display:flex;gap:4px;border-bottom:1px solid var(--rule);margin-bottom:20px;}
+  .dg-tabs a{text-decoration:none;padding:9px 14px;font-size:13px;font-weight:600;color:var(--ink-2);
+    border-bottom:2px solid transparent;margin-bottom:-1px;}
+  .dg-tabs a.on{color:var(--accent);border-bottom-color:var(--accent);}
+  .dg-flash{background:var(--accent-soft,#f6eef0);border:1px solid var(--rule);border-radius:9px;
+    padding:10px 14px;font-size:12.5px;margin-bottom:16px;font-family:var(--mono);}
+  .dg-mail{display:flex;gap:18px;flex-wrap:wrap;align-items:center;background:var(--paper-2);
+    border:1px solid var(--rule);border-radius:10px;padding:10px 14px;margin-bottom:18px;font-size:12px;}
+  .dg-mail b{font-family:var(--mono);font-weight:600;}
+  .dg-mail .warn{color:#b3261e;font-weight:600;}
+  .dg-table{width:100%;border-collapse:collapse;background:var(--paper);border:1px solid var(--rule);
+    border-radius:12px;overflow:hidden;}
+  .dg-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--ink-2);padding:10px 12px;border-bottom:1px solid var(--rule);background:var(--paper-2);}
+  .dg-table td{padding:10px 12px;border-bottom:1px solid var(--rule-2);font-size:12.5px;vertical-align:top;}
+  .dg-table tr:last-child td{border-bottom:0;}
+  .dg-tag{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.03em;padding:2px 7px;border-radius:5px;}
+  .dg-tag.default{background:var(--accent-soft,#f2e7ea);color:var(--accent);}
+  .dg-tag.override{background:#e8f0fb;color:#1a4f9c;}
+  .dg-tag.off{background:var(--rule);color:var(--ink-3);}
+  .dg-tag.sent{background:#eaf6ef;color:#1a7f47;}
+  .dg-tag.empty{background:var(--rule);color:var(--ink-3);}
+  .dg-tag.error{background:#fdeceb;color:#b3261e;}
+  .dg-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .dg-actions form{display:inline;}
+  .dg-btn{border:1px solid var(--rule);background:var(--paper);border-radius:7px;padding:4px 9px;
+    font-size:11.5px;font-family:var(--sans);cursor:pointer;color:var(--ink-2);text-decoration:none;
+    display:inline-block;}
+  .dg-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .dg-form{margin-top:24px;background:var(--paper);border:1px solid var(--rule);border-radius:12px;padding:18px 20px;}
+  .dg-form h2{font-size:15px;margin:0 0 4px;}
+  .dg-form p{color:var(--ink-2);font-size:12.5px;margin:0 0 14px;}
+  .dg-form .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+  .dg-form label{display:block;font-size:11px;font-weight:600;color:var(--ink-2);margin-bottom:4px;}
+  .dg-form input,.dg-form select{border:1px solid var(--rule);border-radius:8px;padding:8px 10px;
+    font-family:var(--sans);font-size:13px;min-width:150px;}
+  .dg-form input[type=number]{min-width:80px;}
+  .dg-form .check{display:flex;align-items:center;gap:6px;font-size:12.5px;padding-bottom:9px;}
+  .dg-form .check input{min-width:0;}
+  .dg-form button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 18px;
+    font-family:var(--sans);font-weight:600;font-size:13px;cursor:pointer;}
+  .dg-none{padding:22px;text-align:center;color:var(--ink-3);font-size:13px;}
+  .dg-when{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);}
+  .dg-sub{color:var(--ink-3);font-size:11.5px;}
+</style>
+
+<div class="dg-wrap">
+  <div class="dg-head">
+    <h1>{{ t("Ειδοποιήσεις email") }}</h1>
+    <p>{{ t("Προγραμματισμένα email με νέα αποτελέσματα ανά προφίλ αναζήτησης. Κάθε εγγραφή στέλνει ό,τι μπήκε στη βάση από την προηγούμενη αποστολή και μετά.") }}</p>
+  </div>
+
+  {% if flash %}<div class="dg-flash">{{ flash }}</div>{% endif %}
+
+  <div class="dg-mail">
+    <span>{{ t("Αποστολή μέσω") }}: <b>{{ mail.backend }}</b> → <b>{{ mail.target }}</b></span>
+    <span>{{ t("Αποστολέας") }}: <b>{{ mail.sender }}</b></span>
+    {% if mail.redirect_to %}
+      <span class="warn">{{ t("Ανακατεύθυνση όλων σε") }} {{ mail.redirect_to }}</span>
+    {% endif %}
+    {% if not mail.configured %}
+      <span class="warn">{{ t("Το SMTP_HOST δεν έχει οριστεί — οι αποστολές θα αποτύχουν.") }}</span>
+    {% endif %}
+    <span class="dg-sub">{{ t("Σύνδεσμοι προς") }} {{ base_url }}</span>
+  </div>
+
+  <div class="dg-tabs">
+    <a href="/admin/digests?tab=subscriptions" class="{{ 'on' if tab == 'subscriptions' }}">{{ t("Εγγραφές") }}</a>
+    <a href="/admin/digests?tab=schedules" class="{{ 'on' if tab == 'schedules' }}">{{ t("Προγράμματα") }}</a>
+    <a href="/admin/digests?tab=runs" class="{{ 'on' if tab == 'runs' }}">{{ t("Ιστορικό") }}</a>
+  </div>
+
+  {# ------------------------------------------------------------------ #}
+  {# SUBSCRIPTIONS                                                       #}
+  {# ------------------------------------------------------------------ #}
+  {% if tab == 'subscriptions' %}
+  <table class="dg-table">
+    <thead><tr>
+      <th>{{ t("Πελάτης") }}</th>
+      <th>{{ t("Προφίλ") }}</th>
+      <th>{{ t("Πρόγραμμα") }}</th>
+      <th>{{ t("Επόμενη") }}</th>
+      <th>{{ t("Τελευταία αποστολή") }}</th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+    {% for s in subs %}
+      <tr>
+        <td>
+          {{ s.username }}
+          <div class="dg-sub">{{ s.email or t("χωρίς email") }}</div>
+        </td>
+        <td>
+          {{ s.profile_name }}
+          <div class="dg-sub">{{ s.lang | upper }} · {{ t("έως") }} {{ s.max_results }}
+            {%- if s.send_empty %} · {{ t("και κενά") }}{% endif %}</div>
+        </td>
+        <td>
+          {{ s.schedule_label }}
+          <div>
+            {% if s.inherited %}
+              <span class="dg-tag default">{{ t("προεπιλογή πύλης") }}</span>
+            {% else %}
+              <span class="dg-tag override">{{ t("ειδική ρύθμιση") }}</span>
+            {% endif %}
+            {% if not s.is_active %}<span class="dg-tag off">{{ t("ανενεργή") }}</span>{% endif %}
+          </div>
+        </td>
+        <td class="dg-when">
+          {{ s.next_run_at.strftime('%d/%m %H:%M') if s.next_run_at else '—' }} UTC
+          {% if s.due %}<div><span class="dg-tag sent">{{ t("εκκρεμεί") }}</span></div>{% endif %}
+        </td>
+        <td class="dg-when">{{ s.last_sent_at.strftime('%d/%m/%Y %H:%M') if s.last_sent_at else '—' }}</td>
+        <td>
+          <div class="dg-actions">
+            <a class="dg-btn" href="/admin/digests/subscriptions/{{ s.id }}/preview" target="_blank">{{ t("Προεπισκόπηση") }}</a>
+            <form method="post" action="/admin/digests/subscriptions/{{ s.id }}/send">
+              <input type="hidden" name="mode" value="test">
+              <button class="dg-btn" type="submit">{{ t("Δοκιμαστική αποστολή") }}</button>
+            </form>
+            <form method="post" action="/admin/digests/subscriptions/{{ s.id }}/send"
+                  onsubmit="return confirm('{{ t('Αποστολή τώρα στον πελάτη;') }}')">
+              <input type="hidden" name="mode" value="real">
+              <button class="dg-btn" type="submit">{{ t("Αποστολή τώρα") }}</button>
+            </form>
+            <form method="post" action="/admin/digests/subscriptions/{{ s.id }}/delete"
+                  onsubmit="return confirm('{{ t('Διαγραφή αυτής της εγγραφής;') }}')">
+              <button class="dg-btn" type="submit">{{ t("Διαγραφή") }}</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="dg-none">{{ t("Καμία εγγραφή ακόμη.") }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="dg-form">
+    <h2>{{ t("Νέα ή ενημέρωση εγγραφής") }}</h2>
+    <p>{{ t("Μία εγγραφή ανά πελάτη και προφίλ — η επαναποθήκευση ενημερώνει την υπάρχουσα. Αφήστε το πρόγραμμα κενό για την προεπιλογή της πύλης.") }}</p>
+    <form method="post" action="/admin/digests/subscriptions">
+      <div class="row">
+        <div>
+          <label for="dg-user">{{ t("Πελάτης") }}</label>
+          <select id="dg-user" name="user_id" required>
+            {% for cu in customers %}
+            <option value="{{ cu.id }}">{{ cu.username }}{% if cu.email %} — {{ cu.email }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="dg-profile">{{ t("Προφίλ αναζήτησης") }}</label>
+          <select id="dg-profile" name="search_profile_id" required>
+            {% for p in profiles %}
+            <option value="{{ p.id }}">
+              {{ p.name }} — {{ t("Πύλη") if p.scope == 'portal' else p.owner_username }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="dg-sched">{{ t("Πρόγραμμα") }}</label>
+          <select id="dg-sched" name="schedule_id">
+            <option value="">{{ t("Προεπιλογή πύλης") }}{% if default_schedule %} — {{ default_schedule.name }}{% endif %}</option>
+            {% for sc in schedules %}
+            <option value="{{ sc.id }}">{{ sc.name }} — {{ sc.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="dg-lang">{{ t("Γλώσσα") }}</label>
+          <select id="dg-lang" name="lang">
+            <option value="el">Ελληνικά</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+        <div>
+          <label for="dg-max">{{ t("Μέγιστα αποτελέσματα") }}</label>
+          <input id="dg-max" type="number" name="max_results" value="25" min="1" max="200">
+        </div>
+        <label class="check"><input type="checkbox" name="send_empty" value="1"> {{ t("Αποστολή και χωρίς νέα") }}</label>
+        <label class="check"><input type="checkbox" name="is_active" value="1" checked> {{ t("Ενεργή") }}</label>
+        <button type="submit">{{ t("Αποθήκευση") }}</button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ #}
+  {# SCHEDULES                                                           #}
+  {# ------------------------------------------------------------------ #}
+  {% if tab == 'schedules' %}
+  <table class="dg-table">
+    <thead><tr>
+      <th>{{ t("Όνομα") }}</th>
+      <th>{{ t("Συχνότητα") }}</th>
+      <th>{{ t("Επόμενη εκτέλεση") }}</th>
+      <th>{{ t("Κατάσταση") }}</th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+    {% for sc in schedules %}
+      <tr>
+        <td>{{ sc.name }}</td>
+        <td>{{ sc.label }}</td>
+        <td class="dg-when">{{ sc.next_run_at.strftime('%d/%m/%Y %H:%M') if sc.next_run_at else '—' }} UTC</td>
+        <td>
+          {% if sc.is_default %}<span class="dg-tag default">{{ t("προεπιλογή") }}</span>{% endif %}
+          {% if not sc.is_active %}<span class="dg-tag off">{{ t("ανενεργό") }}</span>{% endif %}
+        </td>
+        <td>
+          <div class="dg-actions">
+            <form method="post" action="/admin/digests/schedules/{{ sc.id }}/delete"
+                  onsubmit="return confirm('{{ t('Διαγραφή; Οι εγγραφές που το χρησιμοποιούν επιστρέφουν στην προεπιλογή.') }}')">
+              <button class="dg-btn" type="submit">{{ t("Διαγραφή") }}</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="dg-none">{{ t("Κανένα πρόγραμμα ακόμη.") }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="dg-form">
+    <h2>{{ t("Νέο πρόγραμμα") }}</h2>
+    <p>{{ t("Η ώρα είναι τοπική ως προς τη ζώνη ώρας. Η εβδομαδιαία χρειάζεται ημέρα εβδομάδας, η μηνιαία ημέρα μήνα (1–28).") }}</p>
+    <form method="post" action="/admin/digests/schedules">
+      <div class="row">
+        <div>
+          <label for="sc-name">{{ t("Όνομα") }}</label>
+          <input id="sc-name" type="text" name="name" required placeholder="{{ t('π.χ. Εβδομαδιαία Δευτέρα') }}">
+        </div>
+        <div>
+          <label for="sc-cadence">{{ t("Συχνότητα") }}</label>
+          <select id="sc-cadence" name="cadence">
+            <option value="daily">{{ t("Καθημερινά") }}</option>
+            <option value="weekdays">{{ t("Εργάσιμες") }}</option>
+            <option value="weekly">{{ t("Εβδομαδιαία") }}</option>
+            <option value="monthly">{{ t("Μηνιαία") }}</option>
+          </select>
+        </div>
+        <div>
+          <label for="sc-hour">{{ t("Ώρα") }}</label>
+          <input id="sc-hour" type="number" name="hour" value="8" min="0" max="23">
+        </div>
+        <div>
+          <label for="sc-min">{{ t("Λεπτό") }}</label>
+          <input id="sc-min" type="number" name="minute" value="0" min="0" max="59">
+        </div>
+        <div>
+          <label for="sc-wd">{{ t("Ημέρα εβδομάδας") }}</label>
+          <select id="sc-wd" name="weekday">
+            <option value="0">{{ t("Δευτέρα") }}</option><option value="1">{{ t("Τρίτη") }}</option>
+            <option value="2">{{ t("Τετάρτη") }}</option><option value="3">{{ t("Πέμπτη") }}</option>
+            <option value="4">{{ t("Παρασκευή") }}</option><option value="5">{{ t("Σάββατο") }}</option>
+            <option value="6">{{ t("Κυριακή") }}</option>
+          </select>
+        </div>
+        <div>
+          <label for="sc-dom">{{ t("Ημέρα μήνα") }}</label>
+          <input id="sc-dom" type="number" name="day_of_month" value="1" min="1" max="28">
+        </div>
+        <div>
+          <label for="sc-tz">{{ t("Ζώνη ώρας") }}</label>
+          <input id="sc-tz" type="text" name="tz" value="Europe/Athens">
+        </div>
+        <label class="check"><input type="checkbox" name="is_default" value="1"> {{ t("Προεπιλογή πύλης") }}</label>
+        <button type="submit">{{ t("Αποθήκευση") }}</button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ #}
+  {# RUNS                                                                #}
+  {# ------------------------------------------------------------------ #}
+  {% if tab == 'runs' %}
+  <div class="dg-actions" style="margin-bottom:14px;">
+    <form method="post" action="/admin/digests/run">
+      <button class="dg-btn" type="submit">{{ t("Εκτέλεση όσων εκκρεμούν") }}</button>
+    </form>
+    <form method="post" action="/admin/digests/run"
+          onsubmit="return confirm('{{ t('Αποστολή σε ΟΛΕΣ τις ενεργές εγγραφές τώρα, αγνοώντας το πρόγραμμα;') }}')">
+      <input type="hidden" name="force" value="1">
+      <button class="dg-btn" type="submit">{{ t("Εξαναγκασμός όλων") }}</button>
+    </form>
+  </div>
+
+  <table class="dg-table">
+    <thead><tr>
+      <th>{{ t("Πότε") }}</th>
+      <th>{{ t("Πελάτης") }}</th>
+      <th>{{ t("Προφίλ") }}</th>
+      <th>{{ t("Αφορμή") }}</th>
+      <th>{{ t("Αποτέλεσμα") }}</th>
+      <th>{{ t("Παραλήπτης") }}</th>
+    </tr></thead>
+    <tbody>
+    {% for r in runs %}
+      <tr>
+        <td class="dg-when">{{ r.started_at.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ r.username or '—' }}</td>
+        <td>{{ r.profile_name or '—' }}</td>
+        <td>{{ r.trigger }}</td>
+        <td>
+          <span class="dg-tag {{ r.status }}">{{ r.status }}</span>
+          {% if r.n_results %} {{ r.n_results }}{% endif %}
+          {% if r.error %}<div class="dg-sub">{{ r.error }}</div>{% endif %}
+        </td>
+        <td class="dg-sub">{{ r.recipient or '—' }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="dg-none">{{ t("Καμία εκτέλεση ακόμη.") }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% endblock %}
