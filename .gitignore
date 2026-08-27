@@ -34,3 +34,6 @@ attachment_store/
 
 # Local preview launch config (contains local DB credentials)
 .claude/
+
+# Local digest emails written by EMAIL_BACKEND=file (see LOCAL_RUNBOOK.md)
+outbox/

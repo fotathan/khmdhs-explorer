@@ -1,3 +1,8 @@
+> **ARCHIVE — superseded, and stale in places.** The live guides are
+> `CLAUDE.md` (short rules) and `AGENTS.md`. Kept for reference only; statements
+> here may no longer hold (e.g. it says the repo has no mailer — see
+> `app/mailer.py`).
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.

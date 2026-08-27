@@ -14,8 +14,14 @@ KHMDHS Opendata API (`cerpp.eprocurement.gov.gr`) and enriched from Diavgeia
    There is no separate JSON API layer: every HTML route also serves JSON if
    the client sends `Accept: application/json`.
 
-There is no automated test suite. The root-level `test_*.sql` files are
-ad-hoc scratch queries, not a test framework — don't treat them as such.
+Tests live in `tests/` (pytest, run in CI). They build a throwaway database
+from `tests/proc_schema.sql` — a schema-only snapshot — so DB-backed tests need
+`TEST_DATABASE_URL` (or `DATABASE_URL`) pointing at a database you don't mind
+losing, plus `psql` on PATH; they skip without one. Adding a table means
+regenerating that snapshot. The root-level `test_*.sql` files are unrelated —
+ad-hoc scratch queries, not a test framework, so don't treat them as such.
+
+`LOCAL_RUNBOOK.md` covers running locally with every feature enabled.
 
 ## Commands
 
@@ -35,6 +41,14 @@ python3 db.py catchup            # incremental, per-type watermark + overlap
 python3 db.py fulltext-backfill  # backfill attachment full text for existing acts
 python3 db.py stats              # row counts
 python3 db.py progress [--errors-only]
+
+# Digest emails — nothing leaves the machine with the default console backend
+python3 cron_digests.py                       # send whatever is due, then exit
+DIGEST_DRY_RUN=1 python3 cron_digests.py      # show what would be sent
+
+# Tests
+export TEST_DATABASE_URL="postgresql://user:pass@host:5432/khmdhs_test"
+pytest -q
 
 # Ingestion (guarded — confirms target DB, masks credentials, requires typing
 # "PRODUCTION" for prod). Prefer this over calling db.py directly.
@@ -110,8 +124,19 @@ type with no prior backfill needs an explicit `--start`.
   kept **byte-identical** with a standalone "Tender Tables" sibling tool —
   don't introduce KHMDHS-specific logic into those three files; anything
   KHMDHS-aware belongs in `app/tables.py` itself. OCR (`app/ocr.py`, scanned
-  PDFs/images via the Codex API) is opt-in per file and gated separately on
+  PDFs/images via the Claude API) is opt-in per file and gated separately on
   `ANTHROPIC_API_KEY` being present.
+- `app/mailer.py` + `app/digests.py` — scheduled "new results" emails.
+  `mailer` is the only place the app sends mail from:
+  `EMAIL_BACKEND=console|memory|file|smtp`, console by default so nothing leaves
+  the machine until SMTP is configured. `digests` owns a subscription =
+  (customer × search profile): on a schedule it replays that profile's filters
+  over acts whose `ingested_at` falls in `(last_cursor, now]` and mails what is
+  new. The schedule falls back `subscription.schedule_id` → the `is_default` row
+  of `proc.digest_schedule`. Admin UI at `/admin/digests`; wording is the
+  `digest` slug in `proc.email_template`. Fired by `cron_digests.py` or by
+  `DIGEST_SCHEDULER=1` in-process — never both. **Deliverability is not
+  implemented.**
 - `app/gemi_client.py` (shared) + root `gemi_enrich.py` (standalone backfill
   CLI) — ΓΕΜΗ business-registry enrichment by ΑΦΜ, used both on-demand (admin
   button on contractor/authority pages) and offline. Keep parsing/upsert

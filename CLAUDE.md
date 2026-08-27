@@ -20,3 +20,22 @@ Domain expert, not a developer. Write all code yourself. Give numbered steps. Co
 
 ## Companion
 Tender Tables shares 3 files byte-identical: extractors.py, exporter.py, ocr.py
+
+## Email alerts (digests)
+/admin/digests — scheduled result emails, one subscription per customer × search
+profile. Schedule falls back: subscription.schedule_id → the is_default row of
+proc.digest_schedule. Window is procurement_act.ingested_at, half-open
+(last_cursor, now], so nothing sends twice.
+- app/mailer.py is the ONLY place mail is sent. EMAIL_BACKEND defaults to
+  console — nothing leaves the machine until SMTP is configured.
+- Fired by cron_digests.py OR DIGEST_SCHEDULER=1 in-process. Never both.
+- Deliverability (SPF/DKIM/DMARC, unsubscribe) NOT done. Not for real customers yet.
+
+## Tests
+pytest in tests/, runs in CI. Needs TEST_DATABASE_URL (throwaway DB) + psql.
+Schema comes from tests/proc_schema.sql — regenerate it when you add a table.
+Ship tests with every feature.
+
+## Local dev
+LOCAL_RUNBOOK.md — how to run with every feature switched on, and what each
+switch needs.
