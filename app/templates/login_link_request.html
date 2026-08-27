@@ -1,0 +1,51 @@
+{% extends "beta_base.html" %}
+{% block title %}{{ t("Σύνδεση με σύνδεσμο") }} · {{ t("Εξερευνητής") }}{% endblock %}
+{% block content %}
+{# Two states, one template. `sent` switches from the form to the confirmation.
+   The confirmation is DELIBERATELY the same for an address that has an account
+   and one that does not — this page must never reveal who is a customer. #}
+<div class="auth-wrap">
+  <div class="auth-card">
+    {% if sent %}
+      <h1>{{ t("Ελέγξτε το email σας") }}</h1>
+      <p class="auth-hint">
+        {{ t("Αν υπάρχει λογαριασμός με αυτή τη διεύθυνση, στείλαμε έναν σύνδεσμο σύνδεσης.") }}
+        {{ t("Ο σύνδεσμος ισχύει για %d λεπτά και μπορεί να χρησιμοποιηθεί μία φορά.")|format(minutes) }}
+      </p>
+      <p class="auth-hint">{{ t("Δεν ήρθε; Ελέγξτε τα ανεπιθύμητα ή δοκιμάστε ξανά.") }}</p>
+      <p class="auth-alt"><a href="/login">{{ t("Σύνδεση με κωδικό") }}</a></p>
+    {% else %}
+      <h1>{{ t("Σύνδεση με σύνδεσμο") }}</h1>
+      <p class="auth-hint">{{ t("Δώστε το email του λογαριασμού σας και θα σας στείλουμε έναν σύνδεσμο για να συνδεθείτε χωρίς κωδικό.") }}</p>
+      {% if error %}<div class="auth-error">{{ error | t }}</div>{% endif %}
+      <form method="post" action="/login/link">
+        <input type="hidden" name="next" value="{{ next }}">
+        <label>{{ t("Email") }}
+          <input type="email" name="email" value="{{ email or '' }}"
+                 autocomplete="email" autofocus required>
+        </label>
+        <button type="submit" class="auth-btn">{{ t("Στείλτε μου σύνδεσμο") }}</button>
+      </form>
+      <p class="auth-alt"><a href="/login?next={{ next|urlencode }}">{{ t("Σύνδεση με κωδικό") }}</a></p>
+    {% endif %}
+  </div>
+</div>
+<style>
+  .auth-wrap{max-width:420px;margin:56px auto;padding:0 20px;}
+  .auth-card{background:var(--paper);border:1px solid var(--rule);border-radius:14px;
+    padding:28px 26px;box-shadow:var(--shadow-sm, 0 1px 3px rgba(20,24,31,.06));}
+  .auth-card h1{font-size:22px;margin:0 0 8px;}
+  .auth-hint{font-size:13px;color:var(--ink-2);margin:0 0 16px;line-height:1.5;}
+  .auth-card form{display:flex;flex-direction:column;gap:14px;}
+  .auth-card label{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--ink-2);}
+  .auth-card input{padding:9px 11px;border:1px solid var(--rule);border-radius:8px;font-size:14px;color:var(--ink);}
+  .auth-card input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+  .auth-btn{background:var(--accent);color:#fff;border:0;padding:11px;border-radius:9px;
+    font-weight:600;font-size:14px;cursor:pointer;margin-top:4px;}
+  .auth-btn:hover{background:var(--accent-2);}
+  .auth-error{background:#fdeceb;border:1px solid #f4c7c3;color:#b3261e;padding:9px 12px;
+    border-radius:8px;font-size:13px;margin-bottom:14px;}
+  .auth-alt{font-size:13px;color:var(--ink-2);margin:16px 0 0;text-align:center;}
+  .auth-alt a{color:var(--accent);font-weight:600;}
+</style>
+{% endblock %}

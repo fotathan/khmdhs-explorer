@@ -833,6 +833,7 @@ CREATE TABLE proc.app_user (
     mfa_recovery_codes text[] DEFAULT '{}'::text[] NOT NULL,
     session_version integer DEFAULT 0 NOT NULL,
     must_change_password boolean DEFAULT false NOT NULL,
+    email_verified_at timestamp with time zone,
     CONSTRAINT app_user_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'customer'::text])))
 );
 
@@ -1952,6 +1953,48 @@ CREATE SEQUENCE proc.line_item_correction_id_seq
 --
 
 ALTER SEQUENCE proc.line_item_correction_id_seq OWNED BY proc.line_item_correction.id;
+
+
+--
+-- Name: login_link; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.login_link (
+    id bigint NOT NULL,
+    user_id bigint NOT NULL,
+    token_hash text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    used_at timestamp with time zone,
+    requested_ip text,
+    next_url text
+);
+
+
+--
+-- Name: TABLE login_link; Type: COMMENT; Schema: proc; Owner: -
+--
+
+COMMENT ON TABLE proc.login_link IS 'Single-use, short-lived passwordless sign-in tokens mailed to an account''s own address. Stores sha256(token) only — the raw token exists in the email. A link completes the password step, NOT the 2FA step.';
+
+
+--
+-- Name: login_link_id_seq; Type: SEQUENCE; Schema: proc; Owner: -
+--
+
+CREATE SEQUENCE proc.login_link_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: login_link_id_seq; Type: SEQUENCE OWNED BY; Schema: proc; Owner: -
+--
+
+ALTER SEQUENCE proc.login_link_id_seq OWNED BY proc.login_link.id;
 
 
 --
@@ -3204,6 +3247,13 @@ ALTER TABLE ONLY proc.line_item_correction ALTER COLUMN id SET DEFAULT nextval('
 
 
 --
+-- Name: login_link id; Type: DEFAULT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.login_link ALTER COLUMN id SET DEFAULT nextval('proc.login_link_id_seq'::regclass);
+
+
+--
 -- Name: search_profile id; Type: DEFAULT; Schema: proc; Owner: -
 --
 
@@ -3731,6 +3781,14 @@ ALTER TABLE ONLY proc.ingest_window
 
 ALTER TABLE ONLY proc.line_item_correction
     ADD CONSTRAINT line_item_correction_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: login_link login_link_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.login_link
+    ADD CONSTRAINT login_link_pkey PRIMARY KEY (id);
 
 
 --
@@ -4673,6 +4731,20 @@ CREATE INDEX ix_link_target ON proc.act_link USING btree (target_adam);
 
 
 --
+-- Name: ix_login_link_expires_at; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_login_link_expires_at ON proc.login_link USING btree (expires_at);
+
+
+--
+-- Name: ix_login_link_user_live; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_login_link_user_live ON proc.login_link USING btree (user_id) WHERE (used_at IS NULL);
+
+
+--
 -- Name: ix_mv_auth_value; Type: INDEX; Schema: proc; Owner: -
 --
 
@@ -4933,6 +5005,13 @@ CREATE UNIQUE INDEX ux_digest_subscription_user_profile ON proc.digest_subscript
 --
 
 CREATE UNIQUE INDEX ux_email_template_slug_lang ON proc.email_template USING btree (slug, lang);
+
+
+--
+-- Name: ux_login_link_token_hash; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_login_link_token_hash ON proc.login_link USING btree (token_hash);
 
 
 --
@@ -5462,6 +5541,14 @@ ALTER TABLE ONLY proc.ingest_act_log
 
 ALTER TABLE ONLY proc.line_item_correction
     ADD CONSTRAINT line_item_correction_adam_fkey FOREIGN KEY (adam) REFERENCES proc.procurement_act(adam) ON DELETE CASCADE;
+
+
+--
+-- Name: login_link login_link_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.login_link
+    ADD CONSTRAINT login_link_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.app_user(id) ON DELETE CASCADE;
 
 
 --

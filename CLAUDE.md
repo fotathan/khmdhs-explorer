@@ -55,6 +55,29 @@ Scheduled result emails, one subscription per customer × search profile.
 - Fired by cron_digests.py OR DIGEST_SCHEDULER=1 in-process. Never both.
 - Deliverability (SPF/DKIM/DMARC, unsubscribe) NOT done. Not for real customers yet.
 
+## Passwordless sign-in links
+"Email me a sign-in link" on /login — a SECOND path in, never a replacement.
+app/login_links.py owns it; the routes live next to /login in main.py.
+- The link completes the PASSWORD step only. 2FA still runs (same mfa_pending
+  state), must_change_password still walls the session off. Never change that.
+- Token: 32 random bytes, mailed once, stored as sha256 in proc.login_link.
+  Single use (consume = one atomic UPDATE ... WHERE used_at IS NULL), 15 min
+  (LOGIN_LINK_TTL_SECONDS). Issuing a new one burns the old one; so do
+  set_password and set_email (auth.kill_login_links).
+- The mailed URL does NOT sign in on GET — mail scanners fetch it and would
+  burn the token. GET renders an interstitial; its POST spends it.
+- POST /login/link answers IDENTICALLY for known, unknown and deactivated
+  addresses. Nothing may leak who has an account.
+- Rate limit: proc.login_throttle, counting EVERY request (it sends mail), key
+  "loginlink:<email>|<ip>". Never reset on success. A locked-out customer still
+  has their password — that is why this ships alongside.
+- Wording: proc.email_template slug 'login_link' (el/en), resolved through
+  digests._soft_resolve. The URL is placed by email_login_link.html, never by
+  the admin-editable fragment.
+- A completed link login stamps app_user.email_verified_at — the only proof in
+  the system that an address is real (registration never confirmed it).
+- LOGIN_LINKS_ENABLED=0 removes the routes and the link on /login.
+
 ## CRM customer card
 /admin/crm/<uid> is tabbed (Details / Alerts / Activity / Compose email) with an
 always-visible "at a glance" strip above. The tabs are progressive enhancement:

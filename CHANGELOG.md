@@ -10,6 +10,43 @@ truth; this is a curated digest.
 
 ## 2026-08-27
 
+### Added — sign in with an emailed link, alongside the password
+- `/login` gains **"Email me a sign-in link"**. A customer enters their account
+  address and gets a link that signs them in — no password to remember. The
+  password path is untouched: this is a second door, not a replacement, which
+  matters because the app already has admin roles, 2FA and existing accounts.
+- **The link does not weaken anything it stands next to.** It completes the
+  *password* step only: an account with 2FA still gets the TOTP prompt from the
+  same half-authenticated state a correct password produces, and an
+  admin-issued temporary password still walls the session off until it is
+  changed. `tests/test_login_link.py` pins both.
+- **The token is a credential and is treated as one.** 32 random bytes, mailed
+  once, stored only as `sha256` in the new `proc.login_link` — a database dump
+  is a list of useless hashes, not live logins. Single use (the check and the
+  spend are one atomic `UPDATE`, so two concurrent clicks cannot both produce a
+  session), 15 minutes, and issuing a new link burns the previous one. Changing
+  a password or an email address burns every outstanding link too.
+- **The mailed URL does not sign anyone in on GET.** Corporate mail scanners
+  fetch every link in a message and would spend the token before the human
+  clicked it — the single most common way magic links fail in practice. The URL
+  opens an interstitial; its button POSTs and spends the token.
+- **No account oracle.** `POST /login/link` renders exactly the same
+  confirmation for an address with an account, one without, a deactivated one,
+  and one whose send failed. Rate-limited on `proc.login_throttle` counting
+  every request (it sends mail), keyed on address + IP. A customer who does hit
+  the lockout is not locked out of the app — their password still works.
+- The wording is an editable template like every other message
+  (`proc.email_template` slug `login_link`, EL/EN), but the URL is placed by the
+  email template, so no admin edit can truncate or leak the credential.
+- New: `proc.app_user.email_verified_at`. Registration never confirmed an
+  address, so nothing in the system knew whether an account's email was real; a
+  completed link login is that proof, and it is now recorded — a prerequisite
+  for the deliverability work.
+- `LOGIN_LINKS_ENABLED=0` removes the routes and the link on `/login`.
+  `LOGIN_LINK_TTL_SECONDS` sets the lifetime. **Not for real customers until
+  SPF/DKIM/DMARC are done** — a digest in a spam folder is an annoyance, a
+  sign-in link in one is a locked-out customer.
+
 ### Added — result emails to more than one reader
 - A digest used to reach exactly one address, the account's own, because a
   subscription is (customer × search profile) and a customer row has one email.

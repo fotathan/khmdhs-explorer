@@ -1146,6 +1146,16 @@ try:
 except ImportError:
     import interconnect as _interconnect
 
+# Passwordless sign-in links ("email me a link"), the second path onto /login.
+# Imported here rather than lazily because /login has to know whether to show
+# the link at all — see app/login_links.py for what it does and does not bypass.
+try:
+    from app import login_links as _login_links
+    from app import mailer as _mailer
+except ImportError:
+    import login_links as _login_links
+    import mailer as _mailer
+
 # SECRET_KEY signs the session cookies; a known/default value makes admin
 # sessions forgeable. Require it in production and fail closed rather than boot
 # with the insecure fallback. Production is detected via Render's own RENDER
@@ -1566,6 +1576,142 @@ async def login_mfa_submit(request: Request):
         return _Redirect("/login", status_code=303)
     _auth.login_session(request, user)
     return _Redirect(_safe_next(pending.get("next", "/")), status_code=303)
+
+
+# ---------------------------------------------------------------------------- #
+# Passwordless sign-in link — "email me a link" ALONGSIDE the password.
+#
+# The three properties this flow must keep (app/login_links.py has the detail):
+#   1. It completes the PASSWORD step only. An account with 2FA still gets the
+#      TOTP prompt, from exactly the same `mfa_pending` state a password login
+#      produces. A link that skipped it would quietly downgrade every 2FA
+#      account to one factor.
+#   2. It never reveals who has an account. POST /login/link renders the same
+#      confirmation for a known address, an unknown one, and a deactivated one.
+#   3. The mailed URL does not sign anyone in on GET — mail scanners fetch it.
+#      GET shows an interstitial; its POST spends the token.
+# ---------------------------------------------------------------------------- #
+templates.env.globals["login_links_enabled"] = _login_links.enabled()
+
+
+def _login_link_ctx(*, next_url="/", sent=False, email="", error=None):
+    """Context for login_link_request.html in both its states. `minutes` is
+    derived from the TTL rather than written into the copy, so changing
+    LOGIN_LINK_TTL_SECONDS cannot leave the page telling a customer 15 minutes
+    while the token dies in five."""
+    return {"next": next_url, "sent": sent, "email": email, "error": error,
+            "minutes": max(1, _login_links.TTL_SECONDS // 60)}
+
+
+@app.get("/login/link", response_class=HTMLResponse)
+def login_link_form(request: Request, next: str = "/"):
+    if not _login_links.enabled():
+        raise HTTPException(status_code=404, detail="Not found")
+    if getattr(request.state, "user", None):
+        return _Redirect(_safe_next(next), status_code=303)
+    return templates.TemplateResponse(
+        request, "login_link_request.html",
+        _login_link_ctx(next_url=_safe_next(next)))
+
+
+@app.post("/login/link")
+async def login_link_submit(request: Request):
+    if not _login_links.enabled():
+        raise HTTPException(status_code=404, detail="Not found")
+    form = await request.form()
+    email = (form.get("email") or "").strip()
+    next_url = _safe_next(form.get("next") or "/")
+    ip = _client_ip(request)
+    lang = _i18n.lang_from_request(request)
+
+    # A malformed address is a typo, not an oracle — telling the user their own
+    # input is not an address leaks nothing about who has an account.
+    if not _mailer.valid_address(email):
+        return templates.TemplateResponse(
+            request, "login_link_request.html",
+            _login_link_ctx(next_url=next_url, email=email,
+                            error="Δώστε μια έγκυρη διεύθυνση email."),
+            status_code=400)
+
+    # Same DB-backed limiter as password login, but counting EVERY request
+    # rather than only failures: this endpoint sends mail, so a successful send
+    # is exactly the thing that must be rate-limited. Never reset — resetting on
+    # success would remove the limit. A customer who does hit the lockout is not
+    # locked out of the app: their password still works, which is the point of
+    # shipping this alongside rather than instead.
+    key = f"{_login_links.THROTTLE_PREFIX}:{email.lower()}|{ip}"
+    with cursor() as c:
+        if _auth.throttle_blocked(c, key):
+            return templates.TemplateResponse(
+                request, "login_link_request.html",
+                _login_link_ctx(next_url=next_url, email=email,
+                                error="Πολλές αποτυχημένες προσπάθειες — δοκιμάστε αργότερα."),
+                status_code=429)
+        _auth.throttle_fail(c, key)
+        u = _auth.get_by_email(c, email)
+        if u and u.get("is_active"):
+            try:
+                _login_links.send_link(c, dict(u), ip=ip, next_url=next_url,
+                                       lang=lang)
+            except Exception as exc:      # noqa: BLE001
+                # A dead mailer must not turn into an account oracle: the
+                # response is identical either way, and the failure goes to the
+                # log where an admin can see it.
+                _obs.log_event(logging.WARNING, "login link send failed",
+                               uid=u["id"], ip=ip, error=str(exc))
+    # Identical response for every address — see property 2 above.
+    return templates.TemplateResponse(
+        request, "login_link_request.html",
+        _login_link_ctx(next_url=next_url, sent=True))
+
+
+@app.get("/login/link/{token}", response_class=HTMLResponse)
+def login_link_confirm(request: Request, token: str):
+    """The page the mailed link opens. Looks the token up; does NOT spend it."""
+    if not _login_links.enabled():
+        raise HTTPException(status_code=404, detail="Not found")
+    with cursor() as c:
+        row = _login_links.peek(c, token)
+    return templates.TemplateResponse(
+        request, "login_link_confirm.html",
+        {"valid": bool(row), "token": token,
+         "username": (row or {}).get("username", "")},
+        status_code=200 if row else 410)
+
+
+@app.post("/login/link/{token}")
+async def login_link_consume(request: Request, token: str):
+    """Spend the token and sign in — unless the account has 2FA, which still has
+    to be satisfied before a session exists."""
+    if not _login_links.enabled():
+        raise HTTPException(status_code=404, detail="Not found")
+    user = None
+    with cursor() as c:
+        row = _login_links.consume(c, token)
+        if not row:
+            return templates.TemplateResponse(
+                request, "login_link_confirm.html",
+                {"valid": False, "token": token, "username": ""},
+                status_code=410)
+        uid = row["user_id"]
+        next_url = _safe_next(row.get("next_url") or "/")
+        # The link was mailed to the account's address and came back used, so
+        # that address demonstrably reaches its owner. Stamped here rather than
+        # after the 2FA step — delivery is what was proven, and it was proven
+        # already.
+        _login_links.mark_email_verified(c, uid)
+        mrow = _auth.get_mfa(c, uid)
+        if mrow and mrow["mfa_enabled"] and mrow["mfa_secret"]:
+            request.session.pop("uid", None)      # not authenticated yet
+            request.session["mfa_pending"] = {
+                "uid": uid, "next": next_url, "ts": _time.time()}
+            return _Redirect("/login/mfa", status_code=303)
+        _auth.touch_last_login(c, uid)
+        user = _auth.load_user(c, uid)
+    if not user:
+        return _Redirect("/login", status_code=303)
+    _auth.login_session(request, user)
+    return _Redirect(next_url, status_code=303)
 
 
 @app.post("/logout")
