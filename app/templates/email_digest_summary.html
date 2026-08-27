@@ -1,0 +1,184 @@
+{# email_digest_summary.html — the SUMMARY body of a scheduled results digest.
+
+   The other shape of the same email (see email_digest.html, which lists the
+   acts). This one answers "how much, of what, from whom" and sends the reader
+   into the app for the detail: for a profile that matches a hundred acts a day,
+   a list nobody scrolls is a worse message than four numbers and a button.
+
+   NOT a page: rendered by app/digests.py through its own Jinja environment (no
+   request, no base template, no context processor) because the same render has
+   to work from cron. The only context is what render_digest passes in, `t`
+   included, and every figure arrives already formatted by _summary_view — the
+   text/plain alternative prints the same strings, so the two cannot drift.
+
+   Mail-client rules, not browser rules: tables for layout, inline styles only
+   (Gmail strips <style>), no external assets, fixed light colours. The bars in
+   the type breakdown are table cells with a background colour — the only way to
+   draw one that survives Outlook.
+
+   `intro` is the admin-authored fragment from proc.email_template slug
+   'digest_summary' with its [[field]] tokens already resolved for THIS
+   recipient — rendered |safe on purpose, exactly like the list digest. #}
+{%- set ink = "#1a1a1a" -%}
+{%- set muted = "#6b6b6b" -%}
+{%- set rule = "#e3e3e0" -%}
+{%- set accent = "#1c4b82" -%}
+{%- set wash = "#f5f4f1" -%}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="background:#f5f4f1;margin:0;padding:24px 0;">
+  <tr><td align="center">
+    <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0"
+           style="width:640px;max-width:100%;background:#ffffff;border:1px solid {{ rule }};">
+
+      <!-- masthead -->
+      <tr><td style="padding:20px 28px;border-bottom:2px solid {{ ink }};">
+        <div style="font:600 15px/1.2 Helvetica,Arial,sans-serif;color:{{ ink }};letter-spacing:.02em;">
+          {{ t("Ελληνικές Δημόσιες Συμβάσεις") }}
+        </div>
+        <div style="font:400 12px/1.4 Helvetica,Arial,sans-serif;color:{{ muted }};padding-top:2px;">
+          {{ t("Σύνοψη αποτελεσμάτων") }} · {{ profile_name }}
+        </div>
+      </td></tr>
+
+      <!-- intro (admin-authored wording) -->
+      <tr><td style="padding:24px 28px 8px;font:400 14px/1.6 Helvetica,Arial,sans-serif;color:{{ ink }};">
+        {{ intro|safe }}
+      </td></tr>
+
+      {% if stats.total %}
+      <!-- the headline number and the period it covers -->
+      <tr><td style="padding:8px 28px 0;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="background:{{ wash }};border:1px solid {{ rule }};">
+          <tr><td style="padding:16px 18px;">
+            <div style="font:700 30px/1 Helvetica,Arial,sans-serif;color:{{ ink }};">
+              {{ stats.total }}
+            </div>
+            <div style="font:400 12px/1.5 Helvetica,Arial,sans-serif;color:{{ muted }};padding-top:4px;">
+              {{ t("νέες πράξεις") }} · {{ since }} – {{ until }}
+            </div>
+          </td></tr>
+        </table>
+      </td></tr>
+
+      <!-- the rest of the figures, one per row so nothing wraps badly -->
+      <tr><td style="padding:14px 28px 0;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="font:400 13px/1.5 Helvetica,Arial,sans-serif;">
+          <tr>
+            <td style="padding:7px 0;border-bottom:1px solid {{ rule }};color:{{ muted }};">
+              {{ t("Συνολικός προϋπολογισμός") }}</td>
+            <td align="right" style="padding:7px 0;border-bottom:1px solid {{ rule }};color:{{ ink }};font-weight:600;">
+              {{ stats.value }}</td>
+          </tr>
+          <tr>
+            <td style="padding:7px 0;border-bottom:1px solid {{ rule }};color:{{ muted }};">
+              {{ t("Αναθέτουσες αρχές") }}</td>
+            <td align="right" style="padding:7px 0;border-bottom:1px solid {{ rule }};color:{{ ink }};font-weight:600;">
+              {{ stats.authorities }}</td>
+          </tr>
+          {% if stats.open_deadlines %}
+          <tr>
+            <td style="padding:7px 0;border-bottom:1px solid {{ rule }};color:{{ muted }};">
+              {{ t("Ανοιχτές προθεσμίες") }}</td>
+            <td align="right" style="padding:7px 0;border-bottom:1px solid {{ rule }};color:{{ ink }};font-weight:600;">
+              {{ stats.open_deadlines }}
+              <span style="font-weight:400;color:{{ muted }};">
+                · {{ t("επόμενη") }} {{ stats.next_deadline }}</span></td>
+          </tr>
+          {% endif %}
+          {% if stats.cancelled %}
+          <tr>
+            <td style="padding:7px 0;border-bottom:1px solid {{ rule }};color:{{ muted }};">
+              {{ t("Ακυρωμένες") }}</td>
+            <td align="right" style="padding:7px 0;border-bottom:1px solid {{ rule }};color:#a33;font-weight:600;">
+              {{ stats.cancelled }}</td>
+          </tr>
+          {% endif %}
+        </table>
+      </td></tr>
+
+      <!-- breakdown by act type: the question the summary exists to answer -->
+      <tr><td style="padding:22px 28px 0;">
+        <div style="font:600 11px/1.3 Helvetica,Arial,sans-serif;color:{{ muted }};
+                    text-transform:uppercase;letter-spacing:.06em;padding-bottom:8px;">
+          {{ t("Ανά είδος πράξης") }}
+        </div>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="font:400 13px/1.5 Helvetica,Arial,sans-serif;">
+          {% for row in stats.by_type %}
+          <tr>
+            <td style="padding:6px 0 2px;color:{{ ink }};">
+              {{ row.label }}
+              {%- if row.cancelled %} <span style="color:#a33;font-size:11px;">
+                ({{ row.cancelled }} {{ t("ακυρωμένες") }})</span>{% endif %}
+            </td>
+            <td align="right" style="padding:6px 0 2px;color:{{ ink }};font-weight:600;white-space:nowrap;">
+              {{ row.n }}
+              <span style="font-weight:400;color:{{ muted }};"> · {{ row.value }}</span>
+            </td>
+          </tr>
+          {# The bar: a two-cell table whose first cell is a percentage width.
+             Percentage widths on a <td> are the one bar technique every mail
+             client renders, including Outlook's Word engine. #}
+          <tr><td colspan="2" style="padding:0 0 8px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                   style="background:{{ rule }};height:4px;">
+              <tr><td width="{{ row.share }}%" style="background:{{ accent }};height:4px;
+                         font-size:0;line-height:4px;">&nbsp;</td>
+                  <td style="font-size:0;line-height:4px;">&nbsp;</td></tr>
+            </table>
+          </td></tr>
+          {% endfor %}
+        </table>
+      </td></tr>
+
+      {% if stats.top_authorities %}
+      <tr><td style="padding:16px 28px 0;">
+        <div style="font:600 11px/1.3 Helvetica,Arial,sans-serif;color:{{ muted }};
+                    text-transform:uppercase;letter-spacing:.06em;padding-bottom:8px;">
+          {{ t("Κυριότερες αναθέτουσες") }}
+        </div>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="font:400 13px/1.5 Helvetica,Arial,sans-serif;">
+          {% for a in stats.top_authorities %}
+          <tr>
+            <td style="padding:5px 0;border-bottom:1px solid {{ rule }};color:{{ ink }};">
+              {{ a.name }}</td>
+            <td align="right" style="padding:5px 0;border-bottom:1px solid {{ rule }};
+                       color:{{ ink }};font-weight:600;white-space:nowrap;">
+              {{ a.n }}<span style="font-weight:400;color:{{ muted }};"> · {{ a.value }}</span></td>
+          </tr>
+          {% endfor %}
+        </table>
+      </td></tr>
+      {% endif %}
+
+      {# The button opens THIS message's own result set (/digests/<token>). For
+         the summary body it is not a convenience but the whole point: the
+         detail is deliberately not in the email. #}
+      <tr><td style="padding:24px 28px 4px;">
+        <a href="{{ results_url }}"
+           style="display:inline-block;background:{{ ink }};color:#ffffff;text-decoration:none;
+                  font:600 13px/1 Helvetica,Arial,sans-serif;padding:12px 20px;">
+          {{ t("Δείτε όλα τα αποτελέσματα") }}
+        </a>
+      </td></tr>
+      {% else %}
+      <tr><td style="padding:4px 28px 16px;font:400 13px/1.5 Helvetica,Arial,sans-serif;color:{{ muted }};">
+        {{ t("Καμία νέα πράξη σε αυτό το διάστημα.") }} ({{ since }} – {{ until }})
+      </td></tr>
+      {% endif %}
+
+      <!-- footer -->
+      <tr><td style="padding:24px 28px;border-top:1px solid {{ rule }};
+                     font:400 11px/1.6 Helvetica,Arial,sans-serif;color:{{ muted }};">
+        {{ t("Λαμβάνετε αυτό το μήνυμα επειδή έχει οριστεί ειδοποίηση για το προφίλ αναζήτησης") }}
+        “{{ profile_name }}”.
+        <br>
+        <a href="{{ account_url }}" style="color:{{ muted }};">{{ t("Ρυθμίσεις λογαριασμού") }}</a>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>

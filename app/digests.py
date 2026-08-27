@@ -36,6 +36,27 @@ went out. So the window is literally "everything ingested since the last message
 you received": an empty run, a refused run and a failed send all leave it where
 it was, and nothing can be consumed by a run nobody was told about.
 
+Who reads it
+------------
+A subscription mails the customer's own account address (unless
+include_primary is turned off) plus every row in proc.digest_recipient — the
+colleagues who want the same results. Each extra recipient carries its own
+salutation and name, and the intro is re-resolved per person, so the message
+greets whoever is reading it rather than the account holder. One send is
+therefore N messages; it counts as sent when at least one of them left, and the
+addresses that failed are recorded on the run.
+
+Which body
+----------
+subscription.layout picks the shape:
+
+    list     — prints the new acts (up to max_results), the original digest
+    summary  — prints how many acts of each type, what they are worth and where
+               they came from, and links out to the full set
+
+Both take their subject and intro wording from proc.email_template — slug
+'digest' and 'digest_summary' — so either can be reworded without a deploy.
+
 What one send contained
 -----------------------
 Every run that mails writes its matched acts to proc.digest_run_item — the whole
@@ -56,9 +77,11 @@ has asked for.
 Where the pieces live
 ---------------------
   app/mailer.py    — the actual sending (console/memory/file/smtp backends)
-  proc.email_template slug 'digest' — subject + intro wording, editable at
-                     /admin/email-templates so copy changes need no deploy
-  app/templates/email_digest.html   — the results table around that intro
+  proc.email_template slugs 'digest' / 'digest_summary' — subject + intro
+                     wording, editable at /admin/email-templates so copy
+                     changes need no deploy
+  app/templates/email_digest.html          — the results table around that intro
+  app/templates/email_digest_summary.html  — the statistics version
   cron_digests.py  — the entry point a scheduler (or you) invokes
   /admin/digests   — schedules (the portal-wide settings), a read-only overview
                      of every subscription, and the run history
@@ -97,6 +120,17 @@ APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
 CADENCES = ("daily", "weekdays", "weekly", "monthly")
 DEFAULT_TZ = "Europe/Athens"
+
+# The two shapes of digest body, and the email_template slug each takes its
+# subject + intro from. Adding a third is a template, a slug and an entry here.
+LAYOUTS = ("list", "summary")
+LAYOUT_SLUGS = {"list": "digest", "summary": "digest_summary"}
+LAYOUT_TEMPLATES = {"list": "email_digest.html",
+                    "summary": "email_digest_summary.html"}
+
+# How many authorities the summary body names before it stops. Beyond a handful
+# the list stops being a summary.
+SUMMARY_TOP_N = 5
 
 # Who may be mailed. A subscription is not permission: an expired tester, a
 # lapsed subscriber and a prospective lead are all CRM records, and mailing them
@@ -300,6 +334,8 @@ _SUB_COLS = f"""
     u.username, u.email, u.is_active AS user_active, u.role AS user_role,
     sp.name AS profile_name, sp.scope AS profile_scope,
     sch.id  AS sched_id, sch.name AS sched_name,
+    (SELECT count(*) FROM proc.digest_recipient dr
+      WHERE dr.subscription_id = ds.id AND dr.is_active) AS n_extra_recipients,
     {_auth.SEGMENT_CASE_SQL} AS customer_status
 """
 # The customer_profile / current-subscription joins are here only to feed the
@@ -350,24 +386,138 @@ def get_subscription(c, sub_id):
 
 def upsert_subscription(c, *, user_id, search_profile_id, schedule_id=None,
                         is_active=True, send_empty=False, max_results=25,
-                        lang="el", created_by=None):
-    """One subscription per (customer, profile) — a repeat save edits it."""
+                        lang="el", layout="list", include_primary=True,
+                        created_by=None):
+    """One subscription per (customer, profile) — a repeat save edits it.
+
+    The extra recipients are NOT touched here: they are edited one row at a
+    time (add_recipient / delete_recipient), and a save of the subscription's
+    cadence must not silently drop the colleagues someone added."""
     lang = lang if lang in _i18n.SUPPORTED else "el"
+    layout = check_layout(layout)
     c.execute("""INSERT INTO proc.digest_subscription
                    (user_id, search_profile_id, schedule_id, is_active,
-                    send_empty, max_results, lang, created_by)
-                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                    send_empty, max_results, lang, layout, include_primary,
+                    created_by)
+                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                  ON CONFLICT (user_id, search_profile_id) DO UPDATE
-                   SET schedule_id = EXCLUDED.schedule_id,
-                       is_active   = EXCLUDED.is_active,
-                       send_empty  = EXCLUDED.send_empty,
-                       max_results = EXCLUDED.max_results,
-                       lang        = EXCLUDED.lang,
-                       updated_at  = now()
+                   SET schedule_id     = EXCLUDED.schedule_id,
+                       is_active       = EXCLUDED.is_active,
+                       send_empty      = EXCLUDED.send_empty,
+                       max_results     = EXCLUDED.max_results,
+                       lang            = EXCLUDED.lang,
+                       layout          = EXCLUDED.layout,
+                       include_primary = EXCLUDED.include_primary,
+                       updated_at      = now()
                  RETURNING id""",
               (user_id, search_profile_id, schedule_id, bool(is_active),
-               bool(send_empty), int(max_results), lang, created_by))
+               bool(send_empty), int(max_results), lang, layout,
+               bool(include_primary), created_by))
     return c.fetchone()["id"]
+
+
+def check_layout(layout):
+    layout = (layout or "").strip().lower() or "list"
+    if layout not in LAYOUTS:
+        raise ValueError(f"unknown layout: {layout!r}")
+    return layout
+
+
+# --------------------------------------------------------------------------- #
+# Recipients — who one subscription is mailed to
+# --------------------------------------------------------------------------- #
+# The account address is implicit (subscription.include_primary); these rows are
+# the people ADDED to it. They are not app_user rows on purpose: a colleague who
+# should receive the results does not thereby get a login, and giving them one
+# would be a different, chargeable thing.
+def list_recipients(c, subscription_id, *, active_only=False):
+    sql = """SELECT id, subscription_id, email, salutation, first_name,
+                    last_name, ord, is_active, created_at
+             FROM proc.digest_recipient WHERE subscription_id = %s"""
+    if active_only:
+        sql += " AND is_active"
+    sql += " ORDER BY ord, id"
+    c.execute(sql, (subscription_id,))
+    return c.fetchall()
+
+
+def add_recipient(c, subscription_id, *, email, salutation=None, first_name=None,
+                  last_name=None, is_active=True, created_by=None):
+    """Add (or, for an address already on the list, update) one reader.
+
+    The address is validated here rather than at send time: a typo discovered
+    three days later, in a run history nobody is reading, is a digest silently
+    not delivered."""
+    email = (email or "").strip()
+    if not _mailer.valid_address(email):
+        raise ValueError(f"invalid email address: {email!r}")
+    c.execute("""INSERT INTO proc.digest_recipient
+                   (subscription_id, email, salutation, first_name, last_name,
+                    is_active, ord, created_by)
+                 VALUES (%s,%s,%s,%s,%s,%s,
+                         coalesce((SELECT max(ord) + 1 FROM proc.digest_recipient
+                                    WHERE subscription_id = %s), 0),
+                         %s)
+                 ON CONFLICT (subscription_id, lower(btrim(email))) DO UPDATE
+                   SET salutation = EXCLUDED.salutation,
+                       first_name = EXCLUDED.first_name,
+                       last_name  = EXCLUDED.last_name,
+                       is_active  = EXCLUDED.is_active
+                 RETURNING id""",
+              (subscription_id, email, _clean(salutation), _clean(first_name),
+               _clean(last_name), bool(is_active), subscription_id, created_by))
+    return c.fetchone()["id"]
+
+
+def delete_recipient(c, recipient_id, subscription_id=None):
+    """Remove one reader. `subscription_id` scopes the delete to the
+    subscription the request came from, so a guessed id cannot reach another
+    customer's list."""
+    sql = "DELETE FROM proc.digest_recipient WHERE id = %s"
+    args = [recipient_id]
+    if subscription_id is not None:
+        sql += " AND subscription_id = %s"
+        args.append(subscription_id)
+    c.execute(sql, args)
+
+
+def _clean(value):
+    value = (value or "").strip()
+    return value or None
+
+
+def _primary_recipient(customer):
+    """The account holder as a recipient record: the address plus whatever name
+    the CRM profile has, filled in by the merge from the profile itself."""
+    return {"email": _mailer.address_for(customer), "salutation": None,
+            "first_name": None, "last_name": None, "is_primary": True}
+
+
+def recipients_for(c, subscription, customer, *, to=None):
+    """Everyone this send goes to, in order, each with the name to greet.
+
+    `to` is the test-send override: one explicit address, and none of the
+    customer's real readers. Addresses are de-duplicated case-insensitively —
+    the same mailbox listed as both the account address and an extra recipient
+    is one person, and must not receive two copies."""
+    if (to or "").strip():
+        return [{"email": to.strip(), "salutation": None, "first_name": None,
+                 "last_name": None, "is_primary": True}]
+    out, seen = [], set()
+    if subscription.get("include_primary", True):
+        primary = _primary_recipient(customer)
+        if primary["email"]:
+            out.append(primary)
+            seen.add(primary["email"].lower())
+    for row in list_recipients(c, subscription["id"], active_only=True):
+        addr = (row.get("email") or "").strip()
+        if not addr or addr.lower() in seen:
+            continue
+        seen.add(addr.lower())
+        out.append({"email": addr, "salutation": row.get("salutation"),
+                    "first_name": row.get("first_name"),
+                    "last_name": row.get("last_name"), "is_primary": False})
+    return out
 
 
 def delete_subscription(c, sub_id):
@@ -387,8 +537,12 @@ def resolve_schedule(c, subscription):
 
 def active_subscriptions(c):
     """Every candidate for a scheduled run: an active subscription on an active
-    account that is ENTITLED (a live tester or subscriber) and has an address.
-    Whether each is DUE is then decided per schedule.
+    account that is ENTITLED (a live tester or subscriber) and has SOMEONE to
+    mail. Whether each is DUE is then decided per schedule.
+
+    "Someone to mail" is the account address or a named recipient — an agency
+    account with no mailbox of its own but three named readers is a perfectly
+    ordinary arrangement, and used to be filtered out here.
 
     The entitlement test is in the WHERE clause rather than in Python so the
     sweep never even loads a lapsed customer — an ineligible subscription is not
@@ -396,7 +550,10 @@ def active_subscriptions(c):
     c.execute(f"""SELECT * FROM (
                     SELECT {_SUB_COLS} {_SUB_FROM}
                     WHERE ds.is_active AND u.is_active
-                      AND coalesce(u.email, '') <> ''
+                      AND ((ds.include_primary AND coalesce(u.email, '') <> '')
+                           OR EXISTS (SELECT 1 FROM proc.digest_recipient dr
+                                       WHERE dr.subscription_id = ds.id
+                                         AND dr.is_active))
                   ) q
                   WHERE q.user_role = 'admin' OR q.customer_status = ANY(%s)
                   ORDER BY q.id""", (list(ENTITLED_STATUSES),))
@@ -415,13 +572,19 @@ def new_token() -> str:
 
 def record_run(c, *, subscription_id, trigger, status, n_results=0,
                cursor_from=None, cursor_to=None, recipient=None, subject=None,
-               error=None, token=None):
+               error=None, token=None, n_recipients=0):
+    """`recipient` is every address the run reached, joined for display;
+    n_recipients is how many they were. The count is stored rather than derived
+    by splitting the string, which would break on a display name containing a
+    comma."""
     c.execute("""INSERT INTO proc.digest_run
                    (subscription_id, trigger, status, n_results, cursor_from,
-                    cursor_to, recipient, subject, error, token, finished_at)
-                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, now()) RETURNING id""",
+                    cursor_to, recipient, subject, error, token, n_recipients,
+                    finished_at)
+                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, now()) RETURNING id""",
               (subscription_id, trigger, status, n_results, cursor_from,
-               cursor_to, recipient, subject, (error or None), token))
+               cursor_to, recipient, subject, (error or None), token,
+               int(n_recipients or 0)))
     return c.fetchone()["id"]
 
 
@@ -562,6 +725,59 @@ def new_acts(c, params, since, until, limit=25, cap=None):
     return matched[:int(limit)], total, matched
 
 
+def window_stats(c, params, since, until):
+    """The numbers the summary body prints, over the WHOLE ingest window.
+
+    Computed in SQL, not from the rows the run recorded: `matched` stops at
+    ITEM_CAP, and a summary that reports 2000 acts when 5000 matched is worse
+    than no summary at all. Three aggregates over the same window the list
+    digest already counts, on the same index.
+
+    Returns {total, value, authorities, cancelled, open_deadlines,
+             next_deadline, by_type[], top_authorities[]}. by_type is in count
+    order, so the biggest thing that happened is the first line the reader sees.
+    `until` doubles as "now" for the deadline questions — the message is about
+    that instant, and a deadline that passed before it was sent is not open.
+    """
+    where, args = _main().build_where(params or {})
+    window = " AND a.ingested_at > %s AND a.ingested_at <= %s"
+
+    c.execute(f"""SELECT count(*) AS total,
+                         coalesce(sum(a.total_cost_with_vat), 0) AS value,
+                         count(DISTINCT a.authority_id) AS authorities,
+                         count(*) FILTER (WHERE a.cancelled) AS cancelled,
+                         count(*) FILTER (
+                             WHERE a.final_submission_date > %s) AS open_deadlines,
+                         min(a.final_submission_date) FILTER (
+                             WHERE a.final_submission_date > %s) AS next_deadline
+                  FROM proc.procurement_act a
+                  WHERE {where}{window}""",
+              [until, until] + list(args) + [since, until])
+    stats = dict(c.fetchone() or {})
+
+    c.execute(f"""SELECT a.type, count(*) AS n,
+                         coalesce(sum(a.total_cost_with_vat), 0) AS value,
+                         count(*) FILTER (WHERE a.cancelled) AS cancelled
+                  FROM proc.procurement_act a
+                  WHERE {where}{window}
+                  GROUP BY a.type
+                  ORDER BY count(*) DESC, a.type""",
+              list(args) + [since, until])
+    stats["by_type"] = [dict(r) for r in c.fetchall()]
+
+    c.execute(f"""SELECT auth.name AS name, count(*) AS n,
+                         coalesce(sum(a.total_cost_with_vat), 0) AS value
+                  FROM proc.procurement_act a
+                  LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
+                  WHERE {where}{window}
+                  GROUP BY auth.name
+                  ORDER BY count(*) DESC, auth.name
+                  LIMIT %s""",
+              list(args) + [since, until, SUMMARY_TOP_N])
+    stats["top_authorities"] = [dict(r) for r in c.fetchall()]
+    return stats
+
+
 # --------------------------------------------------------------------------- #
 # Rendering
 # --------------------------------------------------------------------------- #
@@ -593,14 +809,14 @@ def _fmt_date(value):
         return str(value)[:10]
 
 
-def intro_html(c, subscription, profile, customer):
-    """Subject + intro fragment from the 'digest' email template, with the
-    [[field]] tokens resolved. Falls back to a built-in line if an admin has
-    deleted the template — a missing row must not stop the send."""
-    lang = subscription.get("lang") or "el"
-    tpl = _auth.get_email_template(c, "digest", lang)
-    # Same [[field]] vocabulary as the CRM builder (crm.merge_values), plus the
-    # one field only a digest has: which saved search this is about.
+def merge_values(c, subscription, profile, customer, recipient=None):
+    """The [[field]] vocabulary one digest resolves against.
+
+    Same fields as the CRM builder (crm.merge_values), plus the two only a
+    digest has: which saved search this is about, and WHO is reading it. An
+    extra recipient is a different person from the account holder, so their name
+    overrides full_name — otherwise a colleague's copy opens by greeting the
+    customer."""
     prof = _auth.get_profile(c, customer["id"]) or {}
     values = {k: (prof.get(k) or "") for k in _auth.PROFILE_FIELDS}
     values.update({"username": customer.get("username") or "",
@@ -608,18 +824,76 @@ def intro_html(c, subscription, profile, customer):
                    "profile_name": profile.get("name") or ""})
     if not values.get("full_name"):
         values["full_name"] = customer.get("username") or ""
+    rcp = recipient or {}
+    first = (rcp.get("first_name") or "").strip()
+    last = (rcp.get("last_name") or "").strip()
+    named = " ".join(part for part in (first, last) if part)
+    values["salutation"] = (rcp.get("salutation") or "").strip()
+    values["first_name"] = first
+    values["last_name"] = last
+    values["recipient_name"] = named or values["full_name"]
+    if rcp.get("email"):
+        values["email"] = rcp["email"]
+    if named:
+        values["full_name"] = named
+    return values
+
+
+def intro_html(c, subscription, profile, customer, recipient=None):
+    """Subject + intro fragment from this layout's email template, with the
+    [[field]] tokens resolved for `recipient`. Falls back to a built-in line if
+    an admin has deleted the template — a missing row must not stop the send."""
+    lang = subscription.get("lang") or "el"
+    slug = LAYOUT_SLUGS.get(subscription.get("layout") or "list", "digest")
+    tpl = _auth.get_email_template(c, slug, lang)
+    values = merge_values(c, subscription, profile, customer, recipient)
     if not tpl:
         fallback = ("<p>Νέα αποτελέσματα για το προφίλ <strong>{p}</strong>.</p>"
                     if lang == "el" else
                     "<p>New results for your saved search <strong>{p}</strong>.</p>")
         return (values["profile_name"], fallback.format(p=values["profile_name"]))
-    # resolve_fields HTML-escapes what it substitutes, which is right for the
+    # _soft_resolve HTML-escapes what it substitutes, which is right for the
     # body but wrong for the subject — that is a plain-text header, so a profile
     # named "Καύσιμα & πετρελαιοειδή" would arrive as "... &amp; ...".
     subject = _html.unescape(
-        _strip_markers(_email.resolve_fields(tpl.get("subject") or "", values)))
-    body = _strip_markers(_email.resolve_fields(tpl.get("body_html") or "", values))
+        _strip_markers(_soft_resolve(tpl.get("subject") or "", values)))
+    body = _strip_markers(_soft_resolve(tpl.get("body_html") or "", values))
     return subject, body
+
+
+# Whitespace left behind by a token that resolved to nothing: a doubled space,
+# a space hard against the tag that opened the line, or one in front of the
+# comma that followed the name.
+_GAP = re.compile(r"[ \t]{2,}")
+_AFTER_TAG = re.compile(r">[ \t]+")
+_BEFORE_PUNCT = re.compile(r"[ \t]+([,.;:!?·])")
+# ... and the comma a vanished name left stranded at the start of its line.
+_ORPHAN_PUNCT = re.compile(r">[ \t]*[,.;:·]+[ \t]*")
+
+
+def _soft_resolve(html, values):
+    """Resolve [[field]] tokens, dropping the ones with no value.
+
+    email_builder.resolve_fields REFUSES to render a body with an empty field,
+    which is right for the CRM builder: a human is about to send that message
+    and must fill the hole. A digest has no human in the loop, and its greeting
+    fields are optional per recipient — a colleague listed with an address and
+    no name is an ordinary row, and it must not stop a scheduled send for
+    everyone else on the list. So an empty token drops out here, and the gap it
+    leaves is closed: "[[salutation]] [[first_name]]," with neither set has to
+    arrive as "," removed, not as "  ,".
+
+    An admin who mistypes a token sees the result in Προεπισκόπηση, which
+    renders exactly what would be sent."""
+    def substitute(match):
+        value = (values or {}).get(match.group(1))
+        if value is None or not str(value).strip():
+            return ""
+        return _html.escape(str(value), quote=True)
+
+    out = _email.FIELD_TOKEN.sub(substitute, html or "")
+    out = _BEFORE_PUNCT.sub(r"\1", _AFTER_TAG.sub(">", _GAP.sub(" ", out)))
+    return _ORPHAN_PUNCT.sub(">", out)
 
 
 # '@@token' plus the whitespace that follows it — removing the token alone
@@ -637,13 +911,19 @@ def _strip_markers(html):
 
 
 def render_digest(*, subscription, profile, params, rows, total, since, until,
-                  intro, subject, token=None):
-    """The email's HTML + plain-text alternative. The text part is derived from
-    the HTML (same source, so the two can never drift)."""
+                  intro, subject, token=None, stats=None):
+    """One recipient's email: HTML plus the plain-text alternative.
+
+    Which body depends on subscription.layout — 'list' prints the acts,
+    'summary' prints the statistics and links out. Both take the same `intro`
+    (already resolved for this reader) and the same "see all results" target, so
+    switching a customer between them changes the shape of the message and
+    nothing else."""
     lang = subscription.get("lang") or "el"
     t = (lambda s: _i18n.translate(s, lang))
     qs = _sp.params_to_qs(params or {})
     type_labels = _main().TYPE_LABELS
+    layout = subscription.get("layout") or "list"
     items = []
     for r in rows:
         items.append({
@@ -664,17 +944,94 @@ def render_digest(*, subscription, profile, params, rows, total, since, until,
     # fallback for a preview, which has no run to point at.
     search_url = f"{base_url()}/?{qs}" if qs else base_url()
     results_url = f"{base_url()}/digests/{token}" if token else search_url
-    html = _env.get_template("email_digest.html").render(
-        t=t, lang=lang, intro=intro, items=items, total=total,
-        shown=len(items), profile_name=profile.get("name") or "",
-        search_url=search_url, results_url=results_url,
-        account_url=f"{base_url()}/account",
-        since=_fmt_date(since), until=_fmt_date(until),
-        base=base_url(), subject=subject)
+    common = dict(t=t, lang=lang, intro=intro, total=total,
+                  profile_name=profile.get("name") or "",
+                  search_url=search_url, results_url=results_url,
+                  account_url=f"{base_url()}/account",
+                  since=_fmt_date(since), until=_fmt_date(until),
+                  base=base_url(), subject=subject)
+
+    if layout == "summary":
+        summary = _summary_view(stats or {}, type_labels, lang, t)
+        html = _env.get_template(LAYOUT_TEMPLATES["summary"]).render(
+            **common, stats=summary)
+        return html, _plain_summary(t=t, intro=intro, stats=summary, total=total,
+                                    since=since, until=until,
+                                    profile_name=profile.get("name") or "",
+                                    results_url=results_url)
+
+    html = _env.get_template(LAYOUT_TEMPLATES["list"]).render(
+        **common, items=items, shown=len(items))
     return html, _plain_digest(t=t, intro=intro, items=items, total=total,
                                since=since, until=until,
                                profile_name=profile.get("name") or "",
                                search_url=results_url)
+
+
+def _summary_view(stats, type_labels, lang, t):
+    """window_stats() turned into display strings.
+
+    Formatting here rather than in the template so the HTML body and the
+    text/plain alternative print the same numbers the same way — the two are
+    rendered separately, and a €-format that lives in only one of them is a bug
+    nobody sees until a customer forwards the plain part."""
+    total = int(stats.get("total") or 0)
+    rows = []
+    for row in stats.get("by_type") or []:
+        n = int(row.get("n") or 0)
+        rows.append({
+            "label": _i18n.enum_label("type", row.get("type"), type_labels, lang),
+            "n": n,
+            "value": _fmt_money(row.get("value"), lang),
+            "cancelled": int(row.get("cancelled") or 0),
+            # Bar width in the HTML body: this type's share of the window,
+            # so the bars read as "what this digest is mostly made of".
+            "share": (round(100.0 * n / total) if total else 0),
+        })
+    top = [{"name": (r.get("name") or "—"), "n": int(r.get("n") or 0),
+            "value": _fmt_money(r.get("value"), lang)}
+           for r in (stats.get("top_authorities") or [])]
+    return {
+        "total": total,
+        "value": _fmt_money(stats.get("value"), lang),
+        "authorities": int(stats.get("authorities") or 0),
+        "cancelled": int(stats.get("cancelled") or 0),
+        "open_deadlines": int(stats.get("open_deadlines") or 0),
+        "next_deadline": _fmt_date(stats.get("next_deadline")),
+        "by_type": rows, "top_authorities": top,
+    }
+
+
+def _plain_summary(*, t, intro, stats, total, since, until, profile_name,
+                   results_url):
+    """The text/plain alternative of the summary body — the same figures, in the
+    same order, without the table."""
+    lines = [_email.to_plain_text(intro)]
+    if total:
+        lines.append(f"{total} {t('νέες πράξεις')} · {_fmt_date(since)} – {_fmt_date(until)}")
+        block = [f"{t('Συνολικός προϋπολογισμός')}: {stats['value']}",
+                 f"{t('Αναθέτουσες αρχές')}: {stats['authorities']}"]
+        if stats["open_deadlines"]:
+            block.append(f"{t('Ανοιχτές προθεσμίες')}: {stats['open_deadlines']} "
+                         f"({t('επόμενη')} {stats['next_deadline']})")
+        if stats["cancelled"]:
+            block.append(f"{t('Ακυρωμένες')}: {stats['cancelled']}")
+        lines.append("\n".join(block))
+        lines.append("\n".join(
+            f"{row['label']}: {row['n']} · {row['value']}"
+            for row in stats["by_type"]))
+        if stats["top_authorities"]:
+            lines.append(f"{t('Κυριότερες αναθέτουσες')}:\n" + "\n".join(
+                f"{a['name']}: {a['n']} · {a['value']}"
+                for a in stats["top_authorities"]))
+        lines.append(f"{t('Δείτε όλα τα αποτελέσματα')}: {results_url}")
+    else:
+        lines.append(f"{t('Καμία νέα πράξη σε αυτό το διάστημα.')} "
+                     f"({_fmt_date(since)} – {_fmt_date(until)})")
+    why = t("Λαμβάνετε αυτό το μήνυμα επειδή έχει οριστεί ειδοποίηση για το "
+            "προφίλ αναζήτησης")
+    lines.append(f"{why} “{profile_name}”.")
+    return "\n\n".join(x for x in lines if x)
 
 
 def _plain_digest(*, t, intro, items, total, since, until, profile_name,
@@ -714,15 +1071,25 @@ def _plain_digest(*, t, intro, items, total, since, until, profile_name,
 # --------------------------------------------------------------------------- #
 # Running one subscription
 # --------------------------------------------------------------------------- #
-def build(c, subscription, *, now=None, since=None, token=None):
+def build(c, subscription, *, now=None, since=None, token=None, to=None):
     """Everything needed to send (or preview) one digest, without sending.
 
-    Returns a dict: subject, html, text, rows, matched, total, since, until,
-    recipient. `rows` is what the email lists; `matched` is the whole window,
-    which the caller records as the run's items.
+    The window is queried ONCE and every recipient's message is rendered from
+    it: the acts, the counts and the "see all results" link are identical for
+    everyone, and only the greeting differs. Returns a dict with
+
+      messages    — one {to, subject, html, text, recipient} per reader, in
+                    send order. Never empty: a subscription with nobody on it
+                    still renders (the preview has to show something), which is
+                    why the caller checks `recipients` and not this.
+      recipients  — who this send is really for. EMPTY means nobody: no account
+                    address and no active extra, which is an error, not a send.
+      rows/matched/total — what the email lists, the whole window (recorded as
+                    the run's items), and the honest count.
 
     `since` overrides the stored cursor — that is how the preview shows a useful
     sample ("last 7 days") for a subscription that has just been created.
+    `to` is the test-send override: one address instead of the real list.
     `token` is the run handle the "see all results" button points at; a preview
     passes none and falls back to a live search link."""
     now = now or dt.datetime.now(dt.timezone.utc)
@@ -740,14 +1107,27 @@ def build(c, subscription, *, now=None, since=None, token=None):
     start = since or window_start(subscription)
     rows, total, matched = new_acts(
         c, params, start, now, limit=subscription.get("max_results") or 25)
-    subject, intro = intro_html(c, subscription, profile, customer)
-    html, text = render_digest(subscription=subscription, profile=profile,
-                               params=params, rows=rows, total=total,
-                               since=start, until=now, intro=intro,
-                               subject=subject, token=token)
-    return {"subject": subject, "html": html, "text": text, "rows": rows,
-            "matched": matched, "total": total, "since": start, "until": now,
-            "recipient": _mailer.address_for(customer),
+    # The summary body needs figures the recorded rows cannot give (they stop at
+    # ITEM_CAP), so it costs three extra aggregates — only when it is the body
+    # actually being sent.
+    stats = (window_stats(c, params, start, now)
+             if (subscription.get("layout") or "list") == "summary" else None)
+
+    people = recipients_for(c, subscription, customer, to=to)
+    messages = []
+    for person in (people or [_primary_recipient(customer)]):
+        subject, intro = intro_html(c, subscription, profile, customer, person)
+        html, text = render_digest(subscription=subscription, profile=profile,
+                                   params=params, rows=rows, total=total,
+                                   since=start, until=now, intro=intro,
+                                   subject=subject, token=token, stats=stats)
+        messages.append({"to": person["email"], "recipient": person,
+                         "subject": subject, "html": html, "text": text})
+    first = messages[0]
+    return {"subject": first["subject"], "html": first["html"],
+            "text": first["text"], "messages": messages, "recipients": people,
+            "rows": rows, "matched": matched, "total": total, "stats": stats,
+            "since": start, "until": now, "recipient": first["to"],
             "profile": profile, "customer": customer, "params": params}
 
 
@@ -764,7 +1144,13 @@ def run_subscription(c, subscription, *, trigger="schedule", now=None,
     A real send to a customer who is no longer entitled is refused here, not
     only in active_subscriptions: the sweep filters them out, but the admin's
     "send now" button reaches this function directly and must not become a way
-    around the gate. A test send is exempt — it goes to the admin."""
+    around the gate. A test send is exempt — it goes to the admin.
+
+    One run is one message PER RECIPIENT. It counts as sent as soon as one of
+    them left: the window has then been mailed, and re-sending it later so a
+    bounced colleague could get it would put the whole set in front of everyone
+    else a second time. The addresses that failed are recorded on the run
+    instead, which is where an admin looks for them."""
     now = now or dt.datetime.now(dt.timezone.utc)
     sub_id = subscription["id"]
 
@@ -785,47 +1171,69 @@ def run_subscription(c, subscription, *, trigger="schedule", now=None,
     # A run that ends up mailing nothing simply never stores it.
     token = new_token()
     try:
-        built = build(c, subscription, now=now, since=since, token=token)
+        built = build(c, subscription, now=now, since=since, token=token, to=to)
     except Exception as exc:             # noqa: BLE001 — recorded, not raised
         record_run(c, subscription_id=sub_id, trigger=trigger, status="error",
                    error=f"{type(exc).__name__}: {exc}")
         _touch(c, sub_id, now, advance=False)
         return {"status": "error", "error": str(exc), "n": 0}
 
-    recipient = (to or built["recipient"] or "").strip()
+    people = built["recipients"]
+    addresses = ", ".join(p["email"] for p in people)
     empty = built["total"] == 0
 
     if empty and not subscription.get("send_empty") and trigger != "test":
         record_run(c, subscription_id=sub_id, trigger=trigger, status="empty",
                    n_results=0, cursor_from=built["since"], cursor_to=now,
-                   recipient=recipient, subject=built["subject"])
+                   recipient=addresses or None, subject=built["subject"])
         # No mail left the building, so the cursor stays put: the window is
         # defined as "since the last email we actually sent you". Re-scanning an
         # empty window costs one indexed count and keeps that promise literal.
         _touch(c, sub_id, now, advance=False, sent=False)
         return {"status": "empty", "n": 0}
 
-    try:
-        sent = _mailer.send(to=recipient, subject=built["subject"],
-                            html=built["html"], text=built["text"],
-                            headers={"X-KHMDHS-Digest": str(sub_id)})
-    except _mailer.MailError as exc:
+    # Nobody to mail. Turning include_primary off and then removing the last
+    # named recipient leaves a subscription that would run for ever, sending to
+    # no one; say so on the run rather than reporting a successful send of
+    # nothing.
+    if not people:
+        error = "no recipient: the account has no address and no reader is listed"
         record_run(c, subscription_id=sub_id, trigger=trigger, status="error",
                    n_results=built["total"], cursor_from=built["since"],
-                   cursor_to=now, recipient=recipient, subject=built["subject"],
-                   error=str(exc))
+                   cursor_to=now, subject=built["subject"], error=error)
+        _touch(c, sub_id, now, advance=False)
+        return {"status": "error", "error": error, "n": built["total"]}
+
+    delivered, failures, last = [], [], None
+    for message in built["messages"]:
+        try:
+            last = _mailer.send(to=message["to"], subject=message["subject"],
+                                html=message["html"], text=message["text"],
+                                headers={"X-KHMDHS-Digest": str(sub_id)})
+            delivered.append(last["to"])
+        except _mailer.MailError as exc:
+            failures.append(f"{message['to']}: {exc}")
+
+    if not delivered:
+        record_run(c, subscription_id=sub_id, trigger=trigger, status="error",
+                   n_results=built["total"], cursor_from=built["since"],
+                   cursor_to=now, recipient=addresses, subject=built["subject"],
+                   error="; ".join(failures))
         # Do NOT advance on a send failure — the next run must retry this window.
         _touch(c, sub_id, now, advance=False)
-        return {"status": "error", "error": str(exc), "n": built["total"]}
+        return {"status": "error", "error": "; ".join(failures),
+                "n": built["total"]}
 
     run_id = record_run(c, subscription_id=sub_id, trigger=trigger, status="sent",
                         n_results=built["total"], cursor_from=built["since"],
-                        cursor_to=now, recipient=sent["to"],
-                        subject=built["subject"], token=token)
+                        cursor_to=now, recipient=", ".join(delivered),
+                        n_recipients=len(delivered), subject=built["subject"],
+                        error=("; ".join(failures) or None), token=token)
     record_run_items(c, run_id, built["matched"], shown=len(built["rows"]))
     _touch(c, sub_id, now, advance=advance, sent=True)
-    return {"status": "sent", "n": built["total"], "to": sent["to"],
-            "backend": sent["backend"], "detail": sent["detail"],
+    return {"status": "sent", "n": built["total"], "to": delivered[0],
+            "recipients": delivered, "failed": failures,
+            "backend": last["backend"], "detail": last["detail"],
             "run_id": run_id, "token": token}
 
 
@@ -975,7 +1383,16 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                                 lang: str = Form("el"),
                                 max_results: str = Form("25"),
                                 send_empty: str = Form(""),
-                                is_active: str = Form("on"),
+                                # Checkbox semantics: an unchecked box posts
+                                # NOTHING, so the default has to be the "off"
+                                # value. With Form("on") here, unticking
+                                # "Ενεργή" on the customer card silently did
+                                # nothing — the endpoint could never be told to
+                                # deactivate a subscription. Every form that
+                                # reaches this endpoint renders all three boxes.
+                                is_active: str = Form(""),
+                                layout: str = Form("list"),
+                                include_primary: str = Form(""),
                                 back: str = Form("")):
         admin = _admin(request)
         with cursor() as c:
@@ -988,12 +1405,51 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             if (profile["scope"] == "customer"
                     and profile["owner_user_id"] != int(user_id)):
                 raise HTTPException(400, "that profile belongs to another customer")
-            upsert_subscription(
-                c, user_id=int(user_id), search_profile_id=int(search_profile_id),
-                schedule_id=int(schedule_id) if (schedule_id or "").strip() else None,
-                is_active=bool(is_active), send_empty=bool(send_empty),
-                max_results=max(1, min(200, int(max_results or 25))),
-                lang=lang, created_by=admin["id"])
+            try:
+                upsert_subscription(
+                    c, user_id=int(user_id),
+                    search_profile_id=int(search_profile_id),
+                    schedule_id=(int(schedule_id)
+                                 if (schedule_id or "").strip() else None),
+                    is_active=bool(is_active), send_empty=bool(send_empty),
+                    max_results=max(1, min(200, int(max_results or 25))),
+                    lang=lang, layout=layout,
+                    include_primary=bool(include_primary),
+                    created_by=admin["id"])
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
+        return _back("subscriptions", back=back)
+
+    # ---- recipients -------------------------------------------------------- #
+    # Edited one row at a time, from the customer card. Separate endpoints (not
+    # a repeated field on the subscription form) so adding a colleague cannot
+    # accidentally rewrite the cadence, and removing one is a single click with
+    # nothing else in flight.
+    @router.post("/subscriptions/{sub_id}/recipients")
+    async def add_sub_recipient(sub_id: int, request: Request,
+                                email: str = Form(...),
+                                salutation: str = Form(""),
+                                first_name: str = Form(""),
+                                last_name: str = Form(""),
+                                back: str = Form("")):
+        admin = _admin(request)
+        with cursor() as c:
+            if not get_subscription(c, sub_id):
+                raise HTTPException(404, "subscription not found")
+            try:
+                add_recipient(c, sub_id, email=email, salutation=salutation,
+                              first_name=first_name, last_name=last_name,
+                              created_by=admin["id"])
+            except ValueError as exc:
+                return _back("subscriptions", flash=str(exc), back=back)
+        return _back("subscriptions", back=back)
+
+    @router.post("/subscriptions/{sub_id}/recipients/{rid}/delete")
+    async def remove_sub_recipient(sub_id: int, rid: int, request: Request,
+                                   back: str = Form("")):
+        _admin(request)
+        with cursor() as c:
+            delete_recipient(c, rid, subscription_id=sub_id)
         return _back("subscriptions", back=back)
 
     @router.post("/subscriptions/{sub_id}/delete")

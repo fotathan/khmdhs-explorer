@@ -330,6 +330,10 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
             sub["inherited"] = sub["schedule_id"] is None
             sub["next_run_at"] = _digests.next_occurrence(sched, now) if sched else None
             sub["runs"] = _digests.list_runs(c, subscription_id=sub["id"], limit=5)
+            # The named readers beyond the account address. Listed even when
+            # inactive: an admin who switched one off has to be able to see it
+            # is there, or they will add the same person again.
+            sub["recipients"] = _digests.list_recipients(c, sub["id"])
 
         # Saved searches: the customer's own, plus any portal profile they are
         # already mailed about. `sub_id` on each row ties the two lists together.
@@ -352,9 +356,10 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 "digest_profile_options": options,
                 "saved_searches": searches,
                 "digest_mail": _mailer.describe(),
+                "digest_layouts": _digests.LAYOUTS,
                 "digest_langs": ("el", "en")}
 
-    def _customer_ctx(request, uid, error=None, ok=None, warn=None):
+    def _customer_ctx(request, uid, error=None, ok=None, warn=None, flash=None):
         lang = _i18n.lang_from_request(request)
         with cursor() as c:
             cust = _auth.get_customer(c, uid)
@@ -397,15 +402,20 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 "summary_configured": _pipeline.feature_configured(),
                 "email_templates": email_templates,
                 "email_langs": _auth.EMAIL_TEMPLATE_LANGS,
-                "error": error, "ok": ok, "warn": warn, "admin_tab": "crm"}
+                "error": error, "ok": ok, "warn": warn, "flash": flash,
+                "admin_tab": "crm"}
 
     @router.get("/{uid}", response_class=HTMLResponse)
-    def crm_customer(uid: int, request: Request, ok: str = None, expired: str = None):
+    def crm_customer(uid: int, request: Request, ok: str = None,
+                     expired: str = None, flash: str = None):
+        """`flash` is what the shared digest endpoints redirect back with (the
+        outcome of a test/real send). `tab` is read by the page's own script and
+        deliberately not a parameter here — the server renders every panel."""
         warn = ("Η προηγούμενη συνδρομή έληξε αυτόματα — μόνο ένα ενεργό προϊόν ανά πελάτη."
                 if expired else None)
         return templates.TemplateResponse(
             request, "admin_crm_customer.html",
-            _customer_ctx(request, uid, ok=ok, warn=warn))
+            _customer_ctx(request, uid, ok=ok, warn=warn, flash=flash))
 
     @router.post("/{uid}/profile")
     async def crm_profile_save(uid: int, request: Request):

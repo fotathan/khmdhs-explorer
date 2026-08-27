@@ -8,6 +8,10 @@
    and a full redirect keeps the page honest about the result. #}
 
 {% block admin_content %}
+{# The two shapes of result email (digests.LAYOUTS); the CRM customer card
+   carries the same dict. #}
+{% set LAYOUT_LABELS = {'list': 'Λίστα αποτελεσμάτων',
+                        'summary': 'Σύνοψη με στατιστικά'} %}
 <style>
   .dg-wrap{max-width:1100px;}
   .dg-head h1{font-size:20px;margin:0 0 4px;}
@@ -37,6 +41,8 @@
   .dg-tag.empty{background:var(--rule);color:var(--ink-3);}
   .dg-tag.error{background:#fdeceb;color:#b3261e;}
   .dg-tag.skipped{background:#fff5e6;color:#9a6a12;}
+  .dg-tag.layout-summary{background:#f3ecfa;color:#5b3a86;}
+  .dg-tag.layout-list{background:#eef2f8;color:#1a4f9c;}
   .dg-hint{color:var(--ink-2);font-size:12.5px;margin:0 0 14px;}
   .dg-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
   .dg-actions form{display:inline;}
@@ -125,8 +131,20 @@
         </td>
         <td>
           {{ s.profile_name }}
+          <div>
+            <span class="dg-tag {{ 'layout-summary' if s.layout == 'summary' else 'layout-list' }}">
+              {{ (LAYOUT_LABELS.get(s.layout, s.layout)) | t }}</span>
+          </div>
           <div class="dg-sub">{{ s.lang | upper }} · {{ t("έως") }} {{ s.max_results }}
             {%- if s.send_empty %} · {{ t("και κενά") }}{% endif %}</div>
+          {# How many mailboxes one send reaches: the account address (unless
+             excluded) plus the named readers. Zero means the alert can never
+             deliver, which is worth seeing from the overview. #}
+          <div class="dg-sub">
+            {% set n_to = (1 if (s.include_primary and s.email) else 0) + (s.n_extra_recipients or 0) %}
+            {{ n_to }} {{ t("παραλήπτης") if n_to == 1 else t("παραλήπτες") }}
+            {%- if not s.include_primary %} · {{ t("όχι στον λογαριασμό") }}{% endif %}
+          </div>
         </td>
         <td>
           {{ s.schedule_label }}
@@ -284,7 +302,12 @@
           {% endif %}
           {% if r.error %}<div class="dg-sub">{{ r.error }}</div>{% endif %}
         </td>
-        <td class="dg-sub">{{ r.recipient or '—' }}</td>
+        <td class="dg-sub">
+          {{ r.recipient or '—' }}
+          {% if (r.n_recipients or 0) > 1 %}
+            <div>{{ r.n_recipients }} {{ t("παραλήπτες") }}</div>
+          {% endif %}
+        </td>
       </tr>
     {% else %}
       <tr><td colspan="6" class="dg-none">{{ t("Καμία εκτέλεση ακόμη.") }}</td></tr>

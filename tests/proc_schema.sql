@@ -1371,6 +1371,51 @@ CREATE TABLE proc.diavgeia_unit (
 
 
 --
+-- Name: digest_recipient; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.digest_recipient (
+    id bigint NOT NULL,
+    subscription_id bigint NOT NULL,
+    email text NOT NULL,
+    salutation text,
+    first_name text,
+    last_name text,
+    ord smallint DEFAULT 0 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by bigint,
+    CONSTRAINT digest_recipient_email_ck CHECK ((btrim(email) <> ''::text))
+);
+
+
+--
+-- Name: TABLE digest_recipient; Type: COMMENT; Schema: proc; Owner: -
+--
+
+COMMENT ON TABLE proc.digest_recipient IS 'Additional addresses one digest subscription is mailed to, beyond the account''s own (which is included unless digest_subscription.include_primary is false). Each row carries its own salutation/name so the intro greets the reader, not the account holder.';
+
+
+--
+-- Name: digest_recipient_id_seq; Type: SEQUENCE; Schema: proc; Owner: -
+--
+
+CREATE SEQUENCE proc.digest_recipient_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: digest_recipient_id_seq; Type: SEQUENCE OWNED BY; Schema: proc; Owner: -
+--
+
+ALTER SEQUENCE proc.digest_recipient_id_seq OWNED BY proc.digest_recipient.id;
+
+
+--
 -- Name: digest_run; Type: TABLE; Schema: proc; Owner: -
 --
 
@@ -1388,6 +1433,7 @@ CREATE TABLE proc.digest_run (
     started_at timestamp with time zone DEFAULT now() NOT NULL,
     finished_at timestamp with time zone,
     token text,
+    n_recipients integer DEFAULT 0 NOT NULL,
     CONSTRAINT digest_run_status_ck CHECK ((status = ANY (ARRAY['sent'::text, 'empty'::text, 'error'::text, 'skipped'::text]))),
     CONSTRAINT digest_run_trigger_ck CHECK ((trigger = ANY (ARRAY['schedule'::text, 'manual'::text, 'test'::text])))
 );
@@ -1516,7 +1562,10 @@ CREATE TABLE proc.digest_subscription (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by bigint,
+    layout text DEFAULT 'list'::text NOT NULL,
+    include_primary boolean DEFAULT true NOT NULL,
     CONSTRAINT digest_subscription_lang_ck CHECK ((lang = ANY (ARRAY['el'::text, 'en'::text]))),
+    CONSTRAINT digest_subscription_layout_ck CHECK ((layout = ANY (ARRAY['list'::text, 'summary'::text]))),
     CONSTRAINT digest_subscription_max_ck CHECK (((max_results >= 1) AND (max_results <= 200)))
 );
 
@@ -3064,6 +3113,13 @@ ALTER TABLE ONLY proc.diavgeia_ingest_window ALTER COLUMN id SET DEFAULT nextval
 
 
 --
+-- Name: digest_recipient id; Type: DEFAULT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_recipient ALTER COLUMN id SET DEFAULT nextval('proc.digest_recipient_id_seq'::regclass);
+
+
+--
 -- Name: digest_run id; Type: DEFAULT; Schema: proc; Owner: -
 --
 
@@ -3539,6 +3595,14 @@ ALTER TABLE ONLY proc.diavgeia_signer
 
 ALTER TABLE ONLY proc.diavgeia_unit
     ADD CONSTRAINT diavgeia_unit_pkey PRIMARY KEY (uid);
+
+
+--
+-- Name: digest_recipient digest_recipient_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_recipient
+    ADD CONSTRAINT digest_recipient_pkey PRIMARY KEY (id);
 
 
 --
@@ -4441,6 +4505,20 @@ CREATE INDEX ix_diavgeia_type ON proc.diavgeia_decision USING btree (decision_ty
 
 
 --
+-- Name: ix_digest_recipient_sub; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_digest_recipient_sub ON proc.digest_recipient USING btree (subscription_id, ord, id);
+
+
+--
+-- Name: ux_digest_recipient_sub_email; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_digest_recipient_sub_email ON proc.digest_recipient USING btree (subscription_id, lower(btrim(email)));
+
+
+--
 -- Name: ix_digest_run_started; Type: INDEX; Schema: proc; Owner: -
 --
 
@@ -4809,6 +4887,22 @@ CREATE UNIQUE INDEX ux_digest_run_item_run_adam ON proc.digest_run_item USING bt
 --
 
 CREATE UNIQUE INDEX ux_digest_run_token ON proc.digest_run USING btree (token) WHERE (token IS NOT NULL);
+
+
+--
+-- Name: digest_recipient digest_recipient_created_by_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_recipient
+    ADD CONSTRAINT digest_recipient_created_by_fkey FOREIGN KEY (created_by) REFERENCES proc.app_user(id) ON DELETE SET NULL;
+
+
+--
+-- Name: digest_recipient digest_recipient_subscription_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_recipient
+    ADD CONSTRAINT digest_recipient_subscription_id_fkey FOREIGN KEY (subscription_id) REFERENCES proc.digest_subscription(id) ON DELETE CASCADE;
 
 
 --

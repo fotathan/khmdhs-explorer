@@ -10,6 +10,73 @@ truth; this is a curated digest.
 
 ## 2026-08-27
 
+### Added — result emails to more than one reader
+- A digest used to reach exactly one address, the account's own, because a
+  subscription is (customer × search profile) and a customer row has one email.
+  In practice the person who signed up is rarely the only one who wants the
+  results. The new `proc.digest_recipient` is that list: **an alert now mails
+  the account address plus every named reader**, and each row carries its own
+  salutation, first name and surname.
+- **Every recipient gets their own copy.** The intro is re-resolved per person,
+  so `[[salutation]]`, `[[first_name]]` and `[[full_name]]` greet whoever is
+  reading — a colleague's copy no longer opens with the customer's name.
+- The account address can be **left out** (`include_primary`), for the agency
+  account whose staff read the results rather than the account holder. Such a
+  subscription is now a valid candidate for the sweep even with no address on
+  the account itself, which the old "has an email" test wrongly excluded.
+- A send counts as sent as soon as **one** message left: the window has then
+  been mailed, and re-sending it so a bounced colleague could get it would put
+  the whole set in front of everyone else a second time. Addresses that failed
+  are recorded on the run (`digest_run.error`), with the reached count in the
+  new `n_recipients`. A subscription with nobody on it records an error rather
+  than reporting a successful send of nothing.
+- Addresses are de-duplicated case-insensitively, so the same mailbox listed as
+  both the account address and a named reader receives one copy, not two. A
+  typo is refused when it is typed in, not three days later in a run history.
+
+### Added — a summary result email
+- `digest_subscription.layout` picks the shape of the body. The existing one
+  (`list`) prints the new acts; the new **`summary`** prints how many acts of
+  each type, what they are worth, how many contracting authorities, the open
+  deadlines and the next one, the cancellations and the top five authorities —
+  then a button through to the full list in the app. For a profile that matches
+  a hundred acts a day, a list nobody scrolls is a worse message than four
+  numbers and a link.
+- The figures are computed in SQL over the **whole** ingest window, not from the
+  rows the run recorded: those stop at `DIGEST_ITEM_CAP`, and a summary
+  reporting 2000 acts when 5000 matched would be worse than no summary.
+  `max_results` therefore applies to the list format only.
+- Wording lives in its own template slug, `digest_summary` (alongside `digest`)
+  at `/admin/email-templates`, so rewording one cannot change the other.
+- Digest bodies now resolve their `[[fields]]` leniently: an optional token with
+  no value (a reader listed with an address and no name) drops out and the gap
+  is closed, instead of failing the scheduled send for everyone else on the
+  list. The CRM email builder keeps its strict behaviour — there a human is
+  about to send the message and must fill the hole.
+
+### Changed — the CRM customer card is tabbed
+- The card had grown to four unrelated jobs stacked down one page: the record
+  itself, the alerts, the activity log and the email composer. It is now
+  **Details / Alerts / Activity / Compose email**, with an always-visible "at a
+  glance" strip above (company, tax id, phone, current product, active alerts,
+  activity counts) so "who is this and are they paying" stays on screen
+  whichever tab is open.
+- The tabs are progressive enhancement: the panels are hidden by CSS only once
+  the script has marked the page, so with JavaScript off the card renders
+  stacked exactly as it did before. The open tab survives the redirect every
+  form on the card performs (`?tab=`, then `#hash`, then `sessionStorage`), and
+  arrow keys move between tabs.
+- **One alert is now one card** rather than one table row, carrying its own
+  recipient list, its own settings (folded away until needed) and its send
+  history. Editing an alert used to mean retyping it into a shared form at the
+  bottom of the page.
+- Feedback from the send buttons is finally shown: those endpoints redirect back
+  to the card with `?flash=`, which the page had been ignoring — a test send
+  looked like it did nothing.
+- Fixed: unticking **Ενεργή** on a subscription could never deactivate it. An
+  unchecked checkbox posts nothing, and the endpoint's default for the field was
+  `"on"`, so the absence read as "checked".
+
 ### Changed — result emails: who gets them, what is in them, and where they are configured
 - **Only active testers and subscribers are mailed.** A subscription is no longer
   permission by itself: an expired tester, a lapsed subscriber and a prospective
