@@ -1,0 +1,102 @@
+{# email_digest.html — the body of a scheduled results digest.
+
+   NOT a page: it is rendered by app/digests.py through its own Jinja
+   environment (no request, no base template, no context processor), because
+   the same render has to work from cron where there is no FastAPI at all. The
+   only context it gets is what render_digest passes in, `t` included.
+
+   Mail-client rules, not browser rules: tables for layout, inline styles only
+   (Gmail strips <style>), no external assets, fixed light colours (an email
+   has no theme to follow). app/email_builder.to_plain_text derives the
+   text/plain alternative from this same HTML, so the two never drift.
+
+   `intro` is the admin-authored fragment from proc.email_template slug
+   'digest' with its [[field]] tokens already resolved — rendered |safe on
+   purpose, exactly like the CRM builder's merged body. #}
+{%- set ink = "#1a1a1a" -%}
+{%- set muted = "#6b6b6b" -%}
+{%- set rule = "#e3e3e0" -%}
+{%- set accent = "#1c4b82" -%}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="background:#f5f4f1;margin:0;padding:24px 0;">
+  <tr><td align="center">
+    <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0"
+           style="width:640px;max-width:100%;background:#ffffff;border:1px solid {{ rule }};">
+
+      <!-- masthead -->
+      <tr><td style="padding:20px 28px;border-bottom:2px solid {{ ink }};">
+        <div style="font:600 15px/1.2 Helvetica,Arial,sans-serif;color:{{ ink }};letter-spacing:.02em;">
+          {{ t("Ελληνικές Δημόσιες Συμβάσεις") }}
+        </div>
+        <div style="font:400 12px/1.4 Helvetica,Arial,sans-serif;color:{{ muted }};padding-top:2px;">
+          {{ t("Ειδοποίηση αποτελεσμάτων") }} · {{ profile_name }}
+        </div>
+      </td></tr>
+
+      <!-- intro (admin-authored wording) -->
+      <tr><td style="padding:24px 28px 8px;font:400 14px/1.6 Helvetica,Arial,sans-serif;color:{{ ink }};">
+        {{ intro|safe }}
+      </td></tr>
+
+      <!-- count line -->
+      <tr><td style="padding:4px 28px 16px;font:400 13px/1.5 Helvetica,Arial,sans-serif;color:{{ muted }};">
+        {% if total %}
+          <strong style="color:{{ ink }};">{{ total }}</strong>
+          {{ t("νέες πράξεις") }} · {{ since }} – {{ until }}
+          {% if shown < total %}
+            <br>{{ t("Εμφανίζονται οι πρώτες") }} {{ shown }}.
+          {% endif %}
+        {% else %}
+          {{ t("Καμία νέα πράξη σε αυτό το διάστημα.") }} ({{ since }} – {{ until }})
+        {% endif %}
+      </td></tr>
+
+      <!-- results -->
+      {% if items %}
+      <tr><td style="padding:0 28px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          {% for it in items %}
+          <tr><td style="padding:14px 0;border-top:1px solid {{ rule }};">
+            <div style="font:400 11px/1.3 Helvetica,Arial,sans-serif;color:{{ muted }};
+                        text-transform:uppercase;letter-spacing:.06em;padding-bottom:4px;">
+              {{ it.type_label }}
+              {%- if it.cancelled %} · <span style="color:#a33;">{{ t("Ακυρωμένη") }}</span>{% endif %}
+            </div>
+            <a href="{{ it.url }}"
+               style="font:600 14px/1.4 Helvetica,Arial,sans-serif;color:{{ accent }};text-decoration:none;">
+              {{ it.title }}
+            </a>
+            <div style="font:400 12px/1.6 Helvetica,Arial,sans-serif;color:{{ muted }};padding-top:5px;">
+              {{ it.authority }}<br>
+              {{ t("Προϋπολογισμός") }}: {{ it.value }} ·
+              {{ t("Δημοσίευση") }}: {{ it.published }}
+              {%- if it.deadline and it.deadline != "—" %} ·
+              {{ t("Προθεσμία") }}: {{ it.deadline }}{% endif %}<br>
+              <span style="color:#9a9a9a;">{{ it.adam }}</span>
+            </div>
+          </td></tr>
+          {% endfor %}
+        </table>
+      </td></tr>
+
+      <tr><td style="padding:22px 28px 4px;">
+        <a href="{{ search_url }}"
+           style="display:inline-block;background:{{ ink }};color:#ffffff;text-decoration:none;
+                  font:600 13px/1 Helvetica,Arial,sans-serif;padding:12px 20px;">
+          {{ t("Δείτε όλα τα αποτελέσματα") }}
+        </a>
+      </td></tr>
+      {% endif %}
+
+      <!-- footer -->
+      <tr><td style="padding:24px 28px;border-top:1px solid {{ rule }};
+                     font:400 11px/1.6 Helvetica,Arial,sans-serif;color:{{ muted }};">
+        {{ t("Λαμβάνετε αυτό το μήνυμα επειδή έχει οριστεί ειδοποίηση για το προφίλ αναζήτησης") }}
+        “{{ profile_name }}”.
+        <br>
+        <a href="{{ account_url }}" style="color:{{ muted }};">{{ t("Ρυθμίσεις λογαριασμού") }}</a>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>

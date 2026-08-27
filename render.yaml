@@ -48,6 +48,34 @@ services:
   #                              CRON_REFRESH_ANALYTICS=1, which REFRESHes matviews).
   #   CRON_REFRESH_ANALYTICS   — optional "1" to refresh /analytics after catchup.
   #   CRON_DISABLE / CRON_STEPS — optional, to skip or customise sources.
+  # Scheduled result emails — a Cron Job that runs cron_digests.py (the same
+  # sweep the admin's "run what is due" button performs) and exits. It only
+  # sends what its schedule says is due, so running it every 15 minutes is
+  # safe and a missed run is absorbed by the next one. INERT until you apply
+  # the Blueprint + set its env.
+  #   DATABASE_URL   — the app_runtime url is fine (DML only).
+  #   EMAIL_BACKEND  — console (logs only, the safe default) | file | smtp.
+  #   SMTP_*         — host/port/user/password when EMAIL_BACKEND=smtp.
+  #   EMAIL_FROM     — the From address.
+  #   APP_BASE_URL   — https://<your-app> so the links in the email resolve.
+  #   EMAIL_REDIRECT_TO — set while testing: every message goes here instead
+  #                       of to the customer.
+  # NOTE: do NOT also set DIGEST_SCHEDULER=1 on the web service — two runners
+  # would race for the same subscriptions.
+  - type: cron
+    name: khmdhs-digests
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    schedule: "*/15 * * * *"   # every 15 minutes; the schedules decide what actually sends
+    dockerCommand: python cron_digests.py
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: EMAIL_BACKEND
+        value: console         # change to smtp once a mail server is configured
+      - key: APP_BASE_URL
+        sync: false
+
   - type: cron
     name: khmdhs-catchup
     runtime: docker
@@ -66,6 +94,17 @@ services:
 #   NOTE: until this worker runs, admin-launched jobs sit in 'queued' (the web
 #   process no longer runs them itself). Locally, the web app runs an inline
 #   worker thread, so no separate process is needed in dev.
+#
+# Enabling the digest emails:
+#   1. Apply the Blueprint → it creates "khmdhs-digests" (Cron Jobs need a paid
+#      plan). Locally you need none of this: run `python cron_digests.py` by
+#      hand, or set DIGEST_SCHEDULER=1 on the web process and it sweeps in a
+#      background thread.
+#   2. Set DATABASE_URL + APP_BASE_URL, leave EMAIL_BACKEND=console for a first
+#      run, and read the logs to see the messages that would have gone out.
+#   3. Configure SMTP_* + EMAIL_FROM and flip EMAIL_BACKEND=smtp when you are
+#      ready to send for real. Deliverability (SPF/DKIM/DMARC, unsubscribe) is
+#      NOT handled by this app — do that before mailing real customers.
 #
 # Enabling the catchup cron:
 #   1. Apply the Blueprint → it creates "khmdhs-catchup" (Cron Jobs need a paid plan).

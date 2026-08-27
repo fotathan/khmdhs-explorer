@@ -2017,6 +2017,112 @@ _TELEPHONY = {
         "Telephony is enabled by configuration and needs a per-user extension assigned. Where it is off, the softphone simply doesn't appear.",
 }
 
+# Scheduled result emails (admin_digests.html, email_digest.html, app/digests.py)
+_DIGESTS = {
+    "Ειδοποιήσεις email": "Email alerts",
+    "Προγραμματισμένα email με νέα αποτελέσματα ανά προφίλ αναζήτησης. Κάθε εγγραφή στέλνει ό,τι μπήκε στη βάση από την προηγούμενη αποστολή και μετά.":
+        "Scheduled emails with new results per search profile. Each subscription sends whatever entered the database since its previous send.",
+    "Αποστολή μέσω": "Sending via",
+    "Αποστολέας": "Sender",
+    "Ανακατεύθυνση όλων σε": "All mail redirected to",
+    "Το SMTP_HOST δεν έχει οριστεί — οι αποστολές θα αποτύχουν.":
+        "SMTP_HOST is not set — sends will fail.",
+    "Σύνδεσμοι προς": "Links point to",
+    # tabs
+    "Εγγραφές": "Subscriptions",
+    "Προγράμματα": "Schedules",
+    "Ιστορικό": "History",
+    # subscriptions table
+    "Πρόγραμμα": "Schedule",
+    "Επόμενη": "Next",
+    "Τελευταία αποστολή": "Last sent",
+    "χωρίς email": "no email address",
+    "και κενά": "empty ones too",
+    "προεπιλογή πύλης": "portal default",
+    "ειδική ρύθμιση": "override",
+    "ανενεργό": "inactive",
+    "εκκρεμεί": "due",
+    "Προεπισκόπηση": "Preview",
+    "Δοκιμαστική αποστολή": "Test send",
+    "Αποστολή τώρα": "Send now",
+    "Αποστολή τώρα στον πελάτη;": "Send to the customer now?",
+    "Διαγραφή αυτής της εγγραφής;": "Delete this subscription?",
+    "Καμία εγγραφή ακόμη.": "No subscriptions yet.",
+    # subscription form
+    "Νέα ή ενημέρωση εγγραφής": "New or updated subscription",
+    "Μία εγγραφή ανά πελάτη και προφίλ — η επαναποθήκευση ενημερώνει την υπάρχουσα. Αφήστε το πρόγραμμα κενό για την προεπιλογή της πύλης.":
+        "One subscription per customer and profile — saving again updates the existing one. Leave the schedule empty to inherit the portal default.",
+    "Προφίλ αναζήτησης": "Search profile",
+    "Προεπιλογή πύλης": "Portal default",
+    "Μέγιστα αποτελέσματα": "Maximum results",
+    "Αποστολή και χωρίς νέα": "Send even with nothing new",
+    "Ενεργή": "Active",
+    # schedules
+    "Συχνότητα": "Frequency",
+    "Επόμενη εκτέλεση": "Next run",
+    "Κανένα πρόγραμμα ακόμη.": "No schedules yet.",
+    "Νέο πρόγραμμα": "New schedule",
+    "Η ώρα είναι τοπική ως προς τη ζώνη ώρας. Η εβδομαδιαία χρειάζεται ημέρα εβδομάδας, η μηνιαία ημέρα μήνα (1–28).":
+        "The time is local to the timezone. Weekly needs a weekday, monthly a day of month (1–28).",
+    "π.χ. Εβδομαδιαία Δευτέρα": "e.g. Weekly Monday",
+    "Καθημερινά": "Daily",
+    "Εργάσιμες": "Weekdays",
+    "Εβδομαδιαία": "Weekly",
+    "Μηνιαία": "Monthly",
+    "Λεπτό": "Minute",
+    "Ημέρα εβδομάδας": "Day of week",
+    "Ημέρα μήνα": "Day of month",
+    "Ζώνη ώρας": "Timezone",
+    "ημέρα": "day",
+    "προεπιλογή": "default",
+    "Διαγραφή; Οι εγγραφές που το χρησιμοποιούν επιστρέφουν στην προεπιλογή.":
+        "Delete? Subscriptions using it fall back to the default.",
+    "Δευτέρα": "Monday",
+    "Τρίτη": "Tuesday",
+    "Τετάρτη": "Wednesday",
+    "Πέμπτη": "Thursday",
+    "Παρασκευή": "Friday",
+    "Σάββατο": "Saturday",
+    "Κυριακή": "Sunday",
+    # run history
+    "Εκτέλεση όσων εκκρεμούν": "Run what is due",
+    "Εξαναγκασμός όλων": "Force all",
+    "Αποστολή σε ΟΛΕΣ τις ενεργές εγγραφές τώρα, αγνοώντας το πρόγραμμα;":
+        "Send to ALL active subscriptions now, ignoring their schedules?",
+    "Πότε": "When",
+    "Αφορμή": "Trigger",
+    "Παραλήπτης": "Recipient",
+    "Καμία εκτέλεση ακόμη.": "No runs yet.",
+    # the email itself
+    "Ελληνικές Δημόσιες Συμβάσεις": "Greek Public Contracts",
+    "Ειδοποίηση αποτελεσμάτων": "Results alert",
+    "νέες πράξεις": "new acts",
+    "Εμφανίζονται οι πρώτες": "Showing the first",
+    "Καμία νέα πράξη σε αυτό το διάστημα.": "No new acts in this period.",
+    "Δείτε όλα τα αποτελέσματα": "See all results",
+    "Λαμβάνετε αυτό το μήνυμα επειδή έχει οριστεί ειδοποίηση για το προφίλ αναζήτησης":
+        "You are receiving this because an alert is set for the search profile",
+    "Ρυθμίσεις λογαριασμού": "Account settings",
+    # help page section
+    "Ειδοποιήσεις email με νέα αποτελέσματα": "Email alerts for new results",
+    "ορίζετε ποιος πελάτης λαμβάνει email για ποιο προφίλ αναζήτησης και κάθε πότε. Κάθε αποστολή περιέχει μόνο τις πράξεις που μπήκαν στη βάση μετά την προηγούμενη — τίποτα δεν στέλνεται δύο φορές.":
+        "you set which customer receives email for which search profile, and how often. Each send contains only the acts that entered the database after the previous one — nothing goes out twice.",
+    "Τα «Προγράμματα» είναι οι συχνότητες (καθημερινά, εργάσιμες, εβδομαδιαία, μηνιαία) με ώρα και ζώνη ώρας. Ένα από αυτά είναι η προεπιλογή της πύλης.":
+        "\u201cSchedules\u201d are the cadences (daily, weekdays, weekly, monthly) with a time and timezone. One of them is the portal default.",
+    "Κάθε εγγραφή (πελάτης × προφίλ) ακολουθεί την προεπιλογή, εκτός αν της ορίσετε δικό της πρόγραμμα — έτσι αλλάζετε τη συχνότητα μόνο για όποιον το ζητά.":
+        "Every subscription (customer × profile) follows that default unless you give it its own schedule — so you change the cadence only for whoever asks.",
+    "«Προεπισκόπηση» δείχνει το ακριβές email χωρίς να στείλει τίποτα· «Δοκιμαστική αποστολή» το στέλνει σε εσάς χωρίς να μετακινήσει το σημείο αναφοράς του πελάτη.":
+        "\u201cPreview\u201d shows the exact email without sending anything; \u201cTest send\u201d mails it to you without moving the customer's high-water mark.",
+    "Το κείμενο του email (θέμα και εισαγωγή) είναι το πρότυπο «digest» στα":
+        "The email wording (subject and intro) is the \u201cdigest\u201d template under",
+    "η αλλαγή μιας διατύπωσης δεν χρειάζεται νέα έκδοση.":
+        "changing a sentence needs no new release.",
+    "Το «Ιστορικό» καταγράφει κάθε προσπάθεια: πόσα αποτελέσματα, σε ποιον, και τι πήγε στραβά.":
+        "\u201cHistory\u201d records every attempt: how many results, to whom, and what went wrong.",
+    "Η αποστολή εξαρτάται από τη διαμόρφωση: χωρίς ρυθμισμένο διακομιστή email τα μηνύματα καταγράφονται τοπικά αντί να σταλούν. Η γραμμή στην κορυφή της σελίδας δείχνει πάντα πού καταλήγουν.":
+        "Sending depends on configuration: with no mail server configured, messages are logged locally instead of sent. The bar at the top of the page always shows where they end up.",
+}
+
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
@@ -2024,5 +2130,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
              _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
              _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
-             _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY):
+             _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY, _DIGESTS):
     UI_EN.update(_grp)
