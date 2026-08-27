@@ -1387,7 +1387,8 @@ CREATE TABLE proc.digest_run (
     error text,
     started_at timestamp with time zone DEFAULT now() NOT NULL,
     finished_at timestamp with time zone,
-    CONSTRAINT digest_run_status_ck CHECK ((status = ANY (ARRAY['sent'::text, 'empty'::text, 'error'::text]))),
+    token text,
+    CONSTRAINT digest_run_status_ck CHECK ((status = ANY (ARRAY['sent'::text, 'empty'::text, 'error'::text, 'skipped'::text]))),
     CONSTRAINT digest_run_trigger_ck CHECK ((trigger = ANY (ARRAY['schedule'::text, 'manual'::text, 'test'::text])))
 );
 
@@ -1409,6 +1410,46 @@ CREATE SEQUENCE proc.digest_run_id_seq
 --
 
 ALTER SEQUENCE proc.digest_run_id_seq OWNED BY proc.digest_run.id;
+
+
+--
+-- Name: digest_run_item; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.digest_run_item (
+    id bigint NOT NULL,
+    run_id bigint NOT NULL,
+    adam text NOT NULL,
+    ord integer DEFAULT 0 NOT NULL,
+    in_email boolean DEFAULT false NOT NULL,
+    ingested_at timestamp with time zone
+);
+
+
+--
+-- Name: TABLE digest_run_item; Type: COMMENT; Schema: proc; Owner: -
+--
+
+COMMENT ON TABLE proc.digest_run_item IS 'The acts one digest run matched: every act in its ingest window, not only the ones the email listed (in_email marks those). Read back by /digests/<token>.';
+
+
+--
+-- Name: digest_run_item_id_seq; Type: SEQUENCE; Schema: proc; Owner: -
+--
+
+CREATE SEQUENCE proc.digest_run_item_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: digest_run_item_id_seq; Type: SEQUENCE OWNED BY; Schema: proc; Owner: -
+--
+
+ALTER SEQUENCE proc.digest_run_item_id_seq OWNED BY proc.digest_run_item.id;
 
 
 --
@@ -3030,6 +3071,13 @@ ALTER TABLE ONLY proc.digest_run ALTER COLUMN id SET DEFAULT nextval('proc.diges
 
 
 --
+-- Name: digest_run_item id; Type: DEFAULT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_run_item ALTER COLUMN id SET DEFAULT nextval('proc.digest_run_item_id_seq'::regclass);
+
+
+--
 -- Name: digest_schedule id; Type: DEFAULT; Schema: proc; Owner: -
 --
 
@@ -3499,6 +3547,14 @@ ALTER TABLE ONLY proc.diavgeia_unit
 
 ALTER TABLE ONLY proc.digest_run
     ADD CONSTRAINT digest_run_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: digest_run_item digest_run_item_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_run_item
+    ADD CONSTRAINT digest_run_item_pkey PRIMARY KEY (id);
 
 
 --
@@ -4399,6 +4455,13 @@ CREATE INDEX ix_digest_run_subscription ON proc.digest_run USING btree (subscrip
 
 
 --
+-- Name: ix_digest_run_item_run_ord; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_digest_run_item_run_ord ON proc.digest_run_item USING btree (run_id, ord);
+
+
+--
 -- Name: ix_digest_subscription_due; Type: INDEX; Schema: proc; Owner: -
 --
 
@@ -4732,6 +4795,36 @@ CREATE UNIQUE INDEX ux_app_user_username ON proc.app_user USING btree (lower(use
 --
 
 CREATE UNIQUE INDEX ux_digest_schedule_default ON proc.digest_schedule USING btree ((true)) WHERE is_default;
+
+
+--
+-- Name: ux_digest_run_item_run_adam; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_digest_run_item_run_adam ON proc.digest_run_item USING btree (run_id, adam);
+
+
+--
+-- Name: ux_digest_run_token; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_digest_run_token ON proc.digest_run USING btree (token) WHERE (token IS NOT NULL);
+
+
+--
+-- Name: digest_run_item digest_run_item_adam_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_run_item
+    ADD CONSTRAINT digest_run_item_adam_fkey FOREIGN KEY (adam) REFERENCES proc.procurement_act(adam) ON DELETE CASCADE;
+
+
+--
+-- Name: digest_run_item digest_run_item_run_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_run_item
+    ADD CONSTRAINT digest_run_item_run_id_fkey FOREIGN KEY (run_id) REFERENCES proc.digest_run(id) ON DELETE CASCADE;
 
 
 --

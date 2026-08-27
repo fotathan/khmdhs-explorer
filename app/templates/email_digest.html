@@ -79,8 +79,12 @@
         </table>
       </td></tr>
 
+      {# The button opens THIS message's own result set (/digests/<token>), not
+         a fresh run of the saved search: re-running the filters days later
+         would show a different set. render_digest falls back to the live search
+         URL only for an admin preview, which has no run to point at. #}
       <tr><td style="padding:22px 28px 4px;">
-        <a href="{{ search_url }}"
+        <a href="{{ results_url }}"
            style="display:inline-block;background:{{ ink }};color:#ffffff;text-decoration:none;
                   font:600 13px/1 Helvetica,Arial,sans-serif;padding:12px 20px;">
           {{ t("Δείτε όλα τα αποτελέσματα") }}

@@ -8,6 +8,44 @@ Dates are the day the change landed on `main` (which auto-deploys to prod on
 Render). This project has no version tags — the git history is the source of
 truth; this is a curated digest.
 
+## 2026-08-27
+
+### Changed — result emails: who gets them, what is in them, and where they are configured
+- **Only active testers and subscribers are mailed.** A subscription is no longer
+  permission by itself: an expired tester, a lapsed subscriber and a prospective
+  lead (a CRM record with no grant) are excluded, and stop being mailed the day
+  their grant lapses with no admin action. The gate uses the same status
+  expression the CRM segments by (`auth.ENTITLED_STATUSES`), and is applied both
+  when the sweep picks candidates and inside `run_subscription`, so the admin's
+  "send now" button is not a way around it — a refused send records a run with
+  the new `status='skipped'` and the reason.
+- **Per-customer settings moved to the CRM customer card** (`/admin/crm/<uid>`),
+  which now also lists that customer's **saved searches** (their own, plus any
+  portal profile they are mailed about) with a summary of each one's filters.
+  A single portal-wide list stopped being the right place to answer "who gets
+  what" as soon as there was more than a handful of customers. `/admin/digests`
+  keeps what IS portal-wide: the cadences, a read-only overview flagging
+  customers who will not be mailed, and the run history.
+- **The window is now literally "since your last email".** `last_cursor` moves
+  only when a message actually left; an empty run, a failed send or a refused
+  one leaves the window intact for the next email instead of consuming it.
+
+### Added — every email's own results page
+- Each send records its matched acts in the new `proc.digest_run_item` — the
+  **whole** ingest window, not only the `max_results` the message listed — plus
+  an unguessable `digest_run.token`.
+- The email's **See all results** button now opens `/digests/<token>`: exactly
+  the acts that email covered, in the same order, paged 25 at a time. It no
+  longer replays the saved search, which drifts — clicked two days later the
+  same query returns a different set. If the email showed the first 25 of 80,
+  the page shows all 80.
+- The link identifies the run, it does not authorise anyone: the route requires
+  a signed-in viewer who owns the run (admins may also read it, and the page
+  says so). A forwarded link shows a stranger a login page, then a 403.
+- The admin run history and the customer card link to the same page
+  ("what was sent"), so support can see precisely what a customer received.
+- Migration: `20260827073719_digest_recipient_gating_run_items_and_result_links.sql`.
+
 ## 2026-08-17
 
 ### Added — CTI telephony: in-browser softphone, click-to-call, caller-ID screen-pop

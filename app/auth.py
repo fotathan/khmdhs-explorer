@@ -368,6 +368,17 @@ _CUR_SUB_JOIN = """
     ) s ON true
 """
 
+# Public names for the two fragments above, so another module can segment
+# customers by EXACTLY the expression the CRM tabs use rather than re-deriving
+# it. app/digests.py gates who may be mailed on this (see ENTITLED_STATUSES).
+SEGMENT_CASE_SQL = _SEG_CASE
+CURRENT_SUB_JOIN_SQL = _CUR_SUB_JOIN
+
+# The statuses that mean "this customer is entitled to the product right now".
+# Everything else — expired_tester, expired_subscriber, prospective, none — is a
+# CRM record, not a live customer, and must not be mailed results.
+ENTITLED_STATUSES = ("tester", "subscriber")
+
 # Admin-editable CRM profile columns (kept in one place so routes/templates and
 # the upsert stay in sync).
 PROFILE_FIELDS = ("full_name", "phone", "mobile", "job_title",
@@ -959,6 +970,31 @@ def list_all_profiles(c):
                  LEFT JOIN proc.app_user u ON u.id = sp.owner_user_id
                  LEFT JOIN proc.search_profile b ON b.id = sp.based_on_id
                  ORDER BY sp.scope, lower(sp.name)""")
+    return c.fetchall()
+
+
+def customer_search_profiles(c, uid):
+    """Every saved search that concerns ONE customer, for their CRM page.
+
+    That is their own profiles plus any PORTAL profile they have a digest
+    subscription to — an admin looking at the card needs to see both, because a
+    portal profile they are mailed about is as much "their saved search" as one
+    they own. `is_own` separates the two; `sub_id` is non-NULL when a results
+    email is set up for it (the CRM page renders that as a badge)."""
+    c.execute("""
+        SELECT sp.id, sp.name, sp.scope, sp.owner_user_id, sp.based_on_id,
+               sp.is_published, sp.params, sp.created_at, sp.updated_at,
+               b.name AS based_on_name,
+               (sp.owner_user_id = %(uid)s) AS is_own,
+               ds.id        AS sub_id,
+               ds.is_active AS sub_active
+        FROM proc.search_profile sp
+        LEFT JOIN proc.search_profile b ON b.id = sp.based_on_id
+        LEFT JOIN proc.digest_subscription ds
+               ON ds.search_profile_id = sp.id AND ds.user_id = %(uid)s
+        WHERE sp.owner_user_id = %(uid)s OR ds.id IS NOT NULL
+        ORDER BY (sp.owner_user_id = %(uid)s) DESC, lower(sp.name)
+    """, {"uid": uid})
     return c.fetchall()
 
 

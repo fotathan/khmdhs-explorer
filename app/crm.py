@@ -43,6 +43,59 @@ try:
 except ImportError:                      # pragma: no cover
     import email_builder as _email
 
+try:
+    from app import digests as _digests
+except ImportError:                      # pragma: no cover
+    import digests as _digests
+
+try:
+    from app import mailer as _mailer
+except ImportError:                      # pragma: no cover
+    import mailer as _mailer
+
+try:
+    from app import i18n as _i18n
+except ImportError:                      # pragma: no cover
+    import i18n as _i18n
+
+try:
+    from app import search_profiles as _sp
+except ImportError:                      # pragma: no cover
+    import search_profiles as _sp
+
+
+# Which filters a saved search actually sets, in words. The CRM page shows this
+# next to each saved search so an admin can tell two of them apart without
+# opening either — "q, cpv, date_from" is enough to recognise one.
+_FILTER_LABELS = {
+    "q": "λέξη-κλειδί", "fulltext": "πλήρες κείμενο", "tables_q": "πίνακες",
+    "date_from": "από", "date_to": "έως",
+    "deadline_from": "προθεσμία από", "deadline_to": "προθεσμία έως",
+    "value_min": "αξία από", "value_max": "αξία έως",
+    "status": "κατάσταση", "sort": "ταξινόμηση",
+    "type": "είδος", "authority": "αναθέτουσα", "contract_type": "τύπος σύμβασης",
+    "procedure_type": "διαδικασία", "nuts": "περιοχή", "cpv": "CPV",
+    "cat": "κατηγορία", "source": "πηγή",
+}
+
+
+def describe_params(params, lang="el"):
+    """A one-line human summary of a saved search's filters."""
+    params = params or {}
+    if not params:
+        return ""
+    bits = []
+    for key, value in params.items():
+        label = _i18n.translate(_FILTER_LABELS.get(key, key), lang)
+        if isinstance(value, (list, tuple)):
+            shown = ", ".join(str(v) for v in value[:3])
+            if len(value) > 3:
+                shown += f" +{len(value) - 3}"
+        else:
+            shown = str(value)
+        bits.append(f"{label}: {shown}")
+    return " · ".join(bits)
+
 
 def _vat_candidates(vat):
     """Normalised forms of an ΑΦΜ to match against proc.economic_operator,
@@ -254,7 +307,55 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
         return templates.TemplateResponse(request, "admin_crm_notes.html", {
             "rows": rows, "admins": admins, "f": f, "admin_tab": "crm-notes"})
 
+    def _digest_ctx(c, uid, lang):
+        """Everything the customer card needs to show and edit their result
+        emails, plus the saved searches those emails are about.
+
+        This lives on the customer's own page rather than in a portal-wide list:
+        with more than a handful of customers, "who gets what" is a per-customer
+        question, and the admin asking it is already looking at their card. The
+        portal-wide side of the feature — the cadences themselves — stays at
+        /admin/digests."""
+        schedules = _digests.list_schedules(c)
+        by_id = {sc["id"]: sc for sc in schedules}
+        default = next((sc for sc in schedules if sc["is_default"]), None)
+        now = _digests.dt.datetime.now(_digests.dt.timezone.utc)
+        for sc in schedules:
+            sc["label"] = _digests.describe_schedule(sc, lang)
+
+        subs = _digests.list_subscriptions(c, user_id=uid)
+        for sub in subs:
+            sched = by_id.get(sub["schedule_id"]) or default
+            sub["schedule_label"] = _digests.describe_schedule(sched, lang)
+            sub["inherited"] = sub["schedule_id"] is None
+            sub["next_run_at"] = _digests.next_occurrence(sched, now) if sched else None
+            sub["runs"] = _digests.list_runs(c, subscription_id=sub["id"], limit=5)
+
+        # Saved searches: the customer's own, plus any portal profile they are
+        # already mailed about. `sub_id` on each row ties the two lists together.
+        searches = [dict(r) for r in _auth.customer_search_profiles(c, uid)]
+        for row in searches:
+            params = _auth.effective_params(c, row)
+            row["filters"] = describe_params(params, lang)
+            row["apply_qs"] = _sp.params_to_qs(params)
+
+        # What may be subscribed: this customer's own profiles + every portal
+        # profile. Offering someone else's private saved search here would only
+        # produce a 400 from the endpoint, which already refuses it.
+        c.execute("""SELECT sp.id, sp.name, sp.scope
+                     FROM proc.search_profile sp
+                     WHERE sp.scope = 'portal' OR sp.owner_user_id = %s
+                     ORDER BY sp.scope, lower(sp.name)""", (uid,))
+        options = c.fetchall()
+        return {"digest_subs": subs, "digest_schedules": schedules,
+                "digest_default_schedule": default,
+                "digest_profile_options": options,
+                "saved_searches": searches,
+                "digest_mail": _mailer.describe(),
+                "digest_langs": ("el", "en")}
+
     def _customer_ctx(request, uid, error=None, ok=None, warn=None):
+        lang = _i18n.lang_from_request(request)
         with cursor() as c:
             cust = _auth.get_customer(c, uid)
             if not cust:
@@ -278,7 +379,13 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 c.execute("SELECT operator_id, vat_number, name FROM proc.economic_operator "
                           "WHERE operator_id = %s", (profile["operator_id"],))
                 lead_operator = c.fetchone()
-        return {"cust": cust, "profile": profile or {}, "history": history,
+            digest = _digest_ctx(c, uid, lang)
+        # Entitlement drives the banner on the alerts panel: a subscription on a
+        # lapsed account is kept, but nothing is sent until they are re-granted,
+        # and the page has to say so rather than look like it is working.
+        digest["digest_entitled"] = cust["status"] in _auth.ENTITLED_STATUSES
+        return {**digest,
+                "cust": cust, "profile": profile or {}, "history": history,
                 "products": products, "current": current,
                 "fields": _auth.PROFILE_FIELDS,
                 "contacts": contacts, "lead_operator": lead_operator,

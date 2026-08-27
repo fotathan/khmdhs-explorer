@@ -1674,10 +1674,16 @@ app.include_router(_make_sp_router(templates, cursor))
 # search profile, sent on a schedule that defaults to the portal's and can be
 # overridden per subscription. Admin-only, enforced inside the router.
 try:
+    from app.digests import make_results_router as _make_digest_results_router
     from app.digests import make_router as _make_digest_router
 except ImportError:
+    from digests import make_results_router as _make_digest_results_router
     from digests import make_router as _make_digest_router
 app.include_router(_make_digest_router(templates, cursor))
+# /digests/<token> — the exact result set one sent email contained, which is
+# where its "see all results" button points. NOT under /admin: the reader is the
+# customer. The route itself requires them to be signed in and to own the run.
+app.include_router(_make_digest_results_router(templates, cursor))
 
 # CTI telephony (WebRTC softphone + screen-pop) — mounted under /telephony. The
 # service singleton is created here (so the /ws handler can reach the screen-pop

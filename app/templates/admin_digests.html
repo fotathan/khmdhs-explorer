@@ -36,6 +36,8 @@
   .dg-tag.sent{background:#eaf6ef;color:#1a7f47;}
   .dg-tag.empty{background:var(--rule);color:var(--ink-3);}
   .dg-tag.error{background:#fdeceb;color:#b3261e;}
+  .dg-tag.skipped{background:#fff5e6;color:#9a6a12;}
+  .dg-hint{color:var(--ink-2);font-size:12.5px;margin:0 0 14px;}
   .dg-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
   .dg-actions form{display:inline;}
   .dg-btn{border:1px solid var(--rule);background:var(--paper);border-radius:7px;padding:4px 9px;
@@ -62,7 +64,7 @@
 <div class="dg-wrap">
   <div class="dg-head">
     <h1>{{ t("Ειδοποιήσεις email") }}</h1>
-    <p>{{ t("Προγραμματισμένα email με νέα αποτελέσματα ανά προφίλ αναζήτησης. Κάθε εγγραφή στέλνει ό,τι μπήκε στη βάση από την προηγούμενη αποστολή και μετά.") }}</p>
+    <p>{{ t("Προγραμματισμένα email με νέα αποτελέσματα ανά προφίλ αναζήτησης. Κάθε εγγραφή στέλνει ό,τι μπήκε στη βάση από το προηγούμενο email και μετά, και μόνο σε ενεργούς δοκιμαστές και συνδρομητές. Οι ρυθμίσεις ανά πελάτη βρίσκονται στην καρτέλα CRM του· εδώ ορίζονται οι συχνότητες.") }}</p>
   </div>
 
   {% if flash %}<div class="dg-flash">{{ flash }}</div>{% endif %}
@@ -89,6 +91,14 @@
   {# SUBSCRIPTIONS                                                       #}
   {# ------------------------------------------------------------------ #}
   {% if tab == 'subscriptions' %}
+  {# Read-only. The SETTINGS for one customer's alerts live on that customer's
+     CRM card — with more than a handful of customers, "who gets what" is a
+     per-customer question and this list is the wrong place to answer it. What
+     stays here is the portal-wide view: everything at once, plus the schedules
+     tab and the run history. #}
+  <p class="dg-hint">
+    {{ t("Οι ρυθμίσεις ανά πελάτη (ποια προφίλ, γλώσσα, πλήθος) βρίσκονται στην καρτέλα CRM του κάθε πελάτη. Εδώ είναι η συνολική εικόνα.") }}
+  </p>
   <table class="dg-table">
     <thead><tr>
       <th>{{ t("Πελάτης") }}</th>
@@ -102,8 +112,16 @@
     {% for s in subs %}
       <tr>
         <td>
-          {{ s.username }}
+          <a href="/admin/crm/{{ s.user_id }}" hx-boost="false">{{ s.username }}</a>
           <div class="dg-sub">{{ s.email or t("χωρίς email") }}</div>
+          <div>
+            {% if s.entitled %}
+              <span class="dg-tag sent">{{ t("ενεργός") }}</span>
+            {% else %}
+              <span class="dg-tag off" title="{{ t('Δεν στέλνονται email σε μη ενεργούς πελάτες.') }}">
+                {{ t("χωρίς ενεργή πρόσβαση") }}</span>
+            {% endif %}
+          </div>
         </td>
         <td>
           {{ s.profile_name }}
@@ -129,77 +147,15 @@
         <td>
           <div class="dg-actions">
             <a class="dg-btn" href="/admin/digests/subscriptions/{{ s.id }}/preview" target="_blank">{{ t("Προεπισκόπηση") }}</a>
-            <form method="post" action="/admin/digests/subscriptions/{{ s.id }}/send">
-              <input type="hidden" name="mode" value="test">
-              <button class="dg-btn" type="submit">{{ t("Δοκιμαστική αποστολή") }}</button>
-            </form>
-            <form method="post" action="/admin/digests/subscriptions/{{ s.id }}/send"
-                  onsubmit="return confirm('{{ t('Αποστολή τώρα στον πελάτη;') }}')">
-              <input type="hidden" name="mode" value="real">
-              <button class="dg-btn" type="submit">{{ t("Αποστολή τώρα") }}</button>
-            </form>
-            <form method="post" action="/admin/digests/subscriptions/{{ s.id }}/delete"
-                  onsubmit="return confirm('{{ t('Διαγραφή αυτής της εγγραφής;') }}')">
-              <button class="dg-btn" type="submit">{{ t("Διαγραφή") }}</button>
-            </form>
+            <a class="dg-btn" href="/admin/crm/{{ s.user_id }}" hx-boost="false">{{ t("Ρυθμίσεις στο CRM") }}</a>
           </div>
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="6" class="dg-none">{{ t("Καμία εγγραφή ακόμη.") }}</td></tr>
+      <tr><td colspan="6" class="dg-none">{{ t("Καμία εγγραφή ακόμη. Προσθέστε μία από την καρτέλα CRM ενός πελάτη.") }}</td></tr>
     {% endfor %}
     </tbody>
   </table>
-
-  <div class="dg-form">
-    <h2>{{ t("Νέα ή ενημέρωση εγγραφής") }}</h2>
-    <p>{{ t("Μία εγγραφή ανά πελάτη και προφίλ — η επαναποθήκευση ενημερώνει την υπάρχουσα. Αφήστε το πρόγραμμα κενό για την προεπιλογή της πύλης.") }}</p>
-    <form method="post" action="/admin/digests/subscriptions">
-      <div class="row">
-        <div>
-          <label for="dg-user">{{ t("Πελάτης") }}</label>
-          <select id="dg-user" name="user_id" required>
-            {% for cu in customers %}
-            <option value="{{ cu.id }}">{{ cu.username }}{% if cu.email %} — {{ cu.email }}{% endif %}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label for="dg-profile">{{ t("Προφίλ αναζήτησης") }}</label>
-          <select id="dg-profile" name="search_profile_id" required>
-            {% for p in profiles %}
-            <option value="{{ p.id }}">
-              {{ p.name }} — {{ t("Πύλη") if p.scope == 'portal' else p.owner_username }}
-            </option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label for="dg-sched">{{ t("Πρόγραμμα") }}</label>
-          <select id="dg-sched" name="schedule_id">
-            <option value="">{{ t("Προεπιλογή πύλης") }}{% if default_schedule %} — {{ default_schedule.name }}{% endif %}</option>
-            {% for sc in schedules %}
-            <option value="{{ sc.id }}">{{ sc.name }} — {{ sc.label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label for="dg-lang">{{ t("Γλώσσα") }}</label>
-          <select id="dg-lang" name="lang">
-            <option value="el">Ελληνικά</option>
-            <option value="en">English</option>
-          </select>
-        </div>
-        <div>
-          <label for="dg-max">{{ t("Μέγιστα αποτελέσματα") }}</label>
-          <input id="dg-max" type="number" name="max_results" value="25" min="1" max="200">
-        </div>
-        <label class="check"><input type="checkbox" name="send_empty" value="1"> {{ t("Αποστολή και χωρίς νέα") }}</label>
-        <label class="check"><input type="checkbox" name="is_active" value="1" checked> {{ t("Ενεργή") }}</label>
-        <button type="submit">{{ t("Αποθήκευση") }}</button>
-      </div>
-    </form>
-  </div>
   {% endif %}
 
   {# ------------------------------------------------------------------ #}
@@ -323,6 +279,9 @@
         <td>
           <span class="dg-tag {{ r.status }}">{{ r.status }}</span>
           {% if r.n_results %} {{ r.n_results }}{% endif %}
+          {% if r.token %}
+            <div><a href="/digests/{{ r.token }}" target="_blank">{{ t("τι στάλθηκε") }}</a></div>
+          {% endif %}
           {% if r.error %}<div class="dg-sub">{{ r.error }}</div>{% endif %}
         </td>
         <td class="dg-sub">{{ r.recipient or '—' }}</td>
