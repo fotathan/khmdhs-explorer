@@ -1202,6 +1202,48 @@ _AUTH = {
     "Δημιουργήστε δωρεάν λογαριασμό για πλήρη πρόσβαση σε αναζήτηση, σελιδοποίηση και αναλυτικές πράξεις.":
         "Create a free account for full access to search, pagination and full act detail.",
     "Λάθος όνομα χρήστη ή κωδικός.": "Wrong username or password.",
+    # Passwordless sign-in link (login_link_request.html, login_link_confirm.html,
+    # email_login_link.html — the email body is rendered with the same catalog).
+    "Στείλτε μου σύνδεσμο σύνδεσης με email": "Email me a sign-in link",
+    "Σύνδεση με σύνδεσμο": "Sign in with a link",
+    "Σύνδεση με κωδικό": "Sign in with a password",
+    "Σύνδεση χωρίς κωδικό": "Passwordless sign-in",
+    "Δώστε το email του λογαριασμού σας και θα σας στείλουμε έναν σύνδεσμο για να συνδεθείτε χωρίς κωδικό.":
+        "Enter your account email and we'll send you a link that signs you in without a password.",
+    "Email": "Email",
+    "Στείλτε μου σύνδεσμο": "Send me a link",
+    "Ελέγξτε το email σας": "Check your email",
+    "Αν υπάρχει λογαριασμός με αυτή τη διεύθυνση, στείλαμε έναν σύνδεσμο σύνδεσης.":
+        "If an account exists for that address, we've sent it a sign-in link.",
+    "Ο σύνδεσμος ισχύει για %d λεπτά και μπορεί να χρησιμοποιηθεί μία φορά.":
+        "The link is valid for %d minutes and can be used once.",
+    "Δεν ήρθε; Ελέγξτε τα ανεπιθύμητα ή δοκιμάστε ξανά.":
+        "Didn't arrive? Check your spam folder, or try again.",
+    "Δώστε μια έγκυρη διεύθυνση email.": "Enter a valid email address.",
+    "Σύνδεση στον λογαριασμό σας": "Sign in to your account",
+    "Συνδεδεμένος λογαριασμός": "Account",
+    "Ο σύνδεσμος χρησιμοποιείται μία φορά.": "The link can only be used once.",
+    "Ο σύνδεσμος δεν ισχύει": "This link is no longer valid",
+    "Ο σύνδεσμος έχει λήξει, έχει ήδη χρησιμοποιηθεί ή δεν αντιστοιχεί σε ενεργό λογαριασμό.":
+        "The link has expired, has already been used, or does not match an active account.",
+    "Ζητήστε καινούριο — χρειάζεται μόνο το email σας.":
+        "Request a new one — all you need is your email address.",
+    "Στείλτε μου νέο σύνδεσμο": "Send me a new link",
+    "Ο σύνδεσμος σύνδεσής σας": "Your sign-in link",
+    "Ζητήσατε σύνδεση χωρίς κωδικό στον λογαριασμό σας.":
+        "You asked to sign in to your account without a password.",
+    "Σύνδεση στον λογαριασμό μου": "Sign in to my account",
+    "Αν το κουμπί δεν λειτουργεί, αντιγράψτε αυτή τη διεύθυνση στον browser σας:":
+        "If the button doesn't work, copy this address into your browser:",
+    "Αν δεν ζητήσατε εσείς αυτό το μήνυμα, αγνοήστε το — ο λογαριασμός σας δεν έχει αλλάξει.":
+        "If you didn't request this message, ignore it — nothing about your account has changed.",
+    "Το μήνυμα στάλθηκε επειδή ζητήθηκε σύνδεση για τον λογαριασμό":
+        "This message was sent because a sign-in was requested for the account",
+    # …and the two lines the /help manual adds for it.
+    "στη σελίδα σύνδεσης, το «Στείλτε μου σύνδεσμο σύνδεσης με email» ζητά μόνο το email του λογαριασμού σας και σας στέλνει έναν σύνδεσμο. Ισχύει 15 λεπτά, χρησιμοποιείται μία φορά, και κάθε νέο αίτημα ακυρώνει τον προηγούμενο. Ο κωδικός σας εξακολουθεί να λειτουργεί κανονικά — ο σύνδεσμος είναι δεύτερος δρόμος, όχι αντικατάσταση.":
+        "on the sign-in page, “Email me a sign-in link” asks only for your account email and sends you a link. It is valid for 15 minutes, can be used once, and every new request cancels the previous link. Your password keeps working exactly as before — the link is a second route in, not a replacement.",
+    "Αν ο λογαριασμός έχει 2FA, ο σύνδεσμος ΔΕΝ την παρακάμπτει: θα ζητηθεί κανονικά ο κωδικός επαλήθευσης.":
+        "If the account has 2FA enabled, the link does NOT bypass it: you are still asked for the verification code.",
     "Πολλές αποτυχημένες προσπάθειες — δοκιμάστε αργότερα.": "Too many failed attempts — try again later.",
     "Μη έγκυρο όνομα χρήστη (3–40 χαρακτήρες: γράμματα, αριθμοί, . _ - @).":
         "Invalid username (3–40 chars: letters, digits, . _ - @).",

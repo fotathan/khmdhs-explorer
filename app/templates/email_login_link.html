@@ -1,0 +1,84 @@
+{# email_login_link.html — the passwordless sign-in link.
+
+   NOT a page: rendered by app/login_links.py through its own Jinja environment
+   (no request, no base template, no context processor), because the same render
+   has to work from a route with no logged-in user. The only context is what
+   render_email passes in, `t` included.
+
+   Mail-client rules, not browser rules: tables for layout, inline styles only
+   (Gmail strips <style>), no external assets, fixed light colours.
+
+   `intro` is the admin-authored fragment from proc.email_template slug
+   'login_link' with its [[field]] tokens already resolved — rendered |safe on
+   purpose, exactly like the digest bodies.
+
+   The URL is placed HERE and never inside that fragment, so no edit an admin
+   makes to the wording can truncate, escape or delete the credential. It also
+   appears as copyable text below the button: a plain-text-only client, or a
+   button that a mail app declines to render, must not leave the customer with
+   no way in. #}
+{%- set ink = "#1a1a1a" -%}
+{%- set muted = "#6b6b6b" -%}
+{%- set rule = "#e3e3e0" -%}
+{%- set wash = "#f5f4f1" -%}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="background:#f5f4f1;margin:0;padding:24px 0;">
+  <tr><td align="center">
+    <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0"
+           style="width:640px;max-width:100%;background:#ffffff;border:1px solid {{ rule }};">
+
+      <!-- masthead -->
+      <tr><td style="padding:20px 28px;border-bottom:2px solid {{ ink }};">
+        <div style="font:600 15px/1.2 Helvetica,Arial,sans-serif;color:{{ ink }};letter-spacing:.02em;">
+          {{ t("Ελληνικές Δημόσιες Συμβάσεις") }}
+        </div>
+        <div style="font:400 12px/1.4 Helvetica,Arial,sans-serif;color:{{ muted }};padding-top:2px;">
+          {{ t("Σύνδεση χωρίς κωδικό") }}
+        </div>
+      </td></tr>
+
+      <!-- intro (admin-authored wording) -->
+      <tr><td style="padding:24px 28px 4px;font:400 14px/1.6 Helvetica,Arial,sans-serif;color:{{ ink }};">
+        {{ intro|safe }}
+      </td></tr>
+
+      <!-- the button -->
+      <tr><td style="padding:16px 28px 4px;">
+        <a href="{{ url }}"
+           style="display:inline-block;background:{{ ink }};color:#ffffff;text-decoration:none;
+                  font:600 14px/1 Helvetica,Arial,sans-serif;padding:14px 24px;">
+          {{ t("Σύνδεση στον λογαριασμό μου") }}
+        </a>
+      </td></tr>
+
+      <!-- the same URL as text, for the client that will not render the button -->
+      <tr><td style="padding:14px 28px 0;font:400 12px/1.5 Helvetica,Arial,sans-serif;color:{{ muted }};">
+        {{ t("Αν το κουμπί δεν λειτουργεί, αντιγράψτε αυτή τη διεύθυνση στον browser σας:") }}
+        <br>
+        <span style="color:{{ ink }};word-break:break-all;">{{ url }}</span>
+      </td></tr>
+
+      <!-- what the reader needs to know about the credential they were sent -->
+      <tr><td style="padding:20px 28px 0;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="background:{{ wash }};border:1px solid {{ rule }};">
+          <tr><td style="padding:14px 18px;font:400 12px/1.6 Helvetica,Arial,sans-serif;color:{{ muted }};">
+            {{ t("Ο σύνδεσμος ισχύει για %d λεπτά και μπορεί να χρησιμοποιηθεί μία φορά.")|format(minutes) }}
+            <br>
+            {{ t("Αν δεν ζητήσατε εσείς αυτό το μήνυμα, αγνοήστε το — ο λογαριασμός σας δεν έχει αλλάξει.") }}
+          </td></tr>
+        </table>
+      </td></tr>
+
+      <!-- footer -->
+      <tr><td style="padding:24px 28px;border-top:1px solid {{ rule }};
+                     font:400 11px/1.6 Helvetica,Arial,sans-serif;color:{{ muted }};">
+        {{ t("Το μήνυμα στάλθηκε επειδή ζητήθηκε σύνδεση για τον λογαριασμό") }}
+        “{{ username }}”.
+        <br>
+        <a href="{{ base }}/login" style="color:{{ muted }};">{{ t("Σύνδεση με κωδικό") }}</a>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>

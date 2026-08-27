@@ -98,6 +98,7 @@ No `--reload` — it double-starts the background threads.
 | Local OCR (Tesseract) | `LOCAL_OCR=1` | needs `tesseract` + the `ell` language pack; both are installed |
 | Table relevance classifier | `TABLE_RELEVANCE=1` | default on |
 | Rate limiting | `RATELIMIT_ENABLED=1` | the recipe turns it **off** so you don't throttle yourself while clicking around |
+| Passwordless sign-in links | `LOGIN_LINKS_ENABLED=1` | default on; needs a working `EMAIL_BACKEND` to be useful. `LOGIN_LINK_TTL_SECONDS=900` sets how long a link lives |
 
 **Off by default — the recipe turns these on**
 
@@ -198,6 +199,36 @@ DIGEST_DRY_RUN=1 python3 cron_digests.py     # what would be sent, sends nothing
 
 Drop `DIGEST_DRY_RUN` to actually send. Run `DIGEST_SCHEDULER=1` on the web app
 **or** `cron_digests.py` on a timer — never both, or the two race each other.
+
+---
+
+## 7b. Trying a passwordless sign-in link
+
+The recipe's `EMAIL_BACKEND=file` is all you need — the link lands in `./outbox`
+as an `.eml` you can open in any mail client, or read with `grep`.
+
+1. Give an account an email address (`/admin/crm/<uid>` → Details, or
+   `/register`). Any active account works; no grant or subscription is needed —
+   signing in and having access are separate things.
+2. `/login` → **Στείλτε μου σύνδεσμο σύνδεσης με email** → enter that address.
+   The page says "check your email" for ANY address you type: it is the same
+   answer for an address with no account, on purpose.
+3. Read the link out of the newest message:
+
+```bash
+grep -ho "http[^ ]*/login/link/[A-Za-z0-9_-]*" outbox/*.eml | tail -1
+```
+
+4. Open it. You get a confirmation page with a **Σύνδεση** button — the link
+   deliberately does not sign you in on load, because mail scanners fetch URLs
+   and would spend the token before you clicked. Press the button to sign in.
+5. Open the same URL again: "Ο σύνδεσμος δεν ισχύει". One use, 15 minutes.
+6. Turn 2FA on for the account and repeat — the link now lands on `/login/mfa`
+   and you still need the authenticator code. That is the property the feature
+   is only safe with; `tests/test_login_link.py` pins it.
+
+`APP_BASE_URL` is what the mailed link points at, so keep it matching the port
+you launched on or the link will open the wrong server.
 
 ---
 

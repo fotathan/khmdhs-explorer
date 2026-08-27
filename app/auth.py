@@ -97,6 +97,21 @@ def get_by_username(c, username):
     return c.fetchone()
 
 
+def get_by_email(c, email):
+    """The account that owns an address, or None.
+
+    Case-insensitive, matching ux_app_user_email — so at most one row can come
+    back. Used by the passwordless sign-in link (app/login_links.py), which is
+    why it deliberately does NOT fall back to username: a username is not an
+    address, and guessing one would mail a stranger a credential."""
+    email = (email or "").strip()
+    if not email:
+        return None
+    c.execute(f"SELECT {_COLS}, password_hash FROM proc.app_user "
+              f"WHERE lower(email) = lower(%s)", (email,))
+    return c.fetchone()
+
+
 def load_user(c, uid):
     """Active user by id — used on every request to resolve the session, so
     deactivation / role change / subscription expiry take effect immediately
@@ -177,6 +192,10 @@ def set_password(c, uid, password, must_change=False):
               "    must_change_password = %s "
               "WHERE id = %s", (hash_password(password), bool(must_change), uid))
     _revoke_sip_credential(c, uid)
+    # A password change is the action someone takes when they think they have
+    # been compromised. Any sign-in link already sitting in a mailbox is another
+    # live credential for the same account, so it dies here too.
+    kill_login_links(c, uid)
 
 
 def gen_temp_password() -> str:
@@ -485,9 +504,39 @@ def upsert_profile(c, uid, values: dict, updated_by=None):
 
 
 def set_email(c, uid, email):
-    """Update a customer's contact email (unique index may raise — caller guards)."""
-    c.execute("UPDATE proc.app_user SET email = %s WHERE id = %s",
-              ((email or "").strip() or None, uid))
+    """Update a customer's contact email (unique index may raise — caller guards).
+
+    Clears email_verified_at and kills any outstanding sign-in link: the address
+    that was proven is no longer the address on file, and a link already mailed
+    to the OLD mailbox must not still open this account."""
+    new = (email or "").strip() or None
+    c.execute("""UPDATE proc.app_user
+                    SET email = %s,
+                        email_verified_at = CASE
+                            WHEN lower(COALESCE(email, '')) = lower(COALESCE(%s, ''))
+                            THEN email_verified_at ELSE NULL END
+                  WHERE id = %s""", (new, new, uid))
+    kill_login_links(c, uid)
+
+
+def kill_login_links(c, uid):
+    """Burn every live passwordless sign-in link for a user.
+
+    Lives here rather than in app/login_links.py so the credential-changing
+    helpers above can call it without importing that module (which imports this
+    one).
+
+    The table is probed with to_regclass rather than wrapped in try/except: on a
+    database that has not run the login-link migration a failing statement would
+    abort the surrounding transaction, taking the password change with it. A
+    probe that returns NULL costs nothing and cannot poison anything."""
+    c.execute("SELECT to_regclass('proc.login_link') IS NOT NULL AS present")
+    row = c.fetchone()
+    present = row["present"] if isinstance(row, dict) else (row and row[0])
+    if not present:
+        return
+    c.execute("UPDATE proc.login_link SET used_at = now() "
+              "WHERE user_id = %s AND used_at IS NULL", (uid,))
 
 
 # --------------------------------------------------------------------------- #
