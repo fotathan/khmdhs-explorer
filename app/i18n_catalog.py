@@ -1239,11 +1239,26 @@ _AUTH = {
         "If you didn't request this message, ignore it — nothing about your account has changed.",
     "Το μήνυμα στάλθηκε επειδή ζητήθηκε σύνδεση για τον λογαριασμό":
         "This message was sent because a sign-in was requested for the account",
-    # …and the two lines the /help manual adds for it.
-    "στη σελίδα σύνδεσης, το «Στείλτε μου σύνδεσμο σύνδεσης με email» ζητά μόνο το email του λογαριασμού σας και σας στέλνει έναν σύνδεσμο. Ισχύει 15 λεπτά, χρησιμοποιείται μία φορά, και κάθε νέο αίτημα ακυρώνει τον προηγούμενο. Ο κωδικός σας εξακολουθεί να λειτουργεί κανονικά — ο σύνδεσμος είναι δεύτερος δρόμος, όχι αντικατάσταση.":
-        "on the sign-in page, “Email me a sign-in link” asks only for your account email and sends you a link. It is valid for 15 minutes, can be used once, and every new request cancels the previous link. Your password keeps working exactly as before — the link is a second route in, not a replacement.",
+    # …and the /help manual's own subsection on it.
+    "Σύνδεση χωρίς κωδικό (σύνδεσμος με email)": "Passwordless sign-in (emailed link)",
+    "Αν δεν θέλετε να θυμάστε κωδικό, η εφαρμογή μπορεί να σας στείλει έναν σύνδεσμο σύνδεσης. Ο κωδικός σας δεν αλλάζει και συνεχίζει να δουλεύει κανονικά — ο σύνδεσμος είναι δεύτερος δρόμος, όχι αντικατάσταση.":
+        "If you would rather not remember a password, the app can email you a sign-in link. Your password is unchanged and keeps working — the link is a second route in, not a replacement.",
+    "Στη σελίδα σύνδεσης πατήστε": "On the sign-in page, click",
+    "και δώστε το email του λογαριασμού σας.": "and enter your account email.",
+    "Το μήνυμα περιέχει ένα κουμπί. Ανοίγει μια σελίδα επιβεβαίωσης που δείχνει το όνομα χρήστη σας· πατήστε «Σύνδεση» εκεί για να μπείτε.":
+        "The message contains a button. It opens a confirmation page showing your username; click “Sign in” there to complete the login.",
+    "Ο σύνδεσμος ισχύει 15 λεπτά και χρησιμοποιείται μία φορά. Κάθε νέο αίτημα ακυρώνει τον προηγούμενο σύνδεσμο.":
+        "The link is valid for 15 minutes and can be used once. Every new request cancels the previous link.",
     "Αν ο λογαριασμός έχει 2FA, ο σύνδεσμος ΔΕΝ την παρακάμπτει: θα ζητηθεί κανονικά ο κωδικός επαλήθευσης.":
         "If the account has 2FA enabled, the link does NOT bypass it: you are still asked for the verification code.",
+    "Η αλλαγή του κωδικού ή του email σας ακυρώνει αμέσως κάθε εκκρεμή σύνδεσμο.":
+        "Changing your password or your email address immediately cancels any outstanding link.",
+    "Γιατί χρειάζεται δεύτερη πατησιά": "Why there is a second click",
+    "Ο σύνδεσμος δεν σας συνδέει μόλις τον ανοίξετε — δείχνει πρώτα μια σελίδα με ένα κουμπί. Αυτό είναι σκόπιμο: τα φίλτρα ασφαλείας πολλών εταιρικών mail ανοίγουν αυτόματα κάθε σύνδεσμο ενός μηνύματος, και επειδή ο σύνδεσμος χρησιμοποιείται μία μόνο φορά, θα είχε ήδη «καεί» πριν προλάβετε να τον πατήσετε εσείς.":
+        "The link does not sign you in the moment you open it — it shows a page with a button first. That is deliberate: many corporate mail security filters automatically open every link in a message, and because the link works only once, it would already be spent before you got to it.",
+    "Αν κάτι πάει στραβά": "If something goes wrong",
+    "«Ο σύνδεσμος δεν ισχύει» σημαίνει ότι έληξε ή χρησιμοποιήθηκε ήδη — δεν είναι σφάλμα, απλώς ζητήστε νέον. Αν δεν έρθει καθόλου μήνυμα, ελέγξτε τα ανεπιθύμητα: για λόγους ασφαλείας η σελίδα δείχνει το ίδιο μήνυμα για κάθε διεύθυνση που θα δώσετε, ώστε να μην αποκαλύπτεται ποιες διευθύνσεις έχουν λογαριασμό — οπότε η σιωπή μπορεί απλώς να σημαίνει ότι η διεύθυνση δεν αντιστοιχεί σε λογαριασμό. Ο κωδικός σας δουλεύει σε κάθε περίπτωση.":
+        "“This link is no longer valid” means it expired or was already used — that is not an error, just request a new one. If no message arrives at all, check your spam folder: for security the page shows the same confirmation for any address you enter, so that it never reveals which addresses have accounts — meaning silence may simply mean the address has no account. Your password works either way.",
     "Πολλές αποτυχημένες προσπάθειες — δοκιμάστε αργότερα.": "Too many failed attempts — try again later.",
     "Μη έγκυρο όνομα χρήστη (3–40 χαρακτήρες: γράμματα, αριθμοί, . _ - @).":
         "Invalid username (3–40 chars: letters, digits, . _ - @).",
