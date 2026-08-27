@@ -176,12 +176,20 @@ so read the first few lines of output if a feature seems missing.
 ## 7. Trying the digest emails end to end
 
 1. `/search-profiles/manage` → create a portal profile with some filters.
-2. `/admin/digests` → **Subscriptions** → pick a customer (they need an email
-   address on their account) and that profile → Save.
+2. `/admin/crm/<uid>` → the customer's card → **Result email alerts** → pick the
+   profile → Save. The customer needs an email address AND an active grant:
+   only testers and subscribers are ever mailed, and the panel says so in a
+   banner when they are not. `/admin/digests` no longer has this form — it holds
+   the schedules, a read-only overview, and the history.
 3. **Preview** renders the exact email without sending. A brand-new subscription
    has nothing new yet, so use `?days=30` on the preview URL to see real content.
 4. **Test send** mails it to you and leaves the customer's position untouched.
-5. Or from a terminal, without the app running:
+   It works even for a lapsed customer, because the message goes to you.
+5. The sent message's **See all results** button opens `/digests/<token>` — the
+   acts that email contained, not a fresh search. The same link appears as
+   "what was sent" in `/admin/digests?tab=runs` and on the customer's card.
+   Signed out it bounces through the login; as another customer it is a 403.
+6. Or from a terminal, without the app running:
 
 ```bash
 DATABASE_URL="postgresql://postgres:pw@127.0.0.1:5433/procurement" \

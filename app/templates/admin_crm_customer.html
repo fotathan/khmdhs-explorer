@@ -193,6 +193,187 @@
   </aside>
 </div>
 
+{# ===== SAVED SEARCHES + RESULT EMAILS =====================================
+   Both live on the customer's own card. Which saved searches someone has, and
+   which of them they are mailed about, is a per-customer question — asking it
+   in one portal-wide list stops working the moment there are more than a
+   handful of customers. /admin/digests keeps what IS portal-wide: the cadences
+   themselves, plus a read-only overview and the run history.
+   The forms post to the digest endpoints with back=, so there is one
+   implementation of "save a subscription", not two. #}
+<div class="crm-alerts">
+  <section class="alert-sec">
+    <div class="section-h">{{ t("Αποθηκευμένες αναζητήσεις") }}</div>
+    {% if saved_searches %}
+    <table class="crm-tbl">
+      <thead><tr>
+        <th>{{ t("Όνομα") }}</th>
+        <th>{{ t("Φίλτρα") }}</th>
+        <th>{{ t("Ειδοποίηση") }}</th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+      {% for sp in saved_searches %}
+        <tr>
+          <td>
+            <b>{{ sp.name }}</b>
+            <div class="crm-tbl-sub">
+              {% if sp.is_own %}<span class="dg-tag own">{{ t("δικό του") }}</span>
+              {% else %}<span class="dg-tag portal">{{ t("προφίλ πύλης") }}</span>{% endif %}
+              {% if sp.based_on_name %} · {{ t("βάσει") }} {{ sp.based_on_name }}{% endif %}
+            </div>
+          </td>
+          <td class="crm-tbl-sub">{{ sp.filters or t("(χωρίς φίλτρα)") }}</td>
+          <td>
+            {% if sp.sub_id %}
+              {% if sp.sub_active %}<span class="dg-tag on">{{ t("ενεργή") }}</span>
+              {% else %}<span class="dg-tag off">{{ t("ανενεργή") }}</span>{% endif %}
+            {% else %}<span class="crm-tbl-sub">—</span>{% endif %}
+          </td>
+          <td>
+            <a class="dg-btn" href="/search-profiles/{{ sp.id }}/apply" target="_blank"
+               hx-boost="false">{{ t("Αποτελέσματα") }}</a>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="act-empty">{{ t("Καμία αποθηκευμένη αναζήτηση.") }}</div>
+    {% endif %}
+  </section>
+
+  <section class="alert-sec">
+    <div class="section-h">{{ t("Ειδοποιήσεις email με αποτελέσματα") }}</div>
+
+    {% if not digest_entitled %}
+    <div class="u-warn u-flash" style="margin:0 0 12px;">
+      {{ t("Δεν στέλνονται email: ο πελάτης δεν είναι ενεργός δοκιμαστής ή συνδρομητής. Οι ρυθμίσεις διατηρούνται και ενεργοποιούνται μόλις του ανατεθεί προϊόν.") }}
+    </div>
+    {% endif %}
+    <div class="crm-tbl-sub" style="margin-bottom:10px;">
+      {{ t("Αποστολή μέσω") }}: <b>{{ digest_mail.backend }}</b> → {{ digest_mail.target }} ·
+      {{ t("Οι συχνότητες ορίζονται στα") }}
+      <a href="/admin/digests?tab=schedules" hx-boost="false">/admin/digests</a>
+    </div>
+
+    {% if digest_subs %}
+    <table class="crm-tbl">
+      <thead><tr>
+        <th>{{ t("Προφίλ") }}</th>
+        <th>{{ t("Πρόγραμμα") }}</th>
+        <th>{{ t("Τελευταία αποστολή") }}</th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+      {% for s in digest_subs %}
+        <tr>
+          <td>
+            <b>{{ s.profile_name }}</b>
+            <div class="crm-tbl-sub">
+              {{ s.lang | upper }} · {{ t("έως") }} {{ s.max_results }}
+              {%- if s.send_empty %} · {{ t("και κενά") }}{% endif %}
+              {% if not s.is_active %} · <span class="dg-tag off">{{ t("ανενεργή") }}</span>{% endif %}
+            </div>
+          </td>
+          <td>
+            {{ s.schedule_label }}
+            <div class="crm-tbl-sub">
+              {% if s.inherited %}<span class="dg-tag portal">{{ t("προεπιλογή πύλης") }}</span>
+              {% else %}<span class="dg-tag own">{{ t("ειδική ρύθμιση") }}</span>{% endif %}
+              {% if s.next_run_at %} · {{ t("επόμενη") }} {{ s.next_run_at.strftime('%d/%m %H:%M') }} UTC{% endif %}
+            </div>
+          </td>
+          <td class="crm-tbl-sub">
+            {{ s.last_sent_at.strftime('%d/%m/%Y %H:%M') if s.last_sent_at else '—' }}
+            {% if s.runs %}
+            <div>
+              {% for r in s.runs %}
+                <div>
+                  <span class="dg-tag {{ r.status }}">{{ r.status }}</span>
+                  {% if r.n_results %}{{ r.n_results }}{% endif %}
+                  {% if r.token %}
+                    <a href="/digests/{{ r.token }}" target="_blank" hx-boost="false">{{ t("αποτελέσματα") }}</a>
+                  {% endif %}
+                  {% if r.error %}<span class="crm-tbl-sub">{{ r.error }}</span>{% endif %}
+                </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </td>
+          <td>
+            <div class="dg-actions">
+              <a class="dg-btn" href="/admin/digests/subscriptions/{{ s.id }}/preview"
+                 target="_blank" hx-boost="false">{{ t("Προεπισκόπηση") }}</a>
+              <form method="post" action="/admin/digests/subscriptions/{{ s.id }}/send">
+                <input type="hidden" name="mode" value="test">
+                <input type="hidden" name="back" value="/admin/crm/{{ cust.id }}">
+                <button class="dg-btn" type="submit">{{ t("Δοκιμαστική αποστολή") }}</button>
+              </form>
+              <form method="post" action="/admin/digests/subscriptions/{{ s.id }}/send"
+                    onsubmit="return confirm('{{ t('Αποστολή τώρα στον πελάτη;') }}')">
+                <input type="hidden" name="mode" value="real">
+                <input type="hidden" name="back" value="/admin/crm/{{ cust.id }}">
+                <button class="dg-btn" type="submit">{{ t("Αποστολή τώρα") }}</button>
+              </form>
+              <form method="post" action="/admin/digests/subscriptions/{{ s.id }}/delete"
+                    onsubmit="return confirm('{{ t('Διαγραφή αυτής της εγγραφής;') }}')">
+                <input type="hidden" name="back" value="/admin/crm/{{ cust.id }}">
+                <button class="dg-btn" type="submit">{{ t("Διαγραφή") }}</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="act-empty">{{ t("Καμία ειδοποίηση για αυτόν τον πελάτη.") }}</div>
+    {% endif %}
+
+    <form method="post" action="/admin/digests/subscriptions" class="alert-form">
+      <input type="hidden" name="user_id" value="{{ cust.id }}">
+      <input type="hidden" name="back" value="/admin/crm/{{ cust.id }}">
+      <div class="row">
+        <div>
+          <label for="dgc-profile">{{ t("Προφίλ αναζήτησης") }}</label>
+          <select id="dgc-profile" name="search_profile_id" required>
+            {% for p in digest_profile_options %}
+            <option value="{{ p.id }}">{{ p.name }}{% if p.scope == 'portal' %} — {{ t("Πύλη") }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="dgc-sched">{{ t("Πρόγραμμα") }}</label>
+          <select id="dgc-sched" name="schedule_id">
+            <option value="">{{ t("Προεπιλογή πύλης") }}{% if digest_default_schedule %} — {{ digest_default_schedule.name }}{% endif %}</option>
+            {% for sc in digest_schedules %}
+            <option value="{{ sc.id }}">{{ sc.name }} — {{ sc.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="dgc-lang">{{ t("Γλώσσα") }}</label>
+          <select id="dgc-lang" name="lang">
+            <option value="el">Ελληνικά</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+        <div>
+          <label for="dgc-max">{{ t("Μέγιστα αποτελέσματα") }}</label>
+          <input id="dgc-max" type="number" name="max_results" value="25" min="1" max="200">
+        </div>
+        <label class="check"><input type="checkbox" name="send_empty" value="1"> {{ t("Αποστολή και χωρίς νέα") }}</label>
+        <label class="check"><input type="checkbox" name="is_active" value="1" checked> {{ t("Ενεργή") }}</label>
+        <button type="submit" class="u-btn" style="margin-top:0;">{{ t("Αποθήκευση") }}</button>
+      </div>
+      <div class="crm-tbl-sub" style="margin-top:8px;">
+        {{ t("Μία εγγραφή ανά προφίλ — η επαναποθήκευση ενημερώνει την υπάρχουσα.") }}
+      </div>
+    </form>
+  </section>
+</div>
+
 <div class="crm-activity">
   <!-- ===== NOTES ===== -->
   <section class="act-sec">
@@ -370,6 +551,38 @@
   .sub-subscriber{background:#e8f0fb;color:#1a4f9c;}
   .sub-expired_tester,.sub-expired_subscriber{background:#fdeceb;color:#b3261e;}
   .sub-none{background:var(--rule);color:var(--ink-3);}
+  /* ---- saved searches + result-email alerts ---- */
+  .crm-alerts{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:36px;}
+  @media (max-width:1100px){.crm-alerts{grid-template-columns:1fr;}}
+  .alert-sec{min-width:0;}
+  .crm-tbl{width:100%;border-collapse:collapse;background:var(--paper);
+    border:1px solid var(--rule);border-radius:10px;overflow:hidden;}
+  .crm-tbl th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--ink-3);padding:8px 10px;border-bottom:1px solid var(--rule);background:var(--paper-2,#f6f7f9);}
+  .crm-tbl td{padding:9px 10px;border-bottom:1px solid var(--rule-2,#f0f1f4);font-size:12.5px;vertical-align:top;}
+  .crm-tbl tr:last-child td{border-bottom:0;}
+  .crm-tbl-sub{font-size:11px;color:var(--ink-3);}
+  .dg-tag{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.03em;padding:1px 6px;border-radius:5px;background:var(--rule);color:var(--ink-3);}
+  .dg-tag.own,.dg-tag.on,.dg-tag.sent{background:#eaf6ef;color:#1a7f47;}
+  .dg-tag.portal{background:#e8f0fb;color:#1a4f9c;}
+  .dg-tag.error{background:#fdeceb;color:#b3261e;}
+  .dg-tag.skipped{background:#fff5e6;color:#9a6a12;}
+  .dg-btn{border:1px solid var(--rule);background:var(--paper);border-radius:7px;padding:3px 8px;
+    font-size:11px;font-family:var(--sans);cursor:pointer;color:var(--ink-2);text-decoration:none;
+    display:inline-block;}
+  .dg-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .dg-actions{display:flex;gap:5px;flex-wrap:wrap;align-items:center;}
+  .dg-actions form{display:inline;margin:0;}
+  .alert-form{margin-top:14px;background:var(--paper);border:1px solid var(--rule);
+    border-radius:10px;padding:14px 16px;}
+  .alert-form .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+  .alert-form label{display:block;font-size:11px;font-weight:600;color:var(--ink-2);margin-bottom:3px;}
+  .alert-form input,.alert-form select{border:1px solid var(--rule);border-radius:7px;padding:6px 8px;
+    font-family:var(--sans);font-size:12.5px;min-width:130px;}
+  .alert-form input[type=number]{min-width:70px;}
+  .alert-form .check{display:flex;align-items:center;gap:5px;font-size:12px;padding-bottom:7px;}
+  .alert-form .check input{min-width:0;}
   /* activities */
   .crm-activity{display:grid;grid-template-columns:1fr 1fr 1fr;gap:28px;margin-top:36px;}
   @media (max-width:1100px){.crm-activity{grid-template-columns:1fr;}}

@@ -22,10 +22,21 @@ Domain expert, not a developer. Write all code yourself. Give numbered steps. Co
 Tender Tables shares 3 files byte-identical: extractors.py, exporter.py, ocr.py
 
 ## Email alerts (digests)
-/admin/digests — scheduled result emails, one subscription per customer × search
-profile. Schedule falls back: subscription.schedule_id → the is_default row of
-proc.digest_schedule. Window is procurement_act.ingested_at, half-open
-(last_cursor, now], so nothing sends twice.
+Scheduled result emails, one subscription per customer × search profile.
+- Per-customer settings live on /admin/crm/<uid> (saved searches + alerts).
+  /admin/digests holds ONLY the schedules, a read-only overview and the history.
+- Recipients: active testers/subscribers only (auth.ENTITLED_STATUSES) — admins
+  too, since they have access without a grant. Gated in active_subscriptions AND
+  again in run_subscription (records status='skipped').
+- Schedule falls back: subscription.schedule_id → the is_default row of
+  proc.digest_schedule.
+- Window is procurement_act.ingested_at, half-open (last_cursor, now].
+  last_cursor moves ONLY when an email actually went out — an empty/failed/
+  skipped run leaves the window for the next email.
+- Every send writes its matched acts to proc.digest_run_item (the WHOLE window,
+  capped at DIGEST_ITEM_CAP=2000; in_email marks the ones the message listed)
+  plus an unguessable digest_run.token. The email's "see all results" opens
+  /digests/<token>, which needs login + ownership (admins may also read).
 - app/mailer.py is the ONLY place mail is sent. EMAIL_BACKEND defaults to
   console — nothing leaves the machine until SMTP is configured.
 - Fired by cron_digests.py OR DIGEST_SCHEDULER=1 in-process. Never both.

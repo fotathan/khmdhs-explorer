@@ -16,13 +16,33 @@ profile falls back to the portal profile it is based on:
 so an admin sets the portal cadence once, and only overrides the customers who
 want something else.
 
+Who may be mailed
+-----------------
+Only a customer with a CURRENT grant — status 'tester' or 'subscriber'. An
+expired tester, a lapsed subscriber and a prospective lead are CRM records, not
+customers, and a subscription someone set up months ago must not keep mailing
+them. The gate is `is_entitled` (the same status expression the CRM segments
+by); it is applied both when the sweep picks candidates and again inside
+run_subscription, so the admin's "send now" button is not a way around it.
+
 The window
 ----------
 Always `procurement_act.ingested_at`, never the act's own dates. An act signed
 last month but published to KHMDHS today must reach the customer today, and
-ingested_at is the only column that records when it became visible to us. Each
-subscription keeps its own high-water mark (last_cursor), so a missed run is
-absorbed by the next one and no act is ever mailed twice.
+ingested_at is the only column that records when it became visible to us.
+
+last_cursor is the high-water mark, and it moves ONLY when an email actually
+went out. So the window is literally "everything ingested since the last message
+you received": an empty run, a refused run and a failed send all leave it where
+it was, and nothing can be consumed by a run nobody was told about.
+
+What one send contained
+-----------------------
+Every run that mails writes its matched acts to proc.digest_run_item — the whole
+window, not just the max_results the message lists — and carries an unguessable
+token. The email's "see all results" button opens /digests/<token>, which
+renders exactly those acts. Replaying the profile's filters instead would drift:
+clicked two days later, the same search returns a different set.
 
 Cadence maths (no cron parser)
 ------------------------------
@@ -40,7 +60,11 @@ Where the pieces live
                      /admin/email-templates so copy changes need no deploy
   app/templates/email_digest.html   — the results table around that intro
   cron_digests.py  — the entry point a scheduler (or you) invokes
-  /admin/digests   — schedules, subscriptions, run history, preview, test send
+  /admin/digests   — schedules (the portal-wide settings), a read-only overview
+                     of every subscription, and the run history
+  /admin/crm/<id>  — the per-customer settings: which saved searches they are
+                     mailed about, on what cadence, and the send/test buttons
+  /digests/<token> — the result set one email contained (owner or admin only)
 """
 from __future__ import annotations
 
@@ -48,6 +72,7 @@ import datetime as dt
 import html as _html
 import os
 import re
+import secrets
 import zoneinfo
 
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -72,6 +97,19 @@ APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
 CADENCES = ("daily", "weekdays", "weekly", "monthly")
 DEFAULT_TZ = "Europe/Athens"
+
+# Who may be mailed. A subscription is not permission: an expired tester, a
+# lapsed subscriber and a prospective lead are all CRM records, and mailing them
+# results is either a leak of a paid product or a message to someone who never
+# asked for one. The list mirrors auth.ENTITLED_STATUSES so the gate and the CRM
+# segment tabs can never disagree about what "active customer" means.
+ENTITLED_STATUSES = _auth.ENTITLED_STATUSES
+
+# Upper bound on how many acts one run records. The email lists at most
+# max_results; the rest exist so /digests/<token> can show the whole window
+# ("see ALL results"). A pathological window (a brand-new subscription with a
+# very wide profile) must still not write a million rows in one transaction.
+ITEM_CAP = max(1, int(os.environ.get("DIGEST_ITEM_CAP") or 2000))
 
 # Absolute links: an email has no origin to resolve "/act/25SYMV…" against.
 def base_url() -> str:
@@ -257,18 +295,41 @@ def _check_cadence(cadence):
 # --------------------------------------------------------------------------- #
 # Subscriptions — DB helpers
 # --------------------------------------------------------------------------- #
-_SUB_COLS = """
+_SUB_COLS = f"""
     ds.*,
-    u.username, u.email, u.is_active AS user_active,
+    u.username, u.email, u.is_active AS user_active, u.role AS user_role,
     sp.name AS profile_name, sp.scope AS profile_scope,
-    sch.id  AS sched_id, sch.name AS sched_name
+    sch.id  AS sched_id, sch.name AS sched_name,
+    {_auth.SEGMENT_CASE_SQL} AS customer_status
 """
-_SUB_FROM = """
+# The customer_profile / current-subscription joins are here only to feed the
+# status expression above — the same one the CRM segments by. `p` and `s` are
+# the alias names that expression hard-codes.
+_SUB_FROM = f"""
     FROM proc.digest_subscription ds
     JOIN proc.app_user u        ON u.id  = ds.user_id
     JOIN proc.search_profile sp ON sp.id = ds.search_profile_id
     LEFT JOIN proc.digest_schedule sch ON sch.id = ds.schedule_id
+    LEFT JOIN proc.customer_profile p ON p.user_id = u.id
+    {_auth.CURRENT_SUB_JOIN_SQL}
 """
+
+
+def is_entitled(subscription) -> bool:
+    """Whether this subscription's customer may be mailed at all right now.
+
+    Independent of the subscription's own is_active flag and of dueness: this
+    is about the ACCOUNT. A digest set up while someone was a tester must stop
+    the day their grant lapses, without an admin having to remember.
+
+    Admins are always entitled, exactly as auth.load_user grants them access
+    without a subscription: an admin subscribed to their own profile is how the
+    feature gets exercised on a real cadence, and it is not a leak of anything
+    they cannot already read."""
+    sub = subscription or {}
+    if sub.get("user_role") == "admin":
+        return True
+    return sub.get("customer_status") in ENTITLED_STATUSES
 
 
 def list_subscriptions(c, user_id=None):
@@ -325,32 +386,112 @@ def resolve_schedule(c, subscription):
 
 
 def active_subscriptions(c):
-    """Every candidate for a scheduled run: active subscription, active account,
-    an address to send to. Whether each is DUE is decided per schedule."""
-    c.execute(f"""SELECT {_SUB_COLS} {_SUB_FROM}
-                  WHERE ds.is_active AND u.is_active
-                    AND coalesce(u.email, '') <> ''
-                  ORDER BY ds.id""")
+    """Every candidate for a scheduled run: an active subscription on an active
+    account that is ENTITLED (a live tester or subscriber) and has an address.
+    Whether each is DUE is then decided per schedule.
+
+    The entitlement test is in the WHERE clause rather than in Python so the
+    sweep never even loads a lapsed customer — an ineligible subscription is not
+    a skipped run, it is not a candidate."""
+    c.execute(f"""SELECT * FROM (
+                    SELECT {_SUB_COLS} {_SUB_FROM}
+                    WHERE ds.is_active AND u.is_active
+                      AND coalesce(u.email, '') <> ''
+                  ) q
+                  WHERE q.user_role = 'admin' OR q.customer_status = ANY(%s)
+                  ORDER BY q.id""", (list(ENTITLED_STATUSES),))
     return c.fetchall()
 
 
 # --------------------------------------------------------------------------- #
 # Run history
 # --------------------------------------------------------------------------- #
+def new_token() -> str:
+    """The handle in the email's 'see all results' link. Unguessable, and the
+    only thing the URL carries — /digests/<token> still requires the owner to be
+    logged in, so a leaked link is not a leaked result set."""
+    return secrets.token_urlsafe(24)
+
+
 def record_run(c, *, subscription_id, trigger, status, n_results=0,
                cursor_from=None, cursor_to=None, recipient=None, subject=None,
-               error=None):
+               error=None, token=None):
     c.execute("""INSERT INTO proc.digest_run
                    (subscription_id, trigger, status, n_results, cursor_from,
-                    cursor_to, recipient, subject, error, finished_at)
-                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s, now()) RETURNING id""",
+                    cursor_to, recipient, subject, error, token, finished_at)
+                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, now()) RETURNING id""",
               (subscription_id, trigger, status, n_results, cursor_from,
-               cursor_to, recipient, subject, (error or None)))
+               cursor_to, recipient, subject, (error or None), token))
     return c.fetchone()["id"]
 
 
+def record_run_items(c, run_id, matched, shown=0):
+    """Write down exactly which acts this run covered.
+
+    `matched` is every act in the window (already capped at ITEM_CAP); `shown`
+    is how many of them the email itself listed, in the same order. Storing both
+    is what lets the results page honour "see ALL results" when max_results
+    truncated the message — and what makes the set replayable later, after the
+    profile has been edited or the act re-ingested."""
+    rows = [(run_id, r["adam"], i, i < shown, r.get("ingested_at"))
+            for i, r in enumerate(matched or [])]
+    if not rows:
+        return 0
+    c.executemany("""INSERT INTO proc.digest_run_item
+                       (run_id, adam, ord, in_email, ingested_at)
+                     VALUES (%s,%s,%s,%s,%s)
+                     ON CONFLICT (run_id, adam) DO NOTHING""", rows)
+    return len(rows)
+
+
+def get_run_by_token(c, token):
+    """One run addressed by its link token, with everything the results page
+    needs to authorise the viewer and title the page."""
+    c.execute("""SELECT r.*, ds.user_id, ds.lang AS sub_lang,
+                        ds.search_profile_id, sp.name AS profile_name,
+                        u.username
+                 FROM proc.digest_run r
+                 JOIN proc.digest_subscription ds ON ds.id = r.subscription_id
+                 LEFT JOIN proc.search_profile sp ON sp.id = ds.search_profile_id
+                 LEFT JOIN proc.app_user u        ON u.id  = ds.user_id
+                 WHERE r.token = %s""", (token,))
+    return c.fetchone()
+
+
+def run_item_count(c, run_id):
+    """How many of the run's recorded acts still exist."""
+    c.execute("""SELECT count(*) AS n
+                 FROM proc.digest_run_item ri
+                 JOIN proc.procurement_act a ON a.adam = ri.adam
+                 WHERE ri.run_id = %s""", (run_id,))
+    return c.fetchone()["n"]
+
+
+def run_item_acts(c, run_id, limit=None, offset=0):
+    """The run's recorded acts, joined back to the live act rows and in the
+    order the email listed them.
+
+    An act deleted since the send simply drops out (the FK cascades), which is
+    the honest answer — the page shows what still exists of what was sent.
+    `limit` pages the results view: one run may hold up to ITEM_CAP acts, and
+    rendering two thousand cards in one response is a several-megabyte page."""
+    sql = f"""SELECT {_main().SELECT_COLS}, ri.in_email, ri.ord
+              FROM proc.digest_run_item ri
+              JOIN proc.procurement_act a ON a.adam = ri.adam
+              LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
+              WHERE ri.run_id = %s
+              ORDER BY ri.ord, ri.id"""
+    args = [run_id]
+    if limit is not None:
+        sql += " LIMIT %s OFFSET %s"
+        args += [int(limit), int(offset)]
+    c.execute(sql, args)
+    return c.fetchall()
+
+
 def list_runs(c, subscription_id=None, limit=50):
-    sql = """SELECT r.*, u.username, sp.name AS profile_name
+    sql = """SELECT r.*, u.username, sp.name AS profile_name,
+                    ds.user_id AS customer_id
              FROM proc.digest_run r
              LEFT JOIN proc.digest_subscription ds ON ds.id = r.subscription_id
              LEFT JOIN proc.app_user u        ON u.id  = ds.user_id
@@ -387,13 +528,22 @@ DIGEST_COLS = """
 """
 
 
-def new_acts(c, params, since, until, limit=25):
+def new_acts(c, params, since, until, limit=25, cap=None):
     """Acts matching the profile's filters that were ingested in (since, until].
 
-    Returns (rows, total) — total is the honest count of everything in the
-    window, so an email showing the first 25 can say how many more there are.
+    Returns (shown, total, matched):
+      matched — every match in the window, up to `cap` rows. This is what the
+                run records, and what /digests/<token> lists.
+      shown   — the first `limit` of those: what the email itself prints.
+      total   — the honest count of the whole window, so a truncated email can
+                say how many more there are.
+
+    Fetching `matched` once and slicing it means the email and the results page
+    are guaranteed to agree on order and content — they are the same query.
+
     The window bound is exclusive at the bottom and inclusive at the top, so
     consecutive runs tile the timeline with no gap and no overlap."""
+    cap = max(int(limit), int(cap or ITEM_CAP))
     where, args = _main().build_where(params or {})
     window = " AND a.ingested_at > %s AND a.ingested_at <= %s"
     c.execute(f"""SELECT count(*) AS n
@@ -401,14 +551,15 @@ def new_acts(c, params, since, until, limit=25):
                   WHERE {where}{window}""", list(args) + [since, until])
     total = c.fetchone()["n"]
     if not total:
-        return [], 0
+        return [], 0, []
     c.execute(f"""SELECT {DIGEST_COLS}
                   FROM proc.procurement_act a
                   LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
                   WHERE {where}{window}
                   ORDER BY a.ingested_at DESC, a.adam
-                  LIMIT %s""", list(args) + [since, until, int(limit)])
-    return c.fetchall(), total
+                  LIMIT %s""", list(args) + [since, until, cap])
+    matched = c.fetchall()
+    return matched[:int(limit)], total, matched
 
 
 # --------------------------------------------------------------------------- #
@@ -486,13 +637,11 @@ def _strip_markers(html):
 
 
 def render_digest(*, subscription, profile, params, rows, total, since, until,
-                  intro, subject):
+                  intro, subject, token=None):
     """The email's HTML + plain-text alternative. The text part is derived from
     the HTML (same source, so the two can never drift)."""
     lang = subscription.get("lang") or "el"
     t = (lambda s: _i18n.translate(s, lang))
-    # The "see all results" link replays the EFFECTIVE filters, so a profile that
-    # lives off a portal profile links to the same set it was mailed about.
     qs = _sp.params_to_qs(params or {})
     type_labels = _main().TYPE_LABELS
     items = []
@@ -508,18 +657,24 @@ def render_digest(*, subscription, profile, params, rows, total, since, until,
             "deadline": _fmt_date(r.get("final_submission_date")),
             "cancelled": bool(r.get("cancelled")),
         })
+    # "See all results" opens THIS email's own result set (/digests/<token>),
+    # not a live re-run of the filters: by the time it is clicked, replaying the
+    # search would return a different set — including acts the customer has not
+    # been told about, and missing ones they have. The live search stays the
+    # fallback for a preview, which has no run to point at.
     search_url = f"{base_url()}/?{qs}" if qs else base_url()
+    results_url = f"{base_url()}/digests/{token}" if token else search_url
     html = _env.get_template("email_digest.html").render(
         t=t, lang=lang, intro=intro, items=items, total=total,
         shown=len(items), profile_name=profile.get("name") or "",
-        search_url=search_url,
+        search_url=search_url, results_url=results_url,
         account_url=f"{base_url()}/account",
         since=_fmt_date(since), until=_fmt_date(until),
         base=base_url(), subject=subject)
     return html, _plain_digest(t=t, intro=intro, items=items, total=total,
                                since=since, until=until,
                                profile_name=profile.get("name") or "",
-                               search_url=search_url)
+                               search_url=results_url)
 
 
 def _plain_digest(*, t, intro, items, total, since, until, profile_name,
@@ -559,12 +714,17 @@ def _plain_digest(*, t, intro, items, total, since, until, profile_name,
 # --------------------------------------------------------------------------- #
 # Running one subscription
 # --------------------------------------------------------------------------- #
-def build(c, subscription, *, now=None, since=None):
+def build(c, subscription, *, now=None, since=None, token=None):
     """Everything needed to send (or preview) one digest, without sending.
 
-    Returns a dict: subject, html, text, rows, total, since, until, recipient.
+    Returns a dict: subject, html, text, rows, matched, total, since, until,
+    recipient. `rows` is what the email lists; `matched` is the whole window,
+    which the caller records as the run's items.
+
     `since` overrides the stored cursor — that is how the preview shows a useful
-    sample ("last 7 days") for a subscription that has just been created."""
+    sample ("last 7 days") for a subscription that has just been created.
+    `token` is the run handle the "see all results" button points at; a preview
+    passes none and falls back to a live search link."""
     now = now or dt.datetime.now(dt.timezone.utc)
     profile = _auth.get_search_profile(c, subscription["search_profile_id"])
     if not profile:
@@ -578,15 +738,15 @@ def build(c, subscription, *, now=None, since=None):
                   (subscription["user_id"],))
         customer = c.fetchone()
     start = since or window_start(subscription)
-    rows, total = new_acts(c, params, start, now,
-                           limit=subscription.get("max_results") or 25)
+    rows, total, matched = new_acts(
+        c, params, start, now, limit=subscription.get("max_results") or 25)
     subject, intro = intro_html(c, subscription, profile, customer)
     html, text = render_digest(subscription=subscription, profile=profile,
                                params=params, rows=rows, total=total,
                                since=start, until=now, intro=intro,
-                               subject=subject)
+                               subject=subject, token=token)
     return {"subject": subject, "html": html, "text": text, "rows": rows,
-            "total": total, "since": start, "until": now,
+            "matched": matched, "total": total, "since": start, "until": now,
             "recipient": _mailer.address_for(customer),
             "profile": profile, "customer": customer, "params": params}
 
@@ -595,14 +755,37 @@ def run_subscription(c, subscription, *, trigger="schedule", now=None,
                      since=None, advance=True, to=None):
     """Build and send one digest, recording the attempt either way.
 
-    `advance` moves the subscription's cursor forward; a test send leaves it
-    alone so it cannot swallow results the customer has not been mailed yet.
-    Never raises for an ordinary failure — a broken subscription records an
-    'error' run and the sweep carries on to the next one."""
+    `advance` allows the subscription's cursor to move; a test send passes False
+    so it cannot swallow results the customer has not been mailed yet. Even with
+    advance=True the cursor only moves when a message actually LEFT — see
+    _touch. Never raises for an ordinary failure: a broken subscription records
+    an 'error' run and the sweep carries on to the next one.
+
+    A real send to a customer who is no longer entitled is refused here, not
+    only in active_subscriptions: the sweep filters them out, but the admin's
+    "send now" button reaches this function directly and must not become a way
+    around the gate. A test send is exempt — it goes to the admin."""
     now = now or dt.datetime.now(dt.timezone.utc)
     sub_id = subscription["id"]
+
+    if trigger != "test" and not is_entitled(subscription):
+        status = subscription.get("customer_status") or "unknown"
+        record_run(c, subscription_id=sub_id, trigger=trigger, status="skipped",
+                   cursor_from=window_start(subscription), cursor_to=now,
+                   recipient=(subscription.get("email") or None),
+                   error=f"customer is not an active tester or subscriber ({status})")
+        # last_run_at moves so the sweep does not re-evaluate this every tick;
+        # the cursor does NOT, so whatever accumulates while they are lapsed is
+        # still there to mail the day they are re-granted.
+        _touch(c, sub_id, now, advance=False)
+        return {"status": "skipped", "n": 0, "customer_status": status,
+                "error": f"not entitled ({status})"}
+
+    # Minted before the build so the message can link to its own results page.
+    # A run that ends up mailing nothing simply never stores it.
+    token = new_token()
     try:
-        built = build(c, subscription, now=now, since=since)
+        built = build(c, subscription, now=now, since=since, token=token)
     except Exception as exc:             # noqa: BLE001 — recorded, not raised
         record_run(c, subscription_id=sub_id, trigger=trigger, status="error",
                    error=f"{type(exc).__name__}: {exc}")
@@ -616,9 +799,10 @@ def run_subscription(c, subscription, *, trigger="schedule", now=None,
         record_run(c, subscription_id=sub_id, trigger=trigger, status="empty",
                    n_results=0, cursor_from=built["since"], cursor_to=now,
                    recipient=recipient, subject=built["subject"])
-        # The cursor still advances: nothing matched in this window, and
-        # re-scanning it next time would only find the same nothing.
-        _touch(c, sub_id, now, advance=advance, sent=False)
+        # No mail left the building, so the cursor stays put: the window is
+        # defined as "since the last email we actually sent you". Re-scanning an
+        # empty window costs one indexed count and keeps that promise literal.
+        _touch(c, sub_id, now, advance=False, sent=False)
         return {"status": "empty", "n": 0}
 
     try:
@@ -634,21 +818,28 @@ def run_subscription(c, subscription, *, trigger="schedule", now=None,
         _touch(c, sub_id, now, advance=False)
         return {"status": "error", "error": str(exc), "n": built["total"]}
 
-    record_run(c, subscription_id=sub_id, trigger=trigger, status="sent",
-               n_results=built["total"], cursor_from=built["since"],
-               cursor_to=now, recipient=sent["to"], subject=built["subject"])
+    run_id = record_run(c, subscription_id=sub_id, trigger=trigger, status="sent",
+                        n_results=built["total"], cursor_from=built["since"],
+                        cursor_to=now, recipient=sent["to"],
+                        subject=built["subject"], token=token)
+    record_run_items(c, run_id, built["matched"], shown=len(built["rows"]))
     _touch(c, sub_id, now, advance=advance, sent=True)
     return {"status": "sent", "n": built["total"], "to": sent["to"],
-            "backend": sent["backend"], "detail": sent["detail"]}
+            "backend": sent["backend"], "detail": sent["detail"],
+            "run_id": run_id, "token": token}
 
 
 def _touch(c, sub_id, now, *, advance=True, sent=False):
-    """Record that we evaluated this subscription. last_run_at gates dueness;
-    last_cursor is the ingest high-water mark and only moves when the window was
-    actually consumed."""
+    """Record that we evaluated this subscription.
+
+    last_run_at gates dueness and moves on every evaluation. last_cursor is the
+    ingest high-water mark and moves ONLY when an email actually went out
+    (`advance and sent`) — that is what makes "everything since your last email"
+    literally true, and what stops an empty run, a refused run or a failed send
+    from quietly consuming a window nobody was told about."""
     sets = ["last_run_at = %s", "updated_at = now()"]
     args = [now]
-    if advance:
+    if advance and sent:
         sets.append("last_cursor = %s")
         args.append(now)
     if sent:
@@ -663,8 +854,11 @@ def run_due(c, *, now=None, force=False, limit=None):
     """One sweep: send every subscription whose schedule has fired since we last
     looked. `force` ignores dueness (the admin's "run now"). Returns a summary."""
     now = now or dt.datetime.now(dt.timezone.utc)
+    # "skipped" = not due yet. "blocked" = the customer is no longer entitled;
+    # active_subscriptions already filters those out, so it should stay 0 — it
+    # is here so a future caller passing its own list cannot lose the count.
     out = {"checked": 0, "sent": 0, "empty": 0, "errors": 0, "skipped": 0,
-           "results": []}
+           "blocked": 0, "results": []}
     for sub in active_subscriptions(c):
         if limit is not None and out["checked"] >= limit:
             break
@@ -675,7 +869,8 @@ def run_due(c, *, now=None, force=False, limit=None):
             continue
         res = run_subscription(c, sub, trigger=("manual" if force else "schedule"),
                                now=now)
-        out[{"sent": "sent", "empty": "empty", "error": "errors"}[res["status"]]] += 1
+        out[{"sent": "sent", "empty": "empty", "error": "errors",
+             "skipped": "blocked"}[res["status"]]] += 1
         out["results"].append({"subscription_id": sub["id"],
                                "username": sub.get("username"),
                                "profile": sub.get("profile_name"), **res})
@@ -708,25 +903,17 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             s["schedule_label"] = describe_schedule(sched, lang)
             s["inherited"] = s["schedule_id"] is None
             s["next_run_at"] = next_occurrence(sched, now) if sched else None
-            s["due"] = is_due(s, sched, now) if sched else False
+            # Entitlement first: a lapsed customer is never "due", whatever the
+            # cadence says, and the overview must show that rather than a
+            # pending badge for mail that will never be sent.
+            s["entitled"] = is_entitled(s)
+            s["due"] = bool(s["entitled"] and sched and is_due(s, sched, now))
         for s in schedules:
             s["label"] = describe_schedule(s, lang)
             s["next_run_at"] = next_occurrence(s, now)
-        c.execute("""SELECT u.id, u.username, u.email
-                     FROM proc.app_user u
-                     WHERE u.role = 'customer' AND u.is_active
-                     ORDER BY lower(u.username)""")
-        customers = c.fetchall()
-        c.execute("""SELECT sp.id, sp.name, sp.scope, sp.owner_user_id,
-                            u.username AS owner_username
-                     FROM proc.search_profile sp
-                     LEFT JOIN proc.app_user u ON u.id = sp.owner_user_id
-                     ORDER BY sp.scope, lower(sp.name)""")
-        profiles = c.fetchall()
         return templates.TemplateResponse(request, "admin_digests.html", {
             "admin_tab": "digests", "tab": tab, "subs": subs,
-            "schedules": schedules, "customers": customers,
-            "profiles": profiles, "cadences": CADENCES,
+            "schedules": schedules, "cadences": CADENCES,
             "runs": list_runs(c, limit=50), "mail": _mailer.describe(),
             "default_schedule": default, "flash": flash,
             "base_url": base_url()})
@@ -776,6 +963,10 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         return _back("schedules")
 
     # ---- subscriptions ----------------------------------------------------- #
+    # These endpoints are shared with the CRM customer page, which is where the
+    # FORMS live (one customer's alerts belong on that customer's card; a single
+    # portal-wide list stops scaling the moment there are more than a handful).
+    # `back` is the page to return to, so the same endpoint serves both.
     @router.post("/subscriptions")
     async def save_subscription(request: Request,
                                 user_id: str = Form(...),
@@ -784,7 +975,8 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                                 lang: str = Form("el"),
                                 max_results: str = Form("25"),
                                 send_empty: str = Form(""),
-                                is_active: str = Form("on")):
+                                is_active: str = Form("on"),
+                                back: str = Form("")):
         admin = _admin(request)
         with cursor() as c:
             profile = _auth.get_search_profile(c, int(search_profile_id))
@@ -802,14 +994,15 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 is_active=bool(is_active), send_empty=bool(send_empty),
                 max_results=max(1, min(200, int(max_results or 25))),
                 lang=lang, created_by=admin["id"])
-        return _back("subscriptions")
+        return _back("subscriptions", back=back)
 
     @router.post("/subscriptions/{sub_id}/delete")
-    async def remove_subscription(sub_id: int, request: Request):
+    async def remove_subscription(sub_id: int, request: Request,
+                                  back: str = Form("")):
         _admin(request)
         with cursor() as c:
             delete_subscription(c, sub_id)
-        return _back("subscriptions")
+        return _back("subscriptions", back=back)
 
     @router.get("/subscriptions/{sub_id}/preview", response_class=HTMLResponse)
     def preview(sub_id: int, request: Request, days: int = 7):
@@ -827,10 +1020,12 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
 
     @router.post("/subscriptions/{sub_id}/send")
     async def send_now(sub_id: int, request: Request, mode: str = Form("test"),
-                       to: str = Form("")):
+                       to: str = Form(""), back: str = Form("")):
         """mode=test  — send the last 7 days to `to` (default: the admin), cursor
-                        untouched.
-           mode=real  — the real thing: the customer's window, cursor advances."""
+                        untouched, and allowed whatever the customer's status is
+                        (the message goes to the admin, not to them).
+           mode=real  — the real thing: the customer's window, and refused with a
+                        'skipped' run if they are no longer entitled."""
         admin = _admin(request)
         with cursor() as c:
             sub = get_subscription(c, sub_id)
@@ -845,7 +1040,8 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                     since=now - dt.timedelta(days=7), advance=False,
                     to=(to or "").strip() or admin.get("email") or sub.get("email"))
         detail = res.get("detail") or res.get("error") or ""
-        return _back("runs", flash=f"{res['status']}: {res.get('n', 0)} {detail}")
+        return _back("runs", flash=f"{res['status']}: {res.get('n', 0)} {detail}",
+                     back=back)
 
     # ---- sweep ------------------------------------------------------------- #
     @router.post("/run")
@@ -856,12 +1052,73 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
         return _back("runs", flash=(f"checked {out['checked']} · sent {out['sent']} "
                                     f"· empty {out['empty']} · errors {out['errors']}"))
 
-    def _back(tab, flash=None):
+    def _back(tab, flash=None, back=""):
+        """Back to the digests page, or to whatever `back` names — which is how
+        the CRM customer page reuses these endpoints. Only a same-site path is
+        honoured, so a crafted form cannot turn this into an open redirect."""
+        from urllib.parse import quote
+        back = (back or "").strip()
+        if back.startswith("/") and not back.startswith("//"):
+            url = back
+            if flash:
+                url += ("&" if "?" in url else "?") + "flash=" + quote(flash)
+            return RedirectResponse(url=url, status_code=303)
         url = f"/admin/digests?tab={tab}"
         if flash:
-            from urllib.parse import quote
-            url += f"&flash={quote(flash)}"
+            url += "&flash=" + quote(flash)
         return RedirectResponse(url=url, status_code=303)
+
+    return router
+
+
+# --------------------------------------------------------------------------- #
+# The result set one email contained — /digests/<token>
+# --------------------------------------------------------------------------- #
+def make_results_router(templates: Jinja2Templates, cursor) -> APIRouter:
+    """The page the email's "see all results" button opens.
+
+    Not an admin surface and not public either: the token addresses the run, and
+    the route then insists the viewer IS the customer that run was for (or an
+    admin). A forwarded link therefore shows a stranger a login page, not a
+    customer's result set."""
+    router = APIRouter(prefix="/digests", tags=["digests"])
+
+    # token_urlsafe alphabet. Anything else cannot be a token, so reject it
+    # before touching the database.
+    _TOKEN_OK = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
+
+    PER_PAGE = 25
+
+    @router.get("/{token}", response_class=HTMLResponse)
+    def digest_results(token: str, request: Request, page: int = 1):
+        if not _TOKEN_OK.match(token or ""):
+            raise HTTPException(404, "not found")
+        user = getattr(request.state, "user", None)
+        with cursor() as c:
+            run = get_run_by_token(c, token)
+            if not run:
+                raise HTTPException(404, "not found")
+            if not user:
+                # Clicked straight out of the mail client: sign in, come back.
+                return RedirectResponse(url=f"/login?next=/digests/{token}",
+                                        status_code=303)
+            if user.get("role") != "admin" and user.get("id") != run["user_id"]:
+                raise HTTPException(403, "not your results")
+            total = run_item_count(c, run["id"])
+            total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+            page = max(1, min(int(page or 1), total_pages))
+            rows = run_item_acts(c, run["id"], limit=PER_PAGE,
+                                 offset=(page - 1) * PER_PAGE)
+        return templates.TemplateResponse(request, "digest_results.html", {
+            "run": run, "rows": rows, "total": total,
+            "page": page, "total_pages": total_pages, "token": token,
+            "profile_name": run.get("profile_name") or "",
+            "nav_active": "search",
+            # The email's own window, so the page can say what period this was.
+            "since": run.get("cursor_from"), "until": run.get("cursor_to"),
+            "is_admin_view": (user.get("role") == "admin"
+                              and user.get("id") != run["user_id"]),
+        })
 
     return router
 

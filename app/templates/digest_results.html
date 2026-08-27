@@ -1,0 +1,91 @@
+{% extends "beta_base.html" %}
+{% block title %}{{ t("Αποτελέσματα ειδοποίησης") }} · {{ profile_name }}{% endblock %}
+
+{# digest_results.html — the result set ONE alert email contained.
+
+   Reached from that email's "see all results" button, at /digests/<token>.
+   Deliberately not a search: the rows come from proc.digest_run_item, recorded
+   when the message was sent, so the page still shows the same acts weeks later
+   even after the saved search has been edited or new acts have arrived. The
+   cards are the shared _result_card.html, so a result reads identically here
+   and on the search page.
+
+   The email lists at most the subscription's max_results; this page lists the
+   whole window, which is what "see ALL results" has to mean. When the two
+   differ, the note under the heading says so. #}
+
+{% block content %}
+<div class="hero">
+  <div class="hero-in">
+    <div class="page-head">
+      <div class="dgr-kicker">{{ t("Ειδοποίηση αποτελεσμάτων") }}</div>
+      <h1>{{ profile_name or t("Αποθηκευμένη αναζήτηση") }}</h1>
+      <div class="sub">
+        {% if total %}
+          <b>{{ total }}</b> {{ t("πράξεις σε αυτή την ειδοποίηση") }}
+          {%- if since and until %} ·
+            {{ since.strftime('%d/%m/%Y') }} – {{ until.strftime('%d/%m/%Y') }}
+          {%- endif %}
+          {# n_results is the honest count of the whole window; `total` is what
+             the run recorded, capped at DIGEST_ITEM_CAP. They differ only for a
+             pathologically wide window, and when they do the page must say so
+             rather than quietly present the cap as the answer. #}
+          {% if run.n_results and run.n_results > total %}
+            <br>{{ t("Η ειδοποίηση αφορούσε") }} {{ run.n_results }} {{ t("πράξεις συνολικά.") }}
+          {% endif %}
+        {% else %}
+          {{ t("Οι πράξεις αυτής της ειδοποίησης δεν είναι πλέον διαθέσιμες.") }}
+        {% endif %}
+      </div>
+      {% if is_admin_view %}
+      <div class="dgr-admin">
+        {{ t("Προβολή διαχειριστή — η ειδοποίηση στάλθηκε στον χρήστη") }}
+        <code>{{ run.username }}</code>
+        {%- if run.started_at %} · {{ run.started_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<main>
+  {% if rows %}
+    {% for r in rows %}
+      {% include "_result_card.html" %}
+    {% endfor %}
+  {% else %}
+    <div class="dgr-empty">{{ t("Καμία πράξη προς εμφάνιση.") }}</div>
+  {% endif %}
+
+  {# Plain links, no HTMX: this page has no filter form to keep in sync, and a
+     shared or bookmarked ?page= has to work on its own. #}
+  {% if total_pages > 1 %}
+  <div class="pager">
+    {% if page > 1 %}
+      <a href="/digests/{{ token }}?page={{ page - 1 }}">‹</a>
+    {% else %}<span class="disabled">‹</span>{% endif %}
+    <span class="cur">{{ page }}</span>
+    <span style="border:0;background:transparent;color:var(--ink-3);">{% if lang == 'en' %}of{% else %}από{% endif %} {{ total_pages }}</span>
+    {% if page < total_pages %}
+      <a href="/digests/{{ token }}?page={{ page + 1 }}">›</a>
+    {% else %}<span class="disabled">›</span>{% endif %}
+  </div>
+  {% endif %}
+
+  <div class="dgr-foot">
+    <a href="/">{{ t("Νέα αναζήτηση") }}</a> ·
+    <a href="/account">{{ t("Ρυθμίσεις λογαριασμού") }}</a>
+  </div>
+</main>
+
+<style>
+  .dgr-kicker{font-family:var(--mono);font-size:11px;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--accent);margin-bottom:4px;}
+  .dgr-admin{margin-top:10px;font-size:12px;color:var(--ink-3);
+    background:var(--paper);border:1px solid var(--rule);border-radius:8px;
+    padding:7px 11px;display:inline-block;}
+  .dgr-admin code{font-family:var(--mono);color:var(--ink-2);}
+  .dgr-empty{font-size:14px;color:var(--ink-3);font-style:italic;padding:28px 0;}
+  .dgr-foot{margin-top:26px;font-size:13px;color:var(--ink-3);}
+</style>
+{% endblock %}

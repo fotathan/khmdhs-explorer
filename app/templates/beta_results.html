@@ -13,48 +13,7 @@
 </script>
 {% if rows %}
   {% for r in rows %}
-  <div class="card">
-    <div class="card-top">
-      <div style="min-width:0;">
-        <span class="card-type t-{{ r.type }}">{{ r.type | type_label }}</span>
-        {% if r.data_source == 'diavgeia' %}<span class="src-badge src-diavgeia">{{ t("Διαύγεια") }}</span>{% elif r.data_source == 'ted' %}<span class="src-badge src-ted">TED</span>{% else %}<span class="src-badge src-khmdhs">ΚΗΜΔΗΣ</span>{% endif %}
-        <h3 class="card-title"><a href="/act/{{ r.adam }}">{{ r.title or '—' }}</a></h3>
-        <div class="card-meta">
-          {% if r.authority_id %}
-            <span class="m"><a href="/authority/{{ r.authority_id }}"><b>{{ r.authority_name or '—' }}</b></a></span>
-          {% else %}
-            <span class="m"><b>{{ r.authority_name or '—' }}</b></span>
-          {% endif %}
-
-          {# publication date — submission_date, else signed_date #}
-          {% set pubdate = r.submission_date or r.signed_date %}
-          {% if pubdate %}
-          <span class="dt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg><span class="lbl">{{ t("δημ.") }}</span> <b>{{ pubdate.strftime('%d/%m/%Y') }}</b></span>
-          {% endif %}
-
-          {% if r.final_submission_date %}
-          <span class="dt deadline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lbl">{{ t("λήξη") }}</span> <b>{{ r.final_submission_date.strftime('%d/%m/%Y') }}</b></span>
-          {% endif %}
-
-          <span class="m adam">{{ "ΑΔΑ" if r.data_source == 'diavgeia' else ("TED" if r.data_source == 'ted' else "ΑΔΑΜ") }} {{ r.adam }}</span>
-
-          {% if r.cancelled %}<span class="pill cancel">{{ t("ακυρωμένη") }}</span>{% endif %}
-          {% if r.is_modified %}<span class="pill amend">{{ t("ορθή επ.") }}</span>{% endif %}
-        </div>
-      </div>
-      <div class="card-val">
-        {% if r.resolved_value is not none %}
-          <div class="amt {% if r.is_corrected %}corrected{% endif %}"
-               {% if r.is_corrected and r.total_cost_with_vat is not none %}title="{{ t('Διορθωμένη τιμή — αρχική: €') }} {{ '{:,.2f}'.format(r.total_cost_with_vat).replace(',', '.') }}"{% endif %}>
-            € {{ "{:,.0f}".format(r.resolved_value).replace(",", ".") }}
-          </div>
-          <div class="amt-l">{{ t("αξία σύμβασης") if r.type == 'contract' else t("εκτ. προϋπολογισμός") }}</div>
-        {% else %}
-          <div class="amt" style="color:var(--ink-3);font-weight:500;">—</div>
-        {% endif %}
-      </div>
-    </div>
-  </div>
+  {% include "_result_card.html" %}
   {% endfor %}
 
   {% if access_tier == 'gated' %}

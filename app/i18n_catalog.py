@@ -2123,6 +2123,77 @@ _DIGESTS = {
         "\u201cHistory\u201d records every attempt: how many results, to whom, and what went wrong.",
     "Η αποστολή εξαρτάται από τη διαμόρφωση: χωρίς ρυθμισμένο διακομιστή email τα μηνύματα καταγράφονται τοπικά αντί να σταλούν. Η γραμμή στην κορυφή της σελίδας δείχνει πάντα πού καταλήγουν.":
         "Sending depends on configuration: with no mail server configured, messages are logged locally instead of sent. The bar at the top of the page always shows where they end up.",
+    # ---- the result set one email contained (/digests/<token>) ----
+    "Αποτελέσματα ειδοποίησης": "Alert results",
+    "Αποθηκευμένη αναζήτηση": "Saved search",
+    "πράξεις σε αυτή την ειδοποίηση": "acts in this alert",
+    "Η ειδοποίηση αφορούσε": "The alert covered",
+    "πράξεις συνολικά.": "acts in total.",
+    "Το email εμφάνιζε τις πρώτες": "The email showed the first",
+    "Οι πράξεις αυτής της ειδοποίησης δεν είναι πλέον διαθέσιμες.":
+        "The acts in this alert are no longer available.",
+    "Προβολή διαχειριστή — η ειδοποίηση στάλθηκε στον χρήστη":
+        "Admin view — this alert was sent to user",
+    "Καμία πράξη προς εμφάνιση.": "No acts to show.",
+    "Νέα αναζήτηση": "New search",
+    # ---- saved searches + alerts on the CRM customer card ----
+    "Ειδοποίηση": "Alert",
+    "δικό του": "own",
+    "προφίλ πύλης": "portal profile",
+    "βάσει": "based on",
+    "(χωρίς φίλτρα)": "(no filters)",
+    "Καμία αποθηκευμένη αναζήτηση.": "No saved searches.",
+    "Ειδοποιήσεις email με αποτελέσματα": "Result email alerts",
+    "Δεν στέλνονται email: ο πελάτης δεν είναι ενεργός δοκιμαστής ή συνδρομητής. Οι ρυθμίσεις διατηρούνται και ενεργοποιούνται μόλις του ανατεθεί προϊόν.":
+        "No emails are sent: this customer is not an active tester or subscriber. The settings are kept and take effect as soon as a product is granted.",
+    "Οι συχνότητες ορίζονται στα": "The cadences are defined under",
+    "επόμενη": "next",
+    "Καμία ειδοποίηση για αυτόν τον πελάτη.": "No alerts for this customer.",
+    "Μία εγγραφή ανά προφίλ — η επαναποθήκευση ενημερώνει την υπάρχουσα.":
+        "One subscription per profile — saving again updates the existing one.",
+    # ---- the read-only overview at /admin/digests ----
+    "Προγραμματισμένα email με νέα αποτελέσματα ανά προφίλ αναζήτησης. Κάθε εγγραφή στέλνει ό,τι μπήκε στη βάση από το προηγούμενο email και μετά, και μόνο σε ενεργούς δοκιμαστές και συνδρομητές. Οι ρυθμίσεις ανά πελάτη βρίσκονται στην καρτέλα CRM του· εδώ ορίζονται οι συχνότητες.":
+        "Scheduled emails with new results per search profile. Each subscription sends whatever entered the database since its previous email, and only to active testers and subscribers. Per-customer settings live on the customer's CRM card; the cadences are defined here.",
+    "Οι ρυθμίσεις ανά πελάτη (ποια προφίλ, γλώσσα, πλήθος) βρίσκονται στην καρτέλα CRM του κάθε πελάτη. Εδώ είναι η συνολική εικόνα.":
+        "Per-customer settings (which profiles, language, how many) live on each customer's CRM card. This is the portal-wide picture.",
+    "χωρίς ενεργή πρόσβαση": "no active access",
+    "Δεν στέλνονται email σε μη ενεργούς πελάτες.":
+        "No emails are sent to customers without active access.",
+    "Ρυθμίσεις στο CRM": "Settings in CRM",
+    "Καμία εγγραφή ακόμη. Προσθέστε μία από την καρτέλα CRM ενός πελάτη.":
+        "No subscriptions yet. Add one from a customer's CRM card.",
+    "τι στάλθηκε": "what was sent",
+    # ---- help page ----
+    "Οι ρυθμίσεις κάθε πελάτη βρίσκονται στην καρτέλα του στο CRM: εκεί βλέπετε τις αποθηκευμένες αναζητήσεις του και ορίζετε για ποιες λαμβάνει email. Στο":
+        "Each customer's settings live on their CRM card: there you see their saved searches and choose which ones they are emailed about. Under",
+    "ορίζονται μόνο οι συχνότητες, μαζί με τη συνολική εικόνα και το ιστορικό αποστολών.":
+        "you define only the cadences, along with the portal-wide picture and the send history.",
+    "Email λαμβάνουν ΜΟΝΟ ενεργοί δοκιμαστές και συνδρομητές. Μόλις λήξει η συνδρομή, οι αποστολές σταματούν αυτόματα — οι ρυθμίσεις διατηρούνται και ξαναρχίζουν με τη νέα ανάθεση προϊόντος.":
+        "ONLY active testers and subscribers receive email. The moment a subscription lapses, sending stops by itself — the settings are kept and resume when a product is granted again.",
+    "Κάθε email περιέχει μόνο τις πράξεις που μπήκαν στη βάση μετά το προηγούμενο email που στάλθηκε στον συγκεκριμένο πελάτη. Αν μια αποστολή δεν γίνει (κενό διάστημα, σφάλμα, ανενεργός πελάτης), το διάστημα δεν χάνεται — μπαίνει στο επόμενο email.":
+        "Each email contains only the acts that entered the database after the previous email sent to that particular customer. If a send does not happen (an empty period, an error, a lapsed customer), the period is not lost — it rolls into the next email.",
+    "Το κουμπί «Δείτε όλα τα αποτελέσματα» μέσα στο email ανοίγει τη λίστα ακριβώς αυτών των πράξεων — όχι μια νέα αναζήτηση. Αν το email εμφάνιζε τις πρώτες 25 από 80, η σελίδα δείχνει και τις 80. Ο σύνδεσμος απαιτεί σύνδεση και ανοίγει μόνο για τον ίδιο τον πελάτη (ή για διαχειριστή).":
+        "The \u201csee all results\u201d button inside the email opens the list of exactly those acts — not a fresh search. If the email showed the first 25 of 80, the page shows all 80. The link requires signing in and opens only for that customer (or an admin).",
+    "Το «Ιστορικό» καταγράφει κάθε προσπάθεια: πόσα αποτελέσματα, σε ποιον, τι πήγε στραβά, και σύνδεσμο «τι στάλθηκε» για κάθε email που έφυγε.":
+        "\u201cHistory\u201d records every attempt: how many results, to whom, what went wrong, and a \u201cwhat was sent\u201d link for every email that left.",
+    "Αποθηκευμένες αναζητήσεις & ειδοποιήσεις στην καρτέλα πελάτη":
+        "Saved searches & alerts on the customer card",
+    "Η καρτέλα κάθε πελάτη δείχνει τις αποθηκευμένες αναζητήσεις του (δικές του και προφίλ πύλης για τα οποία λαμβάνει email) με σύνοψη των φίλτρων, και δίπλα τις ειδοποιήσεις email: ποιο προφίλ, ποιο πρόγραμμα, γλώσσα, πλήθος αποτελεσμάτων, οι τελευταίες αποστολές και τα κουμπιά προεπισκόπησης / δοκιμαστικής και άμεσης αποστολής.":
+        "Each customer's card lists their saved searches (their own, plus any portal profile they are emailed about) with a summary of the filters, and next to them the result email alerts: which profile, which schedule, language, how many results, the most recent sends, and the preview / test-send / send-now buttons.",
+    # ---- saved-search filter names (crm.describe_params) ----
+    "λέξη-κλειδί": "keyword",
+    "προθεσμία από": "deadline from",
+    "προθεσμία έως": "deadline to",
+    "αξία από": "value from",
+    "αξία έως": "value to",
+    "κατάσταση": "status",
+    "είδος": "type",
+    "αναθέτουσα": "authority",
+    "τύπος σύμβασης": "contract type",
+    "διαδικασία": "procedure",
+    "περιοχή": "region",
+    "κατηγορία": "category",
+    "πηγή": "source",
 }
 
 # (there should be none — keep keys unique across groups).
