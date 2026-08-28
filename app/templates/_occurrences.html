@@ -1,0 +1,41 @@
+{# _occurrences.html — popover body for one term's occurrences.
+
+   Returned by GET /act/{adam}/occurrences?term=… and swapped into
+   #occ-popover. Every entry carries the id of a <mark> that exists in the
+   page, so clicking it always lands on something visible — static/js/
+   occurrences.js opens the full-text section first when the target is inside
+   it. Ordered by section, then by position in the document. #}
+<div class="occ-head">
+  <span class="occ-term">{{ term }}</span>
+  <span class="occ-count">
+    {%- if total > shown -%}
+      {{ t("Εμφανίζονται") }} {{ shown }} {{ t("από σύνολο") }} {{ total }}
+    {%- else -%}
+      {{ total }} {{ t("εμφανίσεις") if total != 1 else t("εμφάνιση") }}
+    {%- endif -%}
+  </span>
+  <button type="button" class="occ-x" data-occ-close aria-label="{{ t('Κλείσιμο') }}">×</button>
+</div>
+
+{% if occurrences %}
+<ul class="occ-list" role="listbox">
+  {% for o in occurrences %}
+  <li>
+    <button type="button" class="occ-item" role="option"
+            data-occ-anchor="{{ o.anchor }}"
+            data-occ-section="{{ o.section }}">
+      <span class="occ-sec">
+        {%- if o.section == 'title' -%}
+          {{ t("Τίτλος") }}
+        {%- else -%}
+          {{ t("Πλήρες κείμενο") }}{% if o.heading %} — {{ o.heading }}{% endif %}{% if o.para %} — {{ t("παρ.") }} {{ o.para }}{% endif %}
+        {%- endif -%}
+      </span>
+      <span class="occ-snip">{{ o.snippet_html | safe }}</span>
+    </button>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="occ-empty">{{ t("Ο όρος ταιριάζει με την ταξινόμηση της πράξης, όχι με το κείμενό της.") }}</p>
+{% endif %}

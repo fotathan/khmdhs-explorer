@@ -22,7 +22,7 @@
         <span class="pill cancel" title="{{ t('Έχει επισημανθεί ως ύποπτη.') }}">{{ t("επισημασμένη · εκτός στατιστικών") }}</span>
       {% endif %}
     </div>
-    <h1>{{ n.title or '—' }}</h1>
+    <h1>{% if match and match.title_html %}{{ match.title_html | safe }}{% else %}{{ n.title or '—' }}{% endif %}</h1>
     <div class="auth-line">
       {% if n.authority_id %}<a href="/authority/{{ n.authority_id }}">{{ n.authority_name or '—' }}</a>
       {% else %}{{ n.authority_name or '—' }}{% endif %}
@@ -58,6 +58,12 @@
   <div class="act-grid">
     <!-- ===== MAIN COLUMN ===== -->
     <div>
+      {# Γιατί ταιριάζει — one chip per matched term. Every count here is the
+         number of <mark>s rendered below; both come from the same scan. #}
+      {% if match %}
+        {% from "_match_chips.html" import chips_actions with context %}
+        {{ chips_actions(match.chips, n.adam) }}
+      {% endif %}
       <div class="panel">
         <h3 class="panel-h">{{ t("Στοιχεία πράξης") }}</h3>
         <dl class="facts">
@@ -313,9 +319,20 @@
         <h3 class="panel-h">{{ t("Πλήρες κείμενο") }}
           {% if is_admin %}<a href="/admin/act/{{ n.adam }}/edit?tab=fulltext" style="font-weight:400;font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;float:right;">{{ t("επεξεργασία ›") }}</a>{% endif %}
         </h3>
-        <details>
+        <details id="ft-details">
           <summary style="cursor:pointer;font-size:13px;color:var(--ink-2);">{{ n.full_text | length }} {{ t("χαρακτήρες") }}{% if n.full_text_extracted_at %} · {{ n.full_text_extracted_at.strftime('%d/%m/%Y') }}{% endif %} — {{ t("προβολή") }}</summary>
-          {% if n.full_text_html %}
+          {% if match and match.has_full_text_hits %}
+            {# Searched view: the same paragraph split the occurrence navigator
+               numbers its labels from, so "παρ. 12" always lands on παρ. 12.
+               Each hit is a <mark> with the id the navigator points at. The
+               text is escaped before the marks go in — act content is never
+               trusted as HTML. #}
+            <div class="full-text-marked">
+              {% for p in match.paragraphs %}
+                <p class="ft-p" id="{{ p.id }}"><span class="ft-n">{{ p.index }}</span><span class="ft-b">{{ p.html | safe }}</span></p>
+              {% endfor %}
+            </div>
+          {% elif n.full_text_html %}
             {# Curator-authored rich text. Sanitised with nh3 at save time. #}
             <div class="full-text-html">{{ n.full_text_html | safe }}</div>
           {% else %}
@@ -513,4 +530,9 @@
 
   {% endif %}{# /gated #}
 </main>
+{# Occurrence navigator: one popover reused by every chip, filled over HTMX. #}
+{% if match %}
+<div id="occ-popover" class="occ-pop" role="dialog" aria-modal="false" hidden></div>
+<script src="/static/js/occurrences.js" defer></script>
+{% endif %}
 {% endblock %}

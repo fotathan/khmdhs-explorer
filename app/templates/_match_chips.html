@@ -1,0 +1,52 @@
+{# _match_chips.html — the "Γιατί ταιριάζει" chips, in both their forms.
+
+   One chip per matched term: the term, how many times it was found, coloured
+   by class (keyword vs CPV). Macros only — this file renders nothing on its
+   own, so importing it from an email template is free.
+
+   `chips_static`  : the results list. Read-only, capped, +N for the rest.
+   `chips_actions` : the detail page. Each chip opens the occurrence navigator.
+
+   A Chip carries .term .slug .kind .count .sections .code .label .capped
+   (see app/search_match.py). `capped` means the count came out of the stored
+   tsvector, which holds at most 255 positions per word — so it is a floor and
+   is rendered "255+" rather than as a total we cannot stand behind. #}
+
+{% macro _body(c) -%}
+  {%- if c.kind == 'cpv' -%}
+    <span class="mchip-t">{{ c.code }}</span>{% if c.label %}<span class="mchip-l">{{ c.label }}</span>{% endif %}
+  {%- else -%}
+    <span class="mchip-t">{{ c.term }}</span>
+  {%- endif -%}
+  <span class="mchip-n">{{ c.count }}{% if c.capped %}+{% endif %}</span>
+{%- endmacro %}
+
+{% macro chips_static(chips, cap=4) %}
+  {% if chips %}
+  <div class="mchips">
+    <span class="mchips-lbl">{{ t("Ταιριάζει:") }}</span>
+    {% for c in chips[:cap] %}
+      <span class="mchip mchip-{{ c.kind }}">{{ _body(c) }}</span>
+    {% endfor %}
+    {% if chips | length > cap %}
+      <span class="mchip mchip-more">+{{ chips | length - cap }}</span>
+    {% endif %}
+  </div>
+  {% endif %}
+{% endmacro %}
+
+{% macro chips_actions(chips, adam) %}
+  <div class="panel match-panel">
+    <h3 class="panel-h">{{ t("Γιατί ταιριάζει") }}</h3>
+    <div class="mchips mchips-lg">
+      {% for c in chips %}
+        <button type="button" class="mchip mchip-{{ c.kind }} mchip-btn"
+                data-occ-term="{{ c.term }}"
+                hx-get="/act/{{ adam }}/occurrences?term={{ c.term | urlencode }}"
+                hx-target="#occ-popover" hx-swap="innerHTML"
+                aria-haspopup="dialog" aria-expanded="false"
+                title="{{ t('Δείτε πού εμφανίζεται') }}">{{ _body(c) }}</button>
+      {% endfor %}
+    </div>
+  </div>
+{% endmacro %}
