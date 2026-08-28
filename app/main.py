@@ -1146,6 +1146,13 @@ try:
 except ImportError:
     import interconnect as _interconnect
 
+# Match explanation ("Γιατί ταιριάζει") + the occurrence navigator. Imported
+# eagerly because both the result list and every act page consult it.
+try:
+    from app import search_match as _match
+except ImportError:
+    import search_match as _match          # type: ignore
+
 # Passwordless sign-in links ("email me a link"), the second path onto /login.
 # Imported here rather than lazily because /login has to know whether to show
 # the link at all — see app/login_links.py for what it does and does not bypass.
@@ -1199,6 +1206,29 @@ def _auth_context(request):
 
 
 templates.context_processors.append(_auth_context)
+
+
+# Terms a result page matched on are carried onto the act links, so the detail
+# page can explain ITS match without re-running the search. Only the fields
+# that produce chips travel — not the whole filter state.
+_MATCH_PARAMS = ("q", "fulltext", "cpv")
+
+
+def match_qs(request: Request) -> str:
+    """`?q=…&cpv=…` for the current search, or '' when there is nothing to carry."""
+    pairs = [(k, v) for k, v in request.query_params.multi_items()
+             if k in _MATCH_PARAMS and (v or "").strip()]
+    return ("?" + "&".join(f"{k}={_quote(v)}" for k, v in pairs)) if pairs else ""
+
+
+templates.env.globals["match_qs"] = match_qs
+
+
+def _match_terms(request: Request) -> tuple[str, list]:
+    """The raw keyword text and CPV codes to explain, from a request's params."""
+    q = " ".join(x for x in (request.query_params.get("q"),
+                             request.query_params.get("fulltext")) if x)
+    return q.strip(), request.query_params.getlist("cpv")
 
 
 def _is_gated(request: Request) -> bool:
@@ -2477,12 +2507,29 @@ def home(request: Request,
             "gated": gated,
         })
 
+    # Match chips ("Ταιριάζει: …") for the rows on THIS page. One extra query
+    # keyed by the ids we already have — never one per row, and the search
+    # query above is untouched, so the 2.7M-row path costs the same as before.
+    match_chips: dict = {}
+    q_text, cpv_codes = _match_terms(request)
+    if q_text or cpv_codes:
+        try:
+            with cursor() as c:
+                match_chips = _match.list_chips(
+                    c, [r["adam"] for r in rows], q_text, cpv_codes,
+                    _i18n.lang_from_request(request))
+        except Exception:      # noqa: BLE001 — chips explain results, never block them
+            _obs.log_event(logging.WARNING, "match_chips_failed", exc_info=True)
+            match_chips = {}
+
     ctx = {
         "rows": rows,
         "total_count": agg["n"],
         "total_value": float(agg["total_value"] or 0),
         "page": page, "per_page": per_page, "total_pages": total_pages,
         "params": params,
+        "match_chips": match_chips,
+        "match_chip_cap": _match.LIST_CHIP_CAP,
     }
     if request.headers.get("hx-request") == "true":
         # HTMX fragment swap — partial only.
@@ -2879,7 +2926,7 @@ def act_detail(adam: str, request: Request):
             # hidden client-side.
             return templates.TemplateResponse(
                 request, "beta_act.html",
-                {"n": notice, "gated": True,
+                {"n": notice, "gated": True, "match": None,
                  "line_items": [], "operators": [], "act_cpvs": [],
                  "attachments": [], "act_categories": [], "downstream": [],
                  "incoming": [], "annotation": None, "excluded_reason": None,
@@ -3116,9 +3163,25 @@ def act_detail(adam: str, request: Request):
     except Exception:      # noqa: BLE001
         pass
 
+    # "Γιατί ταιριάζει" — the chips, the highlighted title, and the paragraph-
+    # split, anchored full text. All three come from ONE scan (see
+    # app/search_match.py), so a chip's count is exactly the number of marks
+    # the reader can click. None when the visitor arrived without a query: the
+    # panel is then absent, not empty.
+    match = None
+    q_text, cpv_codes = _match_terms(request)
+    if q_text or cpv_codes:
+        try:
+            with cursor() as c:
+                match = _match.detail_match(c, notice, q_text, cpv_codes, lang)
+        except Exception:      # noqa: BLE001 — an explanation must never 500 a page
+            _obs.log_event(logging.WARNING, "detail_match_failed",
+                           adam=adam, exc_info=True)
+            match = None
+
     return templates.TemplateResponse(
         request, "beta_act.html",
-        {"n": notice, "gated": False,
+        {"n": notice, "gated": False, "match": match,
          "act_authorities": act_authorities, "act_contractors": act_contractors,
          "interconnect_group": interconnect_group,
          "lot_panel": lot_panel, "act_scope": act_scope,
@@ -3136,6 +3199,33 @@ def act_detail(adam: str, request: Request):
              notice.get(f) is not None for f in EXTENDED_ACT_FIELDS),
          "nav_active": "search"},
     )
+
+
+@app.get("/act/{adam}/occurrences", response_class=HTMLResponse)
+def act_occurrences(adam: str, request: Request, term: str = Query(...)):
+    """Popover body: every occurrence of ONE term in one act, in document order.
+
+    Re-runs the same scan the page render used, so the anchors returned here
+    are ids that actually exist in the DOM. Capped at OCC_CAP entries with the
+    true total in the footer — a term appearing 200 times in an OCR'd PDF is
+    not worth 200 DOM nodes.
+    """
+    if _is_gated(request):
+        # The full text itself is behind the paywall; so is its index.
+        raise HTTPException(status_code=404, detail="not available")
+    _rate_limit(request, "search", per_min=_RL_SEARCH_PER_MIN)
+    lang = _i18n.lang_from_request(request)
+    with cursor() as c:
+        c.execute("SELECT adam, title, full_text FROM proc.procurement_act "
+                  "WHERE adam = %s", (adam,))
+        notice = c.fetchone()
+        if not notice:
+            raise HTTPException(status_code=404, detail=f"act {adam} not found")
+        occurrences, total = _match.occurrences_for(c, notice, term, lang)
+    return templates.TemplateResponse(
+        request, "_occurrences.html",
+        {"occurrences": occurrences, "total": total, "term": term,
+         "shown": len(occurrences), "adam": adam})
 
 
 def _attachments_mod():

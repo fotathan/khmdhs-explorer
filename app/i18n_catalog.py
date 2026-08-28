@@ -2317,6 +2317,39 @@ _DIGESTS = {
     "πηγή": "source",
 }
 
+# Match explanation + occurrence navigator (_match_chips.html,
+# _occurrences.html, beta_act.html)
+_MATCH = {
+    "Γιατί ταιριάζει": "Why it matches",
+    "Ταιριάζει:": "Matches:",
+    "Δείτε πού εμφανίζεται": "See where it appears",
+    "Εμφανίζονται": "Showing",
+    "από σύνολο": "of",
+    "εμφάνιση": "occurrence",
+    "εμφανίσεις": "occurrences",
+    "παρ.": "para.",
+    "Ο όρος ταιριάζει με την ταξινόμηση της πράξης, όχι με το κείμενό της.":
+        "The term matches the act's classification, not its text.",
+
+    # ---- help page copy for the two features ----
+    "Γιατί ταιριάζει ένα αποτέλεσμα": "Why a result matches",
+    "Κάτω από τον τίτλο κάθε αποτελέσματος, η γραμμή «Ταιριάζει:» δείχνει ποιοι από τους όρους σας βρέθηκαν και πόσες φορές — ώστε να μη χρειάζεται να ανοίξετε μια πράξη για να καταλάβετε γιατί επιστράφηκε. Οι πράσινες ετικέτες είναι λέξεις-κλειδιά, οι πορτοκαλί κωδικοί CPV.":
+        "Under each result's title, the \u201cMatches:\u201d row shows which of your terms were found and how many times \u2014 so you do not have to open an act to see why it came back. Green chips are keywords, orange ones CPV codes.",
+    "Ελληνικά χωρίς τόνους": "Greek, accents aside",
+    "Το ταίριασμα αγνοεί τόνους, πεζά/κεφαλαία και το τελικό «ς»: ΑΝΆΘΕΣΗ, ανάθεση και αναθεση είναι ο ίδιος όρος. Ταιριάζει επίσης η ρίζα της λέξης, οπότε «καθαρισμός» βρίσκει και «καθαρισμού» — γι' αυτό ένας αριθμός μπορεί να είναι μεγαλύτερος από όσες φορές γράψατε ακριβώς τη λέξη.":
+        "Matching ignores accents, case and final sigma: \u0391\u039d\u0386\u0398\u0395\u03a3\u0397, \u03b1\u03bd\u03ac\u03b8\u03b5\u03c3\u03b7 and \u03b1\u03bd\u03b1\u03b8\u03b5\u03c3\u03b7 are one term. It also matches on word stems, so \u03ba\u03b1\u03b8\u03b1\u03c1\u03b9\u03c3\u03bc\u03cc\u03c2 finds \u03ba\u03b1\u03b8\u03b1\u03c1\u03b9\u03c3\u03bc\u03bf\u03cd too \u2014 which is why a count can exceed the number of exact spellings.",
+    "Όταν φτάνετε από αναζήτηση: ποιοι όροι βρέθηκαν, πόσες φορές, και ένα κλικ για να πάτε σε κάθε εμφάνιση.":
+        "When you arrive from a search: which terms were found, how often, and one click to each occurrence.",
+    "Γιατί ταιριάζει & πλοήγηση στις εμφανίσεις": "Why it matches, and jumping to each occurrence",
+    "Αν ανοίξατε την πράξη από μια αναζήτηση, πάνω από τα στοιχεία εμφανίζεται το πάνελ «Γιατί ταιριάζει» με μία ετικέτα ανά όρο που βρέθηκε και τον αριθμό των εμφανίσεών του. Ο αριθμός είναι ακριβώς όσες οι επισημάνσεις στη σελίδα — τίποτα δεν μετριέται που να μην μπορείτε να το δείτε.":
+        "If you opened the act from a search, a \u201cWhy it matches\u201d panel sits above the details, with one chip per term found and its number of occurrences. That number is exactly how many highlights are on the page \u2014 nothing is counted that you cannot see.",
+    "Κάντε κλικ σε μια ετικέτα και ανοίγει η λίστα των εμφανίσεων: σε ποιο σημείο βρίσκεται η καθεμία (τίτλος, ή παράγραφος και τμήμα του πλήρους κειμένου) και ένα απόσπασμα γύρω της. Επιλέξτε μία και η σελίδα ανοίγει το πλήρες κείμενο, μεταφέρεται εκεί και αναβοσβήνει τη λέξη. Για πολύ μεγάλα έγγραφα εμφανίζονται οι πρώτες 50 εμφανίσεις, με το πραγματικό σύνολο δίπλα.":
+        "Click a chip to list every occurrence: where each one sits (the title, or the paragraph and section of the full text) and a snippet around it. Pick one and the page opens the full text, scrolls there and flashes the word. For very long documents the first 50 are listed, with the true total beside them.",
+    "Το επίσημο κείμενο μένει ως έχει": "The official text is untouched",
+    "Οι επισημάνσεις προστίθενται μόνο στην προβολή· ο τίτλος και το κείμενο παραμένουν αυτολεξεί όπως δημοσιεύθηκαν, και χωρίς αναζήτηση η σελίδα εμφανίζεται ακριβώς όπως πριν.":
+        "Highlights are added to the view only; the title and text stay verbatim as published, and with no search behind you the page renders exactly as before.",
+}
+
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
@@ -2324,5 +2357,6 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _PANELS, _ACTFORM, _LEGACY, _LEGACY2, _LEGACY3, _TABLES, _PROC_FAMILY,
              _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
              _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMCARD, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
-             _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY, _DIGESTS):
+             _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY, _DIGESTS,
+             _MATCH):
     UI_EN.update(_grp)

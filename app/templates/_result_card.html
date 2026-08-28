@@ -10,7 +10,7 @@
       <div style="min-width:0;">
         <span class="card-type t-{{ r.type }}">{{ r.type | type_label }}</span>
         {% if r.data_source == 'diavgeia' %}<span class="src-badge src-diavgeia">{{ t("Διαύγεια") }}</span>{% elif r.data_source == 'ted' %}<span class="src-badge src-ted">TED</span>{% else %}<span class="src-badge src-khmdhs">ΚΗΜΔΗΣ</span>{% endif %}
-        <h3 class="card-title"><a href="/act/{{ r.adam }}">{{ r.title or '—' }}</a></h3>
+        <h3 class="card-title"><a href="/act/{{ r.adam }}{% if match_chips is defined %}{{ match_qs(request) }}{% endif %}">{{ r.title or '—' }}</a></h3>
         <div class="card-meta">
           {% if r.authority_id %}
             <span class="m"><a href="/authority/{{ r.authority_id }}"><b>{{ r.authority_name or '—' }}</b></a></span>
@@ -33,6 +33,13 @@
           {% if r.cancelled %}<span class="pill cancel">{{ t("ακυρωμένη") }}</span>{% endif %}
           {% if r.is_modified %}<span class="pill amend">{{ t("ορθή επ.") }}</span>{% endif %}
         </div>
+        {# Why this row is here. Absent (not empty) when there was no query.
+           Guarded on `match_chips` so the digest email, which includes this
+           same card without a search behind it, renders exactly as before. #}
+        {% if match_chips is defined and match_chips.get(r.adam) %}
+          {% from "_match_chips.html" import chips_static with context %}
+          {{ chips_static(match_chips.get(r.adam), match_chip_cap|default(4)) }}
+        {% endif %}
       </div>
       <div class="card-val">
         {% if r.resolved_value is not none %}
