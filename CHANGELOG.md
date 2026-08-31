@@ -8,6 +8,25 @@ Dates are the day the change landed on `main` (which auto-deploys to prod on
 Render). This project has no version tags — the git history is the source of
 truth; this is a curated digest.
 
+## 2026-08-31
+
+### Added — result emails explain themselves, like the search does
+- The list behind a result email's **"see all results"** button
+  (`/digests/<token>`) now shows the **"Ταιριάζει:"** chips on every act, and
+  carries the search terms onto each act link — so opening an act from a result
+  email gives the same **"Γιατί ταιριάζει"** panel and highlighted text as
+  opening it from a search. Previously that whole explanation stopped at the
+  email: the page had no query string to derive it from.
+- **The terms are frozen at send time**, in the new `proc.digest_run.params_qs`
+  (migration
+  `20260831093000_digest_run_search_terms_for_match_explanation.sql`). A run is
+  history and a saved search is live: reading today's profile would explain a
+  three-week-old email with words that did not select those acts. Runs recorded
+  before the column existed fall back to the current profile — the best answer
+  still available for them.
+- No change to the search path, and none to the email body: the chips are the
+  same single batched query, on a page that already knows its rows.
+
 ## 2026-08-27
 
 ### Added — sign in with an emailed link, alongside the password

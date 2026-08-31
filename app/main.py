@@ -1214,11 +1214,32 @@ templates.context_processors.append(_auth_context)
 _MATCH_PARAMS = ("q", "fulltext", "cpv")
 
 
+def _match_qs(pairs) -> str:
+    return ("?" + "&".join(f"{k}={_quote(v)}" for k, v in pairs)) if pairs else ""
+
+
 def match_qs(request: Request) -> str:
     """`?q=…&cpv=…` for the current search, or '' when there is nothing to carry."""
-    pairs = [(k, v) for k, v in request.query_params.multi_items()
-             if k in _MATCH_PARAMS and (v or "").strip()]
-    return ("?" + "&".join(f"{k}={_quote(v)}" for k, v in pairs)) if pairs else ""
+    return _match_qs([(k, v) for k, v in request.query_params.multi_items()
+                      if k in _MATCH_PARAMS and (v or "").strip()])
+
+
+def match_qs_from_params(params) -> str:
+    """The same querystring, built from a STORED filter set instead of a live
+    request.
+
+    The digest results page (/digests/<token>) has no query string of its own —
+    its rows come from a recorded run, not from a search — so it carries the
+    terms the email was sent with onto its act links. Same fields, same shape,
+    so the detail page cannot tell the two callers apart.
+    """
+    pairs = []
+    for k in _MATCH_PARAMS:
+        v = (params or {}).get(k)
+        for item in (v if isinstance(v, (list, tuple)) else [v]):
+            if item is not None and str(item).strip():
+                pairs.append((k, str(item)))
+    return _match_qs(pairs)
 
 
 templates.env.globals["match_qs"] = match_qs
@@ -1229,6 +1250,16 @@ def _match_terms(request: Request) -> tuple[str, list]:
     q = " ".join(x for x in (request.query_params.get("q"),
                              request.query_params.get("fulltext")) if x)
     return q.strip(), request.query_params.getlist("cpv")
+
+
+def match_terms_from_params(params) -> tuple[str, list]:
+    """The same two, from a stored filter set (see match_qs_from_params)."""
+    p = params or {}
+    q = " ".join(str(x) for x in (p.get("q"), p.get("fulltext")) if x)
+    cpv = p.get("cpv") or []
+    if isinstance(cpv, str):
+        cpv = [cpv]
+    return q.strip(), [str(c) for c in cpv if str(c).strip()]
 
 
 def _is_gated(request: Request) -> bool:

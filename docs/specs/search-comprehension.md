@@ -118,6 +118,15 @@ Trailing-`*` prefix terms bypass the tsvector here exactly as they do in the sea
 - [x] ~~Adding chips to the results list adds no additional query~~ — **superseded.** It adds exactly one batched query and leaves the search query unchanged; see §3.3. Cost: **+3.5 ms** at the default page size of 10, **+15 ms** at the maximum of 50, against a ~12 ms search and a ~2.2 s page render (under 1% of page time).
 - [x] Panel is absent (not empty) when the user arrived without a query. *Also absent when the query is only stop words — the index holds nothing for them, so they explain nothing.*
 
+### 3.5 Result-email pages (extension, 2026-08-31)
+
+`/digests/<token>` — the list one result email contained — carries the same chips, and its act links carry the terms, so an act opened from a result email explains and highlights its own match exactly as one opened from a search. Two things had to be true for that:
+
+- **The page has no query string.** Its rows come from `proc.digest_run_item`, recorded at send time, not from a live search. So the card no longer derives the act link from `request.query_params` alone: `_result_card.html` takes a caller-supplied `match_link` when there is one and falls back to `match_qs(request)` otherwise. The search path is byte-for-byte what it was.
+- **The saved search is live; the run is history.** Explaining a three-week-old email with the words the customer's profile holds *today* would be confidently wrong, so each send records the filter set it was actually built with — `proc.digest_run.params_qs`, in the same querystring shape `search_profiles.params_to_qs` produces. This is the first schema change the feature has needed (`migrations/20260831093000_digest_run_search_terms_for_match_explanation.sql`), so §2's "no migration" holds for the original scope only. Runs recorded before that column existed fall back to the subscription's current profile — the best answer still available for them, and second, not first (`digests.run_params`).
+
+The chips themselves are `list_chips` unchanged: one batched query for the page's rows, on the same terms. The email BODY is untouched — it lists acts, and the explanation lives where the reader can act on it.
+
 ---
 
 ## 4. Feature C — Occurrence navigator

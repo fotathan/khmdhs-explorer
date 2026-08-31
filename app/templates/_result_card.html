@@ -5,12 +5,20 @@
    alert email contained). Takes `r`: a row with the columns of
    app.main.SELECT_COLS. Kept free of pager / gating / HTMX concerns so both
    callers can wrap it in whatever they need. #}
+  {# The terms to carry onto the act link, so the detail page can explain and
+     highlight ITS match without re-running the search. `match_link` is the
+     caller-supplied form, used by the digest results page: that page lists a
+     recorded run and has no query string of its own, so the terms come from the
+     run instead of from the URL. A caller with no search behind it sets
+     neither, and the link stays bare. #}
+  {% set match_href = match_link if match_link is defined
+                      else (match_qs(request) if match_chips is defined else '') %}
   <div class="card">
     <div class="card-top">
       <div style="min-width:0;">
         <span class="card-type t-{{ r.type }}">{{ r.type | type_label }}</span>
         {% if r.data_source == 'diavgeia' %}<span class="src-badge src-diavgeia">{{ t("Διαύγεια") }}</span>{% elif r.data_source == 'ted' %}<span class="src-badge src-ted">TED</span>{% else %}<span class="src-badge src-khmdhs">ΚΗΜΔΗΣ</span>{% endif %}
-        <h3 class="card-title"><a href="/act/{{ r.adam }}{% if match_chips is defined %}{{ match_qs(request) }}{% endif %}">{{ r.title or '—' }}</a></h3>
+        <h3 class="card-title"><a href="/act/{{ r.adam }}{{ match_href }}">{{ r.title or '—' }}</a></h3>
         <div class="card-meta">
           {% if r.authority_id %}
             <span class="m"><a href="/authority/{{ r.authority_id }}"><b>{{ r.authority_name or '—' }}</b></a></span>
