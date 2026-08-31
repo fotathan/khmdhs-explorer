@@ -108,12 +108,14 @@ try:
     from app import email_builder as _email
     from app import i18n as _i18n
     from app import mailer as _mailer
+    from app import search_match as _match
     from app import search_profiles as _sp
 except ImportError:                      # pragma: no cover — run with --app-dir=app
     import auth as _auth
     import email_builder as _email
     import i18n as _i18n
     import mailer as _mailer
+    import search_match as _match
     import search_profiles as _sp
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -572,19 +574,25 @@ def new_token() -> str:
 
 def record_run(c, *, subscription_id, trigger, status, n_results=0,
                cursor_from=None, cursor_to=None, recipient=None, subject=None,
-               error=None, token=None, n_recipients=0):
+               error=None, token=None, n_recipients=0, params_qs=None):
     """`recipient` is every address the run reached, joined for display;
     n_recipients is how many they were. The count is stored rather than derived
     by splitting the string, which would break on a display name containing a
-    comma."""
+    comma.
+
+    `params_qs` freezes the saved search this run was built from, for the same
+    reason digest_run_item freezes the acts: the profile is live and the run is
+    history. It is what lets /digests/<token> say why each act matched using the
+    words that actually selected it, even after the customer's saved search has
+    been edited."""
     c.execute("""INSERT INTO proc.digest_run
                    (subscription_id, trigger, status, n_results, cursor_from,
                     cursor_to, recipient, subject, error, token, n_recipients,
-                    finished_at)
-                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, now()) RETURNING id""",
+                    params_qs, finished_at)
+                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, now()) RETURNING id""",
               (subscription_id, trigger, status, n_results, cursor_from,
                cursor_to, recipient, subject, (error or None), token,
-               int(n_recipients or 0)))
+               int(n_recipients or 0), (params_qs or None)))
     return c.fetchone()["id"]
 
 
@@ -619,6 +627,24 @@ def get_run_by_token(c, token):
                  LEFT JOIN proc.app_user u        ON u.id  = ds.user_id
                  WHERE r.token = %s""", (token,))
     return c.fetchone()
+
+
+def run_params(c, run):
+    """The filter set a run's results should be explained with.
+
+    Frozen on the run at send time (digest_run.params_qs), for the same reason
+    its acts are: the saved search is live and the run is history. Editing the
+    profile a week later must not re-label what was already mailed.
+
+    NULL only on runs recorded before that column existed. Those fall back to
+    the subscription's current profile — the best answer still available for
+    them, and the reason the fallback is second, not first."""
+    stored = _sp.params_from_qs(run.get("params_qs") or "")
+    if stored:
+        return stored
+    profile = (_auth.get_search_profile(c, run["search_profile_id"])
+               if run.get("search_profile_id") else None)
+    return (_auth.effective_params(c, profile) or {}) if profile else {}
 
 
 def run_item_count(c, run_id):
@@ -1228,7 +1254,8 @@ def run_subscription(c, subscription, *, trigger="schedule", now=None,
                         n_results=built["total"], cursor_from=built["since"],
                         cursor_to=now, recipient=", ".join(delivered),
                         n_recipients=len(delivered), subject=built["subject"],
-                        error=("; ".join(failures) or None), token=token)
+                        error=("; ".join(failures) or None), token=token,
+                        params_qs=_sp.params_to_qs(built["params"]))
     record_run_items(c, run_id, built["matched"], shown=len(built["rows"]))
     _touch(c, sub_id, now, advance=advance, sent=True)
     return {"status": "sent", "n": built["total"], "to": delivered[0],
@@ -1565,11 +1592,30 @@ def make_results_router(templates: Jinja2Templates, cursor) -> APIRouter:
             page = max(1, min(int(page or 1), total_pages))
             rows = run_item_acts(c, run["id"], limit=PER_PAGE,
                                  offset=(page - 1) * PER_PAGE)
+            # Why each of these acts is here — the same chips the search page
+            # shows, from the terms the email was actually sent with (see
+            # run_params). One batched query for the page, exactly as on the
+            # search path; `match_link` then carries those terms onto every act
+            # link so the detail page can explain and highlight its own match.
+            params = run_params(c, run)
+            q_text, cpv_codes = _main().match_terms_from_params(params)
+            match_chips, match_link = {}, ""
+            if q_text or cpv_codes:
+                match_link = _main().match_qs_from_params(params)
+                try:
+                    match_chips = _match.list_chips(
+                        c, [r["adam"] for r in rows], q_text, cpv_codes,
+                        _i18n.lang_from_request(request))
+                except Exception:    # noqa: BLE001 — chips explain results, never block them
+                    match_chips = {}
         return templates.TemplateResponse(request, "digest_results.html", {
             "run": run, "rows": rows, "total": total,
             "page": page, "total_pages": total_pages, "token": token,
             "profile_name": run.get("profile_name") or "",
             "nav_active": "search",
+            "match_chips": match_chips,
+            "match_chip_cap": _match.LIST_CHIP_CAP,
+            "match_link": match_link,
             # The email's own window, so the page can say what period this was.
             "since": run.get("cursor_from"), "until": run.get("cursor_to"),
             "is_admin_view": (user.get("role") == "admin"

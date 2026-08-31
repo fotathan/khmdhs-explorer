@@ -6,6 +6,7 @@ The pure-unit half needs no database — cadence maths and app/mailer.py are
 deliberately free of both DB and FastAPI.
 """
 import datetime as dt
+import re
 import zoneinfo
 
 import pytest
@@ -893,6 +894,116 @@ def test_the_results_page_shows_exactly_what_was_mailed(client, clean_digests,
     for i in range(3):
         assert f"DGST-PG-{i}" in r.text
     assert "DGST-PG-LATER" not in r.text
+
+
+def test_the_results_page_explains_why_each_act_matched(client, clean_digests,
+                                                       memory_mail):
+    """The list one email produced reads like the search page it came from: a
+    "Ταιριάζει" chip per matched term, and the terms carried onto the act link
+    so the detail page can highlight them."""
+    from app import digests as dg
+    cur = clean_digests
+    _, _, _, sub_id = _subscribed(cur, "why")          # profile q = καθαριότητα
+    _act(cur, "DGST-WHY-1", title="Καθαριότητα κτιρίων",
+         ingested_at=dt.datetime.now(UTC) - dt.timedelta(hours=2))
+    res = dg.run_subscription(cur, dg.get_subscription(cur, sub_id))
+
+    login(client, "dg_cust_why", "goodpassword1")
+    r = client.get(f"/digests/{res['token']}")
+    assert r.status_code == 200
+    assert '<span class="mchips-lbl">' in r.text and "καθαριότητα" in r.text
+    # …and the act link carries the terms, which is what makes the detail page
+    # explain its own match instead of rendering bare.
+    assert "/act/DGST-WHY-1?q=" in r.text
+
+
+def test_the_act_page_opened_from_a_result_mail_explains_its_match(client,
+                                                                  clean_digests,
+                                                                  memory_mail):
+    """Following that link is the whole point of carrying the terms: the detail
+    page must show the panel and the highlighted title, exactly as it does when
+    the reader arrives from a live search."""
+    from app import digests as dg
+    cur = clean_digests
+    _, _, _, sub_id = _subscribed(cur, "detail")
+    _act(cur, "DGST-DET-1", title="Καθαριότητα κτιρίων",
+         ingested_at=dt.datetime.now(UTC) - dt.timedelta(hours=2))
+    res = dg.run_subscription(cur, dg.get_subscription(cur, sub_id))
+
+    login(client, "dg_cust_detail", "goodpassword1")
+    page = client.get(f"/digests/{res['token']}")
+    href = re.search(r'/act/DGST-DET-1\?[^"]+', page.text).group(0)
+
+    r = client.get(href)
+    assert r.status_code == 200
+    assert '<div class="panel match-panel">' in r.text
+    assert '<mark class="hl"' in r.text
+    # The same act reached without the terms explains nothing.
+    assert ('<div class="panel match-panel">'
+            not in client.get("/act/DGST-DET-1").text)
+
+
+def test_the_explanation_uses_the_terms_the_email_was_sent_with(client,
+                                                                clean_digests,
+                                                                memory_mail):
+    """The run is history; the saved search is live. Editing the search must not
+    re-label results that were mailed under the old words."""
+    from app import auth as _auth
+    from app import digests as dg
+    cur = clean_digests
+    _, _, prof, sub_id = _subscribed(cur, "frozen")
+    _act(cur, "DGST-FRZ-1", title="Καθαριότητα κτιρίων",
+         ingested_at=dt.datetime.now(UTC) - dt.timedelta(hours=2))
+    res = dg.run_subscription(cur, dg.get_subscription(cur, sub_id))
+    assert dg.get_run_by_token(cur, res["token"])["params_qs"]
+
+    _auth.update_search_profile(cur, prof, name="Καθαριότητα",
+                                params={"q": "φύλαξη"}, based_on_id=None,
+                                is_published=True)
+
+    login(client, "dg_cust_frozen", "goodpassword1")
+    r = client.get(f"/digests/{res['token']}")
+    assert "καθαριότητα" in r.text            # what actually selected the act
+    assert "φύλαξη" not in r.text             # today's words, not this run's
+
+
+def test_a_run_recorded_before_the_terms_were_stored_falls_back_to_the_profile(
+        client, clean_digests, memory_mail):
+    """Runs sent before digest_run.params_qs existed carry NULL. The page still
+    explains them, from the subscription's current profile — the best answer
+    still available for those."""
+    from app import digests as dg
+    cur = clean_digests
+    _, _, _, sub_id = _subscribed(cur, "legacy")
+    _act(cur, "DGST-LEG-1", title="Καθαριότητα κτιρίων",
+         ingested_at=dt.datetime.now(UTC) - dt.timedelta(hours=2))
+    res = dg.run_subscription(cur, dg.get_subscription(cur, sub_id))
+    cur.execute("UPDATE proc.digest_run SET params_qs = NULL WHERE id = %s",
+                (res["run_id"],))
+
+    login(client, "dg_cust_legacy", "goodpassword1")
+    r = client.get(f"/digests/{res['token']}")
+    assert r.status_code == 200
+    assert '<span class="mchips-lbl">' in r.text
+    assert "/act/DGST-LEG-1?q=" in r.text
+
+
+def test_a_profile_with_no_words_leaves_the_page_unexplained(client,
+                                                             clean_digests,
+                                                             memory_mail):
+    """A saved search that is only filters (a type, a date range) matches no
+    term. The chips are then absent, not empty, and the act links stay bare."""
+    from app import digests as dg
+    cur = clean_digests
+    _, _, _, sub_id = _subscribed(cur, "nowords", params={"type": ["notice"]})
+    _act(cur, "DGST-NW-1", ingested_at=dt.datetime.now(UTC) - dt.timedelta(hours=2))
+    res = dg.run_subscription(cur, dg.get_subscription(cur, sub_id))
+
+    login(client, "dg_cust_nowords", "goodpassword1")
+    r = client.get(f"/digests/{res['token']}")
+    assert r.status_code == 200 and "DGST-NW-1" in r.text
+    assert '<span class="mchips-lbl">' not in r.text
+    assert '/act/DGST-NW-1"' in r.text
 
 
 def test_the_results_page_sends_a_signed_out_reader_to_the_login(client,

@@ -1435,6 +1435,7 @@ CREATE TABLE proc.digest_run (
     finished_at timestamp with time zone,
     token text,
     n_recipients integer DEFAULT 0 NOT NULL,
+    params_qs text,
     CONSTRAINT digest_run_status_ck CHECK ((status = ANY (ARRAY['sent'::text, 'empty'::text, 'error'::text, 'skipped'::text]))),
     CONSTRAINT digest_run_trigger_ck CHECK ((trigger = ANY (ARRAY['schedule'::text, 'manual'::text, 'test'::text])))
 );
