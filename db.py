@@ -520,6 +520,111 @@ def cmd_extract_tables(args):
     print(f"\ntable extraction complete. {dict(n)} saved={saved_total}")
 
 
+# --------------------------------------------------------------------------- #
+# AI SUMMARY — one notice, driven by a proc.ai_summary_job row.
+#
+# Why this is a db.py subcommand and not something the web request does itself:
+# worker.py is a subprocess runner for THIS CLI (see its header), and an Opus 5
+# call takes 30–60 seconds. Run inline, that occupies the single Render web dyno
+# and a deploy mid-call loses the work with nothing to retry. Queued, the reader
+# clicks once and the panel polls — spec §10.
+# --------------------------------------------------------------------------- #
+def _ai_summary_connect():
+    """A dict-row connection, because app/ai_summary.py reads rows by name.
+
+    Database (above) hands the ingester tuple rows, and the summary code —
+    shared with the web app — indexes act["full_text"]. Rather than teach either
+    side the other's convention, this command opens its own connection, exactly
+    as cron_digests.py does for the same reason.
+    """
+    import psycopg
+    from psycopg.rows import dict_row
+    dsn = os.environ.get("DATABASE_URL")
+    kw = {"autocommit": True, "prepare_threshold": None, "row_factory": dict_row}
+    return psycopg.connect(dsn, **kw) if dsn else psycopg.connect(**kw)
+
+
+def _finalize_ai_summary_job(conn, job_id, status, *, error=None):
+    """Terminal status for the job row, guarded on 'running' so a cancel that
+    landed while the model was talking is never overwritten by our 'done'."""
+    if job_id is None:
+        return
+    try:
+        with conn.cursor() as c:
+            c.execute("""UPDATE proc.ai_summary_job
+                            SET status = CASE WHEN status='running'
+                                              THEN %s ELSE status END,
+                                last_error = %s,
+                                finished_at = now()
+                          WHERE id = %s""", (status, error, job_id))
+    except Exception:                      # noqa: BLE001 — never mask the real error
+        pass
+
+
+def cmd_ai_summary(args):
+    """Generate ONE act's AI summary for a queued proc.ai_summary_job row."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from app import ai_summary as ai
+
+    job_id = int(args.job)
+    status, err = "done", None
+    with _ai_summary_connect() as conn:
+        c = conn.cursor()
+        c.execute("""SELECT adam, input_hash, requested_by
+                       FROM proc.ai_summary_job WHERE id=%s""", (job_id,))
+        job = c.fetchone()
+        if not job:
+            sys.exit(f"ai-summary: no job {job_id}")
+        adam = job["adam"]
+        print(f"ai summary job {job_id}: {adam}")
+        try:
+            loaded = ai.load_inputs(c, adam)
+            if loaded is None:
+                raise ai.SummaryError(f"{adam} is not a notice, or does not exist")
+            _act, sources = loaded
+            if not sources:
+                raise ai.SummaryError(f"{adam} has no full text or published tables")
+            # The act may have been re-ingested while this sat in the queue.
+            # Storing an answer about the OLD text under the NEW hash would be a
+            # lie, and under the old hash it would never be read again — so give
+            # up and let the reader ask again about what is actually there.
+            now_hash = ai.input_hash(sources)
+            if job["input_hash"] and job["input_hash"] != now_hash:
+                print("  inputs changed since the job was queued — nothing generated")
+                status = "stale"
+                err = "the act's text changed while the job was queued"
+                return
+            n_chars = sum(len(v) for v in sources.values())
+            print(f"  {n_chars} chars from {len(sources)} source(s) · "
+                  f"{ai.MODEL} · effort={ai.EFFORT}")
+            payload = ai.generate(c, adam, by=job.get("requested_by"))
+            c.execute("""SELECT input_tokens, output_tokens, cost_micro_usd
+                           FROM proc.act_ai_summary WHERE adam=%s""", (adam,))
+            billed = c.fetchone() or {}
+            cost = billed.get("cost_micro_usd")
+            print(f"  {payload.get('n_sections', 0)} section(s), "
+                  f"{payload.get('n_items', 0)} item(s), "
+                  f"{payload.get('rejected_n', 0)} rejected by the quote gate, "
+                  f"{payload.get('duplicate_n', 0)} already in the record")
+            if payload.get("conflicts"):
+                print(f"  ⚠ {len(payload['conflicts'])} conflict(s) with the "
+                      f"record — check ingestion for this act")
+            if payload.get("truncated"):
+                print(f"  ⚠ input truncated: {payload['truncated']}")
+            print(f"  tokens in={billed.get('input_tokens')} "
+                  f"out={billed.get('output_tokens')}"
+                  + (f" · ${cost / 1_000_000:.4f}" if cost is not None else ""))
+        except BaseException as e:          # noqa: BLE001 — status must be recorded
+            status, err = "error", str(e)[:2000]
+            print(f"  error: {err}")
+            _finalize_ai_summary_job(conn, job_id, status, error=err)
+            raise
+        finally:
+            if status != "error":
+                _finalize_ai_summary_job(conn, job_id, status, error=err)
+    print("ai summary complete.")
+
+
 def _watermark(db, act_type: str):
     """The latest end-date of a successfully-completed window for this type,
     or None if the type has never been backfilled. This is our 'last caught
@@ -1287,6 +1392,11 @@ def main():
                           help="report-only table extraction over a job's acts")
     p_et.add_argument("--job", required=True, help="proc.table_extract_job id")
     p_et.set_defaults(func=cmd_extract_tables)
+
+    p_ai = sub.add_parser("ai-summary",
+                          help="generate one notice's AI summary (queued job)")
+    p_ai.add_argument("--job", required=True, help="proc.ai_summary_job id")
+    p_ai.set_defaults(func=cmd_ai_summary)
 
     p_uc = sub.add_parser("create-user",
                           help="create an app account (bootstrap the first admin)")

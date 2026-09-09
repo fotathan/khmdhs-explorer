@@ -1,0 +1,146 @@
+/* ai_summary.css — the AI summary panel on an act page.
+ *
+ * Loaded from beta_act.html's head_extra, not inlined in the partial: the panel
+ * is swapped in (and re-swapped on every poll) over HTMX, and a <style> block
+ * riding along with each swap would be parsed again every four seconds.
+ *
+ * Everything here is drawn from the app's own tokens (--paper / --ink / --rule /
+ * --accent / --mono), so the panel sits in the page rather than on it. The one
+ * deliberate exception is .ai-band, which is tinted: the screening warning is
+ * the only element on the page that must never read as decoration.
+ */
+
+.ai-panel { position: relative; }
+
+.ai-panel .panel-h { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+
+/* The provenance badge, on the heading and again on every section: the boundary
+   between what the record says and what a model said is visible without
+   hovering anything (spec §11). */
+.ai-tag {
+  font-family: var(--mono); font-size: 9.5px; font-weight: 600;
+  letter-spacing: .09em; text-transform: uppercase;
+  background: var(--accent-soft); color: var(--accent-2);
+  padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+}
+.ai-model {
+  margin-left: auto; font-family: var(--mono); font-size: 10px;
+  color: var(--ink-3); font-weight: 400; text-transform: none; letter-spacing: 0;
+}
+
+/* Permanent, undismissable. There is no close button and there must never be
+   one: this is a first-pass screening tool and the page says so for as long as
+   the page exists. */
+.ai-band {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: #fdf3e7; border-radius: var(--radius-sm);
+  padding: 11px 14px; margin: 0 0 16px;
+  font-size: 12.5px; line-height: 1.5; color: var(--ink);
+}
+.ai-band .ic { flex: 0 0 auto; font-size: 14px; line-height: 1.3; }
+.ai-band p { margin: 0; }
+.ai-band b { font-weight: 600; }
+
+.ai-note {
+  font-size: 12.5px; color: var(--ink-2); line-height: 1.55;
+  margin: 0 0 14px; max-width: 70ch;
+}
+.ai-warn {
+  background: var(--paper-2); border-left: 3px solid var(--warn);
+  padding: 9px 13px; margin: 0 0 14px; font-size: 12.5px; color: var(--ink-2);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+/* ---- sections ---------------------------------------------------------- */
+.ai-sec { border-top: 1px solid var(--rule-2); padding: 16px 0 4px; }
+.ai-sec:first-of-type { border-top: 0; padding-top: 0; }
+.ai-sec-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 3px; }
+.ai-sec-h h4 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.005em; }
+/* Question-shaped, because the reader's problem is a question, not a category. */
+.ai-q { font-size: 12.5px; color: var(--ink-3); margin: 0 0 11px; }
+
+.ai-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 11px; }
+.ai-item {
+  background: var(--paper-2); border: 1px solid var(--rule-2);
+  border-left: 3px solid var(--rule); border-radius: var(--radius-sm);
+  padding: 11px 14px;
+}
+.ai-item.is-req { border-left-color: var(--accent); }
+.ai-item.is-opt { border-left-color: var(--ok); }
+
+.ai-item-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 3px; }
+.ai-label { font-size: 13px; font-weight: 600; color: var(--ink); }
+.ai-ob {
+  font-family: var(--mono); font-size: 9px; font-weight: 600;
+  letter-spacing: .07em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px;
+}
+.ai-ob.req { background: var(--accent-soft); color: var(--accent-2); }
+.ai-ob.opt { background: #e4f2eb; color: var(--ok); }
+.ai-conf { font-family: var(--mono); font-size: 9.5px; color: var(--warn); letter-spacing: .04em; }
+
+.ai-value { font-size: 14px; color: var(--ink); line-height: 1.5; }
+
+/* The quote is the evidence, not the answer — quieter than the value it
+   supports, but always present, because nothing here is trusted on the model's
+   authority (spec §8). */
+.ai-quote {
+  margin: 8px 0 0; padding: 0 0 0 11px; border-left: 2px solid var(--rule);
+  font-size: 12.5px; line-height: 1.55; color: var(--ink-2); font-style: italic;
+}
+.ai-cite { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 7px; }
+.ai-jump {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+  color: var(--accent); text-transform: uppercase; font-weight: 600;
+}
+.ai-jump:hover { color: var(--accent-2); text-decoration: underline; }
+.ai-jump:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.ai-src { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .04em; }
+
+/* ---- "the notice does not say" ----------------------------------------- */
+.ai-missing { border-top: 1px solid var(--rule-2); margin-top: 16px; padding-top: 14px; }
+.ai-missing-h { font-family: var(--mono); font-size: 10px; text-transform: uppercase;
+  letter-spacing: .1em; color: var(--ink-3); margin-bottom: 8px; }
+.ai-missing ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.ai-missing li {
+  font-size: 12px; color: var(--ink-2); background: var(--paper-2);
+  border: 1px dashed var(--rule); border-radius: 999px; padding: 3px 11px;
+}
+
+/* ---- the three non-present states -------------------------------------- */
+.ai-empty { text-align: left; padding: 4px 0 2px; }
+.ai-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+  padding: 9px 16px; font-family: var(--sans); font-size: 13px; font-weight: 600;
+  cursor: pointer;
+}
+.ai-btn:hover { background: var(--accent-2); }
+.ai-btn:disabled { background: var(--ink-3); cursor: default; }
+.ai-btn:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+
+.ai-running { display: flex; align-items: center; gap: 11px; font-size: 13px; color: var(--ink-2); }
+.ai-spin {
+  width: 14px; height: 14px; border-radius: 50%; flex: 0 0 auto;
+  border: 2px solid var(--rule); border-top-color: var(--accent);
+  animation: ai-rot .7s linear infinite;
+}
+@keyframes ai-rot { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ai-spin { animation: none; } }
+
+.ai-fail {
+  background: var(--paper-2); border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 11px 14px; margin-bottom: 12px; font-size: 12.5px; color: var(--ink-2);
+}
+.ai-fail code { font-family: var(--mono); font-size: 11.5px; color: var(--ink); word-break: break-word; }
+
+/* ---- admin-only footer: what the run actually did ---------------------- */
+.ai-audit {
+  border-top: 1px dashed var(--rule); margin-top: 16px; padding-top: 11px;
+  display: flex; flex-wrap: wrap; gap: 4px 18px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .04em;
+  color: var(--ink-3); text-transform: uppercase;
+}
+.ai-audit b { color: var(--ink-2); font-weight: 600; }
+.ai-audit .bad { color: var(--warn); }

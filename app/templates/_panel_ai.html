@@ -1,0 +1,177 @@
+{# _panel_ai.html — the AI summary panel on an act page.
+
+   Returned by GET /act/<adam>/ai and by POST /admin/act/<adam>/ai, and swapped
+   into #ai-summary-mount with hx-swap="outerHTML". Four states, one template:
+
+     absent   no payload, and the reader may generate one → banner + button
+     running  a job is queued or running → the panel polls itself
+     failed   the last job errored → what went wrong, and a retry
+     present  the sections
+
+   TWO RULES THIS TEMPLATE ENFORCES, both from docs/specs/ai-summary.md:
+
+   1. It says "the notice requires X", NEVER "you do not have X". This is
+      extraction, not evaluation — the payload is a property of the ACT and is
+      identical for every reader (§3). The moment a sentence here addresses the
+      reader's own company, the cache is a privacy leak.
+
+   2. Nothing renders without its evidence. Every item shows the verbatim quote
+      the server located in the source, and links to it in the full text. An
+      item whose quote could not be found never reached this template — it was
+      dropped server-side (§8).
+
+   A reader with no payload and no right to generate one sees NOTHING: an empty
+   AI panel is a promise the page cannot keep. #}
+
+{% if state == 'present' or state == 'running' or can_generate %}
+<div id="ai-summary-mount" class="panel ai-panel"
+     {%- if state == 'running' %} hx-get="/act/{{ adam }}/ai" hx-trigger="load delay:4s" hx-swap="outerHTML"{% endif %}>
+
+  <h3 class="panel-h">
+    {{ t("Σύνοψη διαγωνισμού") }}
+    <span class="ai-tag">{{ t("AI εξαγωγή") }}</span>
+    {% if is_admin %}<span class="ai-model">{{ meta.model if meta else model }}</span>{% endif %}
+  </h3>
+
+  {# Permanent and undismissable — see the CSS note. #}
+  <div class="ai-band">
+    <span class="ic" aria-hidden="true">⚠</span>
+    <p><b>{{ t("Εργαλείο πρώτης αξιολόγησης.") }}</b>
+       {{ t("Τα παρακάτω εξάγονται αυτόματα από το κείμενο της προκήρυξης και μπορεί να είναι ελλιπή. Επιβεβαιώνετε πάντα τα στοιχεία στα επίσημα έγγραφα πριν υποβάλετε προσφορά.") }}</p>
+  </div>
+
+  {# ---------------------------------------------------------------- absent #}
+  {% if state == 'absent' %}
+  <div class="ai-empty">
+    <p class="ai-note">{{ t("Δεν έχει δημιουργηθεί σύνοψη για αυτή την προκήρυξη. Η ανάλυση διαβάζει το πλήρες κείμενο και τους δημοσιευμένους πίνακες, και εντοπίζει όσα δεν υπάρχουν ήδη στα πεδία της πράξης: προθεσμίες ερωτήσεων, βαρύτητες κριτηρίων, εγγυήσεις, τεχνικές απαιτήσεις και κριτήρια συμμετοχής.") }}</p>
+    <button type="button" class="ai-btn"
+            hx-post="/admin/act/{{ adam }}/ai"
+            hx-target="#ai-summary-mount" hx-swap="outerHTML">
+      {{ t("Δημιουργία σύνοψης") }}
+    </button>
+  </div>
+
+  {# --------------------------------------------------------------- running #}
+  {% elif state == 'running' %}
+  <div class="ai-running">
+    <span class="ai-spin" aria-hidden="true"></span>
+    <span>{{ t("Η σύνοψη δημιουργείται — αυτό διαρκεί συνήθως ένα λεπτό. Η σελίδα ενημερώνεται μόνη της.") }}</span>
+  </div>
+
+  {# ---------------------------------------------------------------- failed #}
+  {% elif state == 'failed' %}
+  <div class="ai-fail">
+    {% if job and job.status == 'stale' %}
+      <p style="margin:0;">{{ t("Το κείμενο της πράξης άλλαξε ενώ ετοιμαζόταν η σύνοψη, οπότε δεν αποθηκεύτηκε. Δοκιμάστε ξανά.") }}</p>
+    {% else %}
+      <p style="margin:0 0 6px;">{{ t("Η δημιουργία της σύνοψης απέτυχε.") }}</p>
+      {% if is_admin and job and job.last_error %}<code>{{ job.last_error }}</code>{% endif %}
+    {% endif %}
+  </div>
+  {% if can_generate %}
+  <button type="button" class="ai-btn"
+          hx-post="/admin/act/{{ adam }}/ai"
+          hx-target="#ai-summary-mount" hx-swap="outerHTML">
+    {{ t("Νέα προσπάθεια") }}
+  </button>
+  {% endif %}
+
+  {# --------------------------------------------------------------- present #}
+  {% else %}
+
+  {# A summary that quietly covered 30% of a document is worse than none, because
+     the reader cannot tell which 70% is missing (spec §6). #}
+  {% if payload.truncated %}
+  <p class="ai-warn">{{ t("Η ανάλυση κάλυψε τους πρώτους") }}
+     {{ payload.truncated.kept }} {{ t("από") }} {{ payload.truncated.total }}
+     {{ t("χαρακτήρες του κειμένου — το υπόλοιπο δεν διαβάστηκε.") }}</p>
+  {% endif %}
+
+  {% if not payload.sections %}
+  <p class="ai-note">{{ t("Η ανάλυση δεν εντόπισε στοιχεία που να μην υπάρχουν ήδη στα πεδία της πράξης. Αυτό συμβαίνει σε σύντομες προκηρύξεις, όπου οι λεπτομέρειες βρίσκονται στα συνημμένα έγγραφα.") }}</p>
+  {% endif %}
+
+  {% for sec in payload.sections %}
+  <section class="ai-sec">
+    <div class="ai-sec-h">
+      <h4>{{ sec.heading }}</h4>
+      <span class="ai-tag">{{ t("AI εξαγωγή") }}</span>
+    </div>
+    <p class="ai-q">{{ sec.question }}</p>
+    <ul class="ai-items">
+      {% for item in sec['items'] %}
+      <li class="ai-item{% if item.obligation == 'mandatory' %} is-req{% elif item.obligation == 'desirable' %} is-opt{% endif %}">
+        <div class="ai-item-h">
+          <span class="ai-label">{{ item.label }}</span>
+          {% if item.obligation == 'mandatory' %}
+            <span class="ai-ob req">{{ t("υποχρεωτικό") }}</span>
+          {% elif item.obligation == 'desirable' %}
+            <span class="ai-ob opt">{{ t("επιθυμητό") }}</span>
+          {% endif %}
+          {% if item.confidence == 'low' %}
+            <span class="ai-conf">{{ t("ασαφές στο κείμενο") }}</span>
+          {% endif %}
+        </div>
+        <div class="ai-value">{{ item.value }}</div>
+        <blockquote class="ai-quote">«{{ item.quote }}»</blockquote>
+        <div class="ai-cite">
+          {% if item.anchor %}
+            {# The whole point of the quote gate: this button lands on the
+               sentence that produced the item, in the official Greek. #}
+            <button type="button" class="ai-jump" data-ai-anchor="{{ item.anchor }}">
+              {{ t("στο κείμενο") }} — {{ t("παρ.") }} {{ item.para }} ›
+            </button>
+          {% elif item.source and item.source.startswith('table:') %}
+            <span class="ai-src">{{ t("από πίνακα") }}</span>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+
+  {% if payload.not_found %}
+  {# "The notice does not state a site-visit date" is information. Silence is
+     not — spec §5. #}
+  <div class="ai-missing">
+    <div class="ai-missing-h">{{ t("Δεν αναφέρονται στην προκήρυξη") }}</div>
+    <ul>
+      {% for miss in payload.not_found %}<li>{{ miss }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if is_admin and meta %}
+  {# The numbers that say whether the prompt is working. Admin-only: a bidder
+     has no use for a rejection count, and a rising one is our problem. #}
+  <div class="ai-audit">
+    <span><b>{{ meta.generated_at.strftime('%d/%m/%Y %H:%M') if meta.generated_at else '—' }}</b>
+      {% if meta.generated_by %} · {{ meta.generated_by }}{% endif %}</span>
+    <span>{{ t("στοιχεία") }} <b>{{ payload.n_items or 0 }}</b></span>
+    <span{% if (payload.rejected_n or 0) > 0 %} class="bad"{% endif %}>
+      {{ t("απορρίφθηκαν") }} <b>{{ payload.rejected_n or 0 }}</b></span>
+    {% if payload.conflicts %}
+    <span class="bad">{{ t("διαφωνίες με το αρχείο") }} <b>{{ payload.conflicts | length }}</b></span>
+    {% endif %}
+    {% if meta.cost_micro_usd is not none %}
+    <span>${{ '%.4f' | format(meta.cost_micro_usd / 1000000) }}</span>
+    {% endif %}
+    {% if can_generate %}
+    <button type="button" class="ai-jump" style="text-transform:uppercase;"
+            hx-post="/admin/act/{{ adam }}/ai"
+            hx-target="#ai-summary-mount" hx-swap="outerHTML">
+      {{ t("αναδημιουργία") }}
+    </button>
+    {% endif %}
+    <a href="/admin/act/{{ adam }}/edit?tab=fields" class="ai-src"
+       style="color:var(--ink-3);">{{ t("αναφορά προβλήματος") }}</a>
+  </div>
+  {% endif %}
+
+  {% endif %}{# /state #}
+</div>
+{% else %}
+{# Nothing to show and nothing to offer: no element at all, so the act page is
+   exactly as it was before this feature existed. #}
+{% endif %}

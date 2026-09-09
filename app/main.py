@@ -3210,9 +3210,28 @@ def act_detail(adam: str, request: Request):
                            adam=adam, exc_info=True)
             match = None
 
+    # Anchors for the AI summary panel's deep links. The panel loads separately
+    # (hx-trigger="load"), so by the time it wants to point at "παρ. 12" this
+    # page is already rendered — the numbered paragraphs have to be here, in the
+    # same `ft-p-<n>` numbering the occurrence navigator uses. Only built when a
+    # payload exists at all (one primary-key lookup), so the 99% of acts with no
+    # summary pay nothing, and only when the marked view is not already showing
+    # them.
+    ft_paragraphs = []
+    if (_ai.enabled() and notice.get("type") == "notice" and notice.get("full_text")
+            and not (match and match.has_full_text_hits)):
+        try:
+            with cursor() as c:
+                c.execute("SELECT 1 FROM proc.act_ai_summary WHERE adam=%s", (adam,))
+                if c.fetchone():
+                    ft_paragraphs = _tmatch.split_full_text(notice["full_text"])
+        except Exception:      # noqa: BLE001 — anchors are a nicety, never a 500
+            ft_paragraphs = []
+
     return templates.TemplateResponse(
         request, "beta_act.html",
         {"n": notice, "gated": False, "match": match,
+         "ft_paragraphs": ft_paragraphs,
          "act_authorities": act_authorities, "act_contractors": act_contractors,
          "interconnect_group": interconnect_group,
          "lot_panel": lot_panel, "act_scope": act_scope,
@@ -3257,6 +3276,198 @@ def act_occurrences(adam: str, request: Request, term: str = Query(...)):
         request, "_occurrences.html",
         {"occurrences": occurrences, "total": total, "term": term,
          "shown": len(occurrences), "adam": adam})
+
+
+# ---------------------------------------------------------------------------- #
+# AI SUMMARY PANEL — docs/specs/ai-summary.md
+#
+# Two surfaces and one rule between them:
+#
+#   GET  /act/{adam}/ai            the panel. Entitled readers, notices only.
+#   POST /admin/act/{adam}/ai      enqueue a generation. Admins only in v1 (§12)
+#                                  — and it sits under /admin precisely so
+#                                  _is_admin_path gives it RBAC and the audit
+#                                  trail for free. A route that spends money
+#                                  should appear in proc.admin_action.
+#
+# EXTRACTION, NEVER EVALUATION. Nothing here reads a customer profile; the
+# payload is a property of the act and is therefore identical for every reader,
+# which is what makes it cacheable forever (spec §3).
+#
+# The panel is lazy (hx-trigger="load"), so an act page pays nothing for it, and
+# every state it can be in renders through the same template.
+# ---------------------------------------------------------------------------- #
+try:
+    from app import ai_summary as _ai
+    from app import textmatch as _tmatch
+except ImportError:
+    import ai_summary as _ai              # type: ignore
+    import textmatch as _tmatch           # type: ignore
+
+templates.env.globals["ai_summary_enabled"] = _ai.enabled()
+
+def _ai_anchor_for(paragraphs, offset: int):
+    """The full-text paragraph a character offset falls in, or None.
+
+    The anchor ids match the ones beta_act.html renders (`ft-p-<n>`), which are
+    the same ids the occurrence navigator points at — one numbering for both
+    surfaces, so "παρ. 12" means paragraph 12 wherever the reader met it.
+    """
+    for p in paragraphs:
+        if p.start <= offset < p.end:
+            return f"ft-p-{p.index}", p.index
+    return None, None
+
+
+def _ai_decorate(payload: dict, act: dict) -> dict:
+    """Add the DOM anchors the stored payload deliberately does not carry.
+
+    Offsets are stored (they are part of what the input_hash protects); anchors
+    are a rendering detail of this page and are computed fresh, so changing how
+    the full text is split never invalidates a cached payload.
+    """
+    paragraphs = _tmatch.split_full_text(act.get("full_text") or "")
+    for section in payload.get("sections") or []:
+        for item in section.get("items") or []:
+            if item.get("source") == "full_text":
+                anchor, para = _ai_anchor_for(paragraphs, item.get("start") or 0)
+                item["anchor"], item["para"] = anchor, para
+            else:
+                item["anchor"], item["para"] = None, None
+    return payload
+
+
+def _ai_panel_ctx(c, request, adam: str) -> dict | None:
+    """Resolve which of the panel's states applies. None ⇒ render nothing.
+
+    Nothing here raises: a missing act, a non-notice, a text-less notice and a
+    gated reader are all "no panel", because a reading aid must never be the
+    reason an act page fails (§7).
+    """
+    if _is_gated(request):
+        return None                 # the full text is paywalled; so is its reading
+    loaded = _ai.load_inputs(c, adam)          # notices only — returns None otherwise
+    if loaded is None:
+        return None
+    act, sources = loaded
+    if not sources:
+        return None                 # nothing to quote means nothing to extract
+
+    row = _ai.cached(c, adam, _ai.input_hash(sources))
+    c.execute("""SELECT id, status, last_error, queued_at, finished_at
+                   FROM proc.ai_summary_job
+                  WHERE adam = %s ORDER BY id DESC LIMIT 1""", (adam,))
+    job = c.fetchone()
+    running = bool(job and job["status"] in ("queued", "running"))
+
+    payload = None
+    if row:
+        payload = _ai_decorate(dict(row["payload"] or {}), act)
+
+    if payload:
+        state = "present"
+    elif running:
+        state = "running"
+    elif job and job["status"] in ("error", "stale"):
+        state = "failed"
+    else:
+        state = "absent"
+
+    is_admin = (getattr(request.state, "user", None) or {}).get("role") == "admin"
+    return {
+        "adam": adam, "state": state, "payload": payload, "meta": row,
+        "job": job, "is_admin": is_admin,
+        # Who may spend money here, and whether the machine can at all. Both are
+        # needed: without a key the panel still serves cached rows, read-only.
+        "can_generate": is_admin and _ai.can_generate(),
+        "model": _ai.MODEL,
+    }
+
+
+@app.get("/act/{adam}/ai", response_class=HTMLResponse)
+def act_ai_panel(adam: str, request: Request):
+    """The AI summary panel, in whichever state it is in. Empty when off."""
+    if not _ai.enabled():
+        return HTMLResponse("")
+    try:
+        with cursor() as c:
+            ctx = _ai_panel_ctx(c, request, adam)
+    except Exception:      # noqa: BLE001 — a panel must never 500 an act page
+        _obs.log_event(logging.WARNING, "ai_panel_failed", adam=adam, exc_info=True)
+        return HTMLResponse("")
+    if ctx is None:
+        return HTMLResponse("")
+    return templates.TemplateResponse(request, "_panel_ai.html", ctx)
+
+
+@app.post("/admin/act/{adam}/ai", response_class=HTMLResponse)
+def act_ai_generate(adam: str, request: Request):
+    """Enqueue one generation, then answer with the panel in its running state.
+
+    Admin-only and audited by AuthMiddleware (the /admin prefix). The work
+    itself runs in worker.py via `db.py ai-summary --job N`: a 30–60 second
+    model call has no business inside a web request (§10).
+    """
+    if not _ai.enabled():
+        raise HTTPException(status_code=404, detail="Not found")
+    if not _ai.can_generate():
+        raise HTTPException(status_code=400,
+                            detail="ANTHROPIC_API_KEY is not set — generation is off.")
+    user = getattr(request.state, "user", None) or {}
+    who = user.get("username") or "admin"
+
+    with cursor() as c:
+        # Per-admin throttle, on the same proc.login_throttle discipline the
+        # login link uses (and its thresholds: 8 then a 5-minute lock). Counts
+        # every request, never resets on success, because the REQUEST is what
+        # costs money — a generation that fails has already paid for its tokens.
+        key = f"aisummary:{user.get('id') or who}"
+        blocked = _auth.throttle_blocked(c, key)
+        if blocked:
+            raise HTTPException(status_code=429, detail=(
+                f"Πολλές αιτήσεις σύνοψης. Δοκιμάστε ξανά σε {blocked} δευτερόλεπτα."))
+
+        loaded = _ai.load_inputs(c, adam)
+        if loaded is None:
+            raise HTTPException(status_code=404,
+                                detail="Η πράξη δεν βρέθηκε ή δεν είναι προκήρυξη.")
+        act, sources = loaded
+        if not sources:
+            raise HTTPException(status_code=400,
+                                detail="Η πράξη δεν έχει πλήρες κείμενο ούτε πίνακες.")
+
+        # Two readers clicking at once must not buy the same summary twice.
+        c.execute("""SELECT id FROM proc.ai_summary_job
+                      WHERE adam = %s AND status IN ('queued','running')
+                      ORDER BY id DESC LIMIT 1""", (adam,))
+        if not c.fetchone():
+            # The deployment-wide daily cap (§12). Counted on queued_at so a
+            # burst of failures still spends its budget — the API was called.
+            c.execute("""SELECT count(*) AS n FROM proc.ai_summary_job
+                          WHERE queued_at >= date_trunc('day', now())""")
+            if (c.fetchone() or {}).get("n", 0) >= _ai.DAILY_CAP:
+                raise HTTPException(status_code=429, detail=(
+                    f"Συμπληρώθηκε το ημερήσιο όριο ({_ai.DAILY_CAP} συνόψεις). "
+                    f"Δοκιμάστε ξανά αύριο."))
+            _auth.throttle_fail(c, key)
+            c.execute("""INSERT INTO proc.ai_summary_job
+                           (adam, input_hash, requested_by, status)
+                         VALUES (%s, %s, %s, 'queued') RETURNING id""",
+                      (adam, _ai.input_hash(sources), who))
+            job_id = c.fetchone()["id"]
+            c.execute("""UPDATE proc.ai_summary_job
+                            SET command = %s,
+                                log_text = %s
+                          WHERE id = %s""",
+                      (["ai-summary", "--job", str(job_id)],
+                       f"# ai summary: {adam} ({_ai.MODEL})\n\n", job_id))
+            _obs.log_event(logging.INFO, "ai_summary_enqueued",
+                           adam=adam, job_id=job_id, by=who)
+
+        ctx = _ai_panel_ctx(c, request, adam)
+    if ctx is None:                      # can only happen if the act vanished
+        return HTMLResponse("")
+    return templates.TemplateResponse(request, "_panel_ai.html", ctx)
 
 
 def _attachments_mod():

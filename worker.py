@@ -47,7 +47,7 @@ LOG_CAP = int(os.environ.get("WORKER_LOG_CAP", "200000"))   # keep last ~200 KB
 
 # Job queues, in the order the worker checks them each tick. Both tables share
 # the same queue columns (see the job_queue_worker_columns migration).
-QUEUES = ("proc.ingest_job", "proc.table_extract_job")
+QUEUES = ("proc.ingest_job", "proc.table_extract_job", "proc.ai_summary_job")
 
 
 def _connect():

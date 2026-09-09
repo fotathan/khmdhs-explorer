@@ -74,6 +74,7 @@ TABLES_ENABLED=1 \
 ENABLE_DOCS=1 \
 RATELIMIT_ENABLED=0 \
 DIGEST_SCHEDULER=1 \
+AI_SUMMARY_ENABLED=1 \
 EMAIL_BACKEND=file EMAIL_FILE_DIR=./outbox \
 EMAIL_FROM="KHMDHS Explorer <noreply@khmdhs.local>" \
 TRANSCRIBE_BACKEND=openai \
@@ -110,12 +111,13 @@ No `--reload` — it double-starts the background threads.
 | Scheduled result emails | `DIGEST_SCHEDULER=1` | sweeps every 60s (`DIGEST_POLL_SECONDS`) |
 | Email delivery | `EMAIL_BACKEND=file` | writes `.eml` files to `./outbox`; see below |
 | Call transcription | `TRANSCRIBE_BASE_URL` | the `khmdhs-whisper` container |
+| AI summary panel on notices | `AI_SUMMARY_ENABLED=1` | `ANTHROPIC_API_KEY` to generate; a worker to run the job (`RUN_INLINE_WORKER=1`, on by default locally). Only `1`/`true`/`yes`/`on`/`y`/`t`/`enabled` turn it on — anything else, including a typo, leaves it **off**, because it spends money |
 
 **Key-gated — on as soon as the key is present**
 
 | Feature | Key |
 |---|---|
-| OCR of scanned PDFs, Claude table extraction, call summaries | `ANTHROPIC_API_KEY` |
+| OCR of scanned PDFs, Claude table extraction, call summaries, AI summaries | `ANTHROPIC_API_KEY` |
 | ΓΕΜΗ enrichment (admin button on contractor/authority pages) | `GEMI_API_KEY` |
 | Softphone + caller-ID screen-pop | `TELEPHONY_ENABLED=1` + `AMI_*` / `SIP_*` |
 
@@ -229,6 +231,55 @@ grep -ho "http[^ ]*/login/link/[A-Za-z0-9_-]*" outbox/*.eml | tail -1
 
 `APP_BASE_URL` is what the mailed link points at, so keep it matching the port
 you launched on or the link will open the wrong server.
+
+---
+
+## 7c. Trying the AI summary panel
+
+Costs real money — roughly $0.12–0.20 per notice on Opus 5, paid once per act
+and then read from the cache forever. `AI_SUMMARY_DAILY_CAP` (default 50) bounds
+the worst case for the whole deployment.
+
+1. Apply the migration on **both** databases first — the panel reads three
+   tables that do not exist until you do:
+
+   ```bash
+   DATABASE_URL="postgresql://postgres:pw@127.0.0.1:5433/procurement" \
+     ./khmdhs-env/bin/python migrate.py up
+   ```
+
+   ...then the same with the Supabase DSN, before pushing any of this.
+
+2. Launch with `AI_SUMMARY_ENABLED=1` and a real `ANTHROPIC_API_KEY`, signed in
+   as an admin.
+3. Open any act with `type='notice'` and a full text. Under "Στοιχεία πράξης"
+   the panel offers **Δημιουργία σύνοψης**.
+4. Click it. The request only *queues* a job — the model call runs in the
+   worker, as `db.py ai-summary --job N` — and the panel polls itself every four
+   seconds until the payload lands. Watch it from the terminal instead if you
+   prefer:
+
+   ```bash
+   psql "$DATABASE_URL" -c "SELECT id, status, last_error FROM proc.ai_summary_job ORDER BY id DESC LIMIT 5"
+   ```
+
+5. Click a citation. The full text opens at the exact paragraph the quote came
+   from. If a citation is missing from an item, that item was dropped by the
+   quote gate before it ever reached the page — that is the design, not a bug.
+6. Edit the act's full text (`/admin/act/<ΑΔΑΜ>/edit?tab=fulltext`) and reload.
+   The panel offers to regenerate rather than serving the old payload, because
+   its stored character offsets now point into text that no longer exists.
+
+What it costs so far:
+
+```bash
+psql "$DATABASE_URL" -c "SELECT count(*), sum(cost_micro_usd)/1000000.0 AS usd FROM proc.act_ai_summary"
+```
+
+Switches: `AI_SUMMARY_MODEL` (default `claude-opus-5`), `AI_SUMMARY_EFFORT`
+(`medium`), `AI_SUMMARY_MAX_INPUT_CHARS` (`120000` — over that, the panel says
+in as many words how much of the document it read), `AI_SUMMARY_DAILY_CAP`
+(`50`), `AI_SUMMARY_TIMEOUT` (`180`, seconds between stream events).
 
 ---
 
