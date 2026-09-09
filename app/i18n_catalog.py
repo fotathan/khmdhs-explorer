@@ -2225,6 +2225,20 @@ _DIGESTS = {
         "\u201cMaximum results\u201d applies to the list format only \u2014 the summary lists no acts.",
     "Μία εγγραφή ανά προφίλ — η επαναποθήκευση ενημερώνει την υπάρχουσα. Οι επιπλέον παραλήπτες προστίθενται μετά, στην κάρτα της ειδοποίησης.":
         "One subscription per profile \u2014 saving again updates the existing one. Extra recipients are added afterwards, on the alert's own card.",
+    # the deadline reminder body + its settings
+    "Υπενθύμιση προθεσμιών": "Deadline reminder",
+    "διαγωνισμοί με προθεσμία που πλησιάζει": "tenders with an approaching deadline",
+    "Καμία προθεσμία δεν πλησιάζει αυτή τη στιγμή.":
+        "No deadline is approaching right now.",
+    "Λαμβάνετε αυτό το μήνυμα επειδή έχει οριστεί ειδοποίηση προθεσμιών για το προφίλ αναζήτησης":
+        "You are receiving this message because a deadline reminder is set for the saved search",
+    "Κάθε διαγωνισμός αναφέρεται μία φορά ανά υπενθύμιση — δεν θα τον ξαναδείτε στο ίδιο στάδιο.":
+        "Each tender is mentioned once per reminder — you will not see it again at the same stage.",
+    "Ημέρες πριν την προθεσμία": "Days before the deadline",
+    "Τρίτη μορφή email, η «Υπενθύμιση προθεσμιών»: αντί για ό,τι μπήκε στη βάση, στέλνει ό,τι ΚΛΕΙΝΕΙ — τους διαγωνισμούς του προφίλ των οποίων η προθεσμία υποβολής πλησιάζει, με τον πιο επείγοντα πρώτο. Το «Ημέρες πριν την προθεσμία» ορίζει τα σημεία υπενθύμισης (π.χ. «7, 1»: μία υπενθύμιση μία εβδομάδα πριν και μία την προηγούμενη ημέρα). Κάθε διαγωνισμός αναφέρεται μία φορά ανά σημείο, ώστε το email να μην επαναλαμβάνει κάθε πρωί την ίδια λίστα· αν η αναθέτουσα μεταθέσει την προθεσμία, ο διαγωνισμός ξαναεμφανίζεται με τη νέα ημερομηνία. Οι ακυρωμένες πράξεις δεν υπενθυμίζονται ποτέ.":
+        "A third email format, the “Deadline reminder”: instead of what entered the database it sends what is CLOSING — the tenders in the profile whose submission deadline is approaching, most urgent first. “Days before the deadline” sets the reminder marks (e.g. “7, 1”: one a week before and one the day before). Each tender is mentioned once per mark, so the email does not repeat the same list every morning; if the authority moves the deadline, the tender appears again with the new date. Cancelled acts are never chased.",
+    "Μόνο για την «Υπενθύμιση προθεσμιών»: πόσες ημέρες πριν κλείσει ο διαγωνισμός θα σταλεί υπενθύμιση. Χωρισμένες με κόμμα — «7, 1» σημαίνει μία υπενθύμιση μία εβδομάδα πριν και μία την προηγούμενη ημέρα. Κάθε διαγωνισμός αναφέρεται μία φορά ανά σημείο.":
+        "For the “Deadline reminder” format only: how many days before a tender closes to remind. Comma-separated — “7, 1” means one a week before and one the day before. Each tender is mentioned once per mark.",
     # the summary email body
     "Σύνοψη αποτελεσμάτων": "Results summary",
     "Συνολικός προϋπολογισμός": "Total budget",
@@ -2295,8 +2309,8 @@ _DIGESTS = {
         "One alert can have more than one recipient: the account's own email is included by default (and can be excluded), and next to it you add colleagues with their own salutation, first name and surname. Each recipient gets their own copy, greeting them by name.",
     "Δύο μορφές email: η «Λίστα αποτελεσμάτων» παραθέτει τις νέες πράξεις, ενώ η «Σύνοψη με στατιστικά» δίνει πλήθος ανά είδος πράξης, συνολικό προϋπολογισμό, αριθμό αναθετουσών, ανοιχτές προθεσμίες και τις κυριότερες αναθέτουσες — με κουμπί για την αναλυτική λίστα μέσα στην εφαρμογή.":
         "Two email formats: \u201cResult list\u201d prints the new acts, while \u201cSummary with statistics\u201d gives counts per act type, total budget, how many authorities, open deadlines and the top authorities \u2014 with a button through to the detailed list inside the app.",
-    "Το κείμενο του email (θέμα και εισαγωγή) είναι τα πρότυπα «digest» και «digest_summary» στα":
-        "The email wording (subject and intro) is the \u201cdigest\u201d and \u201cdigest_summary\u201d templates under",
+    "Το κείμενο του email (θέμα και εισαγωγή) είναι τα πρότυπα «digest», «digest_summary» και «digest_deadline» στα":
+        "The email wording (subject and intro) is the \u201cdigest\u201d, \u201cdigest_summary\u201d and \u201cdigest_deadline\u201d templates under",
     "Το «Ιστορικό» καταγράφει κάθε προσπάθεια: πόσα αποτελέσματα, σε ποιον, τι πήγε στραβά, και σύνδεσμο «τι στάλθηκε» για κάθε email που έφυγε.":
         "\u201cHistory\u201d records every attempt: how many results, to whom, what went wrong, and a \u201cwhat was sent\u201d link for every email that left.",
     "Αποθηκευμένες αναζητήσεις & ειδοποιήσεις στην καρτέλα πελάτη":

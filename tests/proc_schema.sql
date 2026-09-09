@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict FTWJkDBl9VOUKXii6f9nWUsX2fYhfdUSXg6wamKIAGDHqeu0YfTalvJXNRI8ET3
+\restrict NgxXqilDwJQFoAsmavsjNqoDJa0r0TuGXVgneDmAaHkR56HYjDSOb7SHafQavKR
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 18.4
@@ -1486,6 +1486,27 @@ CREATE TABLE proc.diavgeia_unit (
 
 
 --
+-- Name: digest_deadline_notice; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.digest_deadline_notice (
+    subscription_id bigint NOT NULL,
+    adam text NOT NULL,
+    lead_days smallint NOT NULL,
+    deadline timestamp with time zone,
+    run_id bigint,
+    sent_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE digest_deadline_notice; Type: COMMENT; Schema: proc; Owner: -
+--
+
+COMMENT ON TABLE proc.digest_deadline_notice IS 'One row per (digest subscription, act, reminder mark) already mailed. What stops a deadline digest repeating the same act every morning; the stored deadline re-arms every mark if the authority moves the closing date.';
+
+
+--
 -- Name: digest_recipient; Type: TABLE; Schema: proc; Owner: -
 --
 
@@ -1694,8 +1715,10 @@ CREATE TABLE proc.digest_subscription (
     created_by bigint,
     layout text DEFAULT 'list'::text NOT NULL,
     include_primary boolean DEFAULT true NOT NULL,
+    lead_days smallint[] DEFAULT '{7,1}'::smallint[] NOT NULL,
     CONSTRAINT digest_subscription_lang_ck CHECK ((lang = ANY (ARRAY['el'::text, 'en'::text]))),
-    CONSTRAINT digest_subscription_layout_ck CHECK ((layout = ANY (ARRAY['list'::text, 'summary'::text]))),
+    CONSTRAINT digest_subscription_layout_ck CHECK ((layout = ANY (ARRAY['list'::text, 'summary'::text, 'deadline'::text]))),
+    CONSTRAINT digest_subscription_lead_days_ck CHECK ((((array_length(lead_days, 1) >= 1) AND (array_length(lead_days, 1) <= 6)) AND (0 <= ALL (lead_days)) AND (90 >= ALL (lead_days)))),
     CONSTRAINT digest_subscription_max_ck CHECK (((max_results >= 1) AND (max_results <= 200)))
 );
 
@@ -1704,7 +1727,14 @@ CREATE TABLE proc.digest_subscription (
 -- Name: COLUMN digest_subscription.layout; Type: COMMENT; Schema: proc; Owner: -
 --
 
-COMMENT ON COLUMN proc.digest_subscription.layout IS 'Which email body this subscription sends: ''list'' prints the new acts, ''summary'' prints the statistics and links to the full set. The wording of each comes from proc.email_template slug ''digest'' / ''digest_summary''.';
+COMMENT ON COLUMN proc.digest_subscription.layout IS 'Which email body this subscription sends: ''list'' prints the acts ingested since the last message, ''summary'' prints statistics over that same window, ''deadline'' looks forward instead and prints the acts whose submission deadline is approaching. Wording per layout comes from proc.email_template slug ''digest'' / ''digest_summary'' / ''digest_deadline''.';
+
+
+--
+-- Name: COLUMN digest_subscription.lead_days; Type: COMMENT; Schema: proc; Owner: -
+--
+
+COMMENT ON COLUMN proc.digest_subscription.lead_days IS 'Deadline layout only: how many days before final_submission_date to remind, largest first. Each mark fires at most once per act (proc.digest_deadline_notice), so ''{7,1}'' means one warning a week out and one the day before.';
 
 
 --
@@ -3822,6 +3852,14 @@ ALTER TABLE ONLY proc.diavgeia_unit
 
 
 --
+-- Name: digest_deadline_notice digest_deadline_notice_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_deadline_notice
+    ADD CONSTRAINT digest_deadline_notice_pkey PRIMARY KEY (subscription_id, adam, lead_days);
+
+
+--
 -- Name: digest_recipient digest_recipient_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
 --
 
@@ -4772,6 +4810,13 @@ CREATE INDEX ix_diavgeia_type ON proc.diavgeia_decision USING btree (decision_ty
 
 
 --
+-- Name: ix_digest_deadline_notice_sub_sent; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_digest_deadline_notice_sub_sent ON proc.digest_deadline_notice USING btree (subscription_id, sent_at DESC);
+
+
+--
 -- Name: ix_digest_recipient_sub; Type: INDEX; Schema: proc; Owner: -
 --
 
@@ -5657,6 +5702,30 @@ ALTER TABLE ONLY proc.diavgeia_decision_unit
 
 
 --
+-- Name: digest_deadline_notice digest_deadline_notice_adam_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_deadline_notice
+    ADD CONSTRAINT digest_deadline_notice_adam_fkey FOREIGN KEY (adam) REFERENCES proc.procurement_act(adam) ON DELETE CASCADE;
+
+
+--
+-- Name: digest_deadline_notice digest_deadline_notice_run_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_deadline_notice
+    ADD CONSTRAINT digest_deadline_notice_run_id_fkey FOREIGN KEY (run_id) REFERENCES proc.digest_run(id) ON DELETE SET NULL;
+
+
+--
+-- Name: digest_deadline_notice digest_deadline_notice_subscription_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_deadline_notice
+    ADD CONSTRAINT digest_deadline_notice_subscription_id_fkey FOREIGN KEY (subscription_id) REFERENCES proc.digest_subscription(id) ON DELETE CASCADE;
+
+
+--
 -- Name: digest_recipient digest_recipient_created_by_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
 --
 
@@ -6036,5 +6105,5 @@ ALTER TABLE ONLY proc.user_subscription
 -- PostgreSQL database dump complete
 --
 
-\unrestrict FTWJkDBl9VOUKXii6f9nWUsX2fYhfdUSXg6wamKIAGDHqeu0YfTalvJXNRI8ET3
+\unrestrict NgxXqilDwJQFoAsmavsjNqoDJa0r0TuGXVgneDmAaHkR56HYjDSOb7SHafQavKR
 

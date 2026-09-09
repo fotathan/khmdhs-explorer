@@ -31,10 +31,19 @@ Scheduled result emails, one subscription per customer × search profile.
   person, so [[salutation]]/[[first_name]]/[[full_name]] greet the reader.
   Sent as soon as ONE message left (the window must not be mailed twice);
   failed addresses go into digest_run.error, the count into n_recipients.
-- Two bodies, chosen by subscription.layout: 'list' (email_digest.html) prints
-  the acts, 'summary' (email_digest_summary.html) prints window_stats() —
-  per-type counts, value, authorities, deadlines — and links out. Wording per
-  layout: email_template slugs 'digest' / 'digest_summary'.
+- Three bodies, chosen by subscription.layout: 'list' (email_digest.html)
+  prints the acts, 'summary' (email_digest_summary.html) prints window_stats()
+  — per-type counts, value, authorities, deadlines — and links out,
+  'deadline' (email_digest_deadline.html) looks FORWARD instead. Wording per
+  layout: email_template slugs 'digest' / 'digest_summary' / 'digest_deadline'.
+- The deadline body ignores the ingest cursor entirely — it cannot use one, as
+  "closes within 7 days" slides with the wall clock and would re-list the same
+  act every morning. subscription.lead_days holds the reminder marks (default
+  {7,1}); each fires at most once per act, recorded in
+  proc.digest_deadline_notice, written ONLY when a message actually left. The
+  stored row carries the deadline it was sent for, so a moved closing date
+  re-arms every mark. Cancelled acts are never chased, and a deadline run must
+  never advance last_cursor.
 - Digest bodies resolve [[fields]] through digests._soft_resolve, NOT
   email_builder.resolve_fields: an empty optional token drops out instead of
   failing the send (no human in the loop).

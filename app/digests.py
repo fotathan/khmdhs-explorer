@@ -53,9 +53,27 @@ subscription.layout picks the shape:
     list     — prints the new acts (up to max_results), the original digest
     summary  — prints how many acts of each type, what they are worth and where
                they came from, and links out to the full set
+    deadline — looks FORWARD instead: the acts whose submission deadline is
+               approaching, soonest first
 
-Both take their subject and intro wording from proc.email_template — slug
-'digest' and 'digest_summary' — so either can be reworded without a deploy.
+Each takes its subject and intro wording from proc.email_template — slug
+'digest', 'digest_summary' and 'digest_deadline' — so any of them can be
+reworded without a deploy.
+
+The forward window
+------------------
+The deadline body is the one that does not use the ingest cursor at all, and
+cannot: "closes within 7 days" is a window that slides with the wall clock, so
+the same act falls inside it every morning until it closes. What stops the
+repetition is proc.digest_deadline_notice — one row per (subscription, act,
+reminder mark) already mailed. subscription.lead_days holds the marks
+(default 7 and 1 days out), each fires at most once, and rows are written only
+when a message actually left, exactly as last_cursor only moves on a real send.
+
+The stored row carries the deadline it was sent for. If an authority moves the
+closing date, it no longer matches the act's, every mark re-arms and the reader
+is told again — a moved deadline is news, and the point of this body is that
+nothing closes unannounced.
 
 What one send contained
 -----------------------
@@ -77,11 +95,12 @@ has asked for.
 Where the pieces live
 ---------------------
   app/mailer.py    — the actual sending (console/memory/file/smtp backends)
-  proc.email_template slugs 'digest' / 'digest_summary' — subject + intro
-                     wording, editable at /admin/email-templates so copy
-                     changes need no deploy
+  proc.email_template slugs 'digest' / 'digest_summary' / 'digest_deadline'
+                   — subject + intro wording, editable at
+                     /admin/email-templates so copy changes need no deploy
   app/templates/email_digest.html          — the results table around that intro
   app/templates/email_digest_summary.html  — the statistics version
+  app/templates/email_digest_deadline.html — the forward-looking countdown
   cron_digests.py  — the entry point a scheduler (or you) invokes
   /admin/digests   — schedules (the portal-wide settings), a read-only overview
                      of every subscription, and the run history
@@ -125,10 +144,21 @@ DEFAULT_TZ = "Europe/Athens"
 
 # The two shapes of digest body, and the email_template slug each takes its
 # subject + intro from. Adding a third is a template, a slug and an entry here.
-LAYOUTS = ("list", "summary")
-LAYOUT_SLUGS = {"list": "digest", "summary": "digest_summary"}
+LAYOUTS = ("list", "summary", "deadline")
+LAYOUT_SLUGS = {"list": "digest", "summary": "digest_summary",
+                "deadline": "digest_deadline"}
 LAYOUT_TEMPLATES = {"list": "email_digest.html",
-                    "summary": "email_digest_summary.html"}
+                    "summary": "email_digest_summary.html",
+                    "deadline": "email_digest_deadline.html"}
+
+# The deadline body's reminder marks: how many days before the closing date to
+# say something. Two by default — one warning a week out, one the day before —
+# because a single mark either arrives too early to act on or too late to bid.
+# The bounds mirror digest_subscription_lead_days_ck; the column constraint is
+# the real guard, these keep a mistyped form from ever reaching it.
+DEFAULT_LEAD_DAYS = (7, 1)
+MAX_LEAD_DAYS = 90
+MAX_LEAD_MARKS = 6
 
 # How many authorities the summary body names before it stops. Beyond a handful
 # the list stops being a summary.
@@ -389,7 +419,7 @@ def get_subscription(c, sub_id):
 def upsert_subscription(c, *, user_id, search_profile_id, schedule_id=None,
                         is_active=True, send_empty=False, max_results=25,
                         lang="el", layout="list", include_primary=True,
-                        created_by=None):
+                        lead_days=None, created_by=None):
     """One subscription per (customer, profile) — a repeat save edits it.
 
     The extra recipients are NOT touched here: they are edited one row at a
@@ -400,8 +430,8 @@ def upsert_subscription(c, *, user_id, search_profile_id, schedule_id=None,
     c.execute("""INSERT INTO proc.digest_subscription
                    (user_id, search_profile_id, schedule_id, is_active,
                     send_empty, max_results, lang, layout, include_primary,
-                    created_by)
-                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    lead_days, created_by)
+                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                  ON CONFLICT (user_id, search_profile_id) DO UPDATE
                    SET schedule_id     = EXCLUDED.schedule_id,
                        is_active       = EXCLUDED.is_active,
@@ -410,11 +440,13 @@ def upsert_subscription(c, *, user_id, search_profile_id, schedule_id=None,
                        lang            = EXCLUDED.lang,
                        layout          = EXCLUDED.layout,
                        include_primary = EXCLUDED.include_primary,
+                       lead_days       = EXCLUDED.lead_days,
                        updated_at      = now()
                  RETURNING id""",
               (user_id, search_profile_id, schedule_id, bool(is_active),
                bool(send_empty), int(max_results), lang, layout,
-               bool(include_primary), created_by))
+               bool(include_primary), list(clean_lead_days(lead_days)),
+               created_by))
     return c.fetchone()["id"]
 
 
@@ -423,6 +455,37 @@ def check_layout(layout):
     if layout not in LAYOUTS:
         raise ValueError(f"unknown layout: {layout!r}")
     return layout
+
+
+def clean_lead_days(value):
+    """The reminder marks, normalised: whole days, no duplicates, largest first.
+
+    Takes what the column returns (a list of ints), what the admin form posts
+    ("7, 1" — or "7 και 1", or a stray trailing comma) and None. Anything
+    unusable falls back to the default instead of raising: this runs inside a
+    scheduled send with nobody watching, and a subscription whose marks were
+    mistyped must still remind somebody. The CHECK constraint on the column is
+    what actually guarantees the stored value.
+
+    Largest first because that is the order the marks fire in, and the order an
+    admin reads them in ("a week out, then the day before")."""
+    if isinstance(value, str):
+        parts = re.split(r"[^0-9]+", value)
+    else:
+        parts = list(value or [])
+    marks = []
+    for part in parts:
+        try:
+            n = int(str(part).strip())
+        except (TypeError, ValueError):
+            continue
+        if 0 <= n <= MAX_LEAD_DAYS and n not in marks:
+            marks.append(n)
+    # Sorted ascending before the cut, so an over-long list keeps the marks
+    # CLOSEST to the deadline — those are the ones a bidder cannot afford to
+    # miss; the distant ones are a nicety.
+    marks.sort()
+    return tuple(sorted(marks[:MAX_LEAD_MARKS], reverse=True)) or DEFAULT_LEAD_DAYS
 
 
 # --------------------------------------------------------------------------- #
@@ -805,6 +868,116 @@ def window_stats(c, params, since, until):
 
 
 # --------------------------------------------------------------------------- #
+# Finding the acts that are about to close
+# --------------------------------------------------------------------------- #
+def closing_acts(c, params, now, *, leads, subscription_id, limit=25, cap=None):
+    """Acts matching the profile whose submission deadline is approaching, and
+    which this subscription has not already been reminded about.
+
+    Same return shape as new_acts — (shown, total, matched) — so the caller,
+    the run's recorded items and /digests/<token> work identically for all
+    three bodies. The differences are what makes this the deadline digest:
+
+      * the window is FORWARD on final_submission_date, not backward on
+        ingested_at, and it is bounded by the widest reminder mark;
+      * a cancelled act is never chased. Its deadline is still in the future
+        and it is still in the corpus; reminding someone to bid for it is the
+        one thing this email must not do;
+      * order is by deadline ascending — the message is a countdown, so the
+        thing closing first is the first line, and truncating at max_results
+        drops the least urgent rather than an arbitrary tail;
+      * what has already been said is subtracted. Without that clause every
+        act would be listed again every morning until it closed, which is how
+        a reminder becomes the mail nobody opens.
+
+    The EXISTS pair is the whole mechanism: an act is due when at least one
+    mark it has crossed (deadline within `lead` days of now) has no matching
+    row in proc.digest_deadline_notice — matching on the deadline as well as
+    the mark, so an extended or brought-forward closing date re-arms all of
+    them.
+    """
+    leads = clean_lead_days(leads)
+    cap = max(int(limit), int(cap or ITEM_CAP))
+    until = now + dt.timedelta(days=max(leads))
+    where, args = _main().build_where(params or {})
+    window = (" AND a.final_submission_date > %s"
+              " AND a.final_submission_date <= %s"
+              " AND coalesce(a.cancelled, false) = false")
+    unsent = """
+        AND EXISTS (
+            SELECT 1 FROM unnest(%s::int[]) AS mark(lead_days)
+             WHERE a.final_submission_date
+                   <= %s + make_interval(days => mark.lead_days)
+               AND NOT EXISTS (
+                   SELECT 1 FROM proc.digest_deadline_notice n
+                    WHERE n.subscription_id = %s
+                      AND n.adam           = a.adam
+                      AND n.lead_days      = mark.lead_days
+                      AND n.deadline IS NOT DISTINCT FROM a.final_submission_date))"""
+    # A preview of a subscription with no id (there is none today, but the
+    # signature allows it) shows the whole horizon rather than crashing.
+    marks_args = ([list(leads), now, subscription_id]
+                  if subscription_id else [])
+    tail = unsent if subscription_id else ""
+
+    c.execute(f"""SELECT count(*) AS n
+                  FROM proc.procurement_act a
+                  WHERE {where}{window}{tail}""",
+              list(args) + [now, until] + marks_args)
+    total = c.fetchone()["n"]
+    if not total:
+        return [], 0, []
+    c.execute(f"""SELECT {DIGEST_COLS}
+                  FROM proc.procurement_act a
+                  LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
+                  WHERE {where}{window}{tail}
+                  ORDER BY a.final_submission_date, a.adam
+                  LIMIT %s""",
+              list(args) + [now, until] + marks_args + [cap])
+    matched = c.fetchall()
+    return matched[:int(limit)], total, matched
+
+
+def consume_deadline_notices(c, subscription_id, matched, leads, now,
+                             run_id=None):
+    """Write down which reminder marks this send has just spent.
+
+    Called ONLY after a message actually left, and never for a test send — the
+    ledger is the deadline body's cursor, and a run nobody received must leave
+    every mark armed for the next one.
+
+    Every mark the act has already crossed is recorded, not just the one that
+    triggered the send: an act that first appears two days before its deadline
+    crosses the 7-day and the 1-day marks at once, and the 7-day mark would
+    otherwise fire again tomorrow for a deadline that is now closer, not
+    further away.
+
+    Only the acts the run RECORDED are consumed. Anything past ITEM_CAP was
+    never in the message and stays due for the next run."""
+    rows = []
+    for r in matched or []:
+        deadline = r.get("final_submission_date")
+        if not deadline:
+            continue
+        for mark in clean_lead_days(leads):
+            if deadline <= now + dt.timedelta(days=mark):
+                rows.append((subscription_id, r["adam"], mark, deadline, run_id))
+    if not rows:
+        return 0
+    # ON CONFLICT UPDATE, not DO NOTHING: a mark whose stored deadline no longer
+    # matched is exactly the re-armed case above, and it has just been spent
+    # again — on the NEW date.
+    c.executemany("""INSERT INTO proc.digest_deadline_notice
+                       (subscription_id, adam, lead_days, deadline, run_id)
+                     VALUES (%s,%s,%s,%s,%s)
+                     ON CONFLICT (subscription_id, adam, lead_days) DO UPDATE
+                       SET deadline = EXCLUDED.deadline,
+                           run_id   = EXCLUDED.run_id,
+                           sent_at  = now()""", rows)
+    return len(rows)
+
+
+# --------------------------------------------------------------------------- #
 # Rendering
 # --------------------------------------------------------------------------- #
 # A standalone Jinja environment: the digest renders from cron too, where there
@@ -977,6 +1150,19 @@ def render_digest(*, subscription, profile, params, rows, total, since, until,
                   since=_fmt_date(since), until=_fmt_date(until),
                   base=base_url(), subject=subject)
 
+    if layout == "deadline":
+        # `since` is the instant the run was built at — for this body it is
+        # "now", and the countdown on every row is measured from it, so the
+        # email and its plain part cannot disagree about how long is left.
+        for item, row in zip(items, rows):
+            item.update(_closing_in(row.get("final_submission_date"), since, lang))
+        html = _env.get_template(LAYOUT_TEMPLATES["deadline"]).render(
+            **common, items=items, shown=len(items))
+        return html, _plain_deadline(t=t, intro=intro, items=items, total=total,
+                                     until=until,
+                                     profile_name=profile.get("name") or "",
+                                     results_url=results_url)
+
     if layout == "summary":
         summary = _summary_view(stats or {}, type_labels, lang, t)
         html = _env.get_template(LAYOUT_TEMPLATES["summary"]).render(
@@ -1026,6 +1212,66 @@ def _summary_view(stats, type_labels, lang, t):
         "next_deadline": _fmt_date(stats.get("next_deadline")),
         "by_type": rows, "top_authorities": top,
     }
+
+
+def _closing_in(deadline, now, lang):
+    """How long one act has left, as a number and as a phrase.
+
+    Whole days, floored and never negative: an act closing in eight hours has
+    "0 days" left and the reader should be told "today", not "in 0 days".
+
+    The phrase is built here rather than looked up in the i18n catalog because
+    Greek inflects it — «σε 1 ημέρα» / «σε 5 ημέρες» — and a catalog keyed on
+    the Greek source string cannot hold a plural rule. `urgent` and `soon` are
+    what the body colours by, decided once so the HTML and the plain part agree.
+    """
+    if not deadline or not isinstance(now, dt.datetime):
+        return {"days_left": None, "left_label": "", "urgent": False,
+                "soon": False}
+    try:
+        days = int((deadline - now).total_seconds() // 86400)
+    except TypeError:                    # a naive/aware mix — not worth raising
+        return {"days_left": None, "left_label": "", "urgent": False,
+                "soon": False}
+    days = max(0, days)
+    if lang == "en":
+        label = ("today" if days == 0 else
+                 "tomorrow" if days == 1 else f"in {days} days")
+    else:
+        label = ("σήμερα" if days == 0 else
+                 "αύριο" if days == 1 else f"σε {days} ημέρες")
+    return {"days_left": days, "left_label": label,
+            "urgent": days <= 1, "soon": days <= 3}
+
+
+def _plain_deadline(*, t, intro, items, total, until, profile_name,
+                    results_url):
+    """The text/plain alternative of the reminder — same countdown, same order.
+
+    Deadline first on every line: this is the one body where the date is the
+    reason the message exists, and a plain-text reader scanning it should not
+    have to reach the end of the line to find it."""
+    lines = [_email.to_plain_text(intro)]
+    if total:
+        head = (f"{total} {t('διαγωνισμοί με προθεσμία που πλησιάζει')} · "
+                f"{t('έως')} {_fmt_date(until)}")
+        if len(items) < total:
+            head += f"\n{t('Εμφανίζονται οι πρώτες')} {len(items)}."
+        lines.append(head)
+    else:
+        lines.append(t("Καμία προθεσμία δεν πλησιάζει αυτή τη στιγμή."))
+    for it in items:
+        lines.append(
+            f"{t('Προθεσμία')}: {it['deadline']}"
+            + (f" ({it['left_label']})" if it['left_label'] else "")
+            + f"\n{it['type_label']}\n{it['title']}\n{it['authority']}\n"
+            f"{t('Προϋπολογισμός')}: {it['value']}\n{it['adam']}\n{it['url']}")
+    if items:
+        lines.append(f"{t('Δείτε όλα τα αποτελέσματα')}: {results_url}")
+    why = t("Λαμβάνετε αυτό το μήνυμα επειδή έχει οριστεί ειδοποίηση προθεσμιών "
+            "για το προφίλ αναζήτησης")
+    lines.append(f"{why} “{profile_name}”.")
+    return "\n\n".join(x for x in lines if x)
 
 
 def _plain_summary(*, t, intro, stats, total, since, until, profile_name,
@@ -1130,14 +1376,27 @@ def build(c, subscription, *, now=None, since=None, token=None, to=None):
         c.execute("SELECT id, username, email FROM proc.app_user WHERE id = %s",
                   (subscription["user_id"],))
         customer = c.fetchone()
-    start = since or window_start(subscription)
-    rows, total, matched = new_acts(
-        c, params, start, now, limit=subscription.get("max_results") or 25)
-    # The summary body needs figures the recorded rows cannot give (they stop at
-    # ITEM_CAP), so it costs three extra aggregates — only when it is the body
-    # actually being sent.
-    stats = (window_stats(c, params, start, now)
-             if (subscription.get("layout") or "list") == "summary" else None)
+    layout = subscription.get("layout") or "list"
+    limit = subscription.get("max_results") or 25
+    stats = None
+    if layout == "deadline":
+        # The forward window. There is no cursor to start from and none to
+        # override: the period this message covers is "from now until the
+        # widest reminder mark", and `since` (which the preview uses to widen a
+        # backward window) has nothing to say about it.
+        leads = clean_lead_days(subscription.get("lead_days"))
+        start, until = now, now + dt.timedelta(days=max(leads))
+        rows, total, matched = closing_acts(
+            c, params, now, leads=leads, subscription_id=subscription["id"],
+            limit=limit)
+    else:
+        start, until = (since or window_start(subscription)), now
+        rows, total, matched = new_acts(c, params, start, now, limit=limit)
+        # The summary body needs figures the recorded rows cannot give (they
+        # stop at ITEM_CAP), so it costs three extra aggregates — only when it
+        # is the body actually being sent.
+        if layout == "summary":
+            stats = window_stats(c, params, start, now)
 
     people = recipients_for(c, subscription, customer, to=to)
     messages = []
@@ -1145,7 +1404,7 @@ def build(c, subscription, *, now=None, since=None, token=None, to=None):
         subject, intro = intro_html(c, subscription, profile, customer, person)
         html, text = render_digest(subscription=subscription, profile=profile,
                                    params=params, rows=rows, total=total,
-                                   since=start, until=now, intro=intro,
+                                   since=start, until=until, intro=intro,
                                    subject=subject, token=token, stats=stats)
         messages.append({"to": person["email"], "recipient": person,
                          "subject": subject, "html": html, "text": text})
@@ -1153,7 +1412,7 @@ def build(c, subscription, *, now=None, since=None, token=None, to=None):
     return {"subject": first["subject"], "html": first["html"],
             "text": first["text"], "messages": messages, "recipients": people,
             "rows": rows, "matched": matched, "total": total, "stats": stats,
-            "since": start, "until": now, "recipient": first["to"],
+            "since": start, "until": until, "recipient": first["to"],
             "profile": profile, "customer": customer, "params": params}
 
 
@@ -1210,7 +1469,8 @@ def run_subscription(c, subscription, *, trigger="schedule", now=None,
 
     if empty and not subscription.get("send_empty") and trigger != "test":
         record_run(c, subscription_id=sub_id, trigger=trigger, status="empty",
-                   n_results=0, cursor_from=built["since"], cursor_to=now,
+                   n_results=0, cursor_from=built["since"],
+                   cursor_to=built["until"],
                    recipient=addresses or None, subject=built["subject"])
         # No mail left the building, so the cursor stays put: the window is
         # defined as "since the last email we actually sent you". Re-scanning an
@@ -1226,7 +1486,8 @@ def run_subscription(c, subscription, *, trigger="schedule", now=None,
         error = "no recipient: the account has no address and no reader is listed"
         record_run(c, subscription_id=sub_id, trigger=trigger, status="error",
                    n_results=built["total"], cursor_from=built["since"],
-                   cursor_to=now, subject=built["subject"], error=error)
+                   cursor_to=built["until"], subject=built["subject"],
+                   error=error)
         _touch(c, sub_id, now, advance=False)
         return {"status": "error", "error": error, "n": built["total"]}
 
@@ -1243,8 +1504,8 @@ def run_subscription(c, subscription, *, trigger="schedule", now=None,
     if not delivered:
         record_run(c, subscription_id=sub_id, trigger=trigger, status="error",
                    n_results=built["total"], cursor_from=built["since"],
-                   cursor_to=now, recipient=addresses, subject=built["subject"],
-                   error="; ".join(failures))
+                   cursor_to=built["until"], recipient=addresses,
+                   subject=built["subject"], error="; ".join(failures))
         # Do NOT advance on a send failure — the next run must retry this window.
         _touch(c, sub_id, now, advance=False)
         return {"status": "error", "error": "; ".join(failures),
@@ -1252,12 +1513,25 @@ def run_subscription(c, subscription, *, trigger="schedule", now=None,
 
     run_id = record_run(c, subscription_id=sub_id, trigger=trigger, status="sent",
                         n_results=built["total"], cursor_from=built["since"],
-                        cursor_to=now, recipient=", ".join(delivered),
+                        cursor_to=built["until"], recipient=", ".join(delivered),
                         n_recipients=len(delivered), subject=built["subject"],
                         error=("; ".join(failures) or None), token=token,
                         params_qs=_sp.params_to_qs(built["params"]))
     record_run_items(c, run_id, built["matched"], shown=len(built["rows"]))
-    _touch(c, sub_id, now, advance=advance, sent=True)
+    # The deadline body has no cursor to move — its window is the wall clock —
+    # and spends reminder marks instead. Advancing last_cursor here would be
+    # worse than pointless: switch the subscription back to the list body a
+    # month later and every act ingested in between would have been silently
+    # consumed by messages that never mentioned them.
+    layout = subscription.get("layout") or "list"
+    if layout == "deadline":
+        if advance:
+            consume_deadline_notices(c, sub_id, built["matched"],
+                                     subscription.get("lead_days"),
+                                     built["since"], run_id=run_id)
+        _touch(c, sub_id, now, advance=False, sent=True)
+    else:
+        _touch(c, sub_id, now, advance=advance, sent=True)
     return {"status": "sent", "n": built["total"], "to": delivered[0],
             "recipients": delivered, "failed": failures,
             "backend": last["backend"], "detail": last["detail"],
@@ -1420,6 +1694,11 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                                 is_active: str = Form(""),
                                 layout: str = Form("list"),
                                 include_primary: str = Form(""),
+                                # Free text ("7, 1") rather than a select: the
+                                # marks are a short list of numbers whose SHAPE
+                                # varies per customer, and clean_lead_days
+                                # normalises whatever is typed.
+                                lead_days: str = Form(""),
                                 back: str = Form("")):
         admin = _admin(request)
         with cursor() as c:
@@ -1432,6 +1711,15 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             if (profile["scope"] == "customer"
                     and profile["owner_user_id"] != int(user_id)):
                 raise HTTPException(400, "that profile belongs to another customer")
+            # A save that posts no marks must not silently reset them to the
+            # default: the same form edits the language and the cadence, and an
+            # admin changing one of those has not asked to rewrite the reminder
+            # schedule of a deadline alert.
+            c.execute("""SELECT lead_days FROM proc.digest_subscription
+                          WHERE user_id = %s AND search_profile_id = %s""",
+                      (int(user_id), int(search_profile_id)))
+            existing = c.fetchone()
+            kept_leads = existing["lead_days"] if existing else None
             try:
                 upsert_subscription(
                     c, user_id=int(user_id),
@@ -1442,6 +1730,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                     max_results=max(1, min(200, int(max_results or 25))),
                     lang=lang, layout=layout,
                     include_primary=bool(include_primary),
+                    lead_days=(lead_days.strip() or kept_leads),
                     created_by=admin["id"])
             except ValueError as exc:
                 raise HTTPException(400, str(exc)) from exc
