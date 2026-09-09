@@ -63,6 +63,10 @@
   <div class="ai-fail">
     {% if job and job.status == 'stale' %}
       <p style="margin:0;">{{ t("Το κείμενο της πράξης άλλαξε ενώ ετοιμαζόταν η σύνοψη, οπότε δεν αποθηκεύτηκε. Δοκιμάστε ξανά.") }}</p>
+    {% elif job and job.status == 'running' %}
+      {# Still 'running' but reaching the failed state means the heartbeat went
+         cold: the container that was doing the work is gone. #}
+      <p style="margin:0;">{{ t("Η δημιουργία διακόπηκε πριν ολοκληρωθεί — ο διακομιστής επανεκκίνησε ενώ ετοιμαζόταν η σύνοψη. Δοκιμάστε ξανά.") }}</p>
     {% else %}
       <p style="margin:0 0 6px;">{{ t("Η δημιουργία της σύνοψης απέτυχε.") }}</p>
       {% if is_admin and job and job.last_error %}<code>{{ job.last_error }}</code>{% endif %}
