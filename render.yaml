@@ -33,6 +33,25 @@ services:
       # would go to that one mailbox.
       - key: LOGIN_LINKS_ENABLED
         value: "0"
+      # AI summary panel on notices (docs/specs/ai-summary.md). Unlike the
+      # switch above, this one has to say YES explicitly: the app defaults it
+      # OFF and treats anything not recognisably affirmative as off, because
+      # every use spends money.
+      #
+      # READ THIS BEFORE ASSUMING IT WORKS: the button and the model call run in
+      # DIFFERENT containers. can_generate() is evaluated on the web service,
+      # which already has ANTHROPIC_API_KEY for OCR and call summaries — so the
+      # button offers itself. The call itself runs in khmdhs-worker (see below),
+      # and without the key there every generation queues and then fails.
+      - key: AI_SUMMARY_ENABLED
+        value: "1"
+      # Acts generated per DAY, whole deployment — the blast radius while the
+      # prompt is still settling. ~$0.12-0.20 per notice, paid once per act and
+      # then read from the cache forever, so 10/day caps this at roughly $2/day.
+      # Enforced at enqueue time on the web service; the worker does not read it.
+      # Raise it once rejected_n and the reported-issue count are boring.
+      - key: AI_SUMMARY_DAILY_CAP
+        value: "10"
 
   # Background job worker — drains the admin job queue OFF the web process.
   # The admin UI enqueues backfills / table-extraction jobs (proc.ingest_job,
@@ -41,6 +60,11 @@ services:
   # dyno and survives a web deploy/restart. INERT until you apply the Blueprint.
   #   DATABASE_URL — the DB URL the worker runs jobs against (app_runtime is
   #                  fine; the jobs only do DML). Set it in the dashboard.
+  #   ANTHROPIC_API_KEY — required once AI_SUMMARY_ENABLED is on above. The
+  #                  summary job (db.py ai-summary) makes the model call HERE,
+  #                  not on the web dyno, so the key has to exist in THIS
+  #                  container too. Without it the web service still offers the
+  #                  button (it has its own key) and every job fails.
   - type: worker
     name: khmdhs-worker
     runtime: docker
@@ -50,6 +74,8 @@ services:
     envVars:
       - key: DATABASE_URL
         sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false            # set in dashboard (secret)
 
   # Scheduled incremental ingestion — runs OFF the web process (a Cron Job spins
   # up, runs cron_catchup.py = per-source `db.py catchup`, then exits). Watermark-
