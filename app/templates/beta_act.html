@@ -6,6 +6,11 @@
    Yes/No is rendered here. #}
 {% macro yn(val) -%}{{ "ναι" | t if val else "όχι" | t }}{%- endmacro %}
 {% block title %}{{ n.title or n.adam }} · {{ type_label_el }}{% endblock %}
+{# The AI summary panel arrives over HTMX and is re-swapped on every poll, so its
+   CSS is a stylesheet rather than an inline style block riding along with each
+   swap. Linked only when the feature is on — an act page with
+   AI_SUMMARY_ENABLED unset must fetch nothing extra. #}
+{% block head_extra %}{% if ai_summary_enabled %}<link rel="stylesheet" href="/static/css/ai_summary.css">{% endif %}{% endblock %}
 {% block content %}
 <main>
   <a class="back-link" href="/" hx-boost="false">{{ t("‹ πίσω στην αναζήτηση") }}</a>
@@ -112,6 +117,16 @@
           {% if n.cancellation_reason %}<dt>{{ t("Αιτία ακύρωσης") }}</dt><dd>{{ n.cancellation_reason }}</dd>{% endif %}
         </dl>
       </div>
+
+      {# AI summary — lazy, so an act page costs nothing when there is no
+         summary, and collapses to nothing for anything but a notice. Sits here,
+         directly under the record's own facts, because it answers the question
+         the reader has next: what does this notice require that the fields above
+         do not say? See docs/specs/ai-summary.md. #}
+      {% if ai_summary_enabled and atype == 'notice' %}
+      <div id="ai-summary-mount" hx-get="/act/{{ n.adam }}/ai"
+           hx-trigger="load" hx-swap="outerHTML"></div>
+      {% endif %}
 
       {# Extended multi-source fields (authored / non-KHMDHS acts). The whole
          panel is hidden unless at least one is set, and every row is guarded so
@@ -332,6 +347,16 @@
                 <p class="ft-p" id="{{ p.id }}"><span class="ft-n">{{ p.index }}</span><span class="ft-b">{{ p.html | safe }}</span></p>
               {% endfor %}
             </div>
+          {% elif ft_paragraphs %}
+            {# Unsearched, but an AI summary exists and its items point in here.
+               Same `ft-p-<n>` numbering as the marked view above, so a citation
+               reading "παρ. 12" lands on paragraph 12 either way. No marks:
+               nothing was searched for. #}
+            <div class="full-text-marked">
+              {% for p in ft_paragraphs %}
+                <p class="ft-p" id="ft-p-{{ p.index }}"><span class="ft-n">{{ p.index }}</span><span class="ft-b">{{ p.text }}</span></p>
+              {% endfor %}
+            </div>
           {% elif n.full_text_html %}
             {# Curator-authored rich text. Sanitised with nh3 at save time. #}
             <div class="full-text-html">{{ n.full_text_html | safe }}</div>
@@ -534,5 +559,9 @@
 {% if match %}
 <div id="occ-popover" class="occ-pop" role="dialog" aria-modal="false" hidden></div>
 <script src="/static/js/occurrences.js" defer></script>
+{% endif %}
+{# Click-through from an extracted item to the sentence that produced it. #}
+{% if ai_summary_enabled and atype == 'notice' %}
+<script src="/static/js/ai_summary.js" defer></script>
 {% endif %}
 {% endblock %}

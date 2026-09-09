@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict n5lnrONzZzOXf6YfwCO3dC1oMiOi3wfFAHbPhH1fCzC8xjPtReIQPRyW4zs7BcC
+\restrict FTWJkDBl9VOUKXii6f9nWUsX2fYhfdUSXg6wamKIAGDHqeu0YfTalvJXNRI8ET3
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 18.4
@@ -189,7 +189,7 @@ $$;
 
 CREATE FUNCTION proc.f_unaccent(text) RETURNS text
     LANGUAGE sql IMMUTABLE PARALLEL SAFE
-    AS $_$ SELECT proc.unaccent($1) $_$;
+    AS $_$ SELECT public.unaccent('public.unaccent', $1) $_$;
 
 
 --
@@ -376,6 +376,70 @@ CREATE TABLE proc.act_additional_contract_type (
     adam text NOT NULL,
     contract_type_code text NOT NULL
 );
+
+
+--
+-- Name: act_ai_summary; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.act_ai_summary (
+    adam text NOT NULL,
+    input_hash text NOT NULL,
+    model text NOT NULL,
+    prompt_version integer NOT NULL,
+    schema_version integer NOT NULL,
+    lang text DEFAULT 'el'::text NOT NULL,
+    payload jsonb NOT NULL,
+    n_sections integer DEFAULT 0 NOT NULL,
+    n_items integer DEFAULT 0 NOT NULL,
+    rejected_n integer DEFAULT 0 NOT NULL,
+    input_tokens integer,
+    output_tokens integer,
+    cost_micro_usd bigint,
+    generated_by text,
+    generated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: act_ai_summary_history; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.act_ai_summary_history (
+    id bigint NOT NULL,
+    adam text NOT NULL,
+    input_hash text NOT NULL,
+    model text NOT NULL,
+    prompt_version integer NOT NULL,
+    schema_version integer NOT NULL,
+    lang text DEFAULT 'el'::text NOT NULL,
+    payload jsonb NOT NULL,
+    rejected_n integer DEFAULT 0 NOT NULL,
+    input_tokens integer,
+    output_tokens integer,
+    cost_micro_usd bigint,
+    generated_by text,
+    generated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: act_ai_summary_history_id_seq; Type: SEQUENCE; Schema: proc; Owner: -
+--
+
+CREATE SEQUENCE proc.act_ai_summary_history_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: act_ai_summary_history_id_seq; Type: SEQUENCE OWNED BY; Schema: proc; Owner: -
+--
+
+ALTER SEQUENCE proc.act_ai_summary_history_id_seq OWNED BY proc.act_ai_summary_history.id;
 
 
 --
@@ -816,6 +880,49 @@ ALTER SEQUENCE proc.admin_action_id_seq OWNED BY proc.admin_action.id;
 
 
 --
+-- Name: ai_summary_job; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.ai_summary_job (
+    id bigint NOT NULL,
+    adam text NOT NULL,
+    status text DEFAULT 'queued'::text NOT NULL,
+    input_hash text,
+    requested_by text,
+    command text[],
+    job_env jsonb,
+    log_text text,
+    worker_id text,
+    heartbeat_at timestamp with time zone,
+    cancel_requested boolean DEFAULT false NOT NULL,
+    exit_code integer,
+    last_error text,
+    queued_at timestamp with time zone DEFAULT now() NOT NULL,
+    started_at timestamp with time zone,
+    finished_at timestamp with time zone
+);
+
+
+--
+-- Name: ai_summary_job_id_seq; Type: SEQUENCE; Schema: proc; Owner: -
+--
+
+CREATE SEQUENCE proc.ai_summary_job_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: ai_summary_job_id_seq; Type: SEQUENCE OWNED BY; Schema: proc; Owner: -
+--
+
+ALTER SEQUENCE proc.ai_summary_job_id_seq OWNED BY proc.ai_summary_job.id;
+
+
+--
 -- Name: app_user; Type: TABLE; Schema: proc; Owner: -
 --
 
@@ -843,6 +950,13 @@ CREATE TABLE proc.app_user (
 --
 
 COMMENT ON TABLE proc.app_user IS 'Application accounts. role=admin (full + /admin) | customer (full read). Anonymous visitors have no row and get the public teaser tier.';
+
+
+--
+-- Name: COLUMN app_user.email_verified_at; Type: COMMENT; Schema: proc; Owner: -
+--
+
+COMMENT ON COLUMN proc.app_user.email_verified_at IS 'First time a login link mailed to this address was successfully used — i.e. proof the account holder reads it. NULL = never confirmed.';
 
 
 --
@@ -1442,6 +1556,20 @@ CREATE TABLE proc.digest_run (
 
 
 --
+-- Name: COLUMN digest_run.token; Type: COMMENT; Schema: proc; Owner: -
+--
+
+COMMENT ON COLUMN proc.digest_run.token IS 'Unguessable handle for /digests/<token>, which renders this run''s recorded items. Identifies the run only — the route still requires the owner to be logged in.';
+
+
+--
+-- Name: COLUMN digest_run.params_qs; Type: COMMENT; Schema: proc; Owner: -
+--
+
+COMMENT ON COLUMN proc.digest_run.params_qs IS 'The saved search''s filters as a querystring, frozen at send time (app/search_profiles.params_to_qs). Read by /digests/<token> to explain why each act matched and to carry the terms onto the act links. NULL on runs sent before the column existed — those fall back to the live profile.';
+
+
+--
 -- Name: digest_run_id_seq; Type: SEQUENCE; Schema: proc; Owner: -
 --
 
@@ -1570,6 +1698,13 @@ CREATE TABLE proc.digest_subscription (
     CONSTRAINT digest_subscription_layout_ck CHECK ((layout = ANY (ARRAY['list'::text, 'summary'::text]))),
     CONSTRAINT digest_subscription_max_ck CHECK (((max_results >= 1) AND (max_results <= 200)))
 );
+
+
+--
+-- Name: COLUMN digest_subscription.layout; Type: COMMENT; Schema: proc; Owner: -
+--
+
+COMMENT ON COLUMN proc.digest_subscription.layout IS 'Which email body this subscription sends: ''list'' prints the new acts, ''summary'' prints the statistics and links to the full set. The wording of each comes from proc.email_template slug ''digest'' / ''digest_summary''.';
 
 
 --
@@ -3052,6 +3187,13 @@ CREATE VIEW proc.v_line_item_correction_current AS
 
 
 --
+-- Name: act_ai_summary_history id; Type: DEFAULT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_ai_summary_history ALTER COLUMN id SET DEFAULT nextval('proc.act_ai_summary_history_id_seq'::regclass);
+
+
+--
 -- Name: act_annotation id; Type: DEFAULT; Schema: proc; Owner: -
 --
 
@@ -3098,6 +3240,13 @@ ALTER TABLE ONLY proc.act_operator ALTER COLUMN id SET DEFAULT nextval('proc.act
 --
 
 ALTER TABLE ONLY proc.admin_action ALTER COLUMN id SET DEFAULT nextval('proc.admin_action_id_seq'::regclass);
+
+
+--
+-- Name: ai_summary_job id; Type: DEFAULT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.ai_summary_job ALTER COLUMN id SET DEFAULT nextval('proc.ai_summary_job_id_seq'::regclass);
 
 
 --
@@ -3305,6 +3454,22 @@ ALTER TABLE ONLY proc.act_additional_contract_type
 
 
 --
+-- Name: act_ai_summary_history act_ai_summary_history_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_ai_summary_history
+    ADD CONSTRAINT act_ai_summary_history_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: act_ai_summary act_ai_summary_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_ai_summary
+    ADD CONSTRAINT act_ai_summary_pkey PRIMARY KEY (adam);
+
+
+--
 -- Name: act_annotation act_annotation_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
 --
 
@@ -3462,6 +3627,14 @@ ALTER TABLE ONLY proc.act_systemic_number
 
 ALTER TABLE ONLY proc.admin_action
     ADD CONSTRAINT admin_action_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ai_summary_job ai_summary_job_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.ai_summary_job
+    ADD CONSTRAINT ai_summary_job_pkey PRIMARY KEY (id);
 
 
 --
@@ -3657,19 +3830,19 @@ ALTER TABLE ONLY proc.digest_recipient
 
 
 --
--- Name: digest_run digest_run_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
---
-
-ALTER TABLE ONLY proc.digest_run
-    ADD CONSTRAINT digest_run_pkey PRIMARY KEY (id);
-
-
---
 -- Name: digest_run_item digest_run_item_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
 --
 
 ALTER TABLE ONLY proc.digest_run_item
     ADD CONSTRAINT digest_run_item_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: digest_run digest_run_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_run
+    ADD CONSTRAINT digest_run_pkey PRIMARY KEY (id);
 
 
 --
@@ -4123,6 +4296,20 @@ CREATE INDEX idx_login_throttle_updated_at ON proc.login_throttle USING btree (u
 
 
 --
+-- Name: ix_act_ai_summary_generated; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_act_ai_summary_generated ON proc.act_ai_summary USING btree (generated_at DESC);
+
+
+--
+-- Name: ix_act_ai_summary_history_adam; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_act_ai_summary_history_adam ON proc.act_ai_summary_history USING btree (adam, id DESC);
+
+
+--
 -- Name: ix_act_authority; Type: INDEX; Schema: proc; Owner: -
 --
 
@@ -4329,7 +4516,7 @@ CREATE INDEX ix_act_submission_date ON proc.procurement_act USING btree (submiss
 -- Name: ix_act_title_trgm; Type: INDEX; Schema: proc; Owner: -
 --
 
-CREATE INDEX ix_act_title_trgm ON proc.procurement_act USING gin (proc.f_unaccent(lower(title)) proc.gin_trgm_ops);
+CREATE INDEX ix_act_title_trgm ON proc.procurement_act USING gin (proc.f_unaccent(lower(title)) public.gin_trgm_ops);
 
 
 --
@@ -4375,6 +4562,27 @@ CREATE INDEX ix_admin_action_user ON proc.admin_action USING btree (user_id, at 
 
 
 --
+-- Name: ix_ai_summary_job_adam_live; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_ai_summary_job_adam_live ON proc.ai_summary_job USING btree (adam) WHERE (status = ANY (ARRAY['queued'::text, 'running'::text]));
+
+
+--
+-- Name: ix_ai_summary_job_queued; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_ai_summary_job_queued ON proc.ai_summary_job USING btree (id) WHERE (status = 'queued'::text);
+
+
+--
+-- Name: ix_ai_summary_job_queued_at; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_ai_summary_job_queued_at ON proc.ai_summary_job USING btree (queued_at DESC);
+
+
+--
 -- Name: ix_annotation_adam; Type: INDEX; Schema: proc; Owner: -
 --
 
@@ -4413,7 +4621,7 @@ CREATE INDEX ix_attachment_content ON proc.act_attachment USING gin (content_tsv
 -- Name: ix_auth_name_trgm; Type: INDEX; Schema: proc; Owner: -
 --
 
-CREATE INDEX ix_auth_name_trgm ON proc.authority USING gin (translate(proc.f_unaccent(lower(name)), 'ς'::text, 'σ'::text) proc.gin_trgm_ops);
+CREATE INDEX ix_auth_name_trgm ON proc.authority USING gin (translate(proc.f_unaccent(lower(name)), 'ς'::text, 'σ'::text) public.gin_trgm_ops);
 
 
 --
@@ -4571,10 +4779,10 @@ CREATE INDEX ix_digest_recipient_sub ON proc.digest_recipient USING btree (subsc
 
 
 --
--- Name: ux_digest_recipient_sub_email; Type: INDEX; Schema: proc; Owner: -
+-- Name: ix_digest_run_item_run_ord; Type: INDEX; Schema: proc; Owner: -
 --
 
-CREATE UNIQUE INDEX ux_digest_recipient_sub_email ON proc.digest_recipient USING btree (subscription_id, lower(btrim(email)));
+CREATE INDEX ix_digest_run_item_run_ord ON proc.digest_run_item USING btree (run_id, ord);
 
 
 --
@@ -4589,13 +4797,6 @@ CREATE INDEX ix_digest_run_started ON proc.digest_run USING btree (started_at DE
 --
 
 CREATE INDEX ix_digest_run_subscription ON proc.digest_run USING btree (subscription_id, started_at DESC);
-
-
---
--- Name: ix_digest_run_item_run_ord; Type: INDEX; Schema: proc; Owner: -
---
-
-CREATE INDEX ix_digest_run_item_run_ord ON proc.digest_run_item USING btree (run_id, ord);
 
 
 --
@@ -4630,7 +4831,7 @@ CREATE INDEX ix_entity_member_key ON proc.entity_member USING btree (kind, membe
 -- Name: ix_eo_name_trgm; Type: INDEX; Schema: proc; Owner: -
 --
 
-CREATE INDEX ix_eo_name_trgm ON proc.economic_operator USING gin (translate(proc.f_unaccent(lower(name)), 'ς'::text, 'σ'::text) proc.gin_trgm_ops);
+CREATE INDEX ix_eo_name_trgm ON proc.economic_operator USING gin (translate(proc.f_unaccent(lower(name)), 'ς'::text, 'σ'::text) public.gin_trgm_ops);
 
 
 --
@@ -4942,10 +5143,10 @@ CREATE UNIQUE INDEX ux_app_user_username ON proc.app_user USING btree (lower(use
 
 
 --
--- Name: ux_digest_schedule_default; Type: INDEX; Schema: proc; Owner: -
+-- Name: ux_digest_recipient_sub_email; Type: INDEX; Schema: proc; Owner: -
 --
 
-CREATE UNIQUE INDEX ux_digest_schedule_default ON proc.digest_schedule USING btree ((true)) WHERE is_default;
+CREATE UNIQUE INDEX ux_digest_recipient_sub_email ON proc.digest_recipient USING btree (subscription_id, lower(btrim(email)));
 
 
 --
@@ -4963,35 +5164,10 @@ CREATE UNIQUE INDEX ux_digest_run_token ON proc.digest_run USING btree (token) W
 
 
 --
--- Name: digest_recipient digest_recipient_created_by_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+-- Name: ux_digest_schedule_default; Type: INDEX; Schema: proc; Owner: -
 --
 
-ALTER TABLE ONLY proc.digest_recipient
-    ADD CONSTRAINT digest_recipient_created_by_fkey FOREIGN KEY (created_by) REFERENCES proc.app_user(id) ON DELETE SET NULL;
-
-
---
--- Name: digest_recipient digest_recipient_subscription_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
---
-
-ALTER TABLE ONLY proc.digest_recipient
-    ADD CONSTRAINT digest_recipient_subscription_id_fkey FOREIGN KEY (subscription_id) REFERENCES proc.digest_subscription(id) ON DELETE CASCADE;
-
-
---
--- Name: digest_run_item digest_run_item_adam_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
---
-
-ALTER TABLE ONLY proc.digest_run_item
-    ADD CONSTRAINT digest_run_item_adam_fkey FOREIGN KEY (adam) REFERENCES proc.procurement_act(adam) ON DELETE CASCADE;
-
-
---
--- Name: digest_run_item digest_run_item_run_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
---
-
-ALTER TABLE ONLY proc.digest_run_item
-    ADD CONSTRAINT digest_run_item_run_id_fkey FOREIGN KEY (run_id) REFERENCES proc.digest_run(id) ON DELETE CASCADE;
+CREATE UNIQUE INDEX ux_digest_schedule_default ON proc.digest_schedule USING btree ((true)) WHERE is_default;
 
 
 --
@@ -5070,6 +5246,14 @@ CREATE TRIGGER trg_tender_lot_touch BEFORE UPDATE ON proc.tender_lot FOR EACH RO
 
 ALTER TABLE ONLY proc.act_additional_contract_type
     ADD CONSTRAINT act_additional_contract_type_adam_fkey FOREIGN KEY (adam) REFERENCES proc.procurement_act(adam) ON DELETE CASCADE;
+
+
+--
+-- Name: act_ai_summary act_ai_summary_adam_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_ai_summary
+    ADD CONSTRAINT act_ai_summary_adam_fkey FOREIGN KEY (adam) REFERENCES proc.procurement_act(adam) ON DELETE CASCADE;
 
 
 --
@@ -5254,6 +5438,14 @@ ALTER TABLE ONLY proc.act_systemic_number
 
 ALTER TABLE ONLY proc.admin_action
     ADD CONSTRAINT admin_action_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.app_user(id) ON DELETE SET NULL;
+
+
+--
+-- Name: ai_summary_job ai_summary_job_adam_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.ai_summary_job
+    ADD CONSTRAINT ai_summary_job_adam_fkey FOREIGN KEY (adam) REFERENCES proc.procurement_act(adam) ON DELETE CASCADE;
 
 
 --
@@ -5462,6 +5654,38 @@ ALTER TABLE ONLY proc.diavgeia_decision_thematic
 
 ALTER TABLE ONLY proc.diavgeia_decision_unit
     ADD CONSTRAINT diavgeia_decision_unit_ada_fkey FOREIGN KEY (ada) REFERENCES proc.diavgeia_decision(ada) ON DELETE CASCADE;
+
+
+--
+-- Name: digest_recipient digest_recipient_created_by_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_recipient
+    ADD CONSTRAINT digest_recipient_created_by_fkey FOREIGN KEY (created_by) REFERENCES proc.app_user(id) ON DELETE SET NULL;
+
+
+--
+-- Name: digest_recipient digest_recipient_subscription_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_recipient
+    ADD CONSTRAINT digest_recipient_subscription_id_fkey FOREIGN KEY (subscription_id) REFERENCES proc.digest_subscription(id) ON DELETE CASCADE;
+
+
+--
+-- Name: digest_run_item digest_run_item_adam_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_run_item
+    ADD CONSTRAINT digest_run_item_adam_fkey FOREIGN KEY (adam) REFERENCES proc.procurement_act(adam) ON DELETE CASCADE;
+
+
+--
+-- Name: digest_run_item digest_run_item_run_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.digest_run_item
+    ADD CONSTRAINT digest_run_item_run_id_fkey FOREIGN KEY (run_id) REFERENCES proc.digest_run(id) ON DELETE CASCADE;
 
 
 --
@@ -5812,5 +6036,5 @@ ALTER TABLE ONLY proc.user_subscription
 -- PostgreSQL database dump complete
 --
 
-\unrestrict n5lnrONzZzOXf6YfwCO3dC1oMiOi3wfFAHbPhH1fCzC8xjPtReIQPRyW4zs7BcC
+\unrestrict FTWJkDBl9VOUKXii6f9nWUsX2fYhfdUSXg6wamKIAGDHqeu0YfTalvJXNRI8ET3
 

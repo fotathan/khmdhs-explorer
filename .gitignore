@@ -37,3 +37,7 @@ attachment_store/
 
 # Local digest emails written by EMAIL_BACKEND=file (see LOCAL_RUNBOOK.md)
 outbox/
+
+# Local scratch: one-off scripts and recorded model payloads kept while trying
+# something out. Nothing here is part of the app.
+tmp/

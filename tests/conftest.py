@@ -49,6 +49,18 @@ def _build_schema():
         "CREATE EXTENSION IF NOT EXISTS unaccent SCHEMA proc;\n",
         1,
     )
+    # ...and point the dump's extension references at proc, because pg_dump wrote
+    # whichever schema the SOURCE database keeps its extensions in. The local
+    # `procurement` DB has pg_trgm/unaccent in `public`, so a freshly regenerated
+    # snapshot arrives full of public.f_unaccent bodies and public.gin_trgm_ops
+    # opclasses that resolve to nothing here — the schema build dies on the first
+    # trgm index and every DB-backed test errors at setup. Rewriting here keeps
+    # proc_schema.sql a faithful `pg_dump --schema-only -n proc`, so regenerating
+    # it never needs a hand-repair afterwards. Both spellings of the unaccent
+    # reference are covered: the function call and its regdictionary argument,
+    # `public.unaccent('public.unaccent', $1)`.
+    sql = sql.replace("public.gin_trgm_ops", "proc.gin_trgm_ops")
+    sql = re.sub(r"\bpublic\.unaccent\b", "proc.unaccent", sql)
     from tests.helpers import connect  # noqa: E402
     with connect() as c:
         c.execute("DROP SCHEMA IF EXISTS proc CASCADE")
