@@ -14,7 +14,8 @@
 {# The two shapes of result email (digests.LAYOUTS). 'list' prints the acts;
    'summary' prints the statistics and links out to the full set. #}
 {% set LAYOUT_LABELS = {'list': 'Λίστα αποτελεσμάτων',
-                        'summary': 'Σύνοψη με στατιστικά'} %}
+                        'summary': 'Σύνοψη με στατιστικά',
+                        'deadline': 'Υπενθύμιση προθεσμιών'} %}
 
 
 <p style="margin:8px 0 0;"><a class="back" href="/admin/crm" hx-boost="false">{{ t("‹ πίσω στο CRM") }}</a></p>
@@ -327,7 +328,7 @@
     <article class="dg-card{% if not s.is_active %} is-off{% endif %}">
       <div class="dg-card-h">
         <b>{{ s.profile_name }}</b>
-        <span class="dg-tag {{ 'layout-summary' if s.layout == 'summary' else 'layout-list' }}">
+        <span class="dg-tag layout-{{ s.layout }}">
           {{ LAYOUT_LABELS.get(s.layout, s.layout) | t }}</span>
         {% if not s.is_active %}<span class="dg-tag off">{{ t("ανενεργή") }}</span>{% endif %}
       </div>
@@ -336,6 +337,8 @@
         {% if s.inherited %}{{ t("προεπιλογή πύλης") }}{% else %}{{ t("ειδική ρύθμιση") }}{% endif %}
         {% if s.next_run_at %} · {{ t("επόμενη") }} {{ s.next_run_at.strftime('%d/%m %H:%M') }} UTC{% endif %}
         · {{ s.lang | upper }} · {{ t("έως") }} {{ s.max_results }}
+        {%- if s.layout == 'deadline' %} · {{ t("Ημέρες πριν την προθεσμία") }}:
+        {{ (s.lead_days or [])|join(', ') }}{% endif %}
         {%- if s.send_empty %} · {{ t("και κενά") }}{% endif %}
         · {{ t("τελευταία αποστολή") }}
         {{ s.last_sent_at.strftime('%d/%m/%Y %H:%M') if s.last_sent_at else '—' }}
@@ -417,6 +420,9 @@
             </select></label>
           <label>{{ t("Μέγιστα αποτελέσματα") }}
             <input type="number" name="max_results" value="{{ s.max_results }}" min="1" max="200"></label>
+          <label>{{ t("Ημέρες πριν την προθεσμία") }}
+            <input type="text" name="lead_days" value="{{ (s.lead_days or [])|join(', ') }}"
+                   placeholder="7, 1"></label>
           <label class="check"><input type="checkbox" name="include_primary" value="1"
                  {% if s.include_primary %}checked{% endif %}> {{ t("Αποστολή και στο email του λογαριασμού") }}</label>
           <label class="check"><input type="checkbox" name="send_empty" value="1"
@@ -427,6 +433,8 @@
         </form>
         <div class="crm-tbl-sub">
           {{ t("«Μέγιστα αποτελέσματα» αφορά μόνο τη μορφή λίστας — η σύνοψη δεν παραθέτει πράξεις.") }}
+          <br>
+          {{ t("Μόνο για την «Υπενθύμιση προθεσμιών»: πόσες ημέρες πριν κλείσει ο διαγωνισμός θα σταλεί υπενθύμιση. Χωρισμένες με κόμμα — «7, 1» σημαίνει μία υπενθύμιση μία εβδομάδα πριν και μία την προηγούμενη ημέρα. Κάθε διαγωνισμός αναφέρεται μία φορά ανά σημείο.") }}
         </div>
       </details>
 
@@ -515,6 +523,10 @@
           <div>
             <label for="dgc-max">{{ t("Μέγιστα αποτελέσματα") }}</label>
             <input id="dgc-max" type="number" name="max_results" value="25" min="1" max="200">
+          </div>
+          <div>
+            <label for="dgc-leads">{{ t("Ημέρες πριν την προθεσμία") }}</label>
+            <input id="dgc-leads" type="text" name="lead_days" value="7, 1" placeholder="7, 1">
           </div>
           <label class="check"><input type="checkbox" name="include_primary" value="1" checked> {{ t("Αποστολή και στο email του λογαριασμού") }}</label>
           <label class="check"><input type="checkbox" name="send_empty" value="1"> {{ t("Αποστολή και χωρίς νέα") }}</label>
@@ -814,6 +826,7 @@
     padding:1px 0;}
   .dg-run-err{color:#b3261e;}
   .dg-tag.layout-summary{background:#f3ecfa;color:#5b3a86;}
+  .dg-tag.layout-deadline{background:#fdf0e7;color:#8c4a12;}
   .dg-tag.layout-list{background:#eef2f8;color:#1a4f9c;}
   .dg-btn-danger:hover{border-color:#b3261e;color:#b3261e;}
   .dg-actions{margin-top:10px;}
