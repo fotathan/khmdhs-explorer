@@ -3306,6 +3306,26 @@ except ImportError:
 
 templates.env.globals["ai_summary_enabled"] = _ai.enabled()
 
+# WHEN IS A JOB STILL ALIVE? Not "status says running" — that is what the row
+# says, not what is true. worker.py stamps heartbeat_at on claim and every
+# WORKER_HEARTBEAT_SECONDS (5s) for as long as the subprocess runs, so a
+# 'running' row whose heartbeat has gone cold is a job whose container died: a
+# deploy, a restart, or a free instance going to sleep mid-call.
+#
+# Counting such a row as live does something worse than spin the panel forever.
+# The duplicate guard in the POST uses this same predicate, so an abandoned job
+# would refuse EVERY future generation for that act — a permanent lock, fixable
+# only by editing the row by hand. Hence one predicate, defined once, used in
+# both places: they cannot drift into disagreeing about what "live" means.
+#
+# 'queued' needs no grace period: it has no heartbeat yet by definition, and a
+# worker claims it normally whenever one next starts.
+_AI_JOB_HEARTBEAT_GRACE = "2 minutes"
+_AI_JOB_IS_LIVE = (
+    "(status = 'queued' OR (status = 'running' AND heartbeat_at IS NOT NULL "
+    f"AND heartbeat_at > now() - interval '{_AI_JOB_HEARTBEAT_GRACE}'))")
+
+
 def _ai_anchor_for(paragraphs, offset: int):
     """The full-text paragraph a character offset falls in, or None.
 
@@ -3354,11 +3374,12 @@ def _ai_panel_ctx(c, request, adam: str) -> dict | None:
         return None                 # nothing to quote means nothing to extract
 
     row = _ai.cached(c, adam, _ai.input_hash(sources))
-    c.execute("""SELECT id, status, last_error, queued_at, finished_at
+    c.execute(f"""SELECT id, status, last_error, queued_at, finished_at,
+                        {_AI_JOB_IS_LIVE} AS is_live
                    FROM proc.ai_summary_job
                   WHERE adam = %s ORDER BY id DESC LIMIT 1""", (adam,))
     job = c.fetchone()
-    running = bool(job and job["status"] in ("queued", "running"))
+    running = bool(job and job["is_live"])
 
     payload = None
     if row:
@@ -3368,7 +3389,9 @@ def _ai_panel_ctx(c, request, adam: str) -> dict | None:
         state = "present"
     elif running:
         state = "running"
-    elif job and job["status"] in ("error", "stale"):
+    elif job and job["status"] in ("error", "stale", "running"):
+        # 'running' reaches here only when its heartbeat has gone cold — an
+        # abandoned job, which is a failure the reader can retry, not a wait.
         state = "failed"
     else:
         state = "absent"
@@ -3436,9 +3459,20 @@ def act_ai_generate(adam: str, request: Request):
             raise HTTPException(status_code=400,
                                 detail="Η πράξη δεν έχει πλήρες κείμενο ούτε πίνακες.")
 
+        # Bury anything the worker abandoned before asking whether one is live,
+        # so the row stops claiming to be running and the history reads honestly.
+        c.execute(f"""UPDATE proc.ai_summary_job
+                         SET status = 'error',
+                             finished_at = coalesce(finished_at, now()),
+                             last_error = coalesce(last_error, %s)
+                       WHERE adam = %s AND status = 'running'
+                         AND NOT {_AI_JOB_IS_LIVE}""",
+                  ("abandoned: the worker stopped without finishing it "
+                   "(deploy, restart, or the instance going to sleep)", adam))
+
         # Two readers clicking at once must not buy the same summary twice.
-        c.execute("""SELECT id FROM proc.ai_summary_job
-                      WHERE adam = %s AND status IN ('queued','running')
+        c.execute(f"""SELECT id FROM proc.ai_summary_job
+                      WHERE adam = %s AND {_AI_JOB_IS_LIVE}
                       ORDER BY id DESC LIMIT 1""", (adam,))
         if not c.fetchone():
             # The deployment-wide daily cap (§12). Counted on queued_at so a

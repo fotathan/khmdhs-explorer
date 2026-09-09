@@ -374,6 +374,94 @@ def test_a_failed_job_is_invisible_to_a_customer(db, admin, customer, ai_on, act
 
 
 # --------------------------------------------------------------------------- #
+# Abandoned jobs — a 'running' row whose worker died
+#
+# prod drains this queue with worker.py running INLINE in the web dyno
+# (RUN_INLINE_WORKER=1), on a free Render instance that restarts on every deploy
+# and sleeps when idle. So a container dying mid-call is not a rare accident,
+# it is a weekly event, and "status says running" stops being evidence that
+# anything is running. What makes that dangerous is the duplicate guard: an
+# abandoned row counted as live refuses every FUTURE generation for that act.
+# --------------------------------------------------------------------------- #
+def _abandon(cur, adam, *, age="10 minutes"):
+    """A job claimed by a worker that then died: running, heartbeat gone cold."""
+    cur.execute(f"""INSERT INTO proc.ai_summary_job
+                      (adam, status, worker_id, started_at, heartbeat_at)
+                    VALUES (%s, 'running', 'dead-container:1',
+                            now() - interval '{age}', now() - interval '{age}')
+                    RETURNING id""", (adam,))
+    return cur.fetchone()["id"]
+
+
+def test_a_live_job_is_one_with_a_warm_heartbeat(db, admin, ai_on, act):
+    cur = db.cursor()
+    cur.execute("""INSERT INTO proc.ai_summary_job
+                     (adam, status, heartbeat_at) VALUES (%s, 'running', now())""",
+                (act,))
+    assert "Η σύνοψη δημιουργείται" in admin.get(f"/act/{act}/ai").text
+
+
+def test_an_abandoned_job_reads_as_failed_not_as_still_running(db, admin, ai_on, act):
+    """Otherwise the panel polls that act forever, on a promise nothing is
+    keeping."""
+    _abandon(db.cursor(), act)
+    body = admin.get(f"/act/{act}/ai").text
+    assert "Η σύνοψη δημιουργείται" not in body
+    assert "Η δημιουργία διακόπηκε πριν ολοκληρωθεί" in body
+    assert "Νέα προσπάθεια" in body
+
+
+def test_an_abandoned_job_does_not_lock_the_act_forever(db, admin, ai_on, act):
+    """The regression that matters. Before the heartbeat check, a container
+    that died mid-call left a row that refused every later generation for that
+    act — a permanent lock, fixable only by hand."""
+    dead = _abandon(db.cursor(), act)
+    assert _post(admin, act).status_code == 200
+    cur = db.cursor()
+    cur.execute("""SELECT id, status FROM proc.ai_summary_job
+                    WHERE adam=%s ORDER BY id""", (act,))
+    rows = cur.fetchall()
+    assert len(rows) == 2, "the retry did not enqueue"
+    assert rows[0]["id"] == dead and rows[0]["status"] == "error"   # buried
+    assert rows[1]["status"] == "queued"                            # the retry
+
+
+def test_burying_an_abandoned_job_says_why(db, admin, ai_on, act):
+    _abandon(db.cursor(), act)
+    _post(admin, act)
+    cur = db.cursor()
+    cur.execute("""SELECT last_error, finished_at FROM proc.ai_summary_job
+                    WHERE adam=%s ORDER BY id LIMIT 1""", (act,))
+    row = cur.fetchone()
+    assert "abandoned" in row["last_error"]
+    assert row["finished_at"] is not None
+
+
+def test_a_genuinely_running_job_still_blocks_a_second_click(db, admin, ai_on, act):
+    """The grace period must not reopen the door the duplicate guard closes:
+    a warm heartbeat means someone IS spending money on this act right now."""
+    cur = db.cursor()
+    cur.execute("""INSERT INTO proc.ai_summary_job
+                     (adam, status, heartbeat_at) VALUES (%s, 'running', now())""",
+                (act,))
+    _post(admin, act)
+    cur.execute("SELECT count(*) AS n FROM proc.ai_summary_job WHERE adam=%s", (act,))
+    assert cur.fetchone()["n"] == 1
+
+
+def test_a_queued_job_is_live_without_any_heartbeat(db, admin, ai_on, act):
+    """A queued row has no heartbeat by definition — it is claimed whenever a
+    worker next starts, which on a sleeping free instance may be a while. It
+    must not be mistaken for abandoned and re-enqueued."""
+    cur = db.cursor()
+    cur.execute("""INSERT INTO proc.ai_summary_job (adam, status, queued_at)
+                   VALUES (%s, 'queued', now() - interval '3 hours')""", (act,))
+    _post(admin, act)
+    cur.execute("SELECT count(*) AS n FROM proc.ai_summary_job WHERE adam=%s", (act,))
+    assert cur.fetchone()["n"] == 1
+
+
+# --------------------------------------------------------------------------- #
 # The runner and the queue it is drained from
 # --------------------------------------------------------------------------- #
 def test_the_worker_drains_the_ai_summary_queue():
