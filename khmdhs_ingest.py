@@ -757,15 +757,50 @@ class Repository:
 # --------------------------------------------------------------------------- #
 # Orchestration
 # --------------------------------------------------------------------------- #
-# Heuristic detection of garbled / mojibake extraction (a PDF whose font has no
-# ToUnicode map, so pdfminer emits "(cid:N)" tokens; U+FFFD replacement chars;
-# or Greek that decoded into Latin/symbol soup). Cheap character-class checks
-# only — no language model. Thresholds are conservative (require a minimum count
-# AND a ratio) to avoid false positives on short or code-heavy text. Used to
-# FLAG, never to reject — the text is still stored, just marked for manual OCR.
+# Heuristic detection of garbled / mojibake extraction. TWO distinct families,
+# and they need different tests:
+#
+#   (a) NO usable ToUnicode map — pdfminer emits "(cid:N)" tokens, U+FFFD
+#       replacement chars, or Greek that decoded into Latin/symbol soup.
+#       Checks 1-4 cover this: they all detect text that is not Greek.
+#
+#   (b) a WRONG ToUnicode map — the PDF embeds a subsetted font whose cmap
+#       points at the wrong codepoints, so extraction yields perfectly valid,
+#       high-frequency GREEK letters that spell nothing:
+#           "Τπεφθυνη Δθλωςθ"     ->  "Υπεύθυνη Δήλωση"
+#           "Σηελ Αξγαιαζηή"      ->  "Στην Αργαλαστή"
+#           "Ποςοό έξι φιλιάδψν"  ->  "Ποσό έξι χιλιάδων"
+#       Checks 1-4 are structurally BLIND to this — the text is ~90% Greek,
+#       has no cid tokens and no control chars, so it passes all of them
+#       cleanly. Checks 5-7 cover it. These are what route such documents to
+#       the OCR tier, which reads them correctly.
+#
+# Cheap character-class counting only — no language model. Every threshold
+# pairs a minimum VOLUME with a RATIO, so short, code-heavy or ALL-CAPS text is
+# never accused. Precision matters more than recall here: a false positive
+# sends a document to OCR, and OCR output that clears this same check REPLACES
+# a perfectly good text layer with a lossier one. Used to FLAG, never to reject.
 _GREEK_RE = re.compile(r"[Ͱ-Ͽἀ-῿]")
 _LATIN_RE = re.compile(r"[A-Za-z]")
 _CID_RE = re.compile(r"\(cid:\d+\)")
+
+# ---- broken-cmap (family b) signals ---------------------------------------- #
+# U+03A2 is a RESERVED, unassigned codepoint in the Greek block — no legitimate
+# Greek text can contain it at all. Every broken-font family seen in the corpus
+# maps capital Σ onto it, which makes this the one zero-false-positive signal.
+_RESERVED_CP = "\u03a2"
+_GREEK_LOWER_RE = re.compile(r"[α-ωάέήίόύώϊϋΐΰς]")
+# Final sigma standing in NON-final position: impossible in real Greek.
+_NONFINAL_SIGMA_RE = re.compile(r"ς(?=[α-ωάέήίόύώϊϋΐΰ])")
+_SIGMA_RE = re.compile(r"[σς]")
+_ETA_RE = re.compile(r"[ηΗ]")
+_THETA_RE = re.compile(r"[θΘ]")
+# The commonest Greek function words, matched word-INITIALLY (a prefix match is
+# fine — this is a density proxy, not a parser). Clean Greek prose runs 40-60 of
+# these per 1000 lowercase Greek chars; a full-scramble document runs under 5.
+_FUNC_WORDS_RE = re.compile(
+    r"\b(?:και|του|της|την|των|για|στην|στο|στη|είναι|από|προς|με|το|τα|οι|ως"
+    r"|σε|επί|που|αυτ)")
 
 
 def looks_garbled(text: str | None) -> bool:
@@ -793,6 +828,28 @@ def looks_garbled(text: str | None) -> bool:
     ctrl = sum(1 for ch in s
                if ch not in "\t\n\r\f\v" and unicodedata.category(ch)[0] == "C")
     if ctrl >= 20 and ctrl * 100 > n:                    # > 1% control chars
+        return True
+
+    # ---- family (b): a wrong cmap — valid Greek letters, meaningless words --- #
+    # 5) The reserved codepoint U+03A2. Cannot occur in real Greek; 3+ of them
+    #    is a broken font, full stop.
+    if s.count(_RESERVED_CP) >= 3:
+        return True
+    # 6) Glyph swap: final sigma used mid-word, or θ outnumbering η. Real Greek
+    #    runs ~0.27 θ per η; the swapped families invert that (η is mapped onto
+    #    θ, so every "η" in the document arrives as "θ").
+    sigma = len(_SIGMA_RE.findall(s))
+    if sigma >= 20 and len(_NONFINAL_SIGMA_RE.findall(s)) * 100 >= sigma * 25:
+        return True
+    eta = len(_ETA_RE.findall(s))
+    if eta >= 20 and len(_THETA_RE.findall(s)) >= eta:
+        return True
+    # 7) Full scramble: the function words disappear. Gated on enough lowercase
+    #    Greek RUNNING text for the density to mean anything — ALL-CAPS form
+    #    documents (χρηματικά εντάλματα and the like) are perfectly clean but
+    #    legitimately contain almost no lowercase function words.
+    lower_greek = len(_GREEK_LOWER_RE.findall(s))
+    if lower_greek >= 400 and len(_FUNC_WORDS_RE.findall(s)) * 1000 < lower_greek * 12:
         return True
     return False
 
