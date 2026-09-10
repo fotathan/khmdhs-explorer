@@ -81,90 +81,32 @@ def supports_effort(model: str) -> bool:
 # --------------------------------------------------------------------------- #
 # Providers
 #
-# Anthropic is the app's transport. DeepSeek is here to answer one question
-# before anyone ports anything: does a second provider even ACCEPT this tool
-# schema? Haiku 4.5 refused it outright ("the compiled grammar is too large"),
-# and that is a property of the schema, not of Anthropic — so it is the first
-# thing to test anywhere else, and it costs a fraction of a cent to find out.
+# BOTH providers now live in the app (app/ai_summary.py) — DeepSeek is what
+# production calls by default, and Anthropic is one env var away. So this file
+# no longer carries its own copy of the endpoint, the envelope translation or
+# the stream reader: it re-exports the app's. That is not tidiness. A harness
+# whose transport has drifted from the app's transport is measuring something
+# nobody ships, and the drift would be invisible — both versions would keep
+# returning plausible JSON.
 #
-# The prompt, the system text and the tool are NOT rewritten for DeepSeek: the
-# Anthropic request is built by ai.request_params() exactly as production
-# builds it, then translated envelope-only into the OpenAI chat shape. A
-# harness that writes its own prompt measures the harness.
+# What stays here is what is only true of an EXPERIMENT: prices for models the
+# app does not ship, and the Variant wrapper that pairs a model with an effort.
 # --------------------------------------------------------------------------- #
-DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+DEEPSEEK_URL = ai.DEEPSEEK_URL
+provider_of = ai.provider_of
+_to_openai = ai._to_openai
+_stream_openai = ai._stream_openai
 
-# USD per MTok, cache-miss PEAK rates (the conservative half of DeepSeek's
-# peak/off-peak split — off-peak is half of these). Anthropic prices come from
-# ai.PRICES_USD_PER_MTOK; this is the overlay for everything else.
-EXTRA_PRICES = {
-    "deepseek-flash":  (0.30, 1.20),
-    "deepseek-v4-pro": (1.32, 3.96),
-}
+# USD per MTok for models NOT in ai.PRICES_USD_PER_MTOK — a challenger being
+# costed before anything is ported. Every model the app can actually be pointed
+# at is priced there instead, because that is the table store() bills against;
+# a price that lived only here would make the experiment and the invoice
+# disagree. Empty is the correct steady state.
+EXTRA_PRICES: dict[str, tuple[float, float]] = {}
 
 
 def price_of(model: str):
     return ai.PRICES_USD_PER_MTOK.get(model) or EXTRA_PRICES.get(model)
-
-
-def provider_of(model: str) -> str:
-    return "deepseek" if model.startswith("deepseek") else "anthropic"
-
-
-def _to_openai(params: dict) -> dict:
-    """Anthropic Messages request -> OpenAI chat request, envelope only.
-
-    The system text, the user prompt and the tool's JSON Schema cross over
-    byte-identical; only the wrapper changes. `tool_choice` forces the call
-    because the app's contract is "reply through the tool or not at all".
-    """
-    text = "\n".join(b.get("text", "") for m in params["messages"]
-                      for b in m["content"] if b.get("type") == "text")
-    tool = params["tools"][0]
-    return {
-        "model": params["model"],
-        "max_tokens": params["max_tokens"],
-        "messages": [{"role": "system", "content": params["system"]},
-                     {"role": "user", "content": text}],
-        "tools": [{"type": "function", "function": {
-            "name": tool["name"],
-            "description": tool["description"],
-            "parameters": tool["input_schema"],
-        }}],
-        "tool_choice": "auto",
-        "stream": True,
-        "stream_options": {"include_usage": True},
-    }
-
-
-def _stream_openai(req) -> tuple[str, dict, str | None]:
-    """Accumulate a streamed OpenAI tool call. Mirrors ai._stream's contract:
-    (tool arguments as JSON text, usage, finish_reason)."""
-    args, usage, finish = [], {}, None
-    with urllib.request.urlopen(req, timeout=ai.TIMEOUT,
-                                context=ai._SSL_CTX) as resp:
-        for raw in resp:
-            line = raw.decode("utf-8", "replace").strip()
-            if not line.startswith("data:"):
-                continue
-            body = line[5:].strip()
-            if body == "[DONE]":
-                break
-            try:
-                ev = json.loads(body)
-            except json.JSONDecodeError:
-                continue
-            if ev.get("usage"):
-                u = ev["usage"]
-                usage = {"input_tokens": u.get("prompt_tokens", 0),
-                         "output_tokens": u.get("completion_tokens", 0)}
-            for choice in ev.get("choices") or []:
-                finish = choice.get("finish_reason") or finish
-                for call in (choice.get("delta") or {}).get("tool_calls") or []:
-                    frag = (call.get("function") or {}).get("arguments")
-                    if frag:
-                        args.append(frag)
-    return "".join(args), usage, finish
 
 
 class Variant:
@@ -327,21 +269,25 @@ def call_once(variant: Variant, sources, record) -> tuple[dict, dict, dict | Non
     if variant.provider == "deepseek":
         req = urllib.request.Request(
             DEEPSEEK_URL, data=json.dumps(_to_openai(params)).encode(),
-            headers={"content-type": "application/json",
-                     "authorization": f"Bearer {key}"})
-        tool_json, usage, finish = _stream_openai(req)
-        if finish == "length":
-            raise ai.SummaryError("hit max_tokens before finishing the tool call")
-        if not tool_json.strip():
-            raise ai.SummaryError(f"no tool call (finish_reason={finish!r})")
+            headers=ai._headers(key, variant.model))
+        tool_json, usage, stop_reason = _stream_openai(req)
     else:
         req = urllib.request.Request(ai.API_URL, data=json.dumps(params).encode(),
-                                     headers=ai._headers(key))
+                                     # NOT ai._headers(key): that reads the
+                                     # provider off the CONFIGURED model, which
+                                     # is a DeepSeek one by default now.
+                                     headers=ai._anthropic_headers(key))
         tool_json, usage, stop_reason = ai._stream(req)
-        if stop_reason == "refusal":
-            raise ai.SummaryError("model declined")
-        if not tool_json.strip():
-            raise ai.SummaryError(f"no tool call (stop_reason={stop_reason!r})")
+    # One vocabulary from here on — _stream_openai translates finish_reason into
+    # the Anthropic names, so the two paths fail identically as well as succeed
+    # identically. A variant that failed differently per provider would show up
+    # in the yield column as a quality difference.
+    if stop_reason == "max_tokens":
+        raise ai.SummaryError("hit max_tokens before finishing the tool call")
+    if stop_reason == "refusal":
+        raise ai.SummaryError("model declined")
+    if not tool_json.strip():
+        raise ai.SummaryError(f"no tool call (stop_reason={stop_reason!r})")
     return json.loads(tool_json) or {}, usage, None
 
 

@@ -10,6 +10,36 @@ truth; this is a curated digest.
 
 ## 2026-09-10
 
+### Changed — the AI summary now runs on DeepSeek, with Anthropic as the second option
+- `AI_SUMMARY_MODEL` defaults to `deepseek-flash`. The A/B harness measured it
+  at comparable yield to Opus 5 for roughly a twelfth of the cost, so a notice
+  now costs about $0.01-0.02 instead of $0.12-0.20.
+- **The model name is the only switch.** `deepseek-*` goes to DeepSeek's
+  OpenAI-compatible endpoint with `DEEPSEEK_API_KEY`; anything else goes to
+  Anthropic Messages with `ANTHROPIC_API_KEY`. Pointing the variable back at
+  `claude-opus-5` is the whole rollback. There is no separate provider setting,
+  on purpose: two settings that must agree are two that can disagree, and that
+  disagreement posts one provider's key to the other's API.
+- The prompt, the system text and the tool schema are **identical on both** —
+  only the envelope is translated. That is what makes the measured result a
+  statement about production rather than about the harness, and the harness now
+  re-exports the app's transport instead of keeping its own copy of it.
+- **Batch generation stays Anthropic-only** and refuses a DeepSeek model.
+  Batch exists to halve the price and DeepSeek publishes no batch endpoint, so
+  a silent fallback would charge full rate for a job asked to run cheaply.
+- **`/ai` changed with it, in the same commit.** The page names DeepSeek, states
+  that it is hosted in the PRC and that the notice text is therefore transferred
+  outside the EEA, and says what is sent: only the already-published tender
+  document. It does **not** repeat the "not used to train models" claim for
+  DeepSeek — that claim rests on Anthropic's commercial terms, and DeepSeek's
+  open platform terms permit training on API data. OCR and call summaries are
+  still Anthropic, so when either is live the page declares both processors.
+- Note before deploying: `input_hash` covers the model, so every stored summary
+  and every queued job is stale after the switch. The panel offers regeneration;
+  it never serves a payload produced by a different model.
+
+## 2026-09-10
+
 ### Added — fit scoring: what a customer could actually bid for
 - The first slice of Tier 2's biggest item. `app/fit.py` answers "is this
   tender worth bidding for" for one customer, and the CRM card gains a

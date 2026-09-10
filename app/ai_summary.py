@@ -26,16 +26,35 @@ plausible-sounding guess machine bolted to an act page.
         filter, the source of the character offset, and what lets the panel link
         each item to the sentence that produced it.
 
-Transport is raw urllib with x-api-key / anthropic-version, matching app/ocr.py
-and app/call_summary.py — one house convention for calling Claude, no SDK
-dependency. Configuration (env):
+Transport is raw urllib — the house convention for calling a model API, no SDK
+dependency, same as app/ocr.py and app/call_summary.py. TWO providers are
+supported and the MODEL NAME is the whole switch:
 
-    ANTHROPIC_API_KEY           required; absent → generation impossible
+    deepseek-*  DeepSeek's OpenAI-compatible chat endpoint. The DEFAULT, on the
+                measurement in ai_summary_ab.py: comparable yield to Opus 5 at
+                roughly a twelfth of the price.
+    claude-*    Anthropic Messages (x-api-key / anthropic-version). The second
+                option — one env var away, and the only one the batch path and
+                the other AI features (OCR, call summaries) can use.
+
+The prompt, the system text and the tool schema are IDENTICAL on both. The
+Anthropic-shaped request is built first by request_params() and then translated
+envelope-only for DeepSeek (_to_openai); nothing is reworded per provider. That
+is deliberate: a per-provider prompt is a per-provider answer, and input_hash
+covers the model but not "which wording produced this".
+
+Configuration (env):
+
+    AI_SUMMARY_MODEL            default "deepseek-flash"; picks the provider,
+                                and therefore which key is required
+    DEEPSEEK_API_KEY            required for a deepseek-* model
+    ANTHROPIC_API_KEY           required for a claude-* model (and still for
+                                OCR and call summaries regardless)
     AI_SUMMARY_ENABLED          default OFF (this one spends money)
-    AI_SUMMARY_MODEL            default "claude-opus-5"
-    AI_SUMMARY_EFFORT           default "medium" (thinking tokens bill at the
-                                OUTPUT rate; see the note on EFFORT below)
-    AI_SUMMARY_MAX_TOKENS       default 16000
+    AI_SUMMARY_EFFORT           default "medium". ANTHROPIC ONLY — it is
+                                output_config.effort, which DeepSeek rejects
+                                outright. Silently omitted for deepseek-*.
+    AI_SUMMARY_MAX_TOKENS       default 32000
     AI_SUMMARY_MAX_INPUT_CHARS  default 120000
     AI_SUMMARY_TIMEOUT          default 180 (seconds BETWEEN stream events,
                                 not for the whole call — see _stream)
@@ -66,8 +85,11 @@ except Exception:                         # pragma: no cover — certifi missing
 
 API_URL = "https://api.anthropic.com/v1/messages"
 API_VERSION = "2023-06-01"
+DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 
-MODEL = os.environ.get("AI_SUMMARY_MODEL", "claude-opus-5")
+MODEL = os.environ.get("AI_SUMMARY_MODEL", "deepseek-flash")
+# ANTHROPIC ONLY. DeepSeek has no equivalent knob and rejects the field, so it
+# is omitted from a deepseek-* request rather than translated (see _to_openai).
 # Thinking tokens are billed as OUTPUT ($25/MTok on Opus 5), and a median Greek
 # notice is only ~5,200 input tokens — so on a typical act the reasoning costs
 # more than the document. This is "find the clause and copy it out" against a
@@ -95,13 +117,20 @@ DAILY_CAP = int(os.environ.get("AI_SUMMARY_DAILY_CAP", "50"))
 PROMPT_VERSION = 1
 SCHEMA_VERSION = 1
 
-# Published API prices, USD per million tokens. A local cache, like every other
-# price list in this repo — check console.anthropic.com/pricing when adding a
-# model. An unknown model records no cost rather than guessing one.
+# Published API prices, USD per million tokens, (input, output). A local cache,
+# like every other price list in this repo — check the provider's pricing page
+# when adding a model. An unknown model records no cost rather than guessing one.
+#
+# The DeepSeek figures are the CACHE-MISS PEAK rates, the conservative half of
+# their peak/off-peak split (off-peak is half of these). Recording the cheaper
+# number would understate the bill on every act generated in business hours,
+# and this column is what any future "what does this feature cost" answer reads.
 PRICES_USD_PER_MTOK = {
     "claude-opus-5":   (5.00, 25.00),
     "claude-sonnet-5": (2.00, 10.00),
     "claude-haiku-4-5": (1.00, 5.00),
+    "deepseek-flash":  (0.30, 1.20),
+    "deepseek-v4-pro": (1.32, 3.96),
 }
 
 
@@ -125,8 +154,45 @@ def enabled() -> bool:
     return (os.environ.get("AI_SUMMARY_ENABLED") or "").strip().lower() in _ON_VALUES
 
 
-def api_key_present() -> bool:
-    return bool(os.environ.get("ANTHROPIC_API_KEY"))
+# --------------------------------------------------------------------------- #
+# Providers
+#
+# The model NAME selects the provider, the endpoint, the key and the request
+# shape. There is no AI_SUMMARY_PROVIDER var on purpose: two settings that must
+# agree are two settings that can disagree, and the failure mode of that
+# disagreement is posting a DeepSeek key to Anthropic — a 401 that reads like a
+# revoked key rather than like a misconfiguration.
+#
+# Each entry: (env var holding the key, the name shown to a human, where to get
+# one). The human name is what /ai prints, so it is not a cosmetic string.
+# --------------------------------------------------------------------------- #
+PROVIDERS = {
+    "anthropic": ("ANTHROPIC_API_KEY", "Anthropic", "console.anthropic.com"),
+    "deepseek":  ("DEEPSEEK_API_KEY",  "DeepSeek",  "platform.deepseek.com"),
+}
+
+
+def provider_of(model: str = None) -> str:
+    """Which API answers for this model. Anything not deepseek-* is Anthropic —
+    an unknown name fails against Anthropic's model list, which is a clear 404,
+    rather than being posted to a provider that never heard of it."""
+    return "deepseek" if (model or MODEL).startswith("deepseek") else "anthropic"
+
+
+def key_var(model: str = None) -> str:
+    """The env var that must hold a key for this model."""
+    return PROVIDERS[provider_of(model)][0]
+
+
+def provider_label(model: str = None) -> str:
+    """The provider's name as a reader should see it (/ai prints this)."""
+    return PROVIDERS[provider_of(model)][1]
+
+
+def api_key_present(model: str = None) -> bool:
+    """Is the key for THIS model's provider set? Zero-arg asks about the
+    configured default, which is what can_generate() and /ai want."""
+    return bool(os.environ.get(key_var(model)))
 
 
 def can_generate() -> bool:
@@ -632,9 +698,21 @@ def _render_sources(sources: dict[str, str]) -> tuple[str, dict | None]:
     return "\n\n".join(blocks), truncated
 
 
-def _headers(key: str) -> dict:
+def _anthropic_headers(key: str) -> dict:
     return {"content-type": "application/json", "x-api-key": key,
             "anthropic-version": API_VERSION}
+
+
+def _headers(key: str, model: str = None) -> dict:
+    """Auth for whichever provider `model` names. The batch path calls
+    _anthropic_headers directly instead of passing a model through here: it is
+    Anthropic-only by construction, and reading its auth off the CONFIGURED
+    model would break it the moment that default became deepseek — which it now
+    is."""
+    if provider_of(model) == "deepseek":
+        return {"content-type": "application/json",
+                "authorization": f"Bearer {key}"}
+    return _anthropic_headers(key)
 
 
 def request_params(sources: dict[str, str], record: dict, *,
@@ -655,14 +733,54 @@ def request_params(sources: dict[str, str], record: dict, *,
     params = {
         "model": model or MODEL,
         "max_tokens": MAX_TOKENS,
-        "output_config": {"effort": EFFORT},
         "system": _SYSTEM,
         "tools": [build_tool()],
         "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
     }
+    if provider_of(model) == "anthropic":
+        # Anthropic-shaped even for a DeepSeek run: _to_openai translates the
+        # envelope afterwards, and it drops what does not exist over there.
+        # Adding effort here and deleting it there would leave the field in the
+        # batch path's params too, where it belongs.
+        params["output_config"] = {"effort": EFFORT}
     if stream:
         params["stream"] = True          # batch requests must NOT carry this
     return params
+
+
+# --------------------------------------------------------------------------- #
+# DeepSeek: the same request, a different envelope
+#
+# Everything that decides the ANSWER — the system text, the user prompt, the
+# tool's JSON Schema — crosses over byte-identical. Only the wrapper is
+# rewritten. This is the same translation ai_summary_ab.py used to measure the
+# two providers against each other, which is what makes that measurement a
+# statement about production rather than about the harness.
+# --------------------------------------------------------------------------- #
+def _to_openai(params: dict) -> dict:
+    """Anthropic Messages request → OpenAI chat request, envelope only."""
+    text = "\n".join(b.get("text", "") for m in params["messages"]
+                     for b in m["content"] if b.get("type") == "text")
+    tool = params["tools"][0]
+    return {
+        "model": params["model"],
+        "max_tokens": params["max_tokens"],
+        "messages": [{"role": "system", "content": params["system"]},
+                     {"role": "user", "content": text}],
+        "tools": [{"type": "function", "function": {
+            "name": tool["name"],
+            "description": tool["description"],
+            "parameters": tool["input_schema"],
+        }}],
+        # "auto", NOT a forced call: DeepSeek refuses a forced tool_choice while
+        # thinking is on, and the app has never forced one — the contract is
+        # enforced downstream ("no tool call" is a SummaryError), not by the
+        # request. An empty reply is a failure we can report; a rejected request
+        # is one we could not even make.
+        "tool_choice": "auto",
+        "stream": True,
+        "stream_options": {"include_usage": True},
+    }
 
 
 def _stream(req) -> tuple[str, dict, str | None]:
@@ -713,6 +831,57 @@ def _stream(req) -> tuple[str, dict, str | None]:
     return "".join(parts), usage, stop_reason
 
 
+# OpenAI finish_reason → the Anthropic stop_reason vocabulary. Translated at the
+# edge, so everything after call_model's transport branch reasons about ONE set
+# of names; the output-cap diagnosis below in particular must fire on both
+# providers, and "length" reaching it as an unknown value would silently turn
+# the clearest error in this module back into "did not parse".
+_FINISH_TO_STOP = {
+    "length": "max_tokens",
+    "content_filter": "refusal",
+    "tool_calls": "tool_use",
+    "stop": "end_turn",
+}
+
+
+def _stream_openai(req) -> tuple[str, dict, str | None]:
+    """Read a streamed OpenAI-shape tool call. Same contract as _stream:
+    (tool arguments as JSON text, usage, stop_reason).
+
+    Usage keys are renamed to the Anthropic names because cost_micro_usd, the
+    act_ai_summary columns and every admin screen already speak them.
+    """
+    args: list[str] = []
+    usage: dict = {}
+    finish = None
+    with urllib.request.urlopen(req, timeout=TIMEOUT, context=_SSL_CTX) as resp:
+        for raw in resp:
+            line = raw.decode("utf-8", "replace").strip()
+            if not line.startswith("data:"):
+                continue
+            body = line[5:].strip()
+            if body == "[DONE]":
+                break
+            try:
+                ev = json.loads(body)
+            except json.JSONDecodeError:      # pragma: no cover — framing noise
+                continue
+            if ev.get("error"):
+                detail = (ev["error"] or {}).get("message") or "unknown"
+                raise SummaryError(f"DeepSeek stream error: {detail}")
+            if ev.get("usage"):
+                u = ev["usage"]
+                usage = {"input_tokens": u.get("prompt_tokens") or 0,
+                         "output_tokens": u.get("completion_tokens") or 0}
+            for choice in ev.get("choices") or []:
+                finish = choice.get("finish_reason") or finish
+                for call in (choice.get("delta") or {}).get("tool_calls") or []:
+                    frag = (call.get("function") or {}).get("arguments")
+                    if frag:
+                        args.append(frag)
+    return "".join(args), usage, _FINISH_TO_STOP.get(finish, finish)
+
+
 def call_model(sources: dict[str, str], record: dict, *,
                model: str = None) -> tuple[dict, dict, dict | None]:
     """Ask the model. Returns (raw tool input, usage, truncation or None).
@@ -720,11 +889,14 @@ def call_model(sources: dict[str, str], record: dict, *,
     Raises SummaryError for everything a caller can act on: no key, no text, an
     API failure, or a reply with no tool call in it.
     """
-    key = os.environ.get("ANTHROPIC_API_KEY")
+    provider = provider_of(model)
+    var, label, console = PROVIDERS[provider]
+    key = os.environ.get(var)
     if not key:
         raise SummaryError(
-            "ANTHROPIC_API_KEY is not set — AI summaries are disabled. "
-            "Set it in the environment (see console.anthropic.com) and restart.")
+            f"{var} is not set — AI summaries are disabled. The configured "
+            f"model ({model or MODEL}) runs on {label}. Set it in the "
+            f"environment (see {console}) and restart.")
     if not sources:
         raise SummaryError("no full text or published tables to read")
 
@@ -733,18 +905,22 @@ def call_model(sources: dict[str, str], record: dict, *,
         raise SummaryError("no full text or published tables to read")
 
     params = request_params(sources, record, model=model, stream=True)
-    req = urllib.request.Request(API_URL, data=json.dumps(params).encode(),
-                                 headers=_headers(key))
+    if provider == "deepseek":
+        url, body, reader = DEEPSEEK_URL, _to_openai(params), _stream_openai
+    else:
+        url, body, reader = API_URL, params, _stream
+    req = urllib.request.Request(url, data=json.dumps(body).encode(),
+                                 headers=_headers(key, model))
     try:
-        tool_json, usage, stop_reason = _stream(req)
+        tool_json, usage, stop_reason = reader(req)
     except urllib.error.HTTPError as e:
         detail = e.read().decode(errors="replace")[:300]
         if e.code == 401:
-            raise SummaryError("The Anthropic API rejected the key (401). "
-                               "Check ANTHROPIC_API_KEY.") from e
-        raise SummaryError(f"Anthropic API error {e.code}: {detail}") from e
+            raise SummaryError(f"The {label} API rejected the key (401). "
+                               f"Check {var}.") from e
+        raise SummaryError(f"{label} API error {e.code}: {detail}") from e
     except urllib.error.URLError as e:
-        raise SummaryError(f"Could not reach the Anthropic API: {e.reason}") from e
+        raise SummaryError(f"Could not reach the {label} API: {e.reason}") from e
 
     if stop_reason == "refusal":
         raise SummaryError("The model declined to process this document.")
@@ -803,6 +979,16 @@ def submit_batch(items, *, model: str = None) -> tuple[str, dict[str, str]]:
     silently truncating if the caller hands over more than a batch can hold —
     chunking is the caller's decision, not something to guess at here.
     """
+    if provider_of(model) != "anthropic":
+        # Not a gap to paper over with a loop of single calls. Batch exists for
+        # ONE reason — half price — and DeepSeek publishes no batch endpoint, so
+        # a "fallback" here would quietly charge full rate for a job the caller
+        # asked to run cheaply. Better to refuse and let the caller pass a Claude
+        # model explicitly, which is the whole point of keeping Anthropic wired.
+        raise SummaryError(
+            f"Batch generation is Anthropic-only; {model or MODEL} runs on "
+            f"{provider_label(model)}, which has no batch endpoint. Pass an "
+            f"explicit claude-* model, or use call_model() per act.")
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         raise SummaryError("ANTHROPIC_API_KEY is not set — cannot submit a batch.")
@@ -826,7 +1012,7 @@ def submit_batch(items, *, model: str = None) -> tuple[str, dict[str, str]]:
         raise SummaryError(f"batch body is {len(body)/1e6:.0f} MB, over the "
                            f"{BATCH_MAX_BYTES/1e6:.0f} MB limit — chunk the work")
 
-    req = urllib.request.Request(BATCH_URL, data=body, headers=_headers(key))
+    req = urllib.request.Request(BATCH_URL, data=body, headers=_anthropic_headers(key))
     try:
         resp = json.loads(urllib.request.urlopen(req, timeout=TIMEOUT,
                                                  context=_SSL_CTX).read())
@@ -843,7 +1029,7 @@ def batch_status(batch_id: str) -> dict:
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         raise SummaryError("ANTHROPIC_API_KEY is not set.")
-    req = urllib.request.Request(f"{BATCH_URL}/{batch_id}", headers=_headers(key))
+    req = urllib.request.Request(f"{BATCH_URL}/{batch_id}", headers=_anthropic_headers(key))
     try:
         return json.loads(urllib.request.urlopen(req, timeout=TIMEOUT,
                                                  context=_SSL_CTX).read())
@@ -886,7 +1072,7 @@ def batch_results(batch_id: str):
     if not url:
         raise SummaryError(f"batch {batch_id} ended with no results_url")
 
-    req = urllib.request.Request(url, headers=_headers(key))
+    req = urllib.request.Request(url, headers=_anthropic_headers(key))
     with urllib.request.urlopen(req, timeout=TIMEOUT, context=_SSL_CTX) as resp:
         for raw_line in resp:
             line = raw_line.decode("utf-8", "replace").strip()

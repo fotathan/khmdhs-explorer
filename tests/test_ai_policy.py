@@ -60,9 +60,13 @@ def test_renders_in_english(client):
     r = client.get("/ai")
     assert r.status_code == 200
     assert "AI &amp; data handling" in r.text or "AI & data handling" in r.text
-    assert "not used to train models" in r.text
+    # the provider paragraph is the one most likely to be added without a
+    # translation, because it is the one that changes when configuration does
+    assert "European Economic Area" in r.text
+    assert "privacy policy" in r.text
     # no Greek left behind in the English rendering of this page's own copy
     assert "Η σύντομη απάντηση" not in r.text
+    assert "εκτός Ευρωπαϊκού" not in r.text
 
 
 # --------------------------------------------------------------------------- #
@@ -148,7 +152,8 @@ def test_the_ai_panel_links_here(db, monkeypatch, client):
     happens to my data" gets asked. The answer has to be one click away, not
     findable only by scrolling to the footer."""
     monkeypatch.setenv("AI_SUMMARY_ENABLED", "1")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-used")
+    from app import ai_summary as _ai
+    monkeypatch.setenv(_ai.key_var(), "test-key-not-used")
     # An admin, because a customer with no stored summary and no right to
     # generate one is shown no panel at all (that is deliberate — see the
     # template header) and there would be nothing to carry the link.
@@ -201,7 +206,8 @@ def test_no_third_party_assets(client, path):
                 # our own origin (canonical / og:url) is not a third party, and
                 # a link a reader may click is not an asset the browser loads
                 if not u.startswith("https://testserver")
-                and not u.startswith("https://www.anthropic.com/")]
+                and not u.startswith("https://www.anthropic.com/")
+                and not u.startswith("https://cdn.deepseek.com/policies/")]
     assert external == [], external
 
 
@@ -217,3 +223,83 @@ def test_admin_sees_the_same_page(client):
     anon = client.get("/ai").text
     login(client, "aiadm", "goodpassword1")
     assert client.get("/ai").text.count("ai-use") == anon.count("ai-use")
+
+
+# --------------------------------------------------------------------------- #
+# Who processes the data — read from the configuration, like everything else
+#
+# The summary can run on DeepSeek or on Anthropic, chosen by AI_SUMMARY_MODEL.
+# That choice decides where a customer's document physically goes, so it is the
+# single most consequential thing on this page — and the one most likely to be
+# changed in a dashboard by someone who will not think to edit the prose.
+# --------------------------------------------------------------------------- #
+def test_the_provider_paragraph_follows_the_configured_model(client, monkeypatch):
+    from app import ai_summary as ai
+
+    monkeypatch.setattr(ai, "MODEL", "deepseek-flash")
+    html = client.get("/ai").text
+    assert "DeepSeek" in html
+    assert "εκτός Ευρωπαϊκού Οικονομικού Χώρου" in html
+
+    monkeypatch.setattr(ai, "MODEL", "claude-opus-5")
+    html = client.get("/ai").text
+    assert "Anthropic" in html
+    assert "εκτός Ευρωπαϊκού Οικονομικού Χώρου" not in html
+
+
+def test_a_transfer_outside_the_eea_is_stated_not_implied(client, monkeypatch):
+    """A reader asking "does my data leave the EU" must find the answer in
+    words. Naming the provider and leaving them to look up where it is hosted
+    is not a disclosure."""
+    from app import ai_summary as ai
+    monkeypatch.setattr(ai, "MODEL", "deepseek-flash")
+    html = client.get("/ai").text
+    assert "Λαϊκή Δημοκρατία της Κίνας" in html
+    assert "διαβιβάζεται" in html
+
+
+def test_no_training_claim_is_made_for_a_provider_whose_terms_permit_it(
+        client, monkeypatch):
+    """The Anthropic paragraph asserts that submitted data is not used for
+    training, on the strength of that API's commercial terms. DeepSeek's open
+    platform terms permit training on API data, so the same sentence must NOT
+    be recycled onto the DeepSeek paragraph — an unverified promise on a page
+    whose whole value is that its claims are checked."""
+    from app import ai_summary as ai, ocr
+    monkeypatch.setattr(ai, "MODEL", "deepseek-flash")
+    # no second processor, so the whole "who processes the data" section is the
+    # DeepSeek one and the claim cannot be attributed to the wrong paragraph
+    monkeypatch.setattr(ocr, "api_key_present", lambda: False)
+    section = client.get("/ai").text.split("DeepSeek", 1)[1].split("<h2", 1)[0]
+    assert "δεν χρησιμοποιούνται για την εκπαίδευση" not in section
+
+
+def test_the_public_nature_of_what_is_sent_is_stated(client, monkeypatch):
+    """The mitigation is the whole argument for accepting the transfer, so it
+    belongs on the page next to the transfer, not in a commit message."""
+    from app import ai_summary as ai
+    monkeypatch.setattr(ai, "MODEL", "deepseek-flash")
+    html = client.get("/ai").text
+    assert "ήδη δημοσιευμένο κείμενο" in html
+
+
+def test_anthropic_is_still_declared_when_it_processes_something_else(
+        client, monkeypatch):
+    """OCR and call summaries are Anthropic-only. When the summary moves to
+    DeepSeek they do not, so the page has TWO processors to declare — and
+    dropping the second is how a data-handling page quietly goes wrong."""
+    from app import ai_summary as ai, ocr, main
+    monkeypatch.setattr(ai, "MODEL", "deepseek-flash")
+    monkeypatch.setattr(ocr, "api_key_present", lambda: True)
+    monkeypatch.setattr(main, "TABLES_ENABLED", True)   # the surface OCR needs
+    html = client.get("/ai").text
+    assert "DeepSeek" in html
+    assert "Anthropic" in html
+
+
+def test_only_one_processor_is_declared_when_only_one_is_used(client, monkeypatch):
+    from app import ai_summary as ai, ocr, main
+    monkeypatch.setattr(ai, "MODEL", "claude-opus-5")
+    monkeypatch.setattr(ocr, "api_key_present", lambda: True)
+    monkeypatch.setattr(main, "TABLES_ENABLED", True)
+    assert "DeepSeek" not in client.get("/ai").text

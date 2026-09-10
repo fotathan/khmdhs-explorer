@@ -42,6 +42,7 @@ It should contain:
 
 ```bash
 ANTHROPIC_API_KEY=...      # OCR of scanned PDFs + call summaries
+DEEPSEEK_API_KEY=...       # the AI summary (AI_SUMMARY_MODEL is deepseek-flash)
 GEMI_API_KEY=...           # ΓΕΜΗ business-registry lookups
 SECRET_KEY=...             # signs login cookies — see below
 TELEPHONY_ENABLED=1        # softphone + caller ID
@@ -113,13 +114,14 @@ No `--reload` — it double-starts the background threads.
 | Email delivery | `EMAIL_BACKEND=file` | writes `.eml` files to `./outbox`; see below |
 | Call transcription | `TRANSCRIBE_BASE_URL` | the `khmdhs-whisper` container |
 | Search-engine indexing (`robots.txt`, sitemaps, canonical) | `SEO_INDEX=1` | nothing — it only changes what a crawler is told. **On by default in production only**; locally it is off, so `/robots.txt` answers `Disallow: /` and every `/sitemap*.xml` 404s. The recipe turns it on so you can see the real markup and read the sitemaps; localhost is not crawlable either way. Off again with `0`/`false`/`no`/`off` — or a typo, since it fails towards noindex. `SEO_ACT_WINDOW_DAYS=365` and `SEO_ACT_MAX=50000` bound how much of the corpus the sitemaps advertise |
-| AI summary panel on notices | `AI_SUMMARY_ENABLED=1` | `ANTHROPIC_API_KEY` to generate; a worker to run the job (`RUN_INLINE_WORKER=1`, on by default locally). Only `1`/`true`/`yes`/`on`/`y`/`t`/`enabled` turn it on — anything else, including a typo, leaves it **off**, because it spends money |
+| AI summary panel on notices | `AI_SUMMARY_ENABLED=1` | `DEEPSEEK_API_KEY` to generate (or `ANTHROPIC_API_KEY` if you point `AI_SUMMARY_MODEL` at a `claude-*` model); a worker to run the job (`RUN_INLINE_WORKER=1`, on by default locally). Only `1`/`true`/`yes`/`on`/`y`/`t`/`enabled` turn it on — anything else, including a typo, leaves it **off**, because it spends money |
 
 **Key-gated — on as soon as the key is present**
 
 | Feature | Key |
 |---|---|
-| OCR of scanned PDFs, Claude table extraction, call summaries, AI summaries | `ANTHROPIC_API_KEY` |
+| OCR of scanned PDFs, Claude table extraction, call summaries | `ANTHROPIC_API_KEY` |
+| AI summary of notices | `DEEPSEEK_API_KEY` — or `ANTHROPIC_API_KEY` with `AI_SUMMARY_MODEL=claude-opus-5` |
 | ΓΕΜΗ enrichment (admin button on contractor/authority pages) | `GEMI_API_KEY` |
 | Softphone + caller-ID screen-pop | `TELEPHONY_ENABLED=1` + `AMI_*` / `SIP_*` |
 
@@ -238,9 +240,10 @@ you launched on or the link will open the wrong server.
 
 ## 7c. Trying the AI summary panel
 
-Costs real money — roughly $0.12–0.20 per notice on Opus 5, paid once per act
-and then read from the cache forever. `AI_SUMMARY_DAILY_CAP` (default 50) bounds
-the worst case for the whole deployment.
+Costs real money — roughly $0.01–0.02 per notice on `deepseek-flash` (the
+default), or $0.12–0.20 on Opus 5, paid once per act and then read from the
+cache forever. `AI_SUMMARY_DAILY_CAP` (default 50) bounds the worst case for the
+whole deployment.
 
 1. Apply the migration on **both** databases first — the panel reads three
    tables that do not exist until you do:
@@ -252,8 +255,10 @@ the worst case for the whole deployment.
 
    ...then the same with the Supabase DSN, before pushing any of this.
 
-2. Launch with `AI_SUMMARY_ENABLED=1` and a real `ANTHROPIC_API_KEY`, signed in
-   as an admin.
+2. Launch with `AI_SUMMARY_ENABLED=1` and a real `DEEPSEEK_API_KEY`, signed in
+   as an admin. To try it on Claude instead, add
+   `AI_SUMMARY_MODEL=claude-opus-5` and a real `ANTHROPIC_API_KEY` — nothing
+   else changes, the model name is the whole switch.
 3. Open any act with `type='notice'` and a full text. Under "Στοιχεία πράξης"
    the panel offers **Δημιουργία σύνοψης**.
 4. Click it. The request only *queues* a job — the model call runs in the
@@ -278,10 +283,18 @@ What it costs so far:
 psql "$DATABASE_URL" -c "SELECT count(*), sum(cost_micro_usd)/1000000.0 AS usd FROM proc.act_ai_summary"
 ```
 
-Switches: `AI_SUMMARY_MODEL` (default `claude-opus-5`), `AI_SUMMARY_EFFORT`
-(`medium`), `AI_SUMMARY_MAX_INPUT_CHARS` (`120000` — over that, the panel says
-in as many words how much of the document it read), `AI_SUMMARY_DAILY_CAP`
-(`50`), `AI_SUMMARY_TIMEOUT` (`180`, seconds between stream events).
+Switches: `AI_SUMMARY_MODEL` (default `deepseek-flash`; the name also picks the
+provider and therefore the key), `AI_SUMMARY_EFFORT` (`medium`, **Anthropic
+only** — DeepSeek rejects the field, so it is simply not sent),
+`AI_SUMMARY_MAX_INPUT_CHARS` (`120000` — over that, the panel says in as many
+words how much of the document it read), `AI_SUMMARY_DAILY_CAP` (`50`),
+`AI_SUMMARY_TIMEOUT` (`180`, seconds between stream events).
+
+**Switching providers re-generates everything.** `input_hash` covers the model
+name, so changing `AI_SUMMARY_MODEL` marks every stored summary stale and every
+queued job with it. The panel offers to regenerate; it does not serve the old
+payload. Budget for that before flipping it on a database with summaries in it,
+and remember the daily cap applies to the re-run.
 
 ---
 

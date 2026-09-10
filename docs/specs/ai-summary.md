@@ -215,15 +215,53 @@ tell which 70% is missing.
 
 ---
 
-## 7. The Claude call
+## 7. The model call
 
-**Model:** `claude-opus-5`. This is the deliberate exception to the
-`claude-sonnet-4-6` pinned in `app/ocr.py` and `app/call_summary.py`: OCR reads
-characters off a page and a call summary paraphrases a conversation, but this
-reads legal Greek prose for obligations and has to decline to answer when the
-document does not say. Extraction runs **once per act, ever**, so the price
-difference is paid once and read thousands of times. `output_config.effort` is
-`high` (the default); adaptive thinking is on by default on Opus 5 and is left on.
+**Model: `deepseek-flash`** — and the model name is the only provider switch.
+Anything `deepseek-*` goes to DeepSeek's OpenAI-compatible endpoint with a
+`DEEPSEEK_API_KEY`; anything else goes to Anthropic Messages with an
+`ANTHROPIC_API_KEY`. There is deliberately no `AI_SUMMARY_PROVIDER` variable:
+two settings that must agree are two settings that can disagree, and that
+disagreement posts one provider's key to the other's API — a 401 that reads like
+a revoked key rather than like a misconfiguration.
+
+The choice is a measurement, not a preference. `ai_summary_ab.py` ran the real
+prompt, schema and quote gate over a reproducible sample: comparable yield to
+Opus 5 at roughly a twelfth of the cost, with Greek tokenising ~30% denser.
+Coverage decided it and price broke the tie, in that order.
+
+**Anthropic is one env var away and stays wired.** It is the second option for a
+DeepSeek outage, for a quality regression, and for the batch path — which is
+Anthropic-only, because batch exists solely to halve the price and DeepSeek
+publishes no batch endpoint. `submit_batch` refuses a `deepseek-*` model rather
+than falling back to full-rate single calls for a job someone asked to run
+cheaply.
+
+**What crosses over is only the envelope.** The Anthropic-shaped request is
+built first by `request_params()`, then translated field-for-field by
+`_to_openai()`; the system text, the user prompt and the tool's JSON Schema go
+across byte-identical. That is what makes the A/B result a statement about
+production rather than about the harness. `_stream_openai` translates
+`finish_reason` back into the Anthropic `stop_reason` vocabulary at the edge, so
+everything downstream — the output-cap diagnosis especially — reasons about one
+set of names.
+
+`output_config.effort` is **Anthropic-only**; DeepSeek rejects the field
+outright, so it is never built for a `deepseek-*` request rather than stripped
+from one.
+
+**Changing the model invalidates the cache.** `input_hash` covers the model name
+(§9), so pointing `AI_SUMMARY_MODEL` somewhere else marks every stored payload
+stale and every queued job stale with it. That is correct — a payload produced
+by a different model is a different answer — but it means a provider switch is a
+re-generation, not a config tweak, and the daily cap applies to the re-run.
+
+**Where the data goes is a published fact.** DeepSeek is PRC-hosted, so the
+notice text is transferred outside the EEA. `/ai` reads the provider from
+`ai_summary.provider_of()` and says so in words, in both languages
+(`test_ai_policy.py` holds it to that). What is sent is only the already-public
+tender document — §3's isolation rule is what makes that true and is separately
+test-enforced.
 
 **Structured output via a strict tool, not `output_config.format`.** Two reasons:
 
@@ -239,9 +277,10 @@ Tool inputs are parsed with `json.loads`, never string-matched — Opus 5 varies
 its JSON escaping and raw matching on a serialised input is a latent bug.
 
 **Transport: raw `urllib`, no SDK.** This keeps the single house convention
-established by `app/ocr.py` and `app/call_summary.py` (`x-api-key`,
-`anthropic-version`, certifi-backed SSL context, no new dependency). For a single
-POST per act, the SDK buys nothing. If the Batch pre-warm of §14 ships, revisit
+established by `app/ocr.py` and `app/call_summary.py` (certifi-backed SSL
+context, no new dependency), and it is what makes a second provider a ~60-line
+translation rather than a second SDK. For a single POST per act, the SDK buys
+nothing. If the Batch pre-warm of §14 ships, revisit
 then — batch create/poll/stream-results is where the SDK actually earns its
 dependency.
 
@@ -401,8 +440,9 @@ a change to `ai_summary.py` and a heading string, not to the template.
 | Switch | Default | Effect |
 |---|---|---|
 | `AI_SUMMARY_ENABLED` | **off** | absent → OFF. Routes, panel and button all disappear |
-| `ANTHROPIC_API_KEY` | — | absent → generation impossible, panel shows cached rows read-only |
-| `AI_SUMMARY_MODEL` | `claude-opus-5` | |
+| `AI_SUMMARY_MODEL` | `deepseek-flash` | picks the provider, and therefore which key below is the one that matters |
+| `DEEPSEEK_API_KEY` | — | required for a `deepseek-*` model; absent → generation impossible, panel shows cached rows read-only |
+| `ANTHROPIC_API_KEY` | — | required for a `claude-*` model, and for the batch path, OCR and call summaries regardless |
 | `AI_SUMMARY_MAX_INPUT_CHARS` | `120000` | §6 |
 | `AI_SUMMARY_DAILY_CAP` | `50` | acts generated per day, whole deployment |
 | `AI_SUMMARY_JOB_TIMEOUT` | `180` | seconds |
