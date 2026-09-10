@@ -18,6 +18,12 @@
   </div>
 
   <div class="acct-card">
+    <h2>{{ t("Αποθηκευμένες αναζητήσεις & ειδοποιήσεις") }}</h2>
+    <p class="acct-muted">{{ t("Δείτε τις αποθηκευμένες αναζητήσεις σας και ορίστε για ποιες θέλετε να λαμβάνετε email με τα νέα αποτελέσματα.") }}</p>
+    <a class="acct-btn" href="/account/searches">{{ t("Διαχείριση αναζητήσεων & ειδοποιήσεων") }}</a>
+  </div>
+
+  <div class="acct-card">
     <h2>{{ t("Αλλαγή συνθηματικού") }}</h2>
     {% if pw_ok %}<div class="acct-ok">{{ pw_ok | t }}</div>{% endif %}
     {% if pw_error %}<div class="acct-error">{{ pw_error | t }}</div>{% endif %}

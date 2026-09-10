@@ -1,7 +1,7 @@
 {% extends "beta_base.html" %}
 {% block title %}{{ t("KHMDHS · Εξερευνητής") }}{% endblock %}
 {% block content %}
-{% if search_profiles or can_manage_profiles or can_export %}
+{% if search_profiles or can_manage_profiles or can_save_search or can_export %}
 <div class="profiles-bar">
   {% if search_profiles %}
   <details class="sp-menu">
@@ -51,6 +51,25 @@
         <button type="submit">{{ t("Αποθήκευση") }}<span class="save-spin"></span></button>
       </form>
       <a class="sp-manage-link" href="/search-profiles/manage">{{ t("Διαχείριση προφίλ →") }}</a>
+    </div>
+  </details>
+  {% endif %}
+  {% if can_save_search %}
+  <details class="sp-menu sp-save">
+    <summary>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+      {{ t("Αποθήκευση αναζήτησης") }}
+    </summary>
+    <div class="sp-pop">
+      <form method="post" action="/account/searches">
+        <input type="hidden" name="params_qs" value="{{ current_query }}">
+        <input type="hidden" name="next" value="/{% if current_query %}?{{ current_query }}{% endif %}">
+        <label>{{ t("Όνομα") }}
+          <input type="text" name="name" required maxlength="120" placeholder="{{ t('π.χ. Καθαριότητα Αττικής') }}">
+        </label>
+        <button type="submit">{{ t("Αποθήκευση") }}<span class="save-spin"></span></button>
+      </form>
+      <a class="sp-manage-link" href="/account/searches">{{ t("Οι αναζητήσεις & ειδοποιήσεις μου →") }}</a>
     </div>
   </details>
   {% endif %}
