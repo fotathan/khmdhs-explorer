@@ -46,6 +46,11 @@ except ImportError:                      # pragma: no cover
     import leads as _leads
 
 try:
+    from app import company_match as _cm
+except ImportError:                      # pragma: no cover
+    import company_match as _cm
+
+try:
     from app import email_builder as _email
 except ImportError:                      # pragma: no cover
     import email_builder as _email
@@ -102,6 +107,23 @@ def describe_params(params, lang="el"):
             shown = str(value)
         bits.append(f"{label}: {shown}")
     return " · ".join(bits)
+
+
+# What each company-match outcome says to the admin. 'param_ignored' is the one
+# that matters: the registry drops a filter it does not recognise and answers
+# with the whole register, so a result that size is a bug on our side, never a
+# list of candidates (see gemi_client.REGISTRY_GUARD).
+_MATCH_STATUS = {
+    "no_query": ("Δεν υπάρχει επωνυμία ή domain για αναζήτηση — "
+                 "γράψτε έναν όρο.", "warn"),
+    "not_found": ("Δεν βρέθηκε εταιρεία με αυτόν τον όρο.", "warn"),
+    "no_key": ("Το κλειδί ΓΕΜΗ (GEMI_API_KEY) δεν είναι ορισμένο — "
+               "εμφανίζονται μόνο ανάδοχοι από το μητρώο μας.", "warn"),
+    "param_ignored": ("Το ΓΕΜΗ αγνόησε το φίλτρο και επέστρεψε ολόκληρο το "
+                      "μητρώο — τα αποτελέσματα απορρίφθηκαν.", "error"),
+    "error": ("Σφάλμα κατά την επικοινωνία με το ΓΕΜΗ — δοκιμάστε ξανά.",
+              "error"),
+}
 
 
 def _vat_candidates(vat):
@@ -391,6 +413,10 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 c.execute("SELECT operator_id, vat_number, name FROM proc.economic_operator "
                           "WHERE operator_id = %s", (profile["operator_id"],))
                 lead_operator = c.fetchone()
+            # Which ΓΕΜΗ company this customer was matched to, if any. The
+            # search itself is a button — it calls an external API, so it never
+            # runs while a page is merely being viewed.
+            company_match = _cm.current_match(c, uid)
             digest = _digest_ctx(c, uid, lang)
         # Entitlement drives the banner on the alerts panel: a subscription on a
         # lapsed account is kept, but nothing is sent until they are re-granted,
@@ -415,6 +441,8 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 "fields": _auth.PROFILE_FIELDS,
                 "contacts": contacts, "lead_operator": lead_operator,
                 "linked_contractor": linked_contractor, "profile_vat": pvat,
+                "company_match": company_match, "match_result": None,
+                "field_labels": _cm.FIELD_LABELS,
                 "notes": notes, "calls": calls, "tasks": tasks, "admins": admins,
                 "call_directions": _auth.CALL_DIRECTIONS,
                 "call_statuses": _auth.CALL_STATUSES,
@@ -455,6 +483,90 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
                  else f"Δεν ήταν δυνατός ο υπολογισμός: {out.get('reason', '')}")
         return RedirectResponse(
             f"/admin/crm/{uid}?tab=fit&flash={quote(flash)}", status_code=303)
+
+    # ---- ΓΕΜΗ company match ------------------------------------------- #
+    # Three POSTs, all returning the same HTMX fragment so the card never
+    # reloads and the open tab survives. Admin-only and audited for free:
+    # everything under /admin goes through AuthMiddleware and proc.admin_action.
+    def _match_panel(request, uid, result=None, flash=None, tone="ok",
+                     conflict=None, candidate=None, status_code=200):
+        with cursor() as c:
+            if not _auth.get_customer(c, uid):
+                raise HTTPException(404, "customer not found")
+            match = _cm.current_match(c, uid)
+        return templates.TemplateResponse(
+            request, "_crm_company_match.html",
+            {"cust_id": uid, "company_match": match, "match_result": result,
+             "match_flash": flash, "match_tone": tone,
+             "match_conflict": conflict, "match_candidate": candidate,
+             "field_labels": _cm.FIELD_LABELS},
+            status_code=status_code)
+
+    @router.post("/{uid}/company-match/search", response_class=HTMLResponse)
+    async def crm_company_match_search(uid: int, request: Request):
+        form = await request.form()
+        query = (form.get("q") or "").strip()
+        with cursor() as c:
+            if not _auth.get_customer(c, uid):
+                raise HTTPException(404, "customer not found")
+            result = _cm.search(c, uid, query or None)
+        flash, tone = _MATCH_STATUS.get(result["status"], (None, "ok"))
+        if result["status"] == "ok" and result.get("registry_status") not in (None, "ok"):
+            flash, tone = _MATCH_STATUS.get(
+                result["registry_status"], (None, "ok"))
+        return _match_panel(request, uid, result=result, flash=flash, tone=tone)
+
+    @router.post("/{uid}/company-match/link", response_class=HTMLResponse)
+    async def crm_company_match_link(uid: int, request: Request):
+        form = await request.form()
+        # Only the identifier crosses the wire. Everything written into the
+        # customer record is rebuilt server-side from the registry and the
+        # ledger — see company_match.apply_match.
+        afm = (form.get("afm") or "").strip()
+        confirm = (form.get("confirm") or "") == "1"
+        if not afm:
+            return _match_panel(request, uid,
+                                flash="Δεν επιλέχθηκε εταιρεία.", tone="error")
+        try:
+            with cursor() as c:
+                if not _auth.get_customer(c, uid):
+                    raise HTTPException(404, "customer not found")
+                out = _cm.apply_match(c, uid, afm, by=_admin_uid(request),
+                                      confirm=confirm)
+        except _cm.VatConflict as exc:
+            return _match_panel(
+                request, uid, conflict=exc.existing, candidate={"afm": afm},
+                flash=f"Ο πελάτης έχει ήδη ΑΦΜ {exc.existing}. "
+                      f"Να αντικατασταθεί με {afm};",
+                tone="warn")
+        except HTTPException:
+            raise
+        except Exception:                # noqa: BLE001 — a panel, not the page
+            return _match_panel(request, uid,
+                                flash="Η σύνδεση απέτυχε — δοκιμάστε ξανά.",
+                                tone="error")
+        n = len(out["filled"])
+        msg = (f"Συνδέθηκε με ΑΦΜ {out['afm']} — συμπληρώθηκαν {n} κενά πεδία."
+               if n else f"Συνδέθηκε με ΑΦΜ {out['afm']}.")
+        tone = "ok"
+        if out["gemi_status"] not in ("ok", "ambiguous"):
+            # Linked, but from the ledger only — say so rather than imply the
+            # profile now carries registry data.
+            msg += " Δεν ήταν δυνατή η άντληση στοιχείων από το ΓΕΜΗ."
+            tone = "warn"
+        return _match_panel(request, uid, flash=msg, tone=tone)
+
+    @router.post("/{uid}/company-match/unlink", response_class=HTMLResponse)
+    async def crm_company_match_unlink(uid: int, request: Request):
+        with cursor() as c:
+            if not _auth.get_customer(c, uid):
+                raise HTTPException(404, "customer not found")
+            reverted = _cm.unlink(c, uid, by=_admin_uid(request))
+        return _match_panel(
+            request, uid, tone="ok",
+            flash=(f"Η σύνδεση αφαιρέθηκε — καθαρίστηκαν {len(reverted)} πεδία "
+                   f"που είχαν εισαχθεί αυτόματα." if reverted
+                   else "Η σύνδεση αφαιρέθηκε."))
 
     @router.post("/{uid}/profile")
     async def crm_profile_save(uid: int, request: Request):

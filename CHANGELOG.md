@@ -10,6 +10,39 @@ truth; this is a curated digest.
 
 ## 2026-09-10
 
+### Added — match a CRM customer to their ΓΕΜΗ company by name or email domain
+- Customers register without an ΑΦΜ and only give one when they start paying,
+  which left their card unconnectable to the award ledger or a fit score. The
+  Στοιχεία tab now has a "Εταιρεία στο ΓΕΜΗ" panel: it searches by company name
+  (or, failing that, the email domain's label), offers candidates from BOTH our
+  contractor ledger and the registry, and an admin picks one.
+- **The registry cannot be asked about a domain.** Measured against the live
+  API: only `afm` and `name` filter. An unrecognised parameter is not rejected —
+  it is dropped, and the response is the whole register (`totalCount` ≈ 1.69M)
+  in the shape of a successful search. `gemi_client.REGISTRY_GUARD` rejects any
+  response that size; `tests/test_company_match.py` pins it.
+- The email domain therefore confirms rather than queries: the customer's domain
+  against the candidate's registry email, freemail domains excluded.
+- Its ranking is also not trustworthy (ΕΛΛΗΝΙΚΑ ΠΕΤΡΕΛΑΙΑ comes back *second*
+  for its own name), so candidates are re-scored locally on one scale — name
+  similarity .45, email domain .25, website .10, seat .10, ledger presence .10,
+  with struck-off and branch entries demoted but never hidden. Components are
+  always shown, never just a total.
+- Linking writes the identifiers and fills **only empty** profile fields, through
+  the same `leads.fill_if_empty` helper the lead importer uses. Never touched:
+  full name, stage, service, manager, lead source, notes — and the account email.
+- Reversible: `proc.customer_company_match.filled` records column → the value
+  written, so "Άρση σύνδεσης" clears only what the import added and still holds
+  that value. An admin's later correction always survives.
+- Only the ΑΦΜ is posted back on link; the company data is rebuilt server-side.
+  A registry record runs to 22KB and carries the company's officers — it has no
+  business round-tripping through a browser into a customer record. ΓΕΜΗ
+  `persons[]` is never imported at all.
+- Migration: `proc.customer_company_match`. No new index — `ix_eo_name_trgm`
+  already covers the ledger search, provided the fold is spelled in its nesting
+  order (`f_unaccent(lower(x))`, not the reverse).
+
+
 ### Changed — the AI summary now runs on DeepSeek, with Anthropic as the second option
 - `AI_SUMMARY_MODEL` defaults to `deepseek-flash`. The A/B harness measured it
   at comparable yield to Opus 5 for roughly a twelfth of the cost, so a notice
