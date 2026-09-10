@@ -2,5 +2,5 @@
 # The app itself needs httpx (FastAPI TestClient) — that's in requirements.txt.
 -r requirements.txt
 pytest>=9.1.1,<10
-ruff==0.16.3          # fast linter — CI runs the correctness rule subset
+ruff==0.16.5          # fast linter — CI runs the correctness rule subset
 pip-audit==2.10.1      # dependency CVE scanner (CI)
