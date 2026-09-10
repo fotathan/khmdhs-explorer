@@ -6107,3 +6107,148 @@ ALTER TABLE ONLY proc.user_subscription
 
 \unrestrict NgxXqilDwJQFoAsmavsjNqoDJa0r0TuGXVgneDmAaHkR56HYjDSOb7SHafQavKR
 
+--
+-- Appended for migrations/20260910140318_company_profile_and_fit_score.sql.
+--
+-- The rest of this file is a `pg_dump --schema-only -n proc` of PRODUCTION.
+-- These four tables are not there yet, so they are appended rather than the
+-- whole file being re-dumped from a local database — a local dump would also
+-- drag in local-only surface (attachments, telephony) and quietly change what
+-- CI tests against. Fold them in on the next real dump, once prod has them.
+--
+--
+-- Name: company_profile; Type: TABLE; Schema: proc; Owner: postgres
+--
+
+CREATE TABLE proc.company_profile (
+    user_id bigint NOT NULL,
+    operator_ids bigint[] DEFAULT '{}'::bigint[] NOT NULL,
+    derived_at timestamp with time zone,
+    n_awards integer DEFAULT 0 NOT NULL,
+    n_buyers integer DEFAULT 0 NOT NULL,
+    value_p10 numeric,
+    value_median numeric,
+    value_p90 numeric,
+    value_min_override numeric,
+    value_max_override numeric,
+    note text,
+    is_active boolean DEFAULT false NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by bigint
+);
+
+
+ALTER TABLE proc.company_profile OWNER TO postgres;
+
+--
+-- Name: company_profile_buyer; Type: TABLE; Schema: proc; Owner: postgres
+--
+
+CREATE TABLE proc.company_profile_buyer (
+    user_id bigint NOT NULL,
+    authority_id text NOT NULL,
+    n_acts integer DEFAULT 0 NOT NULL,
+    total_value numeric DEFAULT 0 NOT NULL
+);
+
+
+ALTER TABLE proc.company_profile_buyer OWNER TO postgres;
+
+--
+-- Name: company_profile_cpv; Type: TABLE; Schema: proc; Owner: postgres
+--
+
+CREATE TABLE proc.company_profile_cpv (
+    user_id bigint NOT NULL,
+    cpv_prefix text NOT NULL,
+    n_acts integer DEFAULT 0 NOT NULL,
+    total_value numeric DEFAULT 0 NOT NULL,
+    source text DEFAULT 'derived'::text NOT NULL,
+    CONSTRAINT company_profile_cpv_source_check CHECK ((source = ANY (ARRAY['derived'::text, 'declared'::text])))
+);
+
+
+ALTER TABLE proc.company_profile_cpv OWNER TO postgres;
+
+--
+-- Name: company_profile_nuts; Type: TABLE; Schema: proc; Owner: postgres
+--
+
+CREATE TABLE proc.company_profile_nuts (
+    user_id bigint NOT NULL,
+    nuts_prefix text NOT NULL,
+    n_acts integer DEFAULT 0 NOT NULL,
+    source text DEFAULT 'derived'::text NOT NULL,
+    CONSTRAINT company_profile_nuts_source_check CHECK ((source = ANY (ARRAY['derived'::text, 'declared'::text])))
+);
+
+
+ALTER TABLE proc.company_profile_nuts OWNER TO postgres;
+
+--
+-- Name: company_profile_buyer company_profile_buyer_pkey; Type: CONSTRAINT; Schema: proc; Owner: postgres
+--
+
+ALTER TABLE ONLY proc.company_profile_buyer
+    ADD CONSTRAINT company_profile_buyer_pkey PRIMARY KEY (user_id, authority_id);
+
+--
+-- Name: company_profile_cpv company_profile_cpv_pkey; Type: CONSTRAINT; Schema: proc; Owner: postgres
+--
+
+ALTER TABLE ONLY proc.company_profile_cpv
+    ADD CONSTRAINT company_profile_cpv_pkey PRIMARY KEY (user_id, cpv_prefix, source);
+
+--
+-- Name: company_profile_nuts company_profile_nuts_pkey; Type: CONSTRAINT; Schema: proc; Owner: postgres
+--
+
+ALTER TABLE ONLY proc.company_profile_nuts
+    ADD CONSTRAINT company_profile_nuts_pkey PRIMARY KEY (user_id, nuts_prefix, source);
+
+--
+-- Name: company_profile company_profile_pkey; Type: CONSTRAINT; Schema: proc; Owner: postgres
+--
+
+ALTER TABLE ONLY proc.company_profile
+    ADD CONSTRAINT company_profile_pkey PRIMARY KEY (user_id);
+
+--
+-- Name: ix_company_profile_cpv_prefix; Type: INDEX; Schema: proc; Owner: postgres
+--
+
+CREATE INDEX ix_company_profile_cpv_prefix ON proc.company_profile_cpv USING btree (cpv_prefix);
+
+--
+-- Name: ix_company_profile_nuts_prefix; Type: INDEX; Schema: proc; Owner: postgres
+--
+
+CREATE INDEX ix_company_profile_nuts_prefix ON proc.company_profile_nuts USING btree (nuts_prefix);
+
+--
+-- Name: company_profile_buyer company_profile_buyer_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: postgres
+--
+
+ALTER TABLE ONLY proc.company_profile_buyer
+    ADD CONSTRAINT company_profile_buyer_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.company_profile(user_id) ON DELETE CASCADE;
+
+--
+-- Name: company_profile_cpv company_profile_cpv_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: postgres
+--
+
+ALTER TABLE ONLY proc.company_profile_cpv
+    ADD CONSTRAINT company_profile_cpv_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.company_profile(user_id) ON DELETE CASCADE;
+
+--
+-- Name: company_profile_nuts company_profile_nuts_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: postgres
+--
+
+ALTER TABLE ONLY proc.company_profile_nuts
+    ADD CONSTRAINT company_profile_nuts_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.company_profile(user_id) ON DELETE CASCADE;
+
+--
+-- Name: company_profile company_profile_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: postgres
+--
+
+ALTER TABLE ONLY proc.company_profile
+    ADD CONSTRAINT company_profile_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.app_user(id) ON DELETE CASCADE;

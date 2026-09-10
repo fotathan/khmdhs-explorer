@@ -10,6 +10,55 @@ truth; this is a curated digest.
 
 ## 2026-09-10
 
+### Added — fit scoring: what a customer could actually bid for
+- The first slice of Tier 2's biggest item. `app/fit.py` answers "is this
+  tender worth bidding for" for one customer, and the CRM card gains a
+  **Ταίριασμα** tab listing the open tenders that match, best first.
+- **The profile is derived, not declared.** `seed_from_ledger` builds it from
+  the award ledger by ΑΦΜ — what a firm has actually won, from which
+  authorities, in which regions, at what values. A linked customer has a
+  usable profile with no data entry, and the figures are facts rather than
+  what a form would claim. This is the part a notice-feed competitor
+  structurally cannot compute: it needs an award ledger keyed by tax number.
+- **Deterministic, no model.** CPV overlap (0.45), value band (0.20),
+  geography (0.20) and buyer history (0.15). Free, instant, identical on
+  every run — and it keeps the promise on `/ai` that customer data never
+  reaches a model provider, which an LLM ranker would have quietly broken.
+- **Components are always shown, never just a total.** The app puts match
+  chips on results and a verbatim quote under every AI claim; a bare "83%"
+  would be the one number a reader must take on faith. If the ordering looks
+  wrong, the parts say which part is wrong.
+- A tender whose CPVs the firm has never touched is **capped**, however well
+  the value, region and buyer line up: "we do not sell that" is not something
+  a weighted sum should be able to outvote.
+- Admin-only, deliberately: a wrong score shown to a paying customer teaches
+  them to ignore the feature permanently.
+
+### Two bugs found by looking at real output
+- CPV weights were normalised **globally**, so an 8-digit code — necessarily a
+  fraction of its own division — always scored near zero and the deepest, most
+  specific match was punished hardest. A medical supplier's own speciality
+  scored 0.36. Now normalised within each prefix depth.
+- The floor on a matched-but-rare CPV group was half credit, which let a
+  water-treatment maintenance contract reach 71/100 for a medical supplier on
+  the strength of value, region and buyer alone. For a broad supplier those
+  three saturate and stop discriminating, so CPV has to carry the signal.
+
+### Notes
+- Migration `20260910140318_company_profile_and_fit_score.sql`: four tables.
+  **Applied locally; NOT yet on Supabase** — apply it there before this
+  reaches prod. Declared profile rows survive a re-seed by design (`source`
+  is part of the primary key), so re-deriving never discards a correction.
+- `tests/proc_schema.sql` gains the four tables by append rather than a
+  re-dump: the committed file is a dump of PRODUCTION, and re-dumping from a
+  local database would drag in local-only surface (attachments, telephony)
+  and quietly change what CI tests against.
+- 34 tests (`tests/test_fit.py`), including both directions of the isolation
+  rule: fit never touches the shared summary cache, and the summary still
+  cannot read a company profile.
+
+## 2026-09-10
+
 ### Fixed — the AI summary's output cap was losing whole generations
 - `AI_SUMMARY_MAX_TOKENS` defaulted to 16,000, and a reply that ran past it was
   cut off mid-JSON: the tool call never completed, the generation was

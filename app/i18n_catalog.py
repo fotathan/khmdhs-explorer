@@ -2597,6 +2597,105 @@ _AI_POLICY = {
         'How AI is used and what data is sent',
 }
 
+# ---- fit scoring: the capability profile and what it matches ----
+# The reason phrases are FIXED: the variable part of a reason (a CPV
+# prefix, a NUTS code) travels separately in `detail`, because a phrase
+# with a code interpolated into it can never be a translation key.
+_FIT = {
+    'Ταίριασμα: τι μπορεί να διεκδικήσει ένας πελάτης':
+        'Fit: what a customer could bid for',
+    'Η καρτέλα «Ταίριασμα» στην καρτέλα πελάτη δείχνει τους ανοικτούς διαγωνισμούς που του ταιριάζουν, με φθίνουσα σειρά. Το προφίλ ικανοτήτων δεν συμπληρώνεται από φόρμα: προκύπτει από το ιστορικό αναθέσεων του ΑΦΜ του — τι έχει πράγματι αναλάβει, από ποιες αναθέτουσες, σε ποιες περιοχές και με τι αξίες. Πατήστε «Υπολογισμός από το ιστορικό» για να το χτίσετε ή να το ανανεώσετε.':
+        'The "Fit" tab on a customer card lists the open tenders that match them, best first. The capability profile is not filled in on a form: it is derived from the award history of their tax number — what they have actually won, from which authorities, in which regions and at what values. Press "Rebuild from history" to build or refresh it.',
+    'Κάθε βαθμολογία αναλύεται σε τέσσερα μέρη — αντικείμενο (CPV), μέγεθος, περιοχή, αναθέτουσα — και το καθένα λέει γιατί. Μια σκέτη βαθμολογία δεν αμφισβητείται· τα μέρη δείχνουν ποιο σκέλος φταίει όταν η σειρά φαίνεται λάθος. Διαγωνισμός σε αντικείμενο που ο πελάτης δεν προμηθεύει δεν ανεβαίνει ποτέ ψηλά, όσο κι αν ταιριάζουν τα υπόλοιπα.':
+        'Every score is broken into four parts — subject matter (CPV), size, region, authority — and each says why. A bare score cannot be argued with; the parts show which one is at fault when the ordering looks wrong. A tender for something the customer does not supply never rises far, however well the rest of it fits.',
+    'Μόνο για διαχειριστές':
+        'Administrators only',
+    'Η βαθμολογία δεν εμφανίζεται πουθενά στους πελάτες προς το παρόν. Είναι νέα και πρέπει να την κρίνετε εσείς πρώτα: μια λανθασμένη βαθμολογία που τη βλέπει πελάτης τον μαθαίνει να αγνοεί τη λειτουργία για πάντα. Επίσης, τίποτα από το προφίλ δεν φτάνει ποτέ σε μοντέλο — η βαθμολογία είναι καθαρή αριθμητική πάνω στα δεδομένα.':
+        'The score is shown to no customer at present. It is new and you should judge it first: a wrong score seen by a customer teaches them to ignore the feature permanently. Nothing from the profile ever reaches a model either — the score is plain arithmetic over the data.',
+    'Ταίριασμα':
+        'Fit',
+    'Ταίριασμα με ανοικτούς διαγωνισμούς':
+        'Fit against open tenders',
+    'Προφίλ από το ιστορικό αναθέσεων':
+        'Profile from award history',
+    'αναθέσεις':
+        'awards',
+    'συνήθεις αξίες':
+        'usual values',
+    'Ενημερώθηκε':
+        'Updated',
+    'Δεν έχει δημιουργηθεί προφίλ ακόμη. Το προφίλ προκύπτει από το ιστορικό αναθέσεων του ΑΦΜ — δεν χρειάζεται συμπλήρωση φόρμας.':
+        'No profile has been built yet. It is derived from the award history of the tax number — no form to fill in.',
+    'Υπολογισμός από το ιστορικό':
+        'Rebuild from history',
+    'Οι ανοικτοί διαγωνισμοί που ταιριάζουν, με φθίνουσα σειρά. Κάθε βαθμολογία αναλύεται στα μέρη της: αν η σειρά φαίνεται λάθος, τα μέρη δείχνουν ποιο σκέλος φταίει.':
+        'The open tenders that match, best first. Every score is broken into its parts: if the ordering looks wrong, the parts show which one is at fault.',
+    'Βαθμός':
+        'Score',
+    'Διαγωνισμός':
+        'Tender',
+    'Γιατί':
+        'Why',
+    'Δεν βρέθηκαν ανοικτοί διαγωνισμοί που να ταιριάζουν.':
+        'No matching open tenders were found.',
+    'σύνθεση…':
+        'composing…',
+    'Δεν υπάρχουν πρότυπα email.':
+        'There are no email templates.',
+    'Δημιουργήστε ένα.':
+        'Create one.',
+    'εκτός των περιοχών τους':
+        'outside the regions they work in',
+    "νέα αναθέτουσα γι' αυτούς":
+        'a new authority for them',
+    'δεν υπάρχουν κωδικοί CPV για σύγκριση':
+        'no CPV codes to compare',
+    'δεν προμηθεύει τίποτα σε αυτούς τους CPV':
+        'supplies nothing in these CPVs',
+    'χωρίς ιστορικό αξιών για σύγκριση':
+        'no value history to compare',
+    'δεν αναφέρεται αξία':
+        'no value stated',
+    'εντός του συνήθους εύρους τους':
+        'within their usual range',
+    'κοντά στο σύνηθες εύρος τους':
+        'near their usual range',
+    'μεγαλύτερος από ό,τι έχουν αναλάβει':
+        'larger than anything they have won',
+    'μικρότερος από ό,τι διεκδικούν συνήθως':
+        'smaller than they usually bid for',
+    'χωρίς ιστορικό περιοχών':
+        'no region history',
+    'δεν αναφέρεται περιοχή':
+        'no region stated',
+    'δραστηριοποιούνται εκεί':
+        'they work there',
+    'ίδια χώρα, άλλη περιφέρεια':
+        'same country, different region',
+    'χωρίς ιστορικό αναθετουσών':
+        'no buyer history',
+    'έχουν αναλάβει ξανά από αυτήν':
+        'has won from this authority before',
+    'ακριβής κωδικός CPV':
+        'exact CPV code',
+    'ίδια ομάδα CPV':
+        'same CPV group',
+    'ίδιος τομέας CPV':
+        'same CPV division',
+    'Μέγεθος':
+        'Size',
+    'Περιοχή':
+        'Region',
+    'δεν υπάρχει ΑΦΜ ή συνδεδεμένος ανάδοχος για αυτόν τον πελάτη':
+        'no tax number or linked contractor for this customer',
+    'δεν βρέθηκαν αναθέσεις για αυτό το ΑΦΜ':
+        'no awards recorded for this tax number',
+    'δεν έχει δημιουργηθεί προφίλ ακόμη':
+        'no profile has been built yet',
+    'το προφίλ δεν έχει ιστορικό CPV για ταίριασμα':
+        'the profile has no CPV history to match on',
+}
+
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
@@ -2605,6 +2704,6 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
              _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMCARD, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
              _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY, _DIGESTS,
-             _SELF_SERVE, _PUBLIC, _HELP_PUBLIC, _AI_POLICY,
+             _SELF_SERVE, _PUBLIC, _HELP_PUBLIC, _AI_POLICY, _FIT,
              _MATCH):
     UI_EN.update(_grp)
