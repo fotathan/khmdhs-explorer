@@ -105,6 +105,25 @@ the script adds `js-tabs` to <html>, and without it every panel renders stacked.
 The open tab survives a POST redirect via ?tab= (what the alert forms set),
 then #hash, then sessionStorage.
 
+## Fit scoring (Tier 2, slice 1)
+app/fit.py — "is this tender worth bidding for", per customer. Admin-only,
+on the CRM card's Ταίριασμα tab. Deterministic arithmetic, NO model.
+- **The isolation rule.** proc.act_ai_summary is one row per act served to
+  everyone (ai_summary.py §3) and /ai promises the summary cannot see
+  customer data. fit.py must never touch it and ai_summary.py must never
+  read a profile — both directions are test-enforced (test_fit.py).
+- The profile is DERIVED from the award ledger by ΑΦΜ (seed_from_ledger),
+  not from a form. Declared rows survive a re-seed: that is why `source` is
+  in the primary key of company_profile_cpv/_nuts.
+- Score = CPV .45 / value .20 / geo .20 / buyer .15, and a tender whose CPVs
+  the firm has never touched is CAPPED at CPV_FLOOR however good the rest is.
+  Weights are argued, not fitted — there is no win/loss data yet.
+- CPV weights normalise WITHIN each prefix depth. Globally normalising makes
+  every 8-digit code a fraction of its division, so the most specific match
+  scores lowest; that bug shipped once and is caught by a test now.
+- Components are always shown, never just the total. `why` is a fixed Greek
+  phrase (a translation key) and the variable part rides in `detail`.
+
 ## Model choice for the AI summary
 `ai_summary_ab.py` measures a model change before you make one: a reproducible
 sample of notices, the real prompt/schema/quote-gate, then yield + cost per

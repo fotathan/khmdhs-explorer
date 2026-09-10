@@ -92,6 +92,7 @@
      ('details',  t("Στοιχεία"),        none),
      ('alerts',   t("Ειδοποιήσεις"),    digest_subs | length),
      ('activity', t("Δραστηριότητα"),   notes|length + calls|length + tasks|length),
+     ('fit',      t("Ταίριασμα"),       fit.rows | length if fit else none),
      ('email',    t("Σύνθεση email"),   none)] %}
 <div class="ctabs" role="tablist" id="crm-tabs">
   {% for key, label, count in tab_defs %}
@@ -250,6 +251,76 @@
     </form>
   </aside>
 </div>
+</section>
+
+{# ===== FIT: WHAT THIS FIRM COULD BID FOR ==================================
+   The capability profile is DERIVED from the award ledger by ΑΦΜ — what they
+   have actually won, not what a form claims they can do — and the open
+   tenders below are scored against it.
+
+   Every score is shown broken into its parts. A bare "83%" is the one number
+   a reader cannot argue with, and this page exists so you CAN argue with it:
+   if the ordering looks wrong, the components say which part is wrong. Same
+   reason results carry match chips and AI items carry a verbatim quote.
+
+   Admin-only for now, deliberately. A bad score shown to a paying customer
+   teaches them to ignore the feature permanently; shown to you it costs an
+   afternoon. ============================================================== #}
+<section class="cpanel" id="ctab-fit" role="tabpanel"
+         aria-labelledby="ctab-btn-fit">
+  <div class="fit-head">
+    <div>
+      <h3>{{ t("Ταίριασμα με ανοικτούς διαγωνισμούς") }}</h3>
+      {% if fit_row and fit_row.derived_at %}
+      <p class="fit-sub">
+        {{ t("Προφίλ από το ιστορικό αναθέσεων") }}:
+        <strong>{{ fit_row.n_awards }}</strong> {{ t("αναθέσεις") }},
+        <strong>{{ fit_row.n_buyers }}</strong> {{ t("αναθέτουσες") }}{% if fit_row.value_p10 %},
+        {{ t("συνήθεις αξίες") }}
+        <strong>{{ "{:,.0f}".format(fit_row.value_p10|float).replace(",", ".") }}–{{ "{:,.0f}".format(fit_row.value_p90|float).replace(",", ".") }} €</strong>{% endif %}.
+        <span class="muted">{{ t("Ενημερώθηκε") }}: {{ fit_row.derived_at.strftime("%d/%m/%Y %H:%M") }}</span>
+      </p>
+      {% else %}
+      <p class="fit-sub">{{ t("Δεν έχει δημιουργηθεί προφίλ ακόμη. Το προφίλ προκύπτει από το ιστορικό αναθέσεων του ΑΦΜ — δεν χρειάζεται συμπλήρωση φόρμας.") }}</p>
+      {% endif %}
+    </div>
+    <form method="post" action="/admin/crm/{{ cust.id }}/fit/derive" class="fit-derive">
+      {% include "_csrf.html" ignore missing %}
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">{{ t("Υπολογισμός από το ιστορικό") }}</button>
+    </form>
+  </div>
+
+  {% if fit and fit.rows %}
+  <p class="fit-note">{{ t("Οι ανοικτοί διαγωνισμοί που ταιριάζουν, με φθίνουσα σειρά. Κάθε βαθμολογία αναλύεται στα μέρη της: αν η σειρά φαίνεται λάθος, τα μέρη δείχνουν ποιο σκέλος φταίει.") }}</p>
+  <table class="crm-tbl fit-tbl">
+    <thead><tr>
+      <th>{{ t("Βαθμός") }}</th><th>{{ t("Διαγωνισμός") }}</th>
+      <th>{{ t("Γιατί") }}</th><th>{{ t("Προθεσμία") }}</th>
+    </tr></thead>
+    <tbody>
+      {% for r in fit.rows %}
+      <tr>
+        <td><span class="fit-score {% if r.score >= 70 %}hi{% elif r.score >= 45 %}mid{% else %}lo{% endif %}">{{ r.score }}</span></td>
+        <td>
+          <a href="/act/{{ r.adam }}" hx-boost="false">{{ (r.title or r.adam)[:90] }}</a>
+          <div class="muted">{{ r.authority_name or "—" }}{% if r.resolved_value %} · {{ "{:,.2f}".format(r.resolved_value|float).replace(",", "@").replace(".", ",").replace("@", ".") }} €{% endif %}</div>
+        </td>
+        <td class="fit-why">
+          {% for comp in r.components %}
+          <span class="fit-comp {% if comp.score >= 0.7 %}ok{% elif comp.score >= 0.35 %}mid{% else %}no{% endif %}"
+                title="{{ comp.label }} · {{ t('βαρύτητα') }} {{ (comp.weight * 100)|round|int }}%">
+            {{ t(comp.label) }}: {{ t(comp.why) }}{% if comp.detail %} {{ comp.detail }}{% endif %}</span>
+          {% endfor %}
+        </td>
+        <td class="nowrap">{{ r.final_submission_date.strftime("%d/%m/%Y") if r.final_submission_date else "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="fit-note">{{ t(fit.reason) if fit and fit.reason else t("Δεν βρέθηκαν ανοικτοί διαγωνισμοί που να ταιριάζουν.") }}</p>
+  {% endif %}
 </section>
 
 <section class="cpanel" id="ctab-alerts" role="tabpanel"
@@ -889,6 +960,29 @@
   .eb-pane textarea{width:100%;font-family:var(--mono);font-size:12px;line-height:1.5;
     border:1px solid var(--rule);border-radius:8px;padding:9px 11px;background:var(--paper);
     color:var(--ink);resize:vertical;}
+
+  /* --- fit panel -------------------------------------------------------- */
+  .fit-head{display:flex;justify-content:space-between;align-items:flex-start;
+    gap:18px;flex-wrap:wrap;margin-bottom:10px;}
+  .fit-head h3{margin:0 0 4px;font-size:15px;}
+  .fit-sub{margin:0;font-size:12.5px;color:var(--ink-2);line-height:1.55;}
+  .fit-note{font-size:12.5px;color:var(--ink-2);line-height:1.55;max-width:80ch;margin:0 0 12px;}
+  .fit-derive button{background:var(--paper);border:1px solid var(--rule);
+    border-radius:8px;padding:7px 13px;font:inherit;font-size:12.5px;
+    font-weight:600;color:var(--ink-2);cursor:pointer;}
+  .fit-derive button:hover{border-color:var(--accent);color:var(--accent);}
+  .fit-tbl td{vertical-align:top;}
+  /* The score is a summary, never the argument — the components beside it are */
+  .fit-score{display:inline-block;min-width:34px;text-align:center;font-weight:700;
+    font-size:13px;padding:3px 7px;border-radius:7px;font-variant-numeric:tabular-nums;}
+  .fit-score.hi{background:#e7f4ef;color:#1f8a63;}
+  .fit-score.mid{background:#fdf3e7;color:#8a5a1c;}
+  .fit-score.lo{background:var(--rule-2);color:var(--ink-3);}
+  .fit-why{max-width:42ch;}
+  .fit-comp{display:block;font-size:11.5px;line-height:1.5;color:var(--ink-2);}
+  .fit-comp.ok{color:#1f8a63;}
+  .fit-comp.mid{color:#8a5a1c;}
+  .fit-comp.no{color:var(--ink-3);}
 </style>
 
 <script>

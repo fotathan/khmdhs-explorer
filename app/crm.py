@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import threading
 
+from urllib.parse import quote
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -23,6 +25,11 @@ try:
     from app import auth as _auth
 except ImportError:  # run with --app-dir=app
     import auth as _auth
+
+try:
+    from app import fit as _fit
+except ImportError:                      # flat layout (run with --app-dir=app)
+    import fit as _fit
 
 try:
     from app import call_pipeline as _pipeline
@@ -389,7 +396,20 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
         # lapsed account is kept, but nothing is sent until they are re-granted,
         # and the page has to say so rather than look like it is working.
         digest["digest_entitled"] = cust["status"] in _auth.ENTITLED_STATUSES
+        # Fit: the capability profile and what it currently matches. Read-only
+        # and computed per request — nothing about a customer is cached, least
+        # of all anywhere an act-scoped cache could reach it (ai_summary.py §3).
+        try:
+            with cursor() as c:
+                fit_data = _fit.rank(c, uid, limit=25)
+                fit_row = c.execute(
+                    "SELECT * FROM proc.company_profile WHERE user_id = %s",
+                    (uid,)).fetchone()
+        except Exception:                # noqa: BLE001 — a panel, not the page
+            fit_data, fit_row = {"rows": [], "reason": "could not be computed"}, None
+
         return {**digest,
+                "fit": fit_data, "fit_row": fit_row,
                 "cust": cust, "profile": profile or {}, "history": history,
                 "products": products, "current": current,
                 "fields": _auth.PROFILE_FIELDS,
@@ -416,6 +436,25 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
         return templates.TemplateResponse(
             request, "admin_crm_customer.html",
             _customer_ctx(request, uid, ok=ok, warn=warn, flash=flash))
+
+    @router.post("/{uid}/fit/derive")
+    def crm_fit_derive(uid: int, request: Request):
+        """Rebuild the capability profile from the award ledger.
+
+        A button rather than a background job: it is a handful of aggregates
+        over one firm's history, it is only ever run by an admin looking at
+        the card, and a stale profile is visible right there with its
+        derived_at. Declared rows survive it — see fit.seed_from_ledger.
+        """
+        with cursor() as c:
+            if not _auth.get_customer(c, uid):
+                raise HTTPException(404, "customer not found")
+            out = _fit.seed_from_ledger(c, uid, by=_admin_uid(request))
+        flash = (f"Το προφίλ ενημερώθηκε από {out['n_awards']} αναθέσεις."
+                 if out.get("ok")
+                 else f"Δεν ήταν δυνατός ο υπολογισμός: {out.get('reason', '')}")
+        return RedirectResponse(
+            f"/admin/crm/{uid}?tab=fit&flash={quote(flash)}", status_code=303)
 
     @router.post("/{uid}/profile")
     async def crm_profile_save(uid: int, request: Request):
