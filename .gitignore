@@ -41,3 +41,7 @@ outbox/
 # Local scratch: one-off scripts and recorded model payloads kept while trying
 # something out. Nothing here is part of the app.
 tmp/
+
+# A/B harness results (ai_summary_ab.py) — experiment artefacts, and they
+# carry quoted document text plus what each run cost.
+runs/

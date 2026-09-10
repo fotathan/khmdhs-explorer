@@ -10,6 +10,66 @@ truth; this is a curated digest.
 
 ## 2026-09-10
 
+### Fixed — the AI summary's output cap was losing whole generations
+- `AI_SUMMARY_MAX_TOKENS` defaulted to 16,000, and a reply that ran past it was
+  cut off mid-JSON: the tool call never completed, the generation was
+  discarded, and the tokens were **billed anyway**. Observed live on the
+  largest notice in the corpus, at $0.66 for nothing.
+- The cap is not a spend control — you pay for tokens generated, never for the
+  ceiling — so a low one buys nothing and can lose everything. Raised to
+  32,000; streaming was already on, which is what makes a large ceiling safe.
+- `call_model` checked `stop_reason` for `"refusal"` but never `"max_tokens"`,
+  so the truncation surfaced through the JSON parser as *"tool arguments did
+  not parse"* — a schema-shaped error several layers from the cause. It is now
+  diagnosed where it happens, names `AI_SUMMARY_MAX_TOKENS`, and says the
+  tokens were billed. The existing test asserted the old guess-in-the-message;
+  it now asserts the stronger guarantee, with a companion test making sure a
+  genuinely malformed reply still reports a parse error.
+
+### Added — `ai_summary_ab.py`, so a model change can be measured before it is made
+- The AI summary is the most expensive thing the app does per act, and "Opus is
+  dear, can we use something cheaper?" cannot be answered from a price list. The
+  harness runs a reproducible sample of notices through the **real** prompt,
+  schema and quote gate on each candidate model, and reports yield beside cost.
+  Anthropic and DeepSeek (OpenAI-compatible) transports; `--probe` asks a
+  provider whether it accepts the tool schema at all for a fraction of a cent;
+  `--diff` prints the clauses each model found and the other missed, recovered
+  from the source so they read as published Greek rather than the folded form
+  used for comparison.
+- **Coverage decides, then price.** The first version ranked on cost per kept
+  item and called a variant finding 30% of the clauses "better value" — that
+  metric flatters a model returning few cheap items. The verdict is now
+  coverage-first, with $/item demoted to a column. Agreement is matched by
+  containment and token overlap, not string equality: an earlier version
+  reported 42% between two models that had largely read the same document,
+  because they chose different span boundaries around the same sentence.
+- Safety, because it spends real money: dry-run by default with a printed
+  estimate, `--yes` to spend, JSONL written a line at a time so a crash keeps
+  what it already paid for, results de-duplicated so a re-run supersedes the
+  failure it replaces, and it **never writes `proc.act_ai_summary`** — an
+  experiment must not leave a challenger's payload where the app will serve it.
+
+### What the first run found (12 acts, $3.53 total)
+- **Haiku 4.5 cannot run this at all.** It rejects `output_config.effort`, and
+  then rejects the schema outright: *"the compiled grammar is too large"*. The
+  8.7KB tool schema is past its constrained-decoding limit. 12/12 failed.
+- **DeepSeek Flash accepted the same schema** and came out 11.8x cheaper than
+  Opus 5 with a higher item count (23.0 vs 20.7 per act) and better agreement
+  than Sonnet 5. Greek tokenises **30% denser** on DeepSeek — the opposite of
+  what was predicted. It rejects a forced `tool_choice` in thinking mode, which
+  matters only because forcing it was the harness's own deviation: production
+  declares one tool and does not force it.
+- Reading the clause-level diff matters more than the percentages: roughly half
+  of what Opus finds and DeepSeek misses is boilerplate — letterheads, form
+  footers, table fragments — so the measured gap overstates the real one, and
+  the two most alarming misses (a submission deadline, an offer-validity
+  period) are already record columns the panel shows from the record anyway.
+- Unrelated but visible in the diff: one act's `full_text` is
+  encoding-corrupted (`δεν ζχει καταδικαςτεί`), which degrades every feature
+  reading it, not just this one.
+
+## 2026-09-10
+
 ### Added — /ai, the AI & data-handling statement
 - **`/ai` — «Τεχνητή νοημοσύνη & δεδομένα»**, public and bilingual: where AI is
   used here, exactly what is sent to a model provider, what never leaves, who
