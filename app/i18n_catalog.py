@@ -2414,6 +2414,86 @@ _MATCH = {
         "Highlights are added to the view only; the title and text stay verbatim as published, and with no search behind you the page renders exactly as before.",
 }
 
+# ---- public/acquisition surface: the first-visit band + the glossary ----
+# The glossary DEFINITIONS are not here — they live in app/glossary.py, both
+# languages side by side, because a two-paragraph explanation is content, not
+# a UI string. Only the page chrome is translated here.
+_PUBLIC = {
+    "Ελληνικές δημόσιες συμβάσεις, σε ένα σημείο":
+        "Greek public procurement, in one place",
+    "Προκηρύξεις, αναθέσεις, συμβάσεις και πληρωμές από το ΚΗΜΔΗΣ, τη Διαύγεια και το TED — ενωμένες σε μία αναζήτηση, με τον πλήρη κύκλο ζωής κάθε σύμβασης και το ιστορικό κάθε αναθέτουσας αρχής και κάθε αναδόχου.":
+        "Notices, awards, contracts and payments from KIMDIS, Diavgeia and TED "
+        "\u2014 brought together in a single search, with the full lifecycle of "
+        "every contract and the history of every contracting authority and "
+        "contractor.",
+    "ανάδοχοι": "contractors",
+    "Ξεκινήστε από": "Start with",
+    "Πληρωμές": "Payments",
+    "Απευθείας αναθέσεις": "Direct awards",
+    "Έργα": "Works",
+    "Προμήθειες": "Supplies",
+    "Δεν είστε σίγουροι για κάποιον όρο;": "Not sure what a term means?",
+    "Δείτε το γλωσσάρι δημοσίων συμβάσεων": "See the procurement glossary",
+    "Γλωσσάρι δημοσίων συμβάσεων": "Glossary of public procurement",
+    "Οι όροι των ελληνικών δημοσίων συμβάσεων εξηγημένοι απλά: ΚΗΜΔΗΣ, ΑΔΑΜ, Διαύγεια, CPV, απευθείας ανάθεση, εγγυητική επιστολή και άλλοι — με σύνδεση στα πραγματικά δεδομένα.":
+        "The terms of Greek public procurement explained plainly: KIMDIS, ADAM, "
+        "Diavgeia, CPV, direct award, tender guarantees and more \u2014 each one "
+        "linked to the real data.",
+    "Οι όροι που θα συναντήσετε σε κάθε προκήρυξη, εξηγημένοι σε απλή γλώσσα. Κάθε λήμμα καταλήγει σε σύνδεσμο προς τις πραγματικές πράξεις, ώστε ο ορισμός να μη μένει θεωρία.":
+        "The terms you will meet in every tender, explained in plain language. "
+        "Every entry ends in a link to the acts themselves, so the definition "
+        "does not stay theoretical.",
+    "Δείτε το στα δεδομένα": "See it in the data",
+    "Σχετικοί όροι": "Related terms",
+}
+
+# ---- help: the public/acquisition section ----
+_HELP_PUBLIC = {
+    'Δημόσια σελίδα & γλωσσάρι':
+        'Public page & glossary',
+    'Απόκτηση':
+        'Acquisition',
+    'Ένας επισκέπτης χωρίς λογαριασμό βλέπει πάνω από την αναζήτηση μια σύντομη εισαγωγή: τι είναι η βάση, πόσες πράξεις, αρχές και ανάδοχοι υπάρχουν, και συνδέσμους αφετηρίας ανά είδος πράξης, διαδικασία και κατηγορία. Εμφανίζεται μόνο στην πρώτη επίσκεψη χωρίς φίλτρα — μόλις πληκτρολογήσει κάτι, ή μόλις συνδεθεί συνδρομητής, φεύγει από τη μέση.':
+        'A visitor without an account sees a short introduction above the search: what the database is, how many acts, authorities and contractors it holds, and starting links by kind of act, procedure and category. It appears only on a first visit with no filters — the moment they type something, or a subscriber signs in, it gets out of the way.',
+    'εξηγεί σε απλή γλώσσα τους όρους των δημοσίων συμβάσεων — ΚΗΜΔΗΣ, ΑΔΑΜ, CPV, απευθείας ανάθεση, εγγυητική επιστολή και άλλους — σε ελληνικά και αγγλικά, με κάθε λήμμα να καταλήγει σε σύνδεσμο προς τις πραγματικές πράξεις. Είναι δημόσιο και σκόπιμα βρίσκεται εκτός συνδρομής: είναι το σημείο όπου φτάνει κάποιος που ψάχνει τον όρο, όχι τη βάση μας.':
+        'explains the terms of public procurement in plain language — KIMDIS, ADAM, CPV, direct award, tender guarantees and more — in Greek and English, with every entry ending in a link to the acts themselves. It is public and deliberately outside the subscription: it is where someone searching for the term, rather than for our database, arrives.',
+    'Ακρίβεια':
+        'Accuracy',
+    'Τα κείμενα του γλωσσαρίου είναι δημόσια ευρετηριασμένα και συνοψίζουν τον ν. 4412/2016 όπως ισχύει. Όταν αλλάξει ένα όριο ή ένα ποσοστό, το κείμενο πρέπει να ενημερωθεί — ζει στο':
+        'The glossary text is publicly indexed and summarises Law 4412/2016 as in force. When a threshold or a percentage changes, the text has to be updated — it lives in',
+    'με τις δύο γλώσσες δίπλα-δίπλα.':
+        'with the two languages side by side.',
+    'Η ευρετηρίαση από τις μηχανές αναζήτησης είναι ενεργή μόνο στην παραγωγή (ή με':
+        'Search-engine indexing is on in production only (or with',
+    '. Οπουδήποτε αλλού το':
+        '. Anywhere else,',
+    'απαντά «Disallow: /» και τα sitemaps επιστρέφουν 404 — ένα preview deploy δεν πρέπει ποτέ να γίνει το αντίγραφο που κατατάσσει η Google.':
+        'answers “Disallow: /” and the sitemaps return 404 — a preview deploy must never become the copy Google decides to rank.',
+    'Σελίδα':
+        'Page',
+    'Ευρετηριάζεται;':
+        'Indexed?',
+    'Αναζήτηση, αρχές, ανάδοχοι, γλωσσάρι — χωρίς φίλτρα':
+        'Search, authorities, contractors, glossary — unfiltered',
+    'Σελίδα πράξης, αρχής, αναδόχου':
+        'An act, authority or contractor page',
+    'Ναι — στην εκδοχή που βλέπει ο ανώνυμος επισκέπτης':
+        'Yes — the version an anonymous visitor sees',
+    'Ένα φίλτρο από τη λίστα αφετηρίας (είδος, διαδικασία, κατηγορία, περιφέρεια, πηγή)':
+        'One filter from the starting list (kind, procedure, category, region, source)',
+    'Ελεύθερο κείμενο, σελιδοποίηση, ταξινόμηση, συνδυασμοί φίλτρων':
+        'Free text, pagination, sorting, combinations of filters',
+    'Όχι — αχανής χώρος για έναν crawler':
+        'No — unbounded space for a crawler',
+    'Διαχείριση, λογαριασμός, σύνοψη, στατιστικά, εξαγωγές':
+        'Admin, account, overview, statistics, exports',
+    'Τα sitemaps καλύπτουν τις πράξεις του τελευταίου έτους (με ανώτατο όριο πλήθους), όλες τις αρχές, όλους τους αναδόχους και όλα τα λήμματα του γλωσσαρίου — όχι ολόκληρο το αρχείο, που θα εξαντλούσε μια μικρή εγκατάσταση για σελίδες που δεν αναζητά κανείς. Το παράθυρο και το όριο ρυθμίζονται με':
+        'The sitemaps cover the acts of the last year (up to a cap), every authority, every contractor and every glossary entry — not the whole archive, which would exhaust a small instance for pages nobody searches for. The window and the cap are set with',
+    'Οι όροι που χρειάζεστε για να διαβάσετε τα δεδομένα. Η δημόσια, εκτενής έκδοση — με ορισμούς, παραδείγματα και συνδέσμους στις πράξεις — βρίσκεται στο':
+        'The terms you need in order to read the data. The public, fuller version — with definitions, examples and links into the acts — is at',
+}
+
+
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
@@ -2422,6 +2502,6 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
              _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMCARD, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
              _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY, _DIGESTS,
-             _SELF_SERVE,
+             _SELF_SERVE, _PUBLIC, _HELP_PUBLIC,
              _MATCH):
     UI_EN.update(_grp)

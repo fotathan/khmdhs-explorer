@@ -6,6 +6,11 @@
    Yes/No is rendered here. #}
 {% macro yn(val) -%}{{ "ναι" | t if val else "όχι" | t }}{%- endmacro %}
 {% block title %}{{ n.title or n.adam }} · {{ type_label_el }}{% endblock %}
+{# The description a person reads in a search-results page, built from the
+   record's own facts rather than a template sentence. #}
+{% block meta_description %}{{ seo_act_description(n, type_label_el, lang) }}{% endblock %}
+{% block og_type %}article{% endblock %}
+{% block head_json_ld %}{% if crumbs %}<script type="application/ld+json">{{ crumbs | safe }}</script>{% endif %}{% endblock %}
 {# The AI summary panel arrives over HTMX and is re-swapped on every poll, so its
    CSS is a stylesheet rather than an inline style block riding along with each
    swap. Linked only when the feature is on — an act page with

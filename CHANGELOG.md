@@ -8,6 +8,52 @@ Dates are the day the change landed on `main` (which auto-deploys to prod on
 Render). This project has no version tags — the git history is the source of
 truth; this is a curated digest.
 
+## 2026-09-10
+
+### Added — a public front door: the glossary, and being findable at all
+- **`/glossary`** — 34 terms of Greek public procurement explained in plain
+  language, in Greek and English, grouped from registries through kinds of act
+  to procedures, codes, money and law. Every entry ends in a link into the real
+  data (`Απευθείας ανάθεση` → the direct awards), so a definition is a doorway
+  rather than a dead end. The text lives in `app/glossary.py` with both
+  languages side by side — it is content, not UI chrome, and putting it in the
+  i18n catalog would have buried both.
+- **A first-visit band on `/`** for a visitor with no account and no filters:
+  what the database is, the corpus figures, and starting links by kind of act,
+  procedure, category and region. It disappears the moment they search, and is
+  never shown to a subscriber. It also gives the search page its only `h1` and
+  the internal links that make the facet landings reachable.
+- **The site can now be indexed** — `robots.txt`, a sitemap index over the
+  acts of the last year plus every authority, contractor and glossary term, a
+  canonical URL and a `<meta name="robots">` on every page, and modest
+  structured data (breadcrumbs on acts, `Organization` on entities,
+  `DefinedTerm` in the glossary). Nothing about who may *read* what changed:
+  a crawler is an anonymous visitor and gets the same freemium teaser.
+
+### Notes on the shape of it
+- **Off unless the host says otherwise.** `seo.enabled()` is true in production
+  (or with `SEO_INDEX=1`) and false everywhere else, where `robots.txt` answers
+  a flat `Disallow: /` and the sitemaps 404. The switch fails towards *noindex*:
+  `0`, `false`, `no`, `off` and anything unrecognised all mean off. A preview
+  deploy indexed as a second copy of the corpus is not something you can undo.
+- **A bounded crawl space.** The filter form is a GET form over 2.9M acts.
+  Only *single*-facet landings (`?type=contract`, `?nuts=EL30`, …) are
+  indexable, drawn from the real code lists so the allowlist cannot drift;
+  free text, pagination and sorting are disallowed in `robots.txt`; everything
+  else is `noindex, follow` with its canonical pointing at the clean path — so
+  `/act/X?q=…` consolidates onto `/act/X` instead of splitting it.
+- **The sitemaps are capped**, not complete: `SEO_ACT_WINDOW_DAYS` (365) and
+  `SEO_ACT_MAX` (50,000) bound what is advertised, because a free instance
+  crawled over 2.9M stale acts is a cost with no return. Counts are cached for
+  an hour so a crawler re-reading the index cannot turn it into load.
+- **Structured data sits on the teaser render**, not only the full one — the
+  anonymous page *is* the page a search engine gets.
+- 85 new tests (`tests/test_public_seo.py`, `tests/test_glossary.py`), covering
+  the switch, the crawl-space rule, the sitemap contents and cap, and the
+  glossary's content integrity — that every term has both languages, that no
+  "see it in the data" link points at a facet that no longer exists.
+- No migration. Nothing here touches the schema.
+
 ## 2026-08-31
 
 ### Added — result emails explain themselves, like the search does

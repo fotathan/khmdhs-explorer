@@ -1,6 +1,7 @@
 {% extends "beta_base.html" %}
 {% block title %}{{ t("KHMDHS · Εξερευνητής") }}{% endblock %}
 {% block content %}
+{% if show_public_intro %}{% include "_public_intro.html" %}{% endif %}
 {% if search_profiles or can_manage_profiles or can_save_search or can_export %}
 <div class="profiles-bar">
   {% if search_profiles %}

@@ -1,5 +1,7 @@
 {% extends "beta_base.html" %}
 {% block title %}{{ a.name }} · {{ t("Αναθέτουσα") }}{% endblock %}
+{% block meta_description %}{{ seo_entity_description("authority", a.name, grand_total, lang) }}{% endblock %}
+{% block head_json_ld %}{% if orgld %}<script type="application/ld+json">{{ orgld | safe }}</script>{% endif %}{% endblock %}
 {% block content %}
 <main>
   <a class="back-link" href="/authorities" hx-boost="false">{{ t("‹ πίσω στις αναθέτουσες") }}</a>

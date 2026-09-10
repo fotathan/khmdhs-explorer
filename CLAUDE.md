@@ -105,6 +105,26 @@ the script adds `js-tabs` to <html>, and without it every panel renders stacked.
 The open tab survives a POST redirect via ?tab= (what the alert forms set),
 then #hash, then sessionStorage.
 
+## Public surface (SEO + glossary)
+The acquisition layer. app/seo.py decides what a CRAWLER sees; it never changes
+what a PERSON sees — _is_gated still owns that, and a crawler is an anonymous
+visitor getting the same teaser.
+- seo.enabled(): production (RENDER / APP_ENV) or SEO_INDEX=1. Everywhere else
+  robots.txt is `Disallow: /` and every sitemap 404s. Fails towards NOINDEX —
+  0/false/no/off/y-not-given all mean off. Don't invert that default.
+- Indexable = a clean page (/, /authorities, /contractors, /glossary,
+  /data-sources, a 2-segment detail page) OR exactly ONE allowlisted facet.
+  The allowlist is registered from the real code lists (seo.set_facet_values in
+  main) so it cannot drift. Everything else is noindex,follow with its
+  canonical pointing at the bare path.
+- Sitemaps are CAPPED, not complete: SEO_ACT_WINDOW_DAYS (365) +
+  SEO_ACT_MAX (50k), 10k URLs per chunk, counts cached an hour.
+- Structured data goes on the GATED render too — that is the crawler's page.
+- app/glossary.py holds the term text in BOTH languages (not i18n_catalog: it
+  is content). Public, deliberately outside the subscription. It is publicly
+  indexed legal summary — when a threshold or percentage changes, fix it.
+- /help has a "Δημόσια σελίδα & γλωσσάρι" section; keep it in sync.
+
 ## Tests
 pytest in tests/, runs in CI. Needs TEST_DATABASE_URL (throwaway DB) + psql.
 Schema comes from tests/proc_schema.sql — regenerate it when you add a table.

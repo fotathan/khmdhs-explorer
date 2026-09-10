@@ -3,6 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  {# Everything rendered through this masthead is admin or legacy surface —
+     never a public landing page. Hard noindex, no rule to get wrong. #}
+  <meta name="robots" content="noindex, nofollow">
   <title>{% block title %}{{ t("Ελληνικές Δημόσιες Συμβάσεις · Εξερευνητής") }}{% endblock %}</title>
 
   <link rel="stylesheet" href="/static/fonts/fira.css">

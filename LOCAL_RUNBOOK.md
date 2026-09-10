@@ -69,6 +69,7 @@ set -a; . ~/.khmdhs.env; set +a
 DATABASE_URL="postgresql://postgres:pw@127.0.0.1:5433/procurement" \
 APP_BASE_URL="http://127.0.0.1:8012" \
 REGISTRATION_MODE=open \
+SEO_INDEX=1 \
 ATTACHMENTS_ENABLED=1 \
 TABLES_ENABLED=1 \
 ENABLE_DOCS=1 \
@@ -111,6 +112,7 @@ No `--reload` — it double-starts the background threads.
 | Scheduled result emails | `DIGEST_SCHEDULER=1` | sweeps every 60s (`DIGEST_POLL_SECONDS`) |
 | Email delivery | `EMAIL_BACKEND=file` | writes `.eml` files to `./outbox`; see below |
 | Call transcription | `TRANSCRIBE_BASE_URL` | the `khmdhs-whisper` container |
+| Search-engine indexing (`robots.txt`, sitemaps, canonical) | `SEO_INDEX=1` | nothing — it only changes what a crawler is told. **On by default in production only**; locally it is off, so `/robots.txt` answers `Disallow: /` and every `/sitemap*.xml` 404s. The recipe turns it on so you can see the real markup and read the sitemaps; localhost is not crawlable either way. Off again with `0`/`false`/`no`/`off` — or a typo, since it fails towards noindex. `SEO_ACT_WINDOW_DAYS=365` and `SEO_ACT_MAX=50000` bound how much of the corpus the sitemaps advertise |
 | AI summary panel on notices | `AI_SUMMARY_ENABLED=1` | `ANTHROPIC_API_KEY` to generate; a worker to run the job (`RUN_INLINE_WORKER=1`, on by default locally). Only `1`/`true`/`yes`/`on`/`y`/`t`/`enabled` turn it on — anything else, including a typo, leaves it **off**, because it spends money |
 
 **Key-gated — on as soon as the key is present**

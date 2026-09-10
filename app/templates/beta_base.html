@@ -4,6 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}{{ t("KHMDHS · Εξερευνητής") }}{% endblock %}</title>
+{# --- what a crawler is told (app/seo.py). seo_robots and seo_canonical come
+   from the _seo_context processor, so every page gets a correct default and no
+   route has to remember; a page overrides by redefining the block. The rule
+   itself lives in Python, not here: this markup only reports it. --- #}
+<meta name="robots" content="{% block meta_robots %}{{ seo_robots }}{% endblock %}">
+<meta name="description" content="{% block meta_description %}{{ seo_site_description }}{% endblock %}">
+<link rel="canonical" href="{{ seo_canonical }}">
+<meta property="og:type" content="{% block og_type %}website{% endblock %}">
+<meta property="og:site_name" content="{{ seo_site_name }}">
+<meta property="og:title" content="{{ self.title() }}">
+<meta property="og:description" content="{{ self.meta_description() }}">
+<meta property="og:url" content="{{ seo_canonical }}">
+<meta property="og:locale" content="{{ 'en_GB' if lang == 'en' else 'el_GR' }}">
+<meta name="twitter:card" content="summary">
+{% block head_json_ld %}{% endblock %}
 <link rel="stylesheet" href="/static/fonts/fira.css">
 <script src="/static/vendor/htmx-1.9.12.min.js"></script>
 <style>
