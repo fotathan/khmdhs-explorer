@@ -22,6 +22,13 @@ API_BASE = "https://opendata-api.businessportal.gr/api/opendata/v1/companies"
 
 _AFM_RE = re.compile(r"^\d{9}$")
 
+# The registry does NOT reject a parameter it does not recognise — it drops the
+# filter and answers with the WHOLE register (totalCount ≈ 1.69M) plus a page of
+# arbitrary companies, which reads exactly like a successful search. Measured:
+# afm and name filter; email, url, city, companyName and coNameEl are ignored.
+# Any response at or above this count means our filter was dropped.
+REGISTRY_GUARD = 100_000
+
 
 def normalize_afm(raw: str | None) -> str | None:
     """Clean 9-digit Greek ΑΦΜ or None. Handles whitespace, EL/ΕΛ prefix, and
@@ -97,6 +104,80 @@ def fetch_company(client: httpx.Client, api_key: str, afm: str,
         return status, chosen, total
 
     return "error", None, 0
+
+
+def search_by_name(client: httpx.Client, api_key: str, name: str,
+                   max_results: int = 25,
+                   max_retries: int = 2) -> tuple[str, list[dict]]:
+    """Fuzzy company-name search. Return (status, records).
+
+    status: 'ok' | 'not_found' | 'param_ignored' | 'error'.
+
+    The registry matches coNameEl AND coTitlesEl (trade titles), insensitive to
+    case, accents and final sigma, and answers with a CAPPED pool of roughly
+    11-22 candidates. resultsSize does not widen it and no other parameter
+    narrows it — this endpoint is a pick-list, not a query language.
+
+    Its ranking is not reliable (a search for ΕΛΛΗΝΙΚΑ ΠΕΤΡΕΛΑΙΑ returns the
+    exact match SECOND), so callers must re-rank; app/company_match.py does.
+    Records come back in the same shape as fetch_company's, so flatten() and
+    upsert() take them unchanged and a picked candidate costs no second call.
+    """
+    name = (name or "").strip()
+    if not name:
+        return "not_found", []
+    params = {"name": name, "resultsOffset": 0, "resultsSize": max_results}
+    for attempt in range(1, max_retries + 1):
+        try:
+            r = client.get(API_BASE, params=params,
+                           headers=auth_header(api_key), timeout=30.0)
+        except httpx.RequestError:
+            if attempt == max_retries:
+                return "error", []
+            continue
+
+        if r.status_code == 429:
+            if attempt == max_retries:
+                return "error", []
+            import time
+            time.sleep(float(r.headers.get("Retry-After", 5)))
+            continue
+        if r.status_code in (401, 403):
+            return "error", []
+        if r.status_code == 404:            # the registry's "no matches"
+            return "not_found", []
+        if r.status_code >= 500:
+            if attempt == max_retries:
+                return "error", []
+            continue
+        if r.status_code != 200:
+            return "error", []
+
+        try:
+            data = r.json()
+        except ValueError:
+            return "error", []
+
+        total = (data.get("searchMetadata") or {}).get("totalCount", 0) or 0
+        if total >= REGISTRY_GUARD:
+            # The filter was dropped: this is the whole register, not a result.
+            return "param_ignored", []
+        results = data.get("searchResults") or []
+        if not results:
+            return "not_found", []
+        return "ok", results
+
+    return "error", []
+
+
+def search_by_name_env(name: str, max_results: int = 25) -> tuple[str, list[dict]]:
+    """search_by_name with the key from the environment and its own client.
+    Raises RuntimeError if GEMI_API_KEY is unset (same contract as enrich_one)."""
+    key = os.environ.get("GEMI_API_KEY")
+    if not key:
+        raise RuntimeError("GEMI_API_KEY not set")
+    with httpx.Client() as client:
+        return search_by_name(client, key, name, max_results)
 
 
 def _active_activities(rec: dict) -> tuple[str | None, str | None, list]:

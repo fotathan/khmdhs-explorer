@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict NgxXqilDwJQFoAsmavsjNqoDJa0r0TuGXVgneDmAaHkR56HYjDSOb7SHafQavKR
+\restrict L7evn2cdWWY5jGRFkNbkFZt51RrWxcYquncC6hWhnLD5QoXImaAtH7h7UsRgRTy
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 18.4
@@ -1030,6 +1030,74 @@ COMMENT ON TABLE proc.code_list IS 'Generic lookup for all KHMDHS enumerations. 
 
 
 --
+-- Name: company_profile; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.company_profile (
+    user_id bigint NOT NULL,
+    operator_ids bigint[] DEFAULT '{}'::bigint[] NOT NULL,
+    derived_at timestamp with time zone,
+    n_awards integer DEFAULT 0 NOT NULL,
+    n_buyers integer DEFAULT 0 NOT NULL,
+    value_p10 numeric,
+    value_median numeric,
+    value_p90 numeric,
+    value_min_override numeric,
+    value_max_override numeric,
+    note text,
+    is_active boolean DEFAULT false NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by bigint
+);
+
+
+--
+-- Name: TABLE company_profile; Type: COMMENT; Schema: proc; Owner: -
+--
+
+COMMENT ON TABLE proc.company_profile IS 'What a customer''s firm can do, seeded from its award history by ΑΦΜ. Never read by anything act-scoped or cached — see app/ai_summary.py §3.';
+
+
+--
+-- Name: company_profile_buyer; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.company_profile_buyer (
+    user_id bigint NOT NULL,
+    authority_id text NOT NULL,
+    n_acts integer DEFAULT 0 NOT NULL,
+    total_value numeric DEFAULT 0 NOT NULL
+);
+
+
+--
+-- Name: company_profile_cpv; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.company_profile_cpv (
+    user_id bigint NOT NULL,
+    cpv_prefix text NOT NULL,
+    n_acts integer DEFAULT 0 NOT NULL,
+    total_value numeric DEFAULT 0 NOT NULL,
+    source text DEFAULT 'derived'::text NOT NULL,
+    CONSTRAINT company_profile_cpv_source_check CHECK ((source = ANY (ARRAY['derived'::text, 'declared'::text])))
+);
+
+
+--
+-- Name: company_profile_nuts; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.company_profile_nuts (
+    user_id bigint NOT NULL,
+    nuts_prefix text NOT NULL,
+    n_acts integer DEFAULT 0 NOT NULL,
+    source text DEFAULT 'derived'::text NOT NULL,
+    CONSTRAINT company_profile_nuts_source_check CHECK ((source = ANY (ARRAY['derived'::text, 'declared'::text])))
+);
+
+
+--
 -- Name: cpv_category_map; Type: TABLE; Schema: proc; Owner: -
 --
 
@@ -1111,6 +1179,46 @@ CREATE SEQUENCE proc.customer_call_id_seq
 --
 
 ALTER SEQUENCE proc.customer_call_id_seq OWNED BY proc.customer_call.id;
+
+
+--
+-- Name: customer_company_match; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.customer_company_match (
+    user_id bigint NOT NULL,
+    afm text,
+    ar_gemi text,
+    operator_id bigint,
+    method text NOT NULL,
+    score numeric(4,3),
+    signals jsonb DEFAULT '{}'::jsonb NOT NULL,
+    filled jsonb DEFAULT '{}'::jsonb NOT NULL,
+    matched_by bigint,
+    matched_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT customer_company_match_method_check CHECK ((method = ANY (ARRAY['afm'::text, 'ledger'::text, 'gemi_name'::text, 'manual'::text])))
+);
+
+
+--
+-- Name: TABLE customer_company_match; Type: COMMENT; Schema: proc; Owner: -
+--
+
+COMMENT ON TABLE proc.customer_company_match IS 'Which ΓΕΜΗ company a customer is (one current row per customer). filled = column -> value the import wrote, so unlink can revert only what it wrote.';
+
+
+--
+-- Name: COLUMN customer_company_match.method; Type: COMMENT; Schema: proc; Owner: -
+--
+
+COMMENT ON COLUMN proc.customer_company_match.method IS 'How the ΑΦΜ was arrived at: afm (already on the profile), ledger (matched a contractor), gemi_name (registry name search), manual (admin typed it).';
+
+
+--
+-- Name: COLUMN customer_company_match.filled; Type: COMMENT; Schema: proc; Owner: -
+--
+
+COMMENT ON COLUMN proc.customer_company_match.filled IS 'column -> the value the import wrote into customer_profile. Unlink clears a column only while it still holds exactly this.';
 
 
 --
@@ -3692,6 +3800,38 @@ ALTER TABLE ONLY proc.code_list
 
 
 --
+-- Name: company_profile_buyer company_profile_buyer_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.company_profile_buyer
+    ADD CONSTRAINT company_profile_buyer_pkey PRIMARY KEY (user_id, authority_id);
+
+
+--
+-- Name: company_profile_cpv company_profile_cpv_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.company_profile_cpv
+    ADD CONSTRAINT company_profile_cpv_pkey PRIMARY KEY (user_id, cpv_prefix, source);
+
+
+--
+-- Name: company_profile_nuts company_profile_nuts_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.company_profile_nuts
+    ADD CONSTRAINT company_profile_nuts_pkey PRIMARY KEY (user_id, nuts_prefix, source);
+
+
+--
+-- Name: company_profile company_profile_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.company_profile
+    ADD CONSTRAINT company_profile_pkey PRIMARY KEY (user_id);
+
+
+--
 -- Name: cpv_category_map cpv_category_map_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
 --
 
@@ -3721,6 +3861,14 @@ ALTER TABLE ONLY proc.crm_freemail_domain
 
 ALTER TABLE ONLY proc.customer_call
     ADD CONSTRAINT customer_call_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: customer_company_match customer_company_match_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.customer_company_match
+    ADD CONSTRAINT customer_company_match_pkey PRIMARY KEY (user_id);
 
 
 --
@@ -4677,6 +4825,20 @@ CREATE INDEX ix_authority_vat ON proc.authority USING btree (vat_number);
 
 
 --
+-- Name: ix_company_profile_cpv_prefix; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_company_profile_cpv_prefix ON proc.company_profile_cpv USING btree (cpv_prefix);
+
+
+--
+-- Name: ix_company_profile_nuts_prefix; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_company_profile_nuts_prefix ON proc.company_profile_nuts USING btree (nuts_prefix);
+
+
+--
 -- Name: ix_cpv_code_prefix; Type: INDEX; Schema: proc; Owner: -
 --
 
@@ -4702,6 +4864,13 @@ CREATE INDEX ix_cpv_division_root ON proc.cpv_code USING btree (substr((cpv_code
 --
 
 CREATE INDEX ix_customer_call_user ON proc.customer_call USING btree (user_id, COALESCE(scheduled_at, created_at) DESC);
+
+
+--
+-- Name: ix_customer_company_match_afm; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_customer_company_match_afm ON proc.customer_company_match USING btree (afm);
 
 
 --
@@ -5502,6 +5671,38 @@ ALTER TABLE ONLY proc.authority
 
 
 --
+-- Name: company_profile_buyer company_profile_buyer_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.company_profile_buyer
+    ADD CONSTRAINT company_profile_buyer_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.company_profile(user_id) ON DELETE CASCADE;
+
+
+--
+-- Name: company_profile_cpv company_profile_cpv_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.company_profile_cpv
+    ADD CONSTRAINT company_profile_cpv_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.company_profile(user_id) ON DELETE CASCADE;
+
+
+--
+-- Name: company_profile_nuts company_profile_nuts_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.company_profile_nuts
+    ADD CONSTRAINT company_profile_nuts_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.company_profile(user_id) ON DELETE CASCADE;
+
+
+--
+-- Name: company_profile company_profile_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.company_profile
+    ADD CONSTRAINT company_profile_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.app_user(id) ON DELETE CASCADE;
+
+
+--
 -- Name: cpv_category_map cpv_category_map_category_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
 --
 
@@ -5547,6 +5748,30 @@ ALTER TABLE ONLY proc.customer_call
 
 ALTER TABLE ONLY proc.customer_call
     ADD CONSTRAINT customer_call_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.app_user(id) ON DELETE CASCADE;
+
+
+--
+-- Name: customer_company_match customer_company_match_matched_by_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.customer_company_match
+    ADD CONSTRAINT customer_company_match_matched_by_fkey FOREIGN KEY (matched_by) REFERENCES proc.app_user(id);
+
+
+--
+-- Name: customer_company_match customer_company_match_operator_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.customer_company_match
+    ADD CONSTRAINT customer_company_match_operator_id_fkey FOREIGN KEY (operator_id) REFERENCES proc.economic_operator(operator_id);
+
+
+--
+-- Name: customer_company_match customer_company_match_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.customer_company_match
+    ADD CONSTRAINT customer_company_match_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.app_user(id) ON DELETE CASCADE;
 
 
 --
@@ -6105,150 +6330,5 @@ ALTER TABLE ONLY proc.user_subscription
 -- PostgreSQL database dump complete
 --
 
-\unrestrict NgxXqilDwJQFoAsmavsjNqoDJa0r0TuGXVgneDmAaHkR56HYjDSOb7SHafQavKR
+\unrestrict L7evn2cdWWY5jGRFkNbkFZt51RrWxcYquncC6hWhnLD5QoXImaAtH7h7UsRgRTy
 
---
--- Appended for migrations/20260910140318_company_profile_and_fit_score.sql.
---
--- The rest of this file is a `pg_dump --schema-only -n proc` of PRODUCTION.
--- These four tables are not there yet, so they are appended rather than the
--- whole file being re-dumped from a local database — a local dump would also
--- drag in local-only surface (attachments, telephony) and quietly change what
--- CI tests against. Fold them in on the next real dump, once prod has them.
---
---
--- Name: company_profile; Type: TABLE; Schema: proc; Owner: postgres
---
-
-CREATE TABLE proc.company_profile (
-    user_id bigint NOT NULL,
-    operator_ids bigint[] DEFAULT '{}'::bigint[] NOT NULL,
-    derived_at timestamp with time zone,
-    n_awards integer DEFAULT 0 NOT NULL,
-    n_buyers integer DEFAULT 0 NOT NULL,
-    value_p10 numeric,
-    value_median numeric,
-    value_p90 numeric,
-    value_min_override numeric,
-    value_max_override numeric,
-    note text,
-    is_active boolean DEFAULT false NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by bigint
-);
-
-
-ALTER TABLE proc.company_profile OWNER TO postgres;
-
---
--- Name: company_profile_buyer; Type: TABLE; Schema: proc; Owner: postgres
---
-
-CREATE TABLE proc.company_profile_buyer (
-    user_id bigint NOT NULL,
-    authority_id text NOT NULL,
-    n_acts integer DEFAULT 0 NOT NULL,
-    total_value numeric DEFAULT 0 NOT NULL
-);
-
-
-ALTER TABLE proc.company_profile_buyer OWNER TO postgres;
-
---
--- Name: company_profile_cpv; Type: TABLE; Schema: proc; Owner: postgres
---
-
-CREATE TABLE proc.company_profile_cpv (
-    user_id bigint NOT NULL,
-    cpv_prefix text NOT NULL,
-    n_acts integer DEFAULT 0 NOT NULL,
-    total_value numeric DEFAULT 0 NOT NULL,
-    source text DEFAULT 'derived'::text NOT NULL,
-    CONSTRAINT company_profile_cpv_source_check CHECK ((source = ANY (ARRAY['derived'::text, 'declared'::text])))
-);
-
-
-ALTER TABLE proc.company_profile_cpv OWNER TO postgres;
-
---
--- Name: company_profile_nuts; Type: TABLE; Schema: proc; Owner: postgres
---
-
-CREATE TABLE proc.company_profile_nuts (
-    user_id bigint NOT NULL,
-    nuts_prefix text NOT NULL,
-    n_acts integer DEFAULT 0 NOT NULL,
-    source text DEFAULT 'derived'::text NOT NULL,
-    CONSTRAINT company_profile_nuts_source_check CHECK ((source = ANY (ARRAY['derived'::text, 'declared'::text])))
-);
-
-
-ALTER TABLE proc.company_profile_nuts OWNER TO postgres;
-
---
--- Name: company_profile_buyer company_profile_buyer_pkey; Type: CONSTRAINT; Schema: proc; Owner: postgres
---
-
-ALTER TABLE ONLY proc.company_profile_buyer
-    ADD CONSTRAINT company_profile_buyer_pkey PRIMARY KEY (user_id, authority_id);
-
---
--- Name: company_profile_cpv company_profile_cpv_pkey; Type: CONSTRAINT; Schema: proc; Owner: postgres
---
-
-ALTER TABLE ONLY proc.company_profile_cpv
-    ADD CONSTRAINT company_profile_cpv_pkey PRIMARY KEY (user_id, cpv_prefix, source);
-
---
--- Name: company_profile_nuts company_profile_nuts_pkey; Type: CONSTRAINT; Schema: proc; Owner: postgres
---
-
-ALTER TABLE ONLY proc.company_profile_nuts
-    ADD CONSTRAINT company_profile_nuts_pkey PRIMARY KEY (user_id, nuts_prefix, source);
-
---
--- Name: company_profile company_profile_pkey; Type: CONSTRAINT; Schema: proc; Owner: postgres
---
-
-ALTER TABLE ONLY proc.company_profile
-    ADD CONSTRAINT company_profile_pkey PRIMARY KEY (user_id);
-
---
--- Name: ix_company_profile_cpv_prefix; Type: INDEX; Schema: proc; Owner: postgres
---
-
-CREATE INDEX ix_company_profile_cpv_prefix ON proc.company_profile_cpv USING btree (cpv_prefix);
-
---
--- Name: ix_company_profile_nuts_prefix; Type: INDEX; Schema: proc; Owner: postgres
---
-
-CREATE INDEX ix_company_profile_nuts_prefix ON proc.company_profile_nuts USING btree (nuts_prefix);
-
---
--- Name: company_profile_buyer company_profile_buyer_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: postgres
---
-
-ALTER TABLE ONLY proc.company_profile_buyer
-    ADD CONSTRAINT company_profile_buyer_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.company_profile(user_id) ON DELETE CASCADE;
-
---
--- Name: company_profile_cpv company_profile_cpv_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: postgres
---
-
-ALTER TABLE ONLY proc.company_profile_cpv
-    ADD CONSTRAINT company_profile_cpv_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.company_profile(user_id) ON DELETE CASCADE;
-
---
--- Name: company_profile_nuts company_profile_nuts_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: postgres
---
-
-ALTER TABLE ONLY proc.company_profile_nuts
-    ADD CONSTRAINT company_profile_nuts_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.company_profile(user_id) ON DELETE CASCADE;
-
---
--- Name: company_profile company_profile_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: postgres
---
-
-ALTER TABLE ONLY proc.company_profile
-    ADD CONSTRAINT company_profile_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.app_user(id) ON DELETE CASCADE;

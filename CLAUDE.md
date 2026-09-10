@@ -105,6 +105,42 @@ the script adds `js-tabs` to <html>, and without it every panel renders stacked.
 The open tab survives a POST redirect via ?tab= (what the alert forms set),
 then #hash, then sessionStorage.
 
+## ΓΕΜΗ company match (CRM card, Στοιχεία tab)
+app/company_match.py — which registry company a customer IS, when they gave us
+no ΑΦΜ at registration. Admin-only, three routes under /admin/crm/<uid>/
+company-match/ (search / link / unlink), one HTMX panel.
+- **The registry has no domain search.** Measured: `afm` and `name` filter;
+  `email`, `url`, `city`, `companyName`, `coNameEl` are IGNORED — and an
+  ignored parameter is not an error, it returns the WHOLE register
+  (totalCount ≈ 1.69M) as if it were a result. `gemi_client.REGISTRY_GUARD`
+  rejects any response that size. Never delete that check or the test on it.
+- So the customer's email domain never queries anything; it CONFIRMS, against
+  the candidate's own registry email (76% coverage), after the freemail list.
+- The registry's ranking is not trustworthy (searching ΕΛΛΗΝΙΚΑ ΠΕΤΡΕΛΑΙΑ
+  returns the exact match SECOND) and its pool is capped at ~20 rows that no
+  parameter narrows. We re-rank locally; the free-text query box is how an
+  admin reaches a company that fell outside the pool.
+- Candidates = our contractor ledger (trigram) + the registry, merged on ΑΦΜ.
+  The ledger SQL must spell the fold as `translate(proc.f_unaccent(lower(x)),
+  'ς','σ')` — the nesting order of `ix_eo_name_trgm`. `leads._fold_sql` builds
+  the other order and would sequential-scan 143k rows. pg_trgm lives in
+  `public` locally and `proc` in tests, so its functions and operators are
+  schema-qualified from `_trgm_schema()`.
+- **Never auto-link**, at any score. The ΑΦΜ decides the fit score, the ledger
+  link and eventually an invoice.
+- Linking posts ONE field: the ΑΦΜ. Company data is rebuilt server-side from
+  the registry + ledger and re-scored — a form field is not a source for
+  something written into a customer record (test-enforced).
+- Identifiers are WRITTEN (a different existing ΑΦΜ needs confirm=1);
+  everything else is fill-only-if-empty through `leads.fill_if_empty`, the
+  same helper the lead importer uses. Never touched: full_name, crm_stage,
+  service, manager_id, lead_source, about, is_recipient — and app_user.email,
+  because auth.set_email kills verification and sign-in links.
+- `proc.customer_company_match.filled` is column → the value we wrote; unlink
+  reverts a column only while it still holds exactly that, so an admin's later
+  edit always survives. A confirmed ΑΦΜ replacement is NOT recorded there.
+- ΓΕΜΗ `persons[]` is never imported: sole traders are natural persons.
+
 ## Fit scoring (Tier 2, slice 1)
 app/fit.py — "is this tender worth bidding for", per customer. Admin-only,
 on the CRM card's Ταίριασμα tab. Deterministic arithmetic, NO model.

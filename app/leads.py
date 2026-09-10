@@ -298,6 +298,46 @@ _PROFILE_COLS = ("full_name", "phone", "company", "vat_number", "tax_number",
                  "creation_source", "operator_id", "orgdb_id", "is_recipient")
 
 
+# Which customer_profile column each lead key fills, when the column is blank.
+# Shared with app/company_match.py — an imported company and an imported
+# contractor fill the same fields by the same rule, and two copies of this map
+# would drift apart with nobody watching the second one.
+LEAD_FILL_MAP = (
+    ("company",     "company"),
+    ("phone",       "contact_phone"),
+    ("vat_number",  "vat_number"),
+    ("tax_number",  "tax_number"),
+    ("reg_number",  "reg_number"),
+    ("country",     "country"),
+    ("city",        "city"),
+    ("postal_code", "postal_code"),
+    ("address",     "address"),
+    ("operator_id", "operator_id"),
+    ("orgdb_id",    "orgdb_id"),
+)
+
+
+def fill_if_empty(current: dict, incoming) -> tuple[dict, dict]:
+    """Fill-only-if-empty merge. `incoming` is an iterable of (column, value) or
+    a dict. Returns (merged, filled) where `filled` is column -> the value this
+    call wrote — the record that makes an import reversible.
+
+    A column already holding anything (after stripping, for text) is left alone:
+    a curator's typing always beats imported data, in both directions.
+    """
+    merged = dict(current)
+    filled: dict = {}
+    pairs = incoming.items() if isinstance(incoming, dict) else incoming
+    for col, new in pairs:
+        old = merged.get(col)
+        if isinstance(old, str):
+            old = old.strip()
+        if old in (None, "") and _s(new):
+            merged[col] = new
+            filled[col] = new
+    return merged, filled
+
+
 def _upsert_profile(c, uid, values: dict, by=None):
     """Plain upsert of the (extended) customer_profile — every _PROFILE_COLS value
     is written as given. Callers that want fill-only semantics merge with the
@@ -379,22 +419,8 @@ def update_existing(c, uid: int, lead: dict, by=None) -> int:
     c.execute("SELECT * FROM proc.customer_profile WHERE user_id = %s", (uid,))
     cur = dict(c.fetchone() or {})
     merged = {k: cur.get(k) for k in _PROFILE_COLS}   # start from existing values
-    for col, new in (("company", lead.get("company")),
-                     ("phone", lead.get("contact_phone")),
-                     ("vat_number", lead.get("vat_number")),
-                     ("tax_number", lead.get("tax_number")),
-                     ("reg_number", lead.get("reg_number")),
-                     ("country", lead.get("country")),
-                     ("city", lead.get("city")),
-                     ("postal_code", lead.get("postal_code")),
-                     ("address", lead.get("address")),
-                     ("operator_id", lead.get("operator_id")),
-                     ("orgdb_id", lead.get("orgdb_id"))):
-        old = merged.get(col)
-        if isinstance(old, str):
-            old = old.strip()
-        if old in (None, "") and _s(new):
-            merged[col] = new
+    merged, _filled = fill_if_empty(
+        merged, [(col, lead.get(key)) for col, key in LEAD_FILL_MAP])
     _upsert_profile(c, uid, merged, by=by)
     c.execute("SELECT lower(email) AS e FROM proc.customer_contact WHERE user_id=%s AND email IS NOT NULL",
               (uid,))

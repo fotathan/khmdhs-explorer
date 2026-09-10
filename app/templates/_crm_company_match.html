@@ -1,0 +1,106 @@
+{# _crm_company_match.html — "which ΓΕΜΗ company is this customer?"
+   Context:
+     cust_id          — the customer's user id
+     company_match    — the current proc.customer_company_match row, or None
+     match_result     — {'query','status','candidates'} from company_match.search,
+                        or None (the panel at rest, before any search)
+     match_flash / match_tone   — outcome of the last action
+     match_conflict   — an ΑΦΜ already on the profile that a link would replace
+     match_candidate  — the ΑΦΜ waiting on that confirmation
+     field_labels     — company_match.FIELD_LABELS (column -> Greek label)
+
+   The whole panel is #company-match and every action swaps it outerHTML, so the
+   card never reloads and the open tab survives. The search is a BUTTON, never
+   on page load: it calls an external registry.
+
+   Only the ΑΦΜ is ever posted back — company_match.apply_match rebuilds the
+   company data server-side rather than trusting a form field with something it
+   is about to write into a customer record. #}
+<div id="company-match" class="cmatch">
+  <div class="section-h" style="margin-top:28px;">{{ t("Εταιρεία στο ΓΕΜΗ") }}</div>
+
+  {% if match_flash %}
+  <div class="cmatch-flash cmatch-{{ match_tone }}">{{ match_flash }}</div>
+  {% endif %}
+
+  {% if match_conflict %}
+  {# A different ΑΦΜ is already on the profile. Replacing it is deliberate, so
+     it is a second click — and the replaced value is NOT recorded as ours to
+     revert, because an admin confirmed it. #}
+  <form hx-post="/admin/crm/{{ cust_id }}/company-match/link"
+        hx-target="#company-match" hx-swap="outerHTML" class="cmatch-confirm">
+    <input type="hidden" name="afm" value="{{ match_candidate.afm }}">
+    <input type="hidden" name="confirm" value="1">
+    <button type="submit" class="u-mini">{{ t("Ναι, αντικατάσταση") }}</button>
+  </form>
+  {% endif %}
+
+  {% if company_match %}
+  <div class="cmatch-linked">
+    <div class="cmatch-linked-h">
+      🏛 <strong>{{ t("ΑΦΜ") }} {{ company_match.afm }}</strong>
+      {% if company_match.ar_gemi %}<span class="cmatch-dim"> · {{ t("Αρ. ΓΕΜΗ") }} {{ company_match.ar_gemi }}</span>{% endif %}
+      {% if company_match.score is not none %}
+      <span class="cmatch-score" title="{{ t("Βαθμολογία ταιριάσματος") }}">{{ '%.2f'|format(company_match.score) }}</span>
+      {% endif %}
+    </div>
+    {% if company_match.operator_name %}
+    <div class="cmatch-dim">{{ t("Ανάδοχος") }}:
+      <a href="/contractor/{{ company_match.afm }}" target="_blank" rel="noopener">{{ company_match.operator_name }}</a>
+    </div>
+    {% endif %}
+    <div class="cmatch-dim">
+      {{ t("Συνδέθηκε") }} {{ company_match.matched_at.strftime('%d/%m/%Y %H:%M') }}
+      {% if company_match.filled %} · {{ t("συμπληρώθηκαν αυτόματα") }}:
+        {% for k in company_match.filled %}{% if not loop.first %}, {% endif %}{{ t(field_labels.get(k, k)) }}{% endfor %}{% endif %}
+    </div>
+    <form hx-post="/admin/crm/{{ cust_id }}/company-match/unlink"
+          hx-target="#company-match" hx-swap="outerHTML"
+          hx-confirm="{{ t("Να αφαιρεθεί η σύνδεση; Θα καθαριστούν μόνο τα πεδία που είχαν εισαχθεί αυτόματα και δεν έχουν αλλάξει έκτοτε.") }}">
+      <button type="submit" class="u-mini">{{ t("Άρση σύνδεσης") }}</button>
+    </form>
+  </div>
+  {% endif %}
+
+  <form hx-post="/admin/crm/{{ cust_id }}/company-match/search"
+        hx-target="#company-match" hx-swap="outerHTML"
+        hx-indicator="#cmatch-busy" hx-disabled-elt="find button"
+        class="cmatch-search">
+    <input type="text" name="q" value="{{ (match_result.query if match_result else '') or '' }}"
+           placeholder="{{ t("Επωνυμία ή όρος αναζήτησης") }}"
+           aria-label="{{ t("Επωνυμία ή όρος αναζήτησης") }}">
+    <button type="submit" class="u-mini">{{ t("Αναζήτηση εταιρείας") }}</button>
+    <span id="cmatch-busy" class="htmx-indicator cmatch-dim">{{ t("αναζήτηση στο ΓΕΜΗ…") }}</span>
+  </form>
+  <div class="cmatch-hint">{{ t("Χωρίς όρο, αναζητείται η επωνυμία του πελάτη ή το domain του email του. Το ΓΕΜΗ επιστρέφει έως ~20 υποψήφιες — αν δεν είναι ανάμεσά τους, δοκιμάστε διαφορετικό όρο.") }}</div>
+
+  {% if match_result and match_result.candidates %}
+  <form hx-post="/admin/crm/{{ cust_id }}/company-match/link"
+        hx-target="#company-match" hx-swap="outerHTML" class="cmatch-list">
+    {% for cand in match_result.candidates %}
+    <label class="cmatch-cand">
+      <input type="radio" name="afm" value="{{ cand.afm }}"{% if loop.first %} checked{% endif %}>
+      <span class="cmatch-body">
+        <span class="cmatch-name">
+          {{ cand.name or cand.ledger_name }}
+          {% if cand.status and cand.status != 'Ενεργή' %}<span class="cmatch-badge cmatch-badge-warn">{{ cand.status }}</span>{% endif %}
+          {% if cand.is_branch %}<span class="cmatch-badge">{{ t("υποκατάστημα") }}</span>{% endif %}
+          {% if cand.source in ('ledger', 'both') %}<span class="cmatch-badge cmatch-badge-ok">{{ t("ανάδοχος") }}</span>{% endif %}
+        </span>
+        <span class="cmatch-meta">
+          {{ t("ΑΦΜ") }} {{ cand.afm or '—' }}{% if cand.city %} · {{ cand.city }}{% endif %}{% if cand.email %} · {{ cand.email }}{% endif %}
+        </span>
+        {% if cand.why %}
+        <span class="cmatch-why">
+          {%- for w in cand.why %}{% if not loop.first %} · {% endif %}{{ t(w.why) }}{% if w.detail %} <em>{{ w.detail }}</em>{% endif %}{% endfor -%}
+        </span>
+        {% endif %}
+      </span>
+      <span class="cmatch-score">{{ '%.2f'|format(cand.score) }}</span>
+    </label>
+    {% endfor %}
+    <button type="submit" class="u-btn cmatch-link-btn">{{ t("Σύνδεση με τον πελάτη") }}</button>
+    <div class="cmatch-hint">{{ t("Συμπληρώνονται μόνο τα κενά πεδία του προφίλ — τίποτα δεν αντικαθίσταται.") }}</div>
+  </form>
+  {% endif %}
+</div>

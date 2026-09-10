@@ -2704,6 +2704,73 @@ _FIT = {
         'the profile has no CPV history to match on',
 }
 
+# ΓΕΜΗ company match on the CRM card (_crm_company_match.html + app/company_match.py).
+# The signal labels are the same contract as _FIT: the fixed Greek phrase is the
+# key, the variable part rides in `detail` and is never translated.
+_COMPANY_MATCH = {
+    'Εταιρεία στο ΓΕΜΗ':
+        'Company in the business registry',
+    'Επωνυμία ή όρος αναζήτησης':
+        'Company name or search term',
+    'Αναζήτηση εταιρείας':
+        'Find company',
+    'αναζήτηση στο ΓΕΜΗ…':
+        'searching the registry…',
+    'Χωρίς όρο, αναζητείται η επωνυμία του πελάτη ή το domain του email του. Το ΓΕΜΗ επιστρέφει έως ~20 υποψήφιες — αν δεν είναι ανάμεσά τους, δοκιμάστε διαφορετικό όρο.':
+        'With no term, the customer\'s company name or email domain is searched. The registry returns at most ~20 candidates — if the right one is not among them, try a different term.',
+    'Σύνδεση με τον πελάτη':
+        'Link to this customer',
+    'Συμπληρώνονται μόνο τα κενά πεδία του προφίλ — τίποτα δεν αντικαθίσταται.':
+        'Only empty profile fields are filled in — nothing is overwritten.',
+    'Άρση σύνδεσης':
+        'Remove link',
+    'Να αφαιρεθεί η σύνδεση; Θα καθαριστούν μόνο τα πεδία που είχαν εισαχθεί αυτόματα και δεν έχουν αλλάξει έκτοτε.':
+        'Remove the link? Only fields that were filled in automatically and have not been edited since will be cleared.',
+    'Ναι, αντικατάσταση':
+        'Yes, replace it',
+    'Βαθμολογία ταιριάσματος':
+        'Match score',
+    'Συνδέθηκε':
+        'Linked',
+    'συμπληρώθηκαν αυτόματα':
+        'filled in automatically',
+    'υποκατάστημα':
+        'branch',
+    'ανάδοχος':
+        'contractor',
+    'ομοιότητα επωνυμίας':
+        'name similarity',
+    'ίδιο domain email':
+        'same email domain',
+    'ίδιο domain ιστοσελίδας':
+        'same website domain',
+    'ίδια έδρα':
+        'same registered seat',
+    'υπάρχει στο μητρώο αναδόχων':
+        'present in the contractor ledger',
+    'μειωμένη βαθμολογία':
+        'score reduced',
+    'Σύνδεση πελάτη με εταιρεία ΓΕΜΗ':
+        'Linking a customer to a registry company',
+    'Οι πελάτες συχνά εγγράφονται χωρίς ΑΦΜ και τον δίνουν μόνο όταν γίνουν συνδρομητές. Στην καρτέλα «Στοιχεία», κάτω από τη φόρμα προφίλ, η ενότητα «Εταιρεία στο ΓΕΜΗ» βρίσκει την εταιρεία από την επωνυμία (ή, αν λείπει, από το domain του email) και προτείνει υποψήφιες — από το δικό μας μητρώο αναδόχων και από το ΓΕΜΗ μαζί.':
+        'Customers often register with no tax number and only give one when they subscribe. On the "Details" tab, below the profile form, the "Company in the business registry" section finds the company from its name (or, failing that, from the email domain) and offers candidates — from our own contractor ledger and from the registry together.',
+    'Κάθε υποψήφια δείχνει γιατί ταιριάζει: ομοιότητα επωνυμίας, ίδιο domain email, ίδια έδρα, ύπαρξη στο μητρώο αναδόχων. Οι διαγραμμένες ή υπό εκκαθάριση εταιρείες εμφανίζονται με χαμηλότερη βαθμολογία — δεν κρύβονται, γιατί συχνά είναι η σωστή απάντηση για παλιό πελάτη.':
+        'Every candidate shows why it matched: name similarity, same email domain, same registered seat, presence in the contractor ledger. Struck-off or liquidating companies are scored lower but never hidden — for an older customer they are often the right answer.',
+    'Η σύνδεση γίνεται πάντα με δική σας επιλογή· τίποτα δεν συνδέεται αυτόματα. Με τη σύνδεση γράφονται ΑΦΜ/Αρ. ΓΕΜΗ και συμπληρώνονται ΜΟΝΟ τα κενά πεδία του προφίλ (επωνυμία, πόλη, Τ.Κ., διεύθυνση, τηλέφωνο, κλάδος). Ό,τι έχετε γράψει εσείς δεν αντικαθίσταται ποτέ.':
+        'You always pick; nothing is ever linked automatically. Linking writes the tax and registry numbers and fills ONLY the empty profile fields (company name, city, postcode, address, phone, industry). Anything you typed yourself is never overwritten.',
+    'Αν ο πελάτης έχει ήδη διαφορετικό ΑΦΜ, ζητείται επιβεβαίωση πριν την αντικατάσταση.':
+        'If the customer already has a different tax number, you are asked to confirm before it is replaced.',
+    'Η «Άρση σύνδεσης» καθαρίζει μόνο όσα πεδία είχε συμπληρώσει η εισαγωγή και δεν έχουν αλλάξει έκτοτε — μια δική σας διόρθωση μένει πάντα.':
+        '"Remove link" clears only the fields the import filled in that have not changed since — a correction of yours always stays.',
+    'Το ΓΕΜΗ επιστρέφει έως ~20 υποψήφιες και δεν φιλτράρεται άλλο. Αν η σωστή δεν είναι ανάμεσά τους, γράψτε διαφορετικό όρο (π.χ. μόνο τη διακριτική λέξη της επωνυμίας).':
+        'The registry returns at most ~20 candidates and cannot be narrowed further. If the right one is not among them, try a different term (the distinctive word of the name on its own, for instance).',
+    'Τ.Κ.':
+        'Postcode',
+    'Κλάδος':
+        'Industry',
+}
+
+
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
@@ -2713,5 +2780,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMCARD, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
              _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY, _DIGESTS,
              _SELF_SERVE, _PUBLIC, _HELP_PUBLIC, _AI_POLICY, _FIT,
-             _MATCH):
+             _COMPANY_MATCH, _MATCH):
     UI_EN.update(_grp)
