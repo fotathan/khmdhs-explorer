@@ -92,3 +92,62 @@ def test_the_section_is_translated_not_silently_greek(client, help_flag):
     body = client.get("/help", follow_redirects=False).text
     assert EN_MARKER in body
     assert EL_MARKER not in body
+
+
+# --------------------------------------------------------------------------- #
+# Translation coverage
+#
+# The section test above pins ONE phrase. That is not enough: an untranslated
+# key falls back to Greek silently, so the EN page degrades a paragraph at a
+# time and nothing fails. Eight paragraphs of the AI-summary section had drifted
+# that way before anyone noticed. Assert the whole page instead.
+# --------------------------------------------------------------------------- #
+def test_every_help_string_has_an_english_translation():
+    import pathlib
+    import re
+
+    from app.i18n_catalog import UI_EN
+
+    src = pathlib.Path("app/templates/beta_help.html").read_text(encoding="utf-8")
+    keys = {m.group(2) for m in
+            re.finditer(r"""t\(\s*(["'])(.*?)\1\s*\)""", src, re.S)}
+    assert keys, "no t() calls found — the extraction regex has drifted"
+    missing = sorted(k for k in keys if k not in UI_EN)
+    assert not missing, (
+        "beta_help.html has %d string(s) with no entry in UI_EN; the English "
+        "page renders them in Greek:\n  - %s" % (len(missing), "\n  - ".join(missing)))
+
+
+# --------------------------------------------------------------------------- #
+# The other two feature-gated sections follow their switch, same rule as the
+# passwordless one: the manual must not describe a panel that is not there.
+# --------------------------------------------------------------------------- #
+@pytest.fixture()
+def flag():
+    """Set any template global for the duration of one test."""
+    from app import main
+    saved = {}
+
+    def _set(name, value):
+        saved.setdefault(name, main.templates.env.globals.get(name))
+        main.templates.env.globals[name] = value
+
+    yield _set
+    for name, value in saved.items():
+        main.templates.env.globals[name] = value
+
+
+@pytest.mark.parametrize("global_name, marker", [
+    ("ai_summary_enabled", "Σύνοψη διαγωνισμού (AI)"),
+    ("telephony_enabled", "Τηλεφωνία (softphone & αναγνώριση κλήσης)"),
+])
+def test_gated_section_follows_its_switch(client, flag, global_name, marker):
+    _as_admin(client)
+
+    flag(global_name, True)
+    on = client.get("/help", follow_redirects=False).text
+    assert marker in on or marker.replace("&", "&amp;") in on
+
+    flag(global_name, False)
+    off = client.get("/help", follow_redirects=False).text
+    assert marker not in off and marker.replace("&", "&amp;") not in off

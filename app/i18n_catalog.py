@@ -1810,6 +1810,246 @@ _HELP = {
     "Κοινό Λεξιλόγιο Δημοσίων Συμβάσεων — ο κωδικός κατηγορίας της ΕΕ για το τι αγοράζεται.": "Common Procurement Vocabulary — the EU category code for what's being bought.",
     "Ο περιφερειακός γεωκωδικός της ΕΕ· εδώ, οι ελληνικές περιφέρειες για το φίλτρο τοποθεσίας.": "The EU regional geocode; here, the Greek regions for the location filter.",
     "Ο οδηγός περιγράφει την εφαρμογή όπως είναι σήμερα. Η διαθεσιμότητα δυνατοτήτων μπορεί να διαφέρει ανά διαμόρφωση.": "This guide describes the app as it stands today. Feature availability can vary with configuration.",
+
+    "Σύνοψη διαγωνισμού (AI)": "Tender summary (AI)",
+    "Σε προκηρύξεις, κάτω από τα βασικά στοιχεία, μπορεί να εμφανίζεται το πάνελ «Σύνοψη διαγωνισμού». Διαβάζει το πλήρες κείμενο και τους δημοσιευμένους πίνακες της πράξης και βγάζει στην επιφάνεια όσα ΔΕΝ υπάρχουν ήδη ως πεδία: προθεσμίες πέρα από την καταληκτική (ερωτήματα, διευκρινίσεις, επιτόπια επίσκεψη, αποσφράγιση), τις βαρύτητες πίσω από το κριτήριο ανάθεσης, εγγυήσεις συμμετοχής και καλής εκτέλεσης, τεχνικές απαιτήσεις, κριτήρια συμμετοχής, τον τρόπο υποβολής και τα σημεία προσοχής — ποινικές ρήτρες, όρια υπεργολαβίας.":
+        "On notices, below the key details, a “Tender summary” panel may appear. It reads the act's full text and published tables and surfaces what is NOT already a field: deadlines beyond the closing one (questions, clarifications, site visit, bid opening), the weightings behind the award criterion, participation and performance guarantees, technical requirements, participation criteria, how to submit, and the points to watch — penalty clauses, subcontracting limits.",
+    "Κάθε στοιχείο συνοδεύεται από το ΑΥΤΟΛΕΞΕΙ απόσπασμα του εγγράφου που το παρήγαγε, και ένα κλικ σας πηγαίνει στην ακριβή παράγραφο μέσα στο πλήρες κείμενο. Αυτό δεν είναι διακοσμητικό: αν ένα απόσπασμα δεν βρεθεί επί λέξει στο έγγραφο, το στοιχείο δεν εμφανίζεται καθόλου. Ό,τι βλέπετε, υπάρχει στο κείμενο.":
+        "Every item carries the VERBATIM excerpt of the document that produced it, and one click takes you to the exact paragraph inside the full text. This is not decorative: if an excerpt is not found word for word in the document, the item is not shown at all. What you see exists in the text.",
+    "Το πάνελ δεν επαναλαμβάνει ποτέ ό,τι ξέρει ήδη η πράξη — καταληκτική ημερομηνία, προϋπολογισμός, εκτιμώμενη αξία, τύπος διαδικασίας, τμήματα. Αυτά τα βλέπετε από την επίσημη εγγραφή, στα στοιχεία της πράξης, και μια μηχανή δεν είναι καλύτερη πηγή γι' αυτά.":
+        "The panel never repeats what the act already knows — closing date, budget, estimated value, procedure type, lots. You get those from the official record, in the act's details, and a machine is not a better source for them.",
+    "Εργαλείο πρώτης αξιολόγησης": "A first-pass assessment tool",
+    "Η σύνοψη σας βοηθά να αποφασίσετε σε ένα λεπτό αν αξίζει να διαβάσετε ολόκληρη την προκήρυξη. Δεν την αντικαθιστά. Μπορεί να είναι ελλιπής — ιδίως όταν οι λεπτομέρειες βρίσκονται σε συνημμένα έγγραφα, τα οποία προς το παρόν δεν διαβάζονται. Επιβεβαιώνετε πάντα τα στοιχεία στα επίσημα έγγραφα πριν υποβάλετε προσφορά.":
+        "The summary helps you decide in a minute whether the whole notice is worth reading. It does not replace it. It can be incomplete — especially when the details live in attached documents, which are not read for now. Always confirm the facts in the official documents before you bid.",
+    "Ό,τι λείπει, το λέει": "It says what is missing",
+    "Στο τέλος του πάνελ υπάρχει η ενότητα «Δεν αναφέρονται στην προκήρυξη». Το ότι ένα έγγραφο ΔΕΝ ορίζει ημερομηνία επιτόπιας επίσκεψης είναι πληροφορία — η σιωπή δεν είναι.":
+        "At the foot of the panel there is a “Not stated in the notice” section. That a document does NOT set a site-visit date is information — silence is not.",
+    # --- 2026-09-10 help refresh: accounts self-service, the full filter set,
+    #     act-page badges, the admin console map, call summaries, fit. ---
+    "Επτά προορισμοί βρίσκονται στην κεφαλίδα, ίδιοι σε κάθε σελίδα. Οι δύο τελευταίοι εμφανίζονται μόνο σε διαχειριστές.":
+        "Seven destinations sit in the header, the same on every page. The last two show only for admins.",
+    "Αυτός ο οδηγός. Προς το παρόν είναι ορατός μόνο σε διαχειριστές.":
+        "This guide. For now it is visible to admins only.",
+    "Τι μεταφράζεται και τι όχι": "What is translated and what isn't",
+    "Μεταφράζεται το περιβάλλον: κουμπιά, επικεφαλίδες, ετικέτες φίλτρων και οι σταθερές λίστες τιμών. ΔΕΝ μεταφράζονται τα ίδια τα δεδομένα — τίτλοι πράξεων, επωνυμίες αρχών και αναδόχων, πλήρη κείμενα — γιατί είναι επίσημες εγγραφές και μένουν στη γλώσσα που δημοσιεύθηκαν.":
+        "The interface is translated: buttons, headings, filter labels and the fixed value lists. The DATA is not — act titles, authority and contractor names, full texts — because they are official records and stay in the language they were published in.",
+    "Υποσέλιδο": "Footer",
+    "Σε κάθε σελίδα, το υποσέλιδο οδηγεί στις πέντε δημόσιες σελίδες εμπιστοσύνης:":
+        "On every page, the footer leads to the five public trust pages:",
+    "γλωσσάρι": "glossary",
+    "Οι δύο τελευταίες είναι ακόμη ΠΡΟΣΧΕΔΙΑ και το δηλώνουν με λωρίδα στην κορυφή τους· οι τρεις πρώτες όχι.":
+        "The last two are still DRAFTS and say so in a band at the top; the first three are not.",
+    "δημιουργεί λογαριασμό πελάτη. Έχει τρεις καταστάσεις και προεπιλογή την κλειστή:":
+        "creates a customer account. It has three states and defaults to closed:",
+    "η σελίδα δεν υπάρχει· μόνο διαχειριστής δημιουργεί λογαριασμούς":
+        "the page does not exist; only an admin creates accounts",
+    "με πρόσκληση": "by invitation",
+    "ζητείται κωδικός πρόσκλησης": "an invitation code is required",
+    "ανοιχτή": "open",
+    "Οι διαχειριστές μπορούν να εκδώσουν προσωρινό συνθηματικό για έναν χρήστη (χωρίς email)· ο χρήστης υποχρεούται να ορίσει δικό του συνθηματικό κατά την επόμενη σύνδεση. Μέχρι να το κάνει, η συνεδρία του δεν φτάνει πουθενά αλλού.":
+        "Admins can issue a temporary password for a user (no email involved); the user must set their own password at the next sign-in. Until they do, their session goes nowhere else.",
+    "φτάνετε επίσης στις «Αποθηκευμένες αναζητήσεις & ειδοποιήσεις» σας — εκεί ζουν τα δικά σας email αποτελεσμάτων.":
+        "you also reach your “Saved searches & alerts” — that is where your own result emails live.",
+    "Τα δεδομένα σας: λήψη και διαγραφή λογαριασμού":
+        "Your data: download and account deletion",
+    "κάθε πελάτης εξυπηρετείται μόνος του, χωρίς να χρειάζεται να μας γράψει:":
+        "every customer serves themselves, without having to write to us:",
+    "κατεβάζει σε ένα αρχείο ό,τι προσωπικό τηρείται για τον λογαριασμό: τα στοιχεία λογαριασμού, το ιστορικό συνδρομών, το προφίλ πελάτη, και τις σημειώσεις, κλήσεις και εργασίες που τον αφορούν στο CRM. Το συνθηματικό δεν περιλαμβάνεται ποτέ.":
+        "downloads into one file every piece of personal data held for the account: the account details, the subscription history, the customer profile, and the CRM notes, calls and tasks about them. The password is never included.",
+    "μη αναστρέψιμη. Ζητά ρητή επιβεβαίωση ΚΑΙ το τρέχον συνθηματικό, και μαζί με τον λογαριασμό φεύγουν συνδρομές, προφίλ, σημειώσεις, κλήσεις και εργασίες. Το αρχείο ενεργειών κρατά μόνο το όνομα χρήστη ως αποτύπωμα.":
+        "irreversible. It asks for an explicit confirmation AND the current password, and subscriptions, profile, notes, calls and tasks go with the account. The audit log keeps only the username as a trace.",
+    "Οι διαχειριστές δεν διαγράφονται από εδώ": "Admins are not deleted from here",
+    "Ένας λογαριασμός διαχειριστή δεν μπορεί να αυτοδιαγραφεί — η ενέργεια απορρίπτεται με μήνυμα. Οι λογαριασμοί διαχειριστών διαχειρίζονται στο":
+        "An admin account cannot delete itself — the action is refused with a message. Admin accounts are managed in",
+    "Προκήρυξη, Αποτέλεσμα, Σύμβαση, Εντολή Πληρωμής — τα τέσσερα στάδια που φιλτράρονται. Πολλαπλή επιλογή: οι επιλογές προστίθενται (OR).":
+        "Notice, Award, Contract, Payment order — the four stages you can filter on. Multi-select: the choices add up (OR).",
+    "Καρφιτσώνει τη λίστα σε έναν ή περισσότερους αγοραστές· πληκτρολογήστε για υποδείξεις. Οι ενοποιημένες αρχές φέρνουν και τα δεδομένα των διπλοτύπων τους.":
+        "Pins the list to one or more buyers; type for suggestions. Merged authorities also bring in the data of their duplicates.",
+    "Ανοιχτή και κλειστή διαδικασία, απευθείας ανάθεση, ανταγωνιστικός διάλογος, οι μορφές διαπραγμάτευσης, σύμπραξη καινοτομίας και η διαδικασία του άρθρου 128.":
+        "Open and restricted procedure, direct award, competitive dialogue, the negotiated forms, innovation partnership and the article-128 procedure.",
+    "Γεωγραφία — Περιφέρεια (NUTS)": "Geography — Region (NUTS)",
+    "Ελάχιστη / μέγιστη αξία.": "Minimum / maximum value.",
+    "Κοινό Λεξιλόγιο Δημοσίων Συμβάσεων. Πληκτρολογήστε για υποδείξεις, ή ανοίξτε τον περιηγητή για να εξερευνήσετε το δέντρο CPV. Ταίριασμα προθέματος· πολλοί κωδικοί μαζί προστίθενται (OR).":
+        "Common Procurement Vocabulary. Type for suggestions, or open the browser to explore the CPV tree. Prefix matching; several codes together add up (OR).",
+    "Από / έως, στην ημερομηνία που δημοσιεύθηκε η πράξη.":
+        "From / to, on the date the act was published.",
+    "Από / έως, στην προθεσμία υποβολής προσφορών — αυτό απαντά στο «τι κλείνει την επόμενη εβδομάδα», που η ημερομηνία δημοσίευσης δεν το απαντά.":
+        "From / to, on the bid submission deadline — this answers “what closes next week”, which the publication date does not.",
+    "Δύο τύποι εκτός φίλτρου": "Two act types outside the filter",
+    "Το «Πρωτογενές Αίτημα» (ΚΗΜΔΗΣ) και η «Ανάθεση» (Διαύγεια) υπάρχουν ως πράξεις και εμφανίζονται κανονικά στον κύκλο ζωής μιας διαδικασίας, αλλά δεν είναι επιλογές του φίλτρου — δεν τα συλλέγουμε συστηματικά και θα γέμιζαν τη στήλη με μια επιλογή που σχεδόν πάντα γυρίζει άδεια.":
+        "“Primary request” (KIMDIS) and “Award decision” (Diavgeia) exist as acts and appear normally in a procedure's lifecycle, but they are not filter options — we do not collect them systematically, and they would fill the column with a choice that almost always comes back empty.",
+    "Δεν υπάρχει φίλτρο αναδόχου": "There is no contractor filter",
+    "Ο ανάδοχος δεν είναι φίλτρο της αναζήτησης: το όνομά του ταιριάζει από την μπάρα αναζήτησης, και για την πλήρη εικόνα ενός προμηθευτή ανοίγετε το προφίλ του στο":
+        "The contractor is not a search filter: their name matches from the search bar, and for a supplier's full picture you open their profile at",
+    "που παραθέτει όλες τις πράξεις του.": "which lists all of their acts.",
+    "Ταξινόμηση & πλήθος ανά σελίδα": "Sorting & results per page",
+    "Πάνω από τα αποτελέσματα, δύο μικρά μενού: η": "Above the results, two small menus: the",
+    "δέχεται «Νεότερες πρώτα» (προεπιλογή), «Αξία ↓» και «Σχετικότητα» — η τελευταία έχει νόημα μόνο όταν έχετε γράψει όρους αναζήτησης — και το":
+        "takes “Newest first” (the default), “Value ↓” and “Relevance” — the last only makes sense once you have typed search terms — and the",
+    "ορίζει πόσα αποτελέσματα δείχνει κάθε οθόνη. Και τα δύο ταξιδεύουν μέσα στη διεύθυνση, οπότε ένας σύνδεσμος που μοιράζεστε ανοίγει την ίδια ακριβώς προβολή.":
+        "sets how many results each screen shows. Both travel inside the address, so a link you share opens exactly the same view.",
+    "Κάθε κάρτα οδηγεί στη σελίδα της πράξης. Το ίδιο ερώτημα λειτουργεί και ως δεδομένα: στείλτε":
+        "Every card leads to the act's page. The same query also works as data: send",
+    "σε οποιαδήποτε διεύθυνση με λίστα ή πίνακα και παίρνετε JSON αντί για HTML.":
+        "to any list or table address and you get JSON instead of HTML.",
+    "Όταν εφαρμόσετε ένα προφίλ, το όνομά του εμφανίζεται ως σήμα πάνω από τα αποτελέσματα, ώστε να ξέρετε ότι δεν κοιτάτε μια σκέτη αναζήτηση· το ✕ πάνω του σβήνει την επισήμανση χωρίς να πειράξει τα φίλτρα. Αν αλλάξετε φίλτρα από εκεί και αποθηκεύσετε ξανά, αποθηκεύεται η νέα τομή — το σήμα δεν κολλάει πάνω σε άλλα φίλτρα.":
+        "When you apply a profile, its name appears as a badge above the results, so you know you are not looking at a plain search; the ✕ on it clears the badge without touching the filters. If you change filters from there and save again, the new slice is what gets saved — the badge does not stick to other filters.",
+    "λίστα αποτελεσμάτων, σύνοψη με στατιστικά, ή υπενθύμιση προθεσμιών.":
+        "result list, summary with statistics, or deadline reminder.",
+    "ένα από τα προγράμματα της πύλης· χωρίς επιλογή ακολουθείται η προεπιλογή της πύλης.":
+        "one of the portal's schedules; with none chosen, the portal default applies.",
+    "πόσες πράξεις παραθέτει το ίδιο το μήνυμα (το κουμπί μέσα στο email δείχνει πάντα ολόκληρο το σύνολο).":
+        "how many acts the message itself lists (the button inside the email always shows the whole set).",
+    "μόνο για την υπενθύμιση προθεσμιών: τα σημεία υπενθύμισης, π.χ. «7, 1».":
+        "for the deadline reminder only: the reminder marks, e.g. “7, 1”.",
+    "στέλνει το μήνυμα ακόμη κι όταν το διάστημα δεν έφερε τίποτα. Από προεπιλογή ένα κενό διάστημα ΔΕΝ στέλνει email, ώστε να μη λαμβάνετε άδεια μηνύματα.":
+        "sends the message even when the window brought nothing. By default an empty window sends NO email, so you don't receive blank messages.",
+    "διακόπτει ή ξαναρχίζει την ειδοποίηση χωρίς να χάσετε τις ρυθμίσεις της.":
+        "pauses or resumes the alert without losing its settings.",
+    "Οι επιπλέον παραλήπτες (συνάδελφοι που λαμβάνουν το ίδιο email) προστίθενται από τη διαχείριση, όχι από εσάς· στη σελίδα σας φαίνεται ποιοι είναι. Είναι σκόπιμο: μια αυτοεξυπηρετούμενη «στείλ' το και σε αυτούς» στέλνει τα mail μας σε ανθρώπους που δεν το ζήτησαν.":
+        "Extra recipients (colleagues who receive the same email) are added by the admins, not by you; your page shows who they are. That is deliberate: a self-service “send it to them too” sends our mail to people who never asked for it.",
+    "Στην ίδια σελίδα βλέπετε τις τελευταίες αποστολές κάθε ειδοποίησης, με σύνδεσμο «τι στάλθηκε» για κάθε μήνυμα που έφυγε, και πότε είναι η επόμενη.":
+        "On the same page you see each alert's latest sends, with a “what was sent” link for every message that went out, and when the next one is due.",
+    "Συνδεδεμένοι χρήστες μπορούν να εξάγουν την τρέχουσα αναζήτηση (με τα ενεργά φίλτρα) σε CSV ή Excel (XLSX) από το μενού «Εξαγωγή» πάνω από την μπάρα αναζήτησης. Το ίδιο το μενού γράφει το όριο γραμμών που ισχύει για εσάς — 1.000 για πελάτη, 20.000 για διαχειριστή, και τα δύο ρυθμιζόμενα. Για μεγαλύτερα σύνολα, στενέψτε τα φίλτρα και εξάγετε σε κομμάτια.":
+        "Signed-in users can export the current search (with its active filters) to CSV or Excel (XLSX) from the “Export” menu above the search bar. The menu itself states the row cap that applies to you — 1,000 for a customer, 20,000 for an admin, both configurable. For larger sets, narrow the filters and export in pieces.",
+    "Οι εξαγωγές έχουν όριο συχνότητας. Αν δείτε «Πάρα πολλές εξαγωγές», περιμένετε λίγο και ξαναδοκιμάστε — δεν έχει χαλάσει κάτι.":
+        "Exports are rate-limited. If you see “Too many exports”, wait a moment and try again — nothing is broken.",
+    "Τμήματα (lots)": "Lots",
+    "Όπου ο διαγωνισμός χωρίζεται σε τμήματα: ποια είναι, και σε ποιο από αυτά αφορά η συγκεκριμένη πράξη.":
+        "Where the tender is split into lots: which they are, and which of them this particular act applies to.",
+    "Τα ανεβασμένα έγγραφα της πράξης, ένα-ένα ή όλα μαζί σε zip (όπου η δυνατότητα είναι ενεργή).":
+        "The act's uploaded documents, one by one or all together as a zip (where the feature is enabled).",
+    "Ποιος κερδίζει τέτοιους διαγωνισμούς": "Who wins tenders like this",
+    "Οι κορυφαίοι ανάδοχοι στους ίδιους κωδικούς CPV — συμβάσεις, συνολική αξία, πιο πρόσφατη.":
+        "The top contractors on the same CPV codes — contracts, total value, most recent.",
+    "Σύνδεσμος προς το επίσημο έγγραφο στην πύλη προέλευσης (ΚΗΜΔΗΣ, Διαύγεια ή TED).":
+        "A link to the official document on its source portal (KIMDIS, Diavgeia or TED).",
+    "Σήματα κατάστασης": "Status badges",
+    "Δίπλα στον τίτλο μπορεί να εμφανιστούν μικρά σήματα που αλλάζουν το πώς διαβάζεται η πράξη:":
+        "Small badges may appear next to the title that change how the act should be read:",
+    "Σήμα": "Badge",
+    "Σημαίνει": "Means",
+    "Η διαδικασία ματαιώθηκε ή ανακλήθηκε. Δεν χρονίζεται ποτέ σε υπενθύμιση προθεσμίας και δεν μετράει στα στατιστικά.":
+        "The procedure was cancelled or withdrawn. It is never chased by a deadline reminder and does not count in the statistics.",
+    "Η πράξη αναρτήθηκε ξανά διορθωμένη. Το σήμα «Πιο πρόσφατη» δείχνει ποια εκδοχή ισχύει.":
+        "The act was re-published in corrected form. The “Most recent” badge shows which version stands.",
+    "Η αξία είναι πιθανό σφάλμα της πηγής (το ΚΗΜΔΗΣ ενίοτε διογκώνει ένα ποσό ~1000×). Η πράξη φαίνεται κανονικά, αλλά εξαιρείται από τα σύνολα.":
+        "The value is a likely source error (KIMDIS sometimes inflates an amount ~1000×). The act displays normally but is excluded from the totals.",
+    "Διαχειριστής τη σήμανε χειροκίνητα ως σφάλμα δεδομένων.":
+        "An admin flagged it by hand as a data error.",
+    "Πράξη που αναφέρεται αλλά δεν έχει εισαχθεί":
+        "An act that is referenced but not ingested",
+    "Ο κύκλος ζωής μιας διαδικασίας μπορεί να παραπέμπει σε ΑΔΑΜ που δεν έχει ακόμη συλλεχθεί. Ο σύνδεσμος λειτουργεί: ανοίγει μια λιτή σελίδα που λέει τι είναι γνωστό γι' αυτόν τον ΑΔΑΜ (ο πιθανός τύπος, ποιες πράξεις τον αναφέρουν και ποιες αναφέρει) αντί για 404.":
+        "A procedure's lifecycle can point at an ADAM that has not been collected yet. The link still works: it opens a spare page saying what is known about that ADAM (its likely type, which acts reference it and which it references) instead of a 404.",
+    "Οι τεχνικές απαιτήσεις και τα κριτήρια συμμετοχής σημειώνονται ως «υποχρεωτικό» ή «επιθυμητό» όταν το κείμενο το ξεχωρίζει — η διάκριση αλλάζει το αν μπορείτε καν να συμμετάσχετε. Όπου ένα στοιχείο διαφωνεί με την επίσημη εγγραφή (π.χ. διαφορετική καταληκτική ημερομηνία στο σώμα του εγγράφου), το πάνελ το δείχνει ως διαφωνία αντί να διαλέξει σιωπηλά.":
+        "Technical requirements and participation criteria are marked “mandatory” or “desirable” where the text distinguishes them — the distinction decides whether you can take part at all. Where an item disagrees with the official record (say, a different closing date inside the document body), the panel shows it as a conflict instead of silently picking one.",
+    "Για πολύ μεγάλα έγγραφα η ανάλυση διαβάζει μέχρι ένα όριο χαρακτήρων και το γράφει στο τέλος του πάνελ («η ανάλυση κάλυψε τους πρώτους … χαρακτήρες»). Ό,τι βρίσκεται πιο κάτω δεν διαβάστηκε — μια σιωπή εκεί δεν είναι απουσία όρου.":
+        "For very large documents the analysis reads up to a character limit and says so at the foot of the panel (“the analysis covered the first … characters”). Anything below that was not read — a silence there is not the absence of a clause.",
+    "Η σύνοψη παράγεται μία φορά ανά πράξη και μετά διαβάζεται από όλους: αν την έχει ήδη δημιουργήσει κάποιος, εμφανίζεται αμέσως. Η δημιουργία ξεκινά από διαχειριστή, τρέχει ως εργασία παρασκηνίου (η σελίδα ενημερώνεται μόνη της, συνήθως μέσα σε ένα λεπτό) και έχει ημερήσιο όριο ώστε να μη φεύγει το κόστος εκτός ελέγχου. Αν το κείμενο της πράξης αλλάξει (νέα εισαγωγή, διόρθωση, δημοσίευση πίνακα), η παλιά σύνοψη αποσύρεται αυτόματα — γιατί οι παραπομπές της θα έδειχναν σε κείμενο που δεν υπάρχει πια.":
+        "The summary is generated once per act and read by everyone after that: if someone has already made it, it appears immediately. Generation is started by an admin, runs as a background job (the page refreshes itself, usually within a minute) and has a daily cap so the cost cannot run away. If the act's text changes (a re-ingest, a correction, a published table), the old summary is retired automatically — because its citations would point at text that no longer exists.",
+    "Τι δεν βλέπει ποτέ το μοντέλο": "What the model never sees",
+    "Στον πάροχο μοντέλου φεύγει μόνο το ΔΗΜΟΣΙΟ περιεχόμενο της πράξης — το κείμενο και οι πίνακές της. Κανένα στοιχείο πελάτη, καμία αναζήτηση και κανένα προφίλ ικανοτήτων δεν συνοδεύει το αίτημα· η σύνοψη είναι η ίδια για όλους. Το":
+        "Only the PUBLIC content of the act goes to the model provider — its text and its tables. No customer detail, no search and no capability profile travels with the request; the summary is the same for everyone.",
+    "τα λέει αναλυτικά, μαζί με το ποιος είναι ο τρέχων πάροχος και πού φιλοξενείται.":
+        "spells this out, along with who the current provider is and where it is hosted.",
+    "η συγκεντρωτική ανάλυση της τρέχουσας φιλτραρισμένης τομής σας: πλήθος πράξεων και συνολική αξία, και δύο κατατάξεις — κορυφαίες αναθέτουσες και κορυφαίοι ανάδοχοι κατά αξία. Έχει τη δική της γραμμή φίλτρων, ώστε να στενεύετε χωρίς να γυρίσετε στη λίστα, και κάθε γραμμή γυρίζει πίσω σε λίστα πράξεων.":
+        "the aggregate breakdown of your current filtered slice: act count and total value, plus two rankings — top authorities and top contractors by value. It has its own filter bar, so you can narrow without going back to the list, and every row links back to a list of acts.",
+    "η εικόνα ολόκληρου του σώματος: μηνιαία αξία αναθέσεων, κατηγορίες αντικειμένου (CPV), κορυφαίες αρχές και ανάδοχοι, με σύνολα προκηρύξεων και συμβάσεων. Χτίζεται από προϋπολογισμένες όψεις, που ανανεώνονται μετά από κάθε εισαγωγή.":
+        "the picture of the whole corpus: monthly award value, subject categories (CPV), top authorities and contractors, with notice and contract totals. Built from precomputed views, refreshed after each ingest.",
+    "Γιατί άλλοτε είναι ακαριαία και άλλοτε όχι":
+        "Why it is sometimes instant and sometimes not",
+    "Χωρίς φίλτρα — ή μόνο με τύπο πράξης — η Σύνοψη διαβάζει προϋπολογισμένα σύνολα και εμφανίζεται στιγμιαία. Μόλις προσθέσετε λέξεις-κλειδιά, CPV, περιοχή, ημερομηνίες ή εύρος αξίας, ο υπολογισμός γίνεται ζωντανά πάνω στη στενότερη τομή και θέλει λίγο χρόνο. Η σελίδα το λέει από μόνη της.":
+        "With no filters — or only an act type — Explore reads precomputed totals and appears instantly. As soon as you add keywords, CPV, region, dates or a value range, the calculation runs live over the narrower slice and takes a moment. The page says so itself.",
+    "Το πλήρες κείμενο συλλέγεται προαιρετικά — δεν κατεβαίνει σε κάθε εισαγωγή, μόνο όταν ενεργοποιηθεί ρητά — και μόλις υπάρξει τροφοδοτεί και το πάνελ και την αναζήτηση. Όπου ένα PDF είναι σαρωμένο ή έχει χαλασμένη κωδικοποίηση γραμματοσειράς (συνηθισμένο σε ελληνικά έγγραφα), το κείμενο περνά από OCR ώστε να μην καταλήξει ακαταλαβίστικο.":
+        "Full text is collected optionally — it is not downloaded on every ingest, only when explicitly switched on — and once it exists it feeds both the panel and the search. Where a PDF is scanned or has a broken font encoding (common in Greek documents), the text goes through OCR so it does not end up unreadable.",
+    "Ένα ξεχωριστό μαζικό πέρασμα πλήρους κειμένου συμπληρώνει κείμενο για ήδη εισηγμένες πράξεις — μία εργασία ανά πηγή, και συμπληρώνει μόνο όσες δεν έχουν ήδη κείμενο.":
+        "A separate bulk full-text pass fills in text for already-ingested acts — one job per source, and it only fills the ones that have no text yet.",
+    "Για το TED υπάρχει και «Μαζική συλλογή τμημάτων (lots)», που συμπληρώνει τα τμήματα των ήδη εισηγμένων προκηρύξεων.":
+        "For TED there is also “Bulk lot collection”, which fills in the lots of notices that are already ingested.",
+    "Πάνω από τα πάνελ, μια λωρίδα «Κάλυψη» ανά πηγή δείχνει πόσο έχει προχωρήσει η συλλογή — έτσι βλέπετε τι λείπει πριν ζητήσετε νέα εκτέλεση, αντί να ξαναπεράσετε διαστήματα που έχουν ήδη γίνει.":
+        "Above the panels, a per-source “Coverage” band shows how far collection has got — so you can see what is missing before starting a new run, instead of re-walking ranges that are already done.",
+    "Παράλειψη ολοκληρωμένων παραθύρων": "Skipping completed windows",
+    "Κάθε εκτέλεση σπάει το εύρος σε παράθυρα (η συλλογή ΚΗΜΔΗΣ σε διαστήματα 180 ημερών, αυτόματα) και θυμάται ποια ολοκληρώθηκαν. Το τσεκ «παράλειψη παραθύρων που έχουν ήδη ολοκληρωθεί» είναι το προτεινόμενο: μπορείτε να ξαναδώσετε το ίδιο εύρος για να καλυφθούν μόνο τα κενά. Μια διακομμένη εκτέλεση συνεχίζει από εκεί που έμεινε.":
+        "Every run splits the range into windows (KIMDIS collection into 180-day slices, automatically) and remembers which ones completed. The “skip windows already completed” checkbox is the recommended setting: you can re-enter the same range and only the gaps get covered. An interrupted run resumes where it left off.",
+    "έχει ομαδοποιημένη πλαϊνή πλοήγηση σε τρεις ομάδες. Ο πλήρης χάρτης:":
+        "has a grouped side-nav in three groups. The full map:",
+    "Τι κάνει": "What it does",
+    "Οι λογαριασμοί πελατών και οι δυνητικοί πελάτες· από εδώ ανοίγει η καρτέλα του καθενός.":
+        "The customer accounts and the leads; each one's card opens from here.",
+    "Όλες οι κλήσεις όλων των πελατών σε μία λίστα, με αναζήτηση.":
+        "Every call of every customer in one list, with search.",
+    "Όλες οι εργασίες, με κατάσταση και υπεύθυνο.": "Every task, with status and owner.",
+    "Όλες οι σημειώσεις πελατών.": "Every customer note.",
+    "Δημιουργία και διαχείριση προφίλ πύλης και πελάτη: δημοσίευση, μετονομασία, διαγραφή, και σε ποιον ανήκει το καθένα.":
+        "Creating and managing portal and customer profiles: publishing, renaming, deleting, and who owns each one.",
+    "Η λίστα με τους τομείς δωρεάν email (gmail.com, hotmail.com…). Την χρησιμοποιούν ο έλεγχος διπλοτύπων στους δυνητικούς πελάτες και το ταίριασμα ΓΕΜΗ, ώστε ένα κοινό domain να μην περνά ποτέ για απόδειξη ότι δύο εγγραφές είναι η ίδια εταιρεία.":
+        "The list of free-email domains (gmail.com, hotmail.com…). The lead duplicate check and the GEMI match both use it, so a shared domain never passes as proof that two records are the same company.",
+    "Πρότυπα email": "Email templates",
+    "Τα κείμενα κάθε μηνύματος που στέλνει η εφαρμογή, σε ελληνικά και αγγλικά — τα τρία πρότυπα ειδοποιήσεων, ο σύνδεσμος σύνδεσης, και όσα χρησιμοποιεί η «Σύνθεση email». Η αλλαγή μιας διατύπωσης δεν χρειάζεται νέα έκδοση.":
+        "The wording of every message the app sends, in Greek and English — the three alert templates, the sign-in link, and the ones “Compose email” uses. Changing a phrase needs no new release.",
+    "Τα προγράμματα συχνότητας, η συνολική εικόνα των εγγραφών (μόνο ανάγνωση) και το ιστορικό αποστολών.":
+        "The frequency schedules, the read-only overview of subscriptions, and the send history.",
+    "Εκκίνηση και παρακολούθηση εισαγωγών από τις τρεις πηγές.":
+        "Starting and watching ingests from the three sources.",
+    "Αναζήτηση, δημιουργία και επεξεργασία πράξεων.": "Searching, creating and editing acts.",
+    "Οι εσωτερικές σημειώσεις και σημαίες σε πράξεις, μαζεμένες.":
+        "The internal notes and flags on acts, gathered in one place.",
+    "Συγχώνευση διπλότυπων εγγραφών σε μία. Αναστρέψιμη.":
+        "Merging duplicate records into one. Reversible.",
+    "Σύνδεση πράξεων του ίδιου διαγωνισμού και τα τμήματά του.":
+        "Linking the acts of one tender, and its lots.",
+    "Οι λογαριασμοί διαχειριστών.": "The admin accounts.",
+    "Κάθε ενέργεια που άλλαξε δεδομένα.": "Every action that changed data.",
+    "Η συλλογή δεδομένων είναι η αρχή της αλυσίδας και ζει στο":
+        "Data collection is the head of the chain and lives at",
+    "Η καρτέλα κάθε πελάτη χωρίζεται σε πέντε καρτέλες:":
+        "Each customer's card is split into five tabs:",
+    "Καρτέλα": "Tab",
+    "Τι έχει μέσα": "What's inside",
+    "Το προφίλ του πελάτη, οι επαφές, τα προϊόντα/συνδρομές και η σύνδεση με την εταιρεία του στο ΓΕΜΗ.":
+        "The customer's profile, contacts, products/subscriptions, and the link to their company in GEMI.",
+    "Οι αποθηκευμένες αναζητήσεις του και τα email αποτελεσμάτων που λαμβάνει.":
+        "Their saved searches and the result emails they receive.",
+    "Σημειώσεις, κλήσεις και εργασίες.": "Notes, calls and tasks.",
+    "Οι ανοικτοί διαγωνισμοί που του ταιριάζουν, βαθμολογημένοι.":
+        "The open tenders that fit them, scored.",
+    "Σύνταξη μηνύματος προς τον πελάτη από τα πρότυπα email, με τα πεδία του ήδη συμπληρωμένα.":
+        "Drafting a message to the customer from the email templates, with their fields already filled in.",
+    "Οι αριθμοί πάνω στις καρτέλες δείχνουν πόσα υπάρχουν σε καθεμία. Πάνω από όλες, μια γραμμή με τα βασικά — εταιρεία, ΑΦΜ, τηλέφωνο, τρέχον προϊόν, ενεργές ειδοποιήσεις — παραμένει ορατή σε όποια καρτέλα κι αν βρίσκεστε, και η ανοιχτή καρτέλα επιβιώνει μιας αποθήκευσης.":
+        "The numbers on the tabs show how many items each holds. Above them all, a strip with the essentials — company, Tax ID, phone, current product, active alerts — stays visible whichever tab you are on, and the open tab survives a save.",
+    "Σύνθεση email προς τον πελάτη": "Composing an email to the customer",
+    "Η καρτέλα «Σύνθεση email» ξεκινά από ένα πρότυπο του":
+        "The “Compose email” tab starts from a template in",
+    "και αντικαθιστά τα πεδία του με τα στοιχεία του συγκεκριμένου πελάτη. Σας λέει ρητά ποια πεδία συμπληρώθηκαν και ποια όχι, ώστε να μη φύγει μήνυμα με κενό «[[όνομα]]». Παίρνετε το κείμενο σε απλή μορφή ή ως HTML και το αντιγράφετε στο πρόγραμμα email σας.":
+        "and substitutes its fields with this particular customer's details. It tells you explicitly which fields were filled and which were not, so no message goes out with an empty “[[name]]”. You take the text as plain text or as HTML and copy it into your mail client.",
+    "Δύο χειροκίνητα κουμπιά για δοκιμές: «Εκτέλεση όσων εκκρεμούν» τρέχει τώρα ό,τι θα έτρεχε μόνο του, και «Εξαναγκασμός όλων» τρέχει κάθε εγγραφή ανεξάρτητα από πρόγραμμα. Και τα δύο κινούν κανονικά το σημείο αναφοράς των πελατών — δεν είναι προεπισκόπηση.":
+        "Two manual buttons for testing: “Run what's due” runs now whatever would have run on its own, and “Force all” runs every subscription regardless of schedule. Both move the customers' cursor normally — they are not a preview.",
+    "Η λωρίδα στην κορυφή δείχνει πού καταλήγει η αλληλογραφία: τον τρόπο αποστολής, τον αποστολέα, και — αν έχει οριστεί ανακατεύθυνση — ότι ΚΑΘΕ μήνυμα πάει σε μία δική σας διεύθυνση αντί στους πραγματικούς παραλήπτες. Αυτός είναι ο ασφαλής τρόπος να δοκιμάσετε αληθινές αποστολές χωρίς να φτάσει τίποτα σε πελάτη· ορίζεται στη διαμόρφωση του διακομιστή, όχι από τη σελίδα. Αν λείπει ο διακομιστής SMTP, η λωρίδα το λέει καθαρά.":
+        "The band at the top shows where the mail ends up: the delivery backend, the sender, and — if a redirect is set — that EVERY message goes to one address of yours instead of the real recipients. That is the safe way to test real sends without anything reaching a customer; it is set in the server configuration, not from the page. If the SMTP server is missing, the band says so plainly.",
+    "Οι κλήσεις που απαντώνται προς γνωστό πελάτη καταγράφονται αυτόματα στις Κλήσεις του πελάτη, με ώρα έναρξης, διάρκεια και τον εξωτερικό αριθμό.":
+        "Answered calls to a known customer are logged automatically in that customer's Calls, with start time, duration and the external number.",
+    "Απομαγνητοφώνηση & σύνοψη κλήσης (AI)": "Call transcription & summary (AI)",
+    "Όπου μια κλήση έχει ηχογράφηση και η δυνατότητα είναι ρυθμισμένη, το κουμπί «Σύνοψη AI» στην κλήση ξεκινά απομαγνητοφώνηση και μετά σύνοψη με ενέργειες προς εκτέλεση. Τρέχει στο παρασκήνιο — η γραμμή δείχνει «Δημιουργία σύνοψης…» και μετά το αποτέλεσμα. Η πλήρης απομαγνητοφώνηση μένει κρυμμένη πίσω από ένα «Απομαγνητοφώνηση» που ανοίγει με κλικ, και η «Ανανέωση σύνοψης» την ξαναφτιάχνει.":
+        "Where a call has a recording and the feature is configured, the “AI summary” button on the call starts a transcription and then a summary with action items. It runs in the background — the row shows “Generating summary…” and then the result. The full transcript stays tucked behind a “Transcript” disclosure, and “Refresh summary” rebuilds it.",
+    "Περιεχόμενο κλήσης σε πάροχο μοντέλου": "Call content sent to a model provider",
+    "Αυτή η λειτουργία στέλνει το περιεχόμενο μιας πραγματικής συνομιλίας με πελάτη σε πάροχο μοντέλου. Είναι διαφορετικής τάξης από τη σύνοψη μιας δημόσιας προκήρυξης· το":
+        "This feature sends the content of a real conversation with a customer to a model provider. That is a different order of thing from summarising a public notice;",
+    "το δηλώνει ξεχωριστά. Ενεργοποιήστε το μόνο όταν το επιτρέπει η ενημέρωση που έχετε δώσει στους πελάτες σας.":
+        "declares it separately. Switch it on only where the notice you have given your customers allows it.",
+    "Κάθε βαθμολογία αναλύεται σε τέσσερα μέρη και το καθένα λέει γιατί: το αντικείμενο (CPV) ζυγίζει περίπου τα μισά, και το μέγεθος, η περιοχή και η αναθέτουσα μοιράζονται τα υπόλοιπα. Μια σκέτη βαθμολογία δεν αμφισβητείται· τα μέρη δείχνουν ποιο σκέλος φταίει όταν η σειρά φαίνεται λάθος. Διαγωνισμός σε αντικείμενο που ο πελάτης δεν έχει αγγίξει ποτέ δεν ανεβαίνει ψηλά όσο κι αν ταιριάζουν τα υπόλοιπα — υπάρχει ρητό ταβάνι γι' αυτή την περίπτωση.":
+        "Every score breaks into four parts and each says why: the subject (CPV) carries roughly half, and size, region and buyer share the rest. A bare score cannot be argued with; the parts show which leg is at fault when the ordering looks wrong. A tender in a subject the customer has never touched never rises high however well the rest fits — there is an explicit cap for that case.",
+    "Οι συντελεστές είναι επιχειρήματα, όχι προσαρμοσμένοι σε δεδομένα: δεν υπάρχει ακόμη ιστορικό κερδισμένων/χαμένων διαγωνισμών για να τους βαθμονομήσει. Γι' αυτό η κρίση σας στην πράξη είναι η μόνη επικύρωση που έχει η λειτουργία σήμερα.":
+        "The weights are arguments, not fitted to data: there is no win/loss history yet to calibrate them. That is why your judgement in practice is the only validation this feature has today.",
+    "Πάνω από τη λίστα φαίνεται σε τι στηρίχθηκε το προφίλ — πόσες αναθέσεις, από πόσες αναθέτουσες, σε ποιο εύρος αξίας, και πότε υπολογίστηκε τελευταία φορά. Χωρίς ΑΦΜ στην καρτέλα δεν υπάρχει τίποτα να παραχθεί: συνδέστε πρώτα την εταιρεία του πελάτη.":
+        "Above the list you see what the profile was built on — how many awards, from how many buyers, in what value range, and when it was last computed. With no Tax ID on the card there is nothing to derive: link the customer's company first.",
+    "Ο εξαγωγέας είναι εργαλείο ΔΙΑΧΕΙΡΙΣΤΗ: το": "The extractor is an ADMIN tool: ",
+    "απαιτεί λογαριασμό διαχειριστή. Δημόσιο είναι μόνο το αποτέλεσμα — ο δημοσιευμένος πίνακας πάνω στη σελίδα της πράξης.":
+        "requires an admin account. Only the result is public — the published table on the act's page.",
+    "Αποθηκευμένες εξαγωγές μπορούν να δημοσιευτούν: τότε εμφανίζονται στη σελίδα της πράξης για κάθε συνδρομητή, με δικό τους σύνδεσμο λήψης .xlsx.":
+        "Saved extractions can be published: they then appear on the act's page for every subscriber, with their own .xlsx download link.",
+    "Από το": "From",
+    "Στο κάτω μέρος του": "At the foot of",
+    "κλειστή": "closed",
     "Τελευταία ενημέρωση": "Last updated",
 }
 
