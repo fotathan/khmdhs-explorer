@@ -1,0 +1,60 @@
+{# _public_intro.html — what a first-time visitor sees above the search.
+
+   Shown ONLY to a gated visitor arriving with no filters (the route decides:
+   `show_public_intro`). A customer with an active grant, or anyone who has
+   already typed a query, gets straight to work instead — an explainer above
+   the results is help the first time and an obstacle every time after.
+
+   It also carries the site's only h1 on this page, and the internal links to
+   the facet landings that are the indexable entry points (see app/seo.py).
+#}
+<section class="pi">
+  <div class="pi-in">
+    <h1 class="pi-title">{{ t("Ελληνικές δημόσιες συμβάσεις, σε ένα σημείο") }}</h1>
+    <p class="pi-lede">{{ t("Προκηρύξεις, αναθέσεις, συμβάσεις και πληρωμές από το ΚΗΜΔΗΣ, τη Διαύγεια και το TED — ενωμένες σε μία αναζήτηση, με τον πλήρη κύκλο ζωής κάθε σύμβασης και το ιστορικό κάθε αναθέτουσας αρχής και κάθε αναδόχου.") }}</p>
+
+    {% if stats %}
+    <dl class="pi-stats">
+      <div><dt>{{ t("πράξεις") }}</dt><dd>{{ "{:,}".format(stats.acts).replace(",", ".") }}</dd></div>
+      <div><dt>{{ t("αναθέτουσες αρχές") }}</dt><dd>{{ "{:,}".format(stats.authorities).replace(",", ".") }}</dd></div>
+      <div><dt>{{ t("ανάδοχοι") }}</dt><dd>{{ "{:,}".format(stats.contractors).replace(",", ".") }}</dd></div>
+    </dl>
+    {% endif %}
+
+    <div class="pi-browse">
+      <span class="pi-browse-label">{{ t("Ξεκινήστε από") }}</span>
+      <a href="/?type=notice">{{ t("Προκηρύξεις") }}</a>
+      <a href="/?type=contract">{{ t("Συμβάσεις") }}</a>
+      <a href="/?type=payment">{{ t("Πληρωμές") }}</a>
+      <a href="/?procedure_type=6">{{ t("Απευθείας αναθέσεις") }}</a>
+      <a href="/?contract_type=10">{{ t("Έργα") }}</a>
+      <a href="/?contract_type=13">{{ t("Προμήθειες") }}</a>
+      <a href="/authorities">{{ t("Αναθέτουσες αρχές") }}</a>
+      <a href="/contractors">{{ t("Ανάδοχοι") }}</a>
+    </div>
+
+    <p class="pi-glossary">{{ t("Δεν είστε σίγουροι για κάποιον όρο;") }}
+      <a href="/glossary">{{ t("Δείτε το γλωσσάρι δημοσίων συμβάσεων") }} →</a></p>
+  </div>
+</section>
+<style>
+  .pi{background:var(--paper);border-bottom:1px solid var(--rule);}
+  .pi-in{max-width:1340px;margin:0 auto;padding:30px 40px 26px;}
+  .pi-title{font-size:27px;letter-spacing:-.02em;margin:0 0 8px;text-wrap:balance;}
+  .pi-lede{font-size:14.5px;line-height:1.65;color:var(--ink-2);max-width:82ch;margin:0 0 18px;}
+  .pi-stats{display:flex;flex-wrap:wrap;gap:34px;margin:0 0 18px;}
+  .pi-stats div{display:flex;flex-direction:column-reverse;}
+  .pi-stats dd{margin:0;font-size:23px;font-weight:700;letter-spacing:-.02em;color:var(--ink);
+    font-variant-numeric:tabular-nums;}
+  .pi-stats dt{margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);}
+  .pi-browse{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .pi-browse-label{font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--ink-3);margin-right:2px;}
+  .pi-browse a{font-size:12.5px;font-weight:600;color:var(--ink-2);background:var(--paper-2);
+    border:1px solid var(--rule);border-radius:20px;padding:5px 13px;}
+  .pi-browse a:hover{border-color:var(--accent);color:var(--accent);background:var(--paper);}
+  .pi-glossary{margin:16px 0 0;font-size:13px;color:var(--ink-3);}
+  .pi-glossary a{font-weight:600;}
+  @media(max-width:560px){.pi-in{padding:22px 18px 20px;}.pi-title{font-size:22px;}
+    .pi-stats{gap:20px;}.pi-stats dd{font-size:19px;}}
+</style>

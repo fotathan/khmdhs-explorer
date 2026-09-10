@@ -1,0 +1,64 @@
+{# glossary.html — the glossary index. Its job is to be found: a person who
+   does not yet know what ΑΔΑΜ means is searching the term, not our corpus.
+   Every entry therefore links onward into the data (app/glossary.py). #}
+{% extends "beta_base.html" %}
+{% set L = 'en' if lang == 'en' else 'el' %}
+{% block title %}{{ t("Γλωσσάρι δημοσίων συμβάσεων") }} · {{ t("Εξερευνητής") }}{% endblock %}
+{% block meta_description %}{{ t("Οι όροι των ελληνικών δημοσίων συμβάσεων εξηγημένοι απλά: ΚΗΜΔΗΣ, ΑΔΑΜ, Διαύγεια, CPV, απευθείας ανάθεση, εγγυητική επιστολή και άλλοι — με σύνδεση στα πραγματικά δεδομένα.") }}{% endblock %}
+{% block head_json_ld %}
+<script type="application/ld+json">{{ jsonld | safe }}</script>
+{% endblock %}
+{% block content %}
+<main class="gl-wrap">
+
+  <header class="gl-head">
+    <h1>{{ t("Γλωσσάρι δημοσίων συμβάσεων") }}</h1>
+    <p class="gl-lede">{{ t("Οι όροι που θα συναντήσετε σε κάθε προκήρυξη, εξηγημένοι σε απλή γλώσσα. Κάθε λήμμα καταλήγει σε σύνδεσμο προς τις πραγματικές πράξεις, ώστε ο ορισμός να μη μένει θεωρία.") }}</p>
+    <p class="gl-note">{{ disclaimer }}</p>
+  </header>
+
+  <nav class="gl-jump" aria-label="{{ t('Ενότητες') }}">
+    {% for s in sections %}
+      <a href="#{{ s.slug }}">{{ s[L] }}</a>
+    {% endfor %}
+  </nav>
+
+  {% for s in sections %}
+  <section class="gl-section" id="{{ s.slug }}">
+    <h2>{{ s[L] }}</h2>
+    <ul class="gl-list">
+      {% for term in s.terms %}
+      <li>
+        <a class="gl-term" href="/glossary/{{ term.slug }}">{{ term[L].term }}</a>
+        {% if term.abbr and term.abbr != term[L].term %}<span class="gl-abbr">{{ term.abbr }}</span>{% endif %}
+        <span class="gl-short">{{ term[L].short }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+
+</main>
+{% endblock %}
+{% block head_extra %}
+<style>
+  .gl-wrap{max-width:900px;margin:34px auto 64px;padding:0 24px;}
+  .gl-head h1{font-size:30px;letter-spacing:-.02em;margin:0 0 10px;text-wrap:balance;}
+  .gl-lede{font-size:15.5px;line-height:1.65;color:var(--ink-2);max-width:70ch;margin:0 0 12px;}
+  .gl-note{font-size:12.5px;line-height:1.55;color:var(--ink-3);max-width:74ch;margin:0;}
+  .gl-jump{display:flex;flex-wrap:wrap;gap:8px;margin:24px 0 8px;}
+  .gl-jump a{font-size:12.5px;font-weight:600;color:var(--ink-2);background:var(--paper);
+    border:1px solid var(--rule);border-radius:20px;padding:5px 13px;}
+  .gl-jump a:hover{border-color:var(--accent);color:var(--accent);}
+  .gl-section{margin-top:34px;scroll-margin-top:16px;}
+  .gl-section h2{font-size:14px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--ink-3);margin:0 0 10px;font-weight:700;}
+  .gl-list{list-style:none;margin:0;padding:0;border-top:1px solid var(--rule-2);}
+  .gl-list li{padding:13px 2px;border-bottom:1px solid var(--rule-2);}
+  .gl-term{font-size:15.5px;font-weight:600;color:var(--ink);}
+  .gl-term:hover{color:var(--accent);}
+  .gl-abbr{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-left:8px;}
+  .gl-short{display:block;font-size:13.5px;color:var(--ink-2);line-height:1.55;margin-top:3px;max-width:76ch;}
+  @media(max-width:560px){.gl-wrap{padding:0 16px;}}
+</style>
+{% endblock %}

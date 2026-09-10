@@ -39,7 +39,8 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from fastapi import FastAPI, Request, Query, HTTPException, Form, Depends
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import (HTMLResponse, JSONResponse,
+                               PlainTextResponse, Response)
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from jinja2 import pass_context as _jinja_pass_context
@@ -79,6 +80,21 @@ try:
 except ImportError:  # flat layout (run with --app-dir=app)
     import obs as _obs
 _obs.configure()      # structured (JSON in prod) logging on the "khmdhs" logger
+
+# --- the public/acquisition layer ------------------------------------------ #
+# seo.py decides what a CRAWLER may see (robots, canonical, sitemaps); it does
+# not touch what a person may see — the freemium teaser rule (_is_gated) still
+# owns that. glossary.py is the plain-language term list the SEO play is built
+# around. Both are inert until the routes below are hit.
+try:
+    from app import seo as _seo
+except ImportError:  # flat layout (run with --app-dir=app)
+    import seo as _seo
+
+try:
+    from app import glossary as _glossary
+except ImportError:  # flat layout
+    import glossary as _glossary
 
 
 def _i18n_context(request):
@@ -1208,6 +1224,50 @@ def _auth_context(request):
 templates.context_processors.append(_auth_context)
 
 
+# --- SEO: canonical URL + robots directive on EVERY page -------------------- #
+# Registered from the real code lists, so the set of indexable facet landings
+# can never drift from the filters that actually exist. A value that is not in
+# these sets makes the URL non-indexable rather than an indexable empty page.
+# The three ingest sources, and their display labels (also used by the CSV
+# export further down). Hoisted here so the facet registry can name them.
+_SOURCE_LABELS = {"khmdhs": "ΚΗΜΔΗΣ", "diavgeia": "Διαύγεια", "ted": "TED"}
+
+_seo.set_facet_values({
+    "type": TYPE_FILTER_ORDER,
+    "procedure_type": PROCEDURE_TYPES.keys(),
+    "contract_type": CONTRACT_TYPES.keys(),
+    "nuts": [r["code"] for r in NUTS_REGIONS],
+    "source": _SOURCE_LABELS.keys(),
+})
+
+SEO_SITE_NAME = "Ελληνικές Δημόσιες Συμβάσεις · Εξερευνητής"
+_SEO_SITE_DESC = {
+    "el": ("Αναζήτηση σε προκηρύξεις, αναθέσεις, συμβάσεις και πληρωμές του "
+           "ελληνικού δημοσίου — ΚΗΜΔΗΣ, Διαύγεια και TED σε μία βάση, με "
+           "ιστορικό ανά αναθέτουσα αρχή και ανά ανάδοχο."),
+    "en": ("Search Greek public procurement — notices, awards, contracts and "
+           "payments from KIMDIS, Diavgeia and TED in one database, with the "
+           "history of every contracting authority and contractor."),
+}
+
+
+def _seo_context(request):
+    """Every page gets a correct canonical and robots line without its route
+    having to remember. A template overrides by redefining the block."""
+    path = request.url.path
+    items = list(request.query_params.multi_items())
+    lang = _i18n.lang_from_request(request)
+    return {"seo_robots": _seo.robots_for(path, items),
+            "seo_canonical": _seo.canonical_for(request),
+            "seo_site_name": SEO_SITE_NAME,
+            "seo_site_description": _SEO_SITE_DESC.get(lang, _SEO_SITE_DESC["el"])}
+
+
+templates.context_processors.append(_seo_context)
+templates.env.globals["seo_act_description"] = _seo.describe_act
+templates.env.globals["seo_entity_description"] = _seo.describe_entity
+
+
 # Terms a result page matched on are carried onto the act links, so the detail
 # page can explain ITS match without re-running the search. Only the fields
 # that produce chips travel — not the whole filter state.
@@ -1945,6 +2005,157 @@ if os.environ.get("TABLES_ENABLED", "1") == "1":
     app.include_router(_make_tables_router(templates, cursor))
 
 
+# --------------------------------------------------------------------------- #
+# The public/acquisition surface: robots, sitemaps, glossary
+#
+# Nothing here widens what a visitor may READ — an anonymous crawler gets the
+# same teaser a person gets. It only makes the corpus findable, and it is inert
+# unless seo.enabled() (production, or SEO_INDEX=1). See app/seo.py for why the
+# crawl space is bounded the way it is.
+# --------------------------------------------------------------------------- #
+@app.get("/robots.txt", response_class=PlainTextResponse)
+def robots_txt(request: Request):
+    """Always answers. On a non-production host that answer is `Disallow: /`,
+    which is the whole staging story — a preview deploy must never be the copy
+    of the corpus Google decides to rank."""
+    return PlainTextResponse(_seo.robots_txt(request),
+                             headers={"Cache-Control": "public, max-age=3600"})
+
+
+_SITEMAP_KINDS = ("pages", "acts", "authorities", "contractors")
+
+
+def _sitemap_response(body: str) -> Response:
+    return Response(body, media_type="application/xml",
+                    headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.get("/sitemap.xml")
+def sitemap_index(request: Request):
+    """The index: one line per chunk file. Counts are cached for an hour
+    (seo.counts) so a crawler re-reading the index cannot turn three aggregate
+    queries into load."""
+    if not _seo.enabled():
+        raise HTTPException(status_code=404, detail="not found")
+    with cursor() as c:
+        n = _seo.counts(c)
+    files = ["/sitemap-pages.xml"]
+    for kind, key in (("acts", "acts"), ("authorities", "authorities"),
+                      ("contractors", "contractors")):
+        for i in range(1, _seo.chunks_for(n[key]) + 1):
+            files.append(f"/sitemap-{kind}-{i}.xml")
+    body = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+            + "\n".join(f"<sitemap><loc>{_seo.xml_escape(_seo.absolute(request, f))}"
+                         f"</loc></sitemap>" for f in files)
+            + "\n</sitemapindex>\n")
+    return _sitemap_response(body)
+
+
+@app.get("/sitemap-pages.xml")
+def sitemap_pages(request: Request):
+    """The hand-written pages: the search landing, the two directories, the
+    facet landings that the intro band links to, and every glossary term."""
+    if not _seo.enabled():
+        raise HTTPException(status_code=404, detail="not found")
+    paths = ["/", "/authorities", "/contractors", "/glossary", "/data-sources"]
+    paths += [f"/?type={v}" for v in TYPE_FILTER_ORDER]
+    paths += [f"/?procedure_type={v}" for v in PROCEDURE_TYPES]
+    paths += [f"/?contract_type={v}" for v in CONTRACT_TYPES]
+    paths += [f"/?nuts={r['code']}" for r in NUTS_REGIONS]
+    paths += [f"/?source={v}" for v in _SOURCE_LABELS]
+    paths += [f"/glossary/{slug}" for slug in _glossary.slugs()]
+    entries = [_seo.url_entry(_seo.xml_escape(_seo.absolute(request, p)),
+                            changefreq="daily" if p == "/" else "weekly",
+                            priority="1.0" if p == "/" else None)
+               for p in paths]
+    return _sitemap_response(_seo.urlset(entries))
+
+
+@app.get("/sitemap-{kind}-{page}.xml")
+def sitemap_chunk(kind: str, page: int, request: Request):
+    if not _seo.enabled() or kind not in _SITEMAP_KINDS or page < 1:
+        raise HTTPException(status_code=404, detail="not found")
+    entries: list[str] = []
+    with cursor() as c:
+        if kind == "acts":
+            for r in _seo.act_rows(c, page):
+                entries.append(_seo.url_entry(
+                    _seo.loc(request, f"/act/{r['adam']}"),
+                    lastmod=_seo.iso_date(r["last_update_date"] or r["ingested_at"]
+                                      or r["signed_date"]),
+                    changefreq="monthly"))
+        elif kind == "authorities":
+            for r in _seo.authority_rows(c, page):
+                entries.append(_seo.url_entry(
+                    _seo.loc(request, f"/authority/{r['org_id']}"),
+                    changefreq="weekly"))
+        elif kind == "contractors":
+            for r in _seo.contractor_rows(c, page):
+                entries.append(_seo.url_entry(
+                    _seo.loc(request, f"/contractor/{r['vat_number']}"),
+                    changefreq="weekly"))
+        else:
+            raise HTTPException(status_code=404, detail="not found")
+    if not entries:
+        # A page past the end is a 404, not an empty sitemap: an empty urlset
+        # tells a crawler the URLs were withdrawn.
+        raise HTTPException(status_code=404, detail="not found")
+    return _sitemap_response(_seo.urlset(entries))
+
+
+@app.get("/glossary", response_class=HTMLResponse)
+def glossary_index(request: Request):
+    """The plain-language term list — public, and the acquisition page the
+    whole SEO layer exists to serve."""
+    lang = _i18n.lang_from_request(request)
+    sections = _glossary.sections_with_terms()
+    jsonld = _seo.json_ld({
+        "@context": "https://schema.org", "@type": "DefinedTermSet",
+        "name": ("Glossary of Greek public procurement" if lang == "en"
+                 else "Γλωσσάρι ελληνικών δημοσίων συμβάσεων"),
+        "url": _seo.absolute(request, "/glossary"),
+        "hasDefinedTerm": [
+            {"@type": "DefinedTerm", "name": t[lang if lang == "en" else "el"]["term"],
+             "description": t[lang if lang == "en" else "el"]["short"],
+             "url": _seo.absolute(request, f"/glossary/{t['slug']}")}
+            for t in _glossary.TERMS],
+    })
+    return templates.TemplateResponse(
+        request, "glossary.html",
+        {"sections": sections, "jsonld": jsonld,
+         "disclaimer": (_glossary.DISCLAIMER_EN if lang == "en"
+                        else _glossary.DISCLAIMER_EL),
+         "nav_active": "glossary"})
+
+
+@app.get("/glossary/{slug}", response_class=HTMLResponse)
+def glossary_term(slug: str, request: Request):
+    term = _glossary.get(slug)
+    if not term:
+        raise HTTPException(status_code=404, detail="term not found")
+    lang = _i18n.lang_from_request(request)
+    L = "en" if lang == "en" else "el"
+    section = next(s for s in _glossary.SECTIONS if s["slug"] == term["section"])
+    jsonld = _seo.json_ld({
+        "@context": "https://schema.org", "@type": "DefinedTerm",
+        "name": term[L]["term"], "description": term[L]["short"],
+        "url": _seo.absolute(request, f"/glossary/{slug}"),
+        "inDefinedTermSet": _seo.absolute(request, "/glossary"),
+    })
+    crumbs = _seo.breadcrumbs(request, [
+        (("Glossary" if L == "en" else "Γλωσσάρι"), "/glossary"),
+        (section[L], "/glossary"),
+        (term[L]["term"], f"/glossary/{slug}")])
+    return templates.TemplateResponse(
+        request, "glossary_term.html",
+        {"term": term, "section": section, "jsonld": jsonld, "crumbs": crumbs,
+         "related": _glossary.related_of(term),
+         "disclaimer": (_glossary.DISCLAIMER_EN if L == "en"
+                        else _glossary.DISCLAIMER_EL),
+         "nav_active": "glossary"})
+
+
 @app.get("/healthz")
 def healthz():
     with cursor() as c:
@@ -2499,6 +2710,43 @@ async def account_delete(request: Request):
     return _Redirect("/?account_deleted=1", status_code=303)
 
 
+# Corpus figures for the first-visit band. Estimates from pg_class.reltuples —
+# the same trick the unfiltered result counter uses — because three exact
+# count(*)s over 2.9M + 143k + 3k rows on every anonymous landing is a real
+# cost for a number that is read as "about three million". Cached for 15
+# minutes on top of that; ingestion moves it by a rounding error, not a digit.
+_STATS_TTL = 900
+_stats_cache: dict = {"at": 0.0, "data": None}
+
+
+def _public_stats() -> dict | None:
+    now = _time.monotonic()
+    if _stats_cache["data"] is not None and now - _stats_cache["at"] < _STATS_TTL:
+        return _stats_cache["data"]
+    try:
+        with cursor() as c:
+            c.execute("""SELECT
+                  (SELECT reltuples::bigint FROM pg_class
+                    WHERE oid = 'proc.procurement_act'::regclass)   AS acts,
+                  (SELECT reltuples::bigint FROM pg_class
+                    WHERE oid = 'proc.authority'::regclass)          AS authorities,
+                  (SELECT reltuples::bigint FROM pg_class
+                    WHERE oid = 'proc.economic_operator'::regclass)  AS contractors""")
+            row = c.fetchone()
+        data = {k: int(row[k] or 0) for k in
+                ("acts", "authorities", "contractors")}
+        # reltuples is -1 on a table that has never been analysed, and 0 on a
+        # fresh database. Either way "0 πράξεις" under a headline claiming a
+        # unified corpus reads as a broken page — show nothing instead.
+        if any(v <= 0 for v in data.values()):
+            return None
+    except Exception:      # noqa: BLE001 — a decorative figure never breaks the page
+        _obs.log_event(logging.WARNING, "public_stats_failed", exc_info=True)
+        return None
+    _stats_cache.update(at=now, data=data)
+    return data
+
+
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request,
          page: int = Query(1, ge=1),
@@ -2602,6 +2850,11 @@ def home(request: Request,
     ctx["active_profile"] = request.query_params.get("_sp")
     ctx["can_export"] = bool(user)          # export is signed-in only
     ctx["export_cap"] = _EXPORT_CAP_ADMIN if (user and user.get("role") == "admin") else _EXPORT_CAP_CUSTOMER
+    # First-time visitor band (_public_intro.html): only for a gated visitor who
+    # has not searched yet. A customer, or anyone who has typed a query, wants
+    # the results — an explainer above them is help once and an obstacle after.
+    ctx["show_public_intro"] = gated and not request.url.query
+    ctx["stats"] = _public_stats() if ctx["show_public_intro"] else None
     return templates.TemplateResponse(request, "beta_index.html", ctx)
 
 
@@ -2619,7 +2872,6 @@ def home(request: Request,
 _EXPORT_CAP_CUSTOMER = int(os.environ.get("EXPORT_MAX_ROWS_CUSTOMER", "1000"))
 _EXPORT_CAP_ADMIN = int(os.environ.get("EXPORT_MAX_ROWS_ADMIN", "20000"))
 _EXPORT_PER_MIN = int(os.environ.get("EXPORT_PER_MIN", "2"))
-_SOURCE_LABELS = {"khmdhs": "ΚΗΜΔΗΣ", "diavgeia": "Διαύγεια", "ted": "TED"}
 
 
 @app.get("/export/acts")
@@ -2880,6 +3132,23 @@ def notice_detail_legacy(adam: str):
     return RedirectResponse(url=f"/act/{adam}", status_code=307)
 
 
+def _act_crumbs(request, notice, lang: str) -> str:
+    """Search > <type> > <act> as schema.org BreadcrumbList.
+
+    Breadcrumbs are the one piece of structured data that is unambiguously
+    TRUE about this page. schema.org has no type that honestly models a
+    procurement act, and dressing one up as a Product or an Offer would be
+    telling a machine something false about what it is reading.
+    """
+    atype = notice.get("act_type") or notice.get("type") or "notice"
+    label = _i18n.enum_label("type", atype, TYPE_LABELS, lang)
+    return _seo.breadcrumbs(request, [
+        (("Search" if lang == "en" else "Αναζήτηση"), "/"),
+        (label, f"/?type={atype}"),
+        (_seo._clamp(notice.get("title") or notice.get("adam") or "", 70),
+         f"/act/{notice.get('adam')}")])
+
+
 @app.get("/act/{adam}", response_class=HTMLResponse)
 def act_detail(adam: str, request: Request):
     """Detail page for any act type (notice / auction / contract / payment / request).
@@ -2976,7 +3245,8 @@ def act_detail(adam: str, request: Request):
                  "attachments": [], "act_categories": [], "downstream": [],
                  "incoming": [], "annotation": None, "excluded_reason": None,
                  "top_cpv_contractors": [],
-                 "has_extended_fields": False, "nav_active": "search"})
+                 "has_extended_fields": False, "nav_active": "search",
+                 "crumbs": _act_crumbs(request, notice, lang)})
 
         # Line items + their CPVs (some types use objectDetails, others
         # objectDetailsList; ingester normalises both into act_object_detail).
@@ -3261,6 +3531,7 @@ def act_detail(adam: str, request: Request):
          "excluded_reason": excluded_reason,
          "has_extended_fields": any(
              notice.get(f) is not None for f in EXTENDED_ACT_FIELDS),
+         "crumbs": _act_crumbs(request, notice, lang),
          "nav_active": "search"},
     )
 
@@ -3858,6 +4129,13 @@ def authority_detail(org_id: str, request: Request,
                 {"a": auth, "merge_info": merge_info, "gated": True,
                  "by_type": [], "top_cpv": [], "acts": [], "total": 0,
                  "type_filter": type, "grand_total": 0, "grand_value": 0,
+                 # The teaser IS the crawler's view of this page — a search
+                 # engine is an anonymous visitor — so the structured data
+                 # belongs on this branch too, not only on the full render.
+                 "orgld": _seo.organization_ld(request, name=auth["name"] or org_id,
+                                               path=f"/authority/{org_id}",
+                                               vat=auth.get("vat_number"),
+                                               country="GR"),
                  "page": 1, "per_page": per_page, "total_pages": 1,
                  "nav_active": "authorities"})
 
@@ -3940,6 +4218,10 @@ def authority_detail(org_id: str, request: Request,
         {"a": auth, "gated": False, "by_type": by_type, "top_cpv": top_cpv,
          "acts": acts, "total": total, "type_filter": type, "merge_info": merge_info,
          "grand_total": grand_total, "grand_value": grand_value,
+         "orgld": _seo.organization_ld(request, name=auth["name"] or org_id,
+                                       path=f"/authority/{org_id}",
+                                       vat=auth.get("vat_number"),
+                                       country="GR"),
          "page": page, "per_page": per_page, "total_pages": total_pages,
          "nav_active": "authorities"},
     )
@@ -4011,6 +4293,13 @@ def contractor_detail(vat: str, request: Request,
                  "total": 0, "gemi": None,
                  "gemi_refresh_url": f"/contractor/{op['vat_number']}/gemi-refresh",
                  "grand_total": 0, "grand_value": 0,
+                 # Same reasoning as the authority teaser: this branch is what
+                 # a crawler renders, so it carries the structured data.
+                 "orgld": _seo.organization_ld(request, name=op["name"] or vat,
+                                               path=f"/contractor/{vat}",
+                                               vat=(vat if op.get("is_greek_vat") else None),
+                                               country=("GR" if op.get("is_greek_vat")
+                                                        else op.get("country"))),
                  "page": 1, "per_page": per_page, "total_pages": 1,
                  "nav_active": "contractors"})
 
@@ -4133,6 +4422,11 @@ def contractor_detail(vat: str, request: Request,
         {"op": op, "gated": False, "by_type": by_type, "top_buyers": top_buyers,
          "top_cpv": top_cpv,
          "acts": acts, "total": total, "merge_info": merge_info,
+         "orgld": _seo.organization_ld(request, name=op["name"] or vat,
+                                       path=f"/contractor/{vat}",
+                                       vat=(vat if op.get("is_greek_vat") else None),
+                                       country=("GR" if op.get("is_greek_vat")
+                                                else op.get("country"))),
          "gemi": gemi,
          "gemi_refresh_url": f"/contractor/{op['vat_number']}/gemi-refresh",
          "grand_total": grand_total, "grand_value": grand_value,

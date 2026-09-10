@@ -52,6 +52,21 @@ services:
       # Raise it once rejected_n and the reported-issue count are boring.
       - key: AI_SUMMARY_DAILY_CAP
         value: "10"
+      # Search-engine indexing (app/seo.py): robots.txt, the sitemaps, the
+      # canonical URL and the per-page robots directive. It is ON here without
+      # this variable — production is the one host that should be findable —
+      # so the key exists only so it can be turned OFF from the dashboard
+      # without a deploy. Anything not recognisably affirmative means off.
+      #
+      # Two things to know before flipping it on for real:
+      #   * It changes nothing about who may READ what. A crawler is an
+      #     anonymous visitor and gets the same freemium teaser.
+      #   * APP_BASE_URL (set on the cron above) is what canonical links and
+      #     sitemap entries are built from. Unset, they fall back to the
+      #     request's own origin, which is right on Render — but a WRONG value
+      #     here would point every canonical at the wrong hostname.
+      - key: SEO_INDEX
+        value: "1"
 
   # Background job worker — drains the admin job queue OFF the web process.
   # The admin UI enqueues backfills / table-extraction jobs (proc.ingest_job,

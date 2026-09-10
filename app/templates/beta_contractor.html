@@ -1,5 +1,7 @@
 {% extends "beta_base.html" %}
 {% block title %}{{ op.name }} · {{ t("Ανάδοχος") }}{% endblock %}
+{% block meta_description %}{{ seo_entity_description("contractor", op.name, grand_total, lang) }}{% endblock %}
+{% block head_json_ld %}{% if orgld %}<script type="application/ld+json">{{ orgld | safe }}</script>{% endif %}{% endblock %}
 {% block content %}
 <main>
   <a class="back-link" href="/contractors" hx-boost="false">{{ t("‹ πίσω στους αναδόχους") }}</a>
