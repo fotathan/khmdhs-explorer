@@ -2091,6 +2091,54 @@ _TELEPHONY = {
 }
 
 # Scheduled result emails (admin_digests.html, email_digest.html, app/digests.py)
+_SELF_SERVE = {
+    # /account/searches — the customer's own saved searches and their alerts
+    "Αποθηκευμένες αναζητήσεις & ειδοποιήσεις": "Saved searches & alerts",
+    "Δείτε τις αποθηκευμένες αναζητήσεις σας και ορίστε για ποιες θέλετε να λαμβάνετε email με τα νέα αποτελέσματα.":
+        "See your saved searches and choose which ones you want emailed to you when new results come in.",
+    "Διαχείριση αναζητήσεων & ειδοποιήσεων": "Manage searches & alerts",
+    "Οι αναζητήσεις & ειδοποιήσεις μου →": "My searches & alerts →",
+    "Αποθηκεύστε μια αναζήτηση και λάβετε τα νέα αποτελέσματά της με email, στη συχνότητα που σας βολεύει.":
+        "Save a search and have its new results emailed to you, as often as suits you.",
+    "Δεν αποστέλλονται email αυτή τη στιγμή: ο λογαριασμός σας δεν έχει ενεργό προϊόν. Οι ρυθμίσεις σας διατηρούνται και οι αποστολές ξεκινούν αυτόματα μόλις ενεργοποιηθεί.":
+        "No emails are being sent right now: your account has no active product. Your settings are kept and sending starts by itself as soon as it is activated.",
+    "ειδοποίηση ενεργή": "alert on",
+    "ειδοποίηση ανενεργή": "alert off",
+    "Άνοιγμα αναζήτησης": "Open search",
+    "Μετονομασία": "Rename",
+    "Διαγραφή αυτής της αποθηκευμένης αναζήτησης και της ειδοποίησής της;":
+        "Delete this saved search and its alert?",
+    "Αποστολή επίσης σε": "Also sent to",
+    "προστίθενται από τη διαχείριση": "added by an administrator",
+    "Ρυθμίσεις ειδοποίησης": "Alert settings",
+    "Ενεργοποίηση ειδοποίησης email": "Turn on an email alert",
+    "«Μέγιστα αποτελέσματα» αφορά μόνο τη μορφή λίστας. Οι «ημέρες πριν την προθεσμία» αφορούν μόνο την υπενθύμιση προθεσμιών.":
+        "“Maximum results” applies to the list format only. “Days before the deadline” applies to the deadline reminder only.",
+    "Κατάργηση της ειδοποίησης για αυτή την αναζήτηση;":
+        "Remove the alert for this search?",
+    "Κατάργηση ειδοποίησης": "Remove alert",
+    "χωρίς νέα": "nothing new",
+    "Δεν έχετε αποθηκευμένες αναζητήσεις ακόμη.": "You have no saved searches yet.",
+    "Πώς προσθέτω νέα": "How to add one",
+    "Οι δικές σας ειδοποιήσεις email": "Your own email alerts",
+    "Κάθε συνδεδεμένος χρήστης μπορεί να αποθηκεύσει την τρέχουσα αναζήτηση: πατήστε «Αποθήκευση αναζήτησης» πάνω από τα αποτελέσματα, δώστε ένα όνομα, και η αναζήτηση γίνεται δική σας — δεν χρειάζεται να τη ζητήσετε από τη διαχείριση.":
+        "Any signed-in user can save the search they are looking at: press “Save search” above the results, give it a name, and it becomes yours — there is no need to ask an administrator for it.",
+    "Στο «Ο λογαριασμός μου» → «Αποθηκευμένες αναζητήσεις & ειδοποιήσεις» βλέπετε όλες τις αναζητήσεις σας και ορίζετε μόνοι σας για ποιες θέλετε email: μορφή (λίστα αποτελεσμάτων, σύνοψη με στατιστικά ή υπενθύμιση προθεσμιών), συχνότητα, γλώσσα και πλήθος αποτελεσμάτων. Από εκεί τις μετονομάζετε, τις διαγράφετε και βλέπετε τις τελευταίες αποστολές. Τα προφίλ πύλης για τα οποία λαμβάνετε email εμφανίζονται κι αυτά, με τη δική τους ειδοποίηση — αλλά μόνο ένας διαχειριστής μπορεί να τα μετονομάσει ή να τα σβήσει, γιατί είναι κοινά.":
+        "Under “My account” → “Saved searches & alerts” you see all your searches and decide for yourself which ones are emailed to you: the format (result list, summary with statistics, or deadline reminder), how often, in which language, and how many results. From there you also rename them, delete them and see the most recent sends. Portal profiles you are emailed about appear too, with their own alert — but only an administrator can rename or delete those, because they are shared.",
+    "Οι επιπλέον παραλήπτες (συνάδελφοι που λαμβάνουν το ίδιο email) προστίθενται από τη διαχείριση, όχι από εσάς· στη σελίδα σας φαίνεται ποιοι είναι.":
+        "Additional recipients (colleagues who receive the same email) are added by an administrator, not by you; your page shows who they are.",
+    "Κάντε μια αναζήτηση με τα φίλτρα που σας ενδιαφέρουν και πατήστε «Αποθήκευση αναζήτησης» πάνω από τα αποτελέσματα.":
+        "Run a search with the filters you care about and press “Save search” above the results.",
+    # flash messages from app/account_searches.py
+    "Προσθέστε τουλάχιστον ένα φίλτρο πριν την αποθήκευση.":
+        "Add at least one filter before saving.",
+    "Έχετε φτάσει το όριο αποθηκευμένων αναζητήσεων. Διαγράψτε μία για να προσθέσετε νέα.":
+        "You have reached the saved-search limit. Delete one to add another.",
+    "Η αποθηκευμένη αναζήτηση διαγράφηκε.": "The saved search was deleted.",
+    "Οι ρυθμίσεις ειδοποίησης αποθηκεύτηκαν.": "Your alert settings were saved.",
+    "Η ειδοποίηση καταργήθηκε.": "The alert was removed.",
+}
+
 _DIGESTS = {
     "Ειδοποιήσεις email": "Email alerts",
     "Προγραμματισμένα email με νέα αποτελέσματα ανά προφίλ αναζήτησης. Κάθε εγγραφή στέλνει ό,τι μπήκε στη βάση από την προηγούμενη αποστολή και μετά.":
@@ -2374,5 +2422,6 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
              _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMCARD, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
              _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY, _DIGESTS,
+             _SELF_SERVE,
              _MATCH):
     UI_EN.update(_grp)

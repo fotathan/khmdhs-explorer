@@ -1,0 +1,211 @@
+{# account_searches.html — /account/searches, the customer's own saved searches
+   and the email alerts attached to them.
+
+   The self-serve twin of the CRM card's "Ειδοποιήσεις" tab, and deliberately
+   the same shape: one card per saved search, its filters in words, and the
+   alert folded away underneath until you want to change something. An admin
+   comparing the two surfaces should recognise the second from the first.
+
+   Portal profiles the customer is mailed about appear here too, tagged and
+   without rename/delete: being mailed about a shared search is not owning it.
+
+   Plain forms, no HTMX — every action here changes state, redirects, and is
+   rare. The CSRF token is injected globally by _csrf.html. #}
+{% extends "beta_base.html" %}
+{% set LAYOUT_LABELS = {'list': 'Λίστα αποτελεσμάτων',
+                        'summary': 'Σύνοψη με στατιστικά',
+                        'deadline': 'Υπενθύμιση προθεσμιών'} %}
+{% block title %}{{ t("Αποθηκευμένες αναζητήσεις & ειδοποιήσεις") }} · {{ t("Εξερευνητής") }}{% endblock %}
+{% block content %}
+<div class="ss-wrap">
+  <h1>{{ t("Αποθηκευμένες αναζητήσεις & ειδοποιήσεις") }}</h1>
+  <p class="ss-lede">
+    {{ t("Αποθηκεύστε μια αναζήτηση και λάβετε τα νέα αποτελέσματά της με email, στη συχνότητα που σας βολεύει.") }}
+    <a href="/account">{{ t("Ο λογαριασμός μου") }} →</a>
+  </p>
+
+  {% if flash %}<div class="ss-ok">{{ flash | t }}</div>{% endif %}
+
+  {% if not entitled %}
+  <div class="ss-warn">
+    {{ t("Δεν αποστέλλονται email αυτή τη στιγμή: ο λογαριασμός σας δεν έχει ενεργό προϊόν. Οι ρυθμίσεις σας διατηρούνται και οι αποστολές ξεκινούν αυτόματα μόλις ενεργοποιηθεί.") }}
+  </div>
+  {% endif %}
+
+  {% for r in rows %}
+  <article class="ss-card">
+    <div class="ss-head">
+      <b>{{ r.name }}</b>
+      {% if not r.is_own %}<span class="ss-tag portal">{{ t("Πύλη") }}</span>{% endif %}
+      {% if r.sub and r.sub.is_active %}<span class="ss-tag on">{{ t("ειδοποίηση ενεργή") }}</span>
+      {% elif r.sub %}<span class="ss-tag off">{{ t("ειδοποίηση ανενεργή") }}</span>{% endif %}
+    </div>
+    {% if r.filters %}<div class="ss-filters">{{ r.filters }}</div>{% endif %}
+
+    <div class="ss-actions">
+      <a class="ss-btn" href="/search-profiles/{{ r.id }}/apply">{{ t("Άνοιγμα αναζήτησης") }}</a>
+      {% if r.is_own %}
+      <details class="ss-fold ss-inline">
+        <summary>{{ t("Μετονομασία") }}</summary>
+        <form method="post" action="/account/searches/{{ r.id }}/rename" class="ss-form ss-row">
+          <input type="text" name="name" value="{{ r.name }}" maxlength="120" required>
+          <button type="submit" class="ss-btn">{{ t("Αποθήκευση") }}</button>
+        </form>
+      </details>
+      <form method="post" action="/account/searches/{{ r.id }}/delete" class="ss-inline"
+            onsubmit="return confirm('{{ t('Διαγραφή αυτής της αποθηκευμένης αναζήτησης και της ειδοποίησής της;') }}')">
+        <button type="submit" class="ss-btn ss-btn-quiet">{{ t("Διαγραφή") }}</button>
+      </form>
+      {% endif %}
+    </div>
+
+    {# ---- the alert ---- #}
+    {% if r.sub %}
+    <div class="ss-meta">
+      {{ LAYOUT_LABELS.get(r.sub.layout, r.sub.layout) | t }} ·
+      {{ r.sub.schedule_label }}
+      {%- if r.sub.next_run_at %} · {{ t("επόμενη") }}
+      {{ r.sub.next_run_at.strftime('%d/%m %H:%M') }} UTC{% endif %}
+      · {{ t("τελευταία αποστολή") }}
+      {{ r.sub.last_sent_at.strftime('%d/%m/%Y %H:%M') if r.sub.last_sent_at else '—' }}
+      {% if r.sub.recipients %}
+      <br>{{ t("Αποστολή επίσης σε") }}:
+      {{ r.sub.recipients | map(attribute='email') | join(', ') }}
+      <span class="ss-hint">({{ t("προστίθενται από τη διαχείριση") }})</span>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <details class="ss-fold"{% if not r.sub %} data-empty="1"{% endif %}>
+      <summary>{% if r.sub %}{{ t("Ρυθμίσεις ειδοποίησης") }}{% else %}{{ t("Ενεργοποίηση ειδοποίησης email") }}{% endif %}</summary>
+      <form method="post" action="/account/searches/{{ r.id }}/alert" class="ss-form ss-grid">
+        <label>{{ t("Μορφή email") }}
+          <select name="layout">
+            {% for key in layouts %}
+            <option value="{{ key }}" {% if r.sub and key == r.sub.layout %}selected{% endif %}>{{ LAYOUT_LABELS.get(key, key) | t }}</option>
+            {% endfor %}
+          </select></label>
+        <label>{{ t("Συχνότητα") }}
+          <select name="schedule_id">
+            <option value="">{{ t("Προεπιλογή πύλης") }}{% if default_schedule %} — {{ default_schedule.label }}{% endif %}</option>
+            {% for sc in schedules %}
+            <option value="{{ sc.id }}" {% if r.sub and sc.id == r.sub.schedule_id %}selected{% endif %}>{{ sc.label }}</option>
+            {% endfor %}
+          </select></label>
+        <label>{{ t("Γλώσσα") }}
+          <select name="lang">
+            <option value="el" {% if not r.sub or r.sub.lang == 'el' %}selected{% endif %}>Ελληνικά</option>
+            <option value="en" {% if r.sub and r.sub.lang == 'en' %}selected{% endif %}>English</option>
+          </select></label>
+        <label>{{ t("Μέγιστα αποτελέσματα") }}
+          <input type="number" name="max_results" min="1" max="200"
+                 value="{{ r.sub.max_results if r.sub else 25 }}"></label>
+        <label>{{ t("Ημέρες πριν την προθεσμία") }}
+          <input type="text" name="lead_days" placeholder="{{ default_lead_days }}"
+                 value="{{ (r.sub.lead_days or [])|join(', ') if r.sub else default_lead_days }}"></label>
+        <div class="ss-checks">
+          <label class="ss-check"><input type="checkbox" name="is_active" value="1"
+                 {% if not r.sub or r.sub.is_active %}checked{% endif %}> {{ t("Ενεργή") }}</label>
+          <label class="ss-check"><input type="checkbox" name="send_empty" value="1"
+                 {% if r.sub and r.sub.send_empty %}checked{% endif %}> {{ t("Αποστολή και χωρίς νέα") }}</label>
+        </div>
+        <button type="submit" class="ss-btn ss-btn-go">{{ t("Αποθήκευση") }}</button>
+      </form>
+      <div class="ss-hint">
+        {{ t("«Μέγιστα αποτελέσματα» αφορά μόνο τη μορφή λίστας. Οι «ημέρες πριν την προθεσμία» αφορούν μόνο την υπενθύμιση προθεσμιών.") }}
+      </div>
+      {% if r.sub %}
+      <form method="post" action="/account/searches/{{ r.id }}/alert/delete"
+            onsubmit="return confirm('{{ t('Κατάργηση της ειδοποίησης για αυτή την αναζήτηση;') }}')">
+        <button type="submit" class="ss-btn ss-btn-quiet">{{ t("Κατάργηση ειδοποίησης") }}</button>
+      </form>
+      {% endif %}
+    </details>
+
+    {% if r.sub and r.sub.runs %}
+    <div class="ss-runs">
+      <span class="ss-hint">{{ t("Τελευταίες αποστολές") }}:</span>
+      {% for run in r.sub.runs %}
+      <span class="ss-run">
+        {{ run.started_at.strftime('%d/%m %H:%M') }}
+        {%- if run.status == 'sent' %} · {{ run.n_results }}
+        {% if run.token %}<a href="/digests/{{ run.token }}">{{ t("τι στάλθηκε") }}</a>{% endif %}
+        {%- elif run.status == 'empty' %} · {{ t("χωρίς νέα") }}
+        {%- else %} · {{ run.status | t }}{% endif %}
+      </span>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </article>
+  {% else %}
+  <div class="ss-card ss-empty">
+    {{ t("Δεν έχετε αποθηκευμένες αναζητήσεις ακόμη.") }}
+  </div>
+  {% endfor %}
+
+  <div class="ss-card ss-how">
+    <h2>{{ t("Πώς προσθέτω νέα") }}</h2>
+    <p class="ss-hint">
+      {{ t("Κάντε μια αναζήτηση με τα φίλτρα που σας ενδιαφέρουν και πατήστε «Αποθήκευση αναζήτησης» πάνω από τα αποτελέσματα.") }}
+      <br>{{ t("Αποθηκευμένες αναζητήσεις") }}: {{ n_own }}/{{ max_saved }}.
+    </p>
+    <a class="ss-btn ss-btn-go" href="/">{{ t("Νέα αναζήτηση") }}</a>
+  </div>
+</div>
+<style>
+  .ss-wrap{max-width:760px;margin:38px auto 64px;padding:0 22px;}
+  .ss-wrap h1{font-size:26px;letter-spacing:-.02em;margin:0 0 6px;}
+  .ss-lede{font-size:13.5px;color:var(--ink-2,#5b626d);line-height:1.55;margin:0 0 18px;}
+  .ss-card{background:var(--paper,#fff);border:1px solid var(--rule,#e6e8ec);border-radius:12px;
+    padding:16px 18px;margin-bottom:14px;box-shadow:var(--shadow-sm,0 1px 3px rgba(20,24,31,.06));}
+  .ss-card h2{font-size:15px;margin:0 0 6px;}
+  .ss-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:15px;}
+  .ss-tag{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;
+    border-radius:999px;font-weight:600;}
+  .ss-tag.portal{background:#eef2f8;color:#1a4f9c;}
+  .ss-tag.on{background:#e9f7ee;color:#1a7a3d;}
+  .ss-tag.off{background:#f2f2f0;color:#6b6b6b;}
+  .ss-filters{font-size:12.5px;color:var(--ink-2,#5b626d);margin:6px 0 0;line-height:1.5;}
+  .ss-meta{font-size:12px;color:var(--ink-2,#5b626d);margin-top:8px;line-height:1.6;}
+  .ss-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;}
+  .ss-inline{display:inline-block;margin:0;}
+  .ss-btn{display:inline-block;background:var(--paper,#fff);color:var(--ink,#14181f);
+    border:1px solid var(--rule,#e6e8ec);padding:6px 12px;border-radius:8px;font-size:13px;
+    font-weight:600;cursor:pointer;font-family:inherit;text-decoration:none;}
+  .ss-btn:hover{border-color:var(--ink-3,#9aa0aa);}
+  .ss-btn-go{background:var(--accent,#b41034);border-color:var(--accent,#b41034);color:#fff;}
+  .ss-btn-go:hover{background:var(--accent-2,#8a0c28);}
+  .ss-btn-quiet{color:#b3261e;}
+  .ss-fold{margin-top:10px;}
+  .ss-fold>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2,#5b626d);
+    list-style:none;padding:5px 0;}
+  .ss-fold>summary::-webkit-details-marker{display:none;}
+  .ss-fold>summary::before{content:"▸ ";color:var(--ink-3,#9aa0aa);}
+  .ss-fold[open]>summary::before{content:"▾ ";}
+  .ss-form{margin:8px 0 4px;}
+  .ss-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px 14px;
+    align-items:end;}
+  .ss-row{display:flex;gap:8px;align-items:center;}
+  .ss-row input{flex:1;}
+  .ss-form label{display:block;font-size:11px;color:var(--ink-2,#5b626d);
+    font-family:var(--mono,monospace);text-transform:uppercase;letter-spacing:.04em;}
+  .ss-form input[type=text],.ss-form input[type=number],.ss-form select{
+    display:block;width:100%;margin-top:4px;padding:7px 9px;border:1px solid var(--rule,#e6e8ec);
+    border-radius:8px;font-size:13.5px;font-family:inherit;text-transform:none;
+    letter-spacing:normal;color:var(--ink,#14181f);background:var(--paper,#fff);box-sizing:border-box;}
+  .ss-checks{grid-column:1/-1;display:flex;gap:18px;flex-wrap:wrap;}
+  .ss-grid>button{grid-column:1/-1;justify-self:start;}
+  .ss-check{display:flex!important;gap:7px;align-items:center;text-transform:none!important;
+    font-family:inherit!important;font-size:13px!important;letter-spacing:normal!important;}
+  .ss-check input{margin:0;}
+  .ss-hint{font-size:11.5px;color:var(--ink-3,#9aa0aa);line-height:1.5;display:block;margin-top:6px;}
+  .ss-runs{margin-top:10px;padding-top:8px;border-top:1px solid var(--rule,#e6e8ec);
+    font-size:11.5px;color:var(--ink-2,#5b626d);}
+  .ss-run{margin-right:12px;white-space:nowrap;}
+  .ss-empty{color:var(--ink-2,#5b626d);font-size:13.5px;}
+  .ss-warn{background:#fff6e6;border:1px solid #f0d9a8;color:#7a5a11;padding:10px 14px;
+    border-radius:9px;font-size:13px;margin-bottom:16px;line-height:1.55;}
+  .ss-ok{background:#e9f7ee;border:1px solid #b7e2c6;color:#1a7a3d;padding:10px 14px;
+    border-radius:9px;font-size:13.5px;margin-bottom:16px;}
+</style>
+{% endblock %}

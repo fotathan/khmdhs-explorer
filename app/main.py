@@ -1892,6 +1892,15 @@ app.include_router(_make_digest_router(templates, cursor))
 # customer. The route itself requires them to be signed in and to own the run.
 app.include_router(_make_digest_results_router(templates, cursor))
 
+# /account/searches — the customer's OWN saved searches and the alerts on them.
+# The self-serve half of what /admin/crm/<uid> does for them: same two tables,
+# reachable by the person the rows belong to. Ownership is enforced inside.
+try:
+    from app.account_searches import make_router as _make_acct_searches_router
+except ImportError:
+    from account_searches import make_router as _make_acct_searches_router
+app.include_router(_make_acct_searches_router(templates, cursor))
+
 # CTI telephony (WebRTC softphone + screen-pop) — mounted under /telephony. The
 # service singleton is created here (so the /ws handler can reach the screen-pop
 # hub) and started from the lifespan. Everything is a no-op unless
@@ -2583,6 +2592,11 @@ def home(request: Request,
         ctx["search_profiles"] = []
     ctx.setdefault("profile_customers", [])
     ctx["can_manage_profiles"] = bool(user and user.get("role") == "admin")
+    # Anyone signed in may save the filters they are looking at — as their OWN
+    # saved search, through /account/searches, which has no field for whose it
+    # is. The admin popover above stays separate because it can also create
+    # portal profiles and assign one to another customer.
+    ctx["can_save_search"] = bool(user) and not ctx["can_manage_profiles"]
     ctx["current_query"] = request.url.query or ""
     # _sp marks the applied profile (set by the apply redirect) → show a badge.
     ctx["active_profile"] = request.query_params.get("_sp")

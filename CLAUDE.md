@@ -25,6 +25,14 @@ Tender Tables shares 3 files byte-identical: extractors.py, exporter.py, ocr.py
 Scheduled result emails, one subscription per customer × search profile.
 - Per-customer settings live on /admin/crm/<uid> (saved searches + alerts).
   /admin/digests holds ONLY the schedules, a read-only overview and the history.
+- Customers manage their OWN on /account/searches (app/account_searches.py):
+  save the current filters, rename/delete, and turn an alert on with its
+  format/cadence/language/count/marks. _owned() is the only door: rename and
+  delete need a profile they OWN, the alert endpoints only one they may APPLY
+  (so a published portal profile is subscribable, an unpublished one is a 404).
+  Extra recipients stay admin-only on purpose — self-serve "mail these
+  addresses too" sends our mail to people who never asked, and deliverability
+  is not done. Same for portal profiles and the schedules themselves.
 - Recipients per subscription: the account address (unless include_primary is
   off) PLUS proc.digest_recipient rows, each with its own salutation/first/last
   name. One run = one message per recipient; the intro is re-resolved per
