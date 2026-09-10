@@ -105,6 +105,19 @@ the script adds `js-tabs` to <html>, and without it every panel renders stacked.
 The open tab survives a POST redirect via ?tab= (what the alert forms set),
 then #hash, then sessionStorage.
 
+## /ai — AI & data-handling statement
+Public, bilingual, NOT a draft (unlike /privacy and /terms): every claim is
+checked against the code. app/templates/ai_policy.html + the route in main.
+- The per-feature on/off state is read from the LIVE predicates
+  (ai_summary.can_generate, ocr.api_key_present, TELEPHONY_ENABLED +
+  transcribe.backend_configured + call_summary.api_key_present) — never
+  written into the prose. Add an AI surface → add it to this page in the
+  same commit, or the page starts lying.
+- The claims that are structural, and are test-enforced: build_sources takes
+  (act, tables) and nothing customer-shaped; no page loads a third-party
+  asset. If you change either, /ai is wrong before the tests are.
+- Linked from the AI panel's warning band and the footer. Indexed.
+
 ## Public surface (SEO + glossary)
 The acquisition layer. app/seo.py decides what a CRAWLER sees; it never changes
 what a PERSON sees — _is_gated still owns that, and a crawler is an anonymous

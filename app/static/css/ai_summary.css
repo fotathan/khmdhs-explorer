@@ -40,6 +40,9 @@
 .ai-band .ic { flex: 0 0 auto; font-size: 14px; line-height: 1.3; }
 .ai-band p { margin: 0; }
 .ai-band b { font-weight: 600; }
+.ai-band-link { margin-top: 5px !important; font-size: 12px; }
+.ai-band-link a { color: var(--accent); font-weight: 600; }
+.ai-band-link a:hover { text-decoration: underline; }
 
 .ai-note {
   font-size: 12.5px; color: var(--ink-2); line-height: 1.55;

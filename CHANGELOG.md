@@ -10,6 +10,39 @@ truth; this is a curated digest.
 
 ## 2026-09-10
 
+### Added — /ai, the AI & data-handling statement
+- **`/ai` — «Τεχνητή νοημοσύνη & δεδομένα»**, public and bilingual: where AI is
+  used here, exactly what is sent to a model provider, what never leaves, who
+  the provider is, why the summary can be checked rather than trusted, what the
+  system explicitly does *not* do, and what is retained. This is the question a
+  first sales meeting opens with once anything on the site says "AI".
+- **Not a draft.** `/privacy` and `/terms` carry the placeholder banner because
+  they are legal text awaiting a lawyer; every claim on `/ai` is instead a
+  statement about how this software behaves, written against `app/ai_summary.py`
+  (§3, §4, §8), `app/ocr.py`, `app/call_summary.py` and `app/transcribe.py`. The
+  one bracket left is the contact address, as elsewhere.
+- **The page reads the live configuration, not the prose.** The state of each
+  surface — tender summary, document OCR, call transcription — comes from the
+  same predicates the features themselves use (`ai_summary.can_generate`,
+  `ocr.api_key_present`, `telephony.TELEPHONY_ENABLED` + a reachable transcription
+  backend + a summary key). Flip a switch and the page changes with it. A policy
+  page that goes quietly out of date is worse than none, because it gets relied
+  on. Telephony is off in production, so the page says so in words rather than
+  omitting the subject — someone asking "do you record my calls" has to find the
+  answer.
+- **Linked where the question actually arises**: from the AI summary panel's
+  permanent warning band, not only the site footer.
+- Indexable and in the sitemap, unlike the draft legal pages.
+- 18 new tests (`tests/test_ai_policy.py`). Beyond the page rendering, they
+  assert the two claims that are structural rather than aspirational: that
+  `build_sources` — the only thing deciding what reaches the model — takes an
+  act and its tables and nothing shaped like a customer, and that no page loads
+  a third-party asset. Both are checked against the code, so the page cannot
+  drift away from being true without a test failing.
+- No migration.
+
+## 2026-09-10
+
 ### Added — a public front door: the glossary, and being findable at all
 - **`/glossary`** — 34 terms of Greek public procurement explained in plain
   language, in Greek and English, grouped from registries through kinds of act

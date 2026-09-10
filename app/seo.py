@@ -98,6 +98,10 @@ def absolute(request, path: str) -> str:
 # Exact paths that are indexable when they carry no query string.
 _INDEXABLE_PATHS = frozenset({
     "/", "/authorities", "/contractors", "/glossary", "/data-sources",
+    # /ai is a factual statement about the software, kept current from the live
+    # configuration — unlike /privacy and /terms, which are draft legal text
+    # and stay out of the index until a lawyer has been over them.
+    "/ai",
 })
 
 # Two-segment detail pages: /act/<adam>, /authority/<org_id>, …. A third
