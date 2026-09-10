@@ -441,13 +441,36 @@ def test_a_refusal_is_reported_not_parsed(monkeypatch, tmp_path):
 
 
 def test_truncated_tool_arguments_say_so(monkeypatch):
-    """Hitting max_tokens mid-JSON is the likely cause, and the message says it
-    rather than surfacing a bare JSONDecodeError."""
+    """Hitting the output cap mid-JSON is now DIAGNOSED, not guessed at.
+
+    It used to fall through to the JSON parser and surface as "tool arguments
+    did not parse", which reads as a schema problem several layers from the
+    cause. Seen live on the largest notice in the corpus at the old default.
+    """
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-not-a-real-key")
     _serve(monkeypatch, _tool_call(['{"pricing": [{"label": "Εγγ'],
                                     stop_reason="max_tokens"))
-    with pytest.raises(ai.SummaryError, match="max_tokens"):
+    with pytest.raises(ai.SummaryError) as e:
         ai.call_model({"full_text": TEXT}, RECORD)
+    msg = str(e.value)
+    assert "output cap" in msg
+    assert "AI_SUMMARY_MAX_TOKENS" in msg      # names the way out
+    assert "still billed" in msg               # and the cost of not taking it
+    assert "did not parse" not in msg          # not the old misdiagnosis
+
+
+def test_a_genuinely_malformed_reply_still_reports_a_parse_error(monkeypatch):
+    """The cap check must not swallow the case it was mistaken for."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-not-a-real-key")
+    _serve(monkeypatch, _tool_call(["not json at all"], stop_reason="end_turn"))
+    with pytest.raises(ai.SummaryError, match="did not parse"):
+        ai.call_model({"full_text": TEXT}, RECORD)
+
+
+def test_the_cap_leaves_room_for_the_largest_acts_seen():
+    """16,000 was not enough for the biggest notices, and a ceiling costs
+    nothing until it is reached — you are billed for tokens generated."""
+    assert ai.MAX_TOKENS >= 32000
 
 
 def test_empty_stream_is_an_error_not_an_empty_summary(monkeypatch):
@@ -617,3 +640,4 @@ def _serve_batch(monkeypatch, lines):
         return _Bytes(json.dumps({"processing_status": "ended",
                                   "results_url": ai.BATCH_URL + "/x/results"}))
     monkeypatch.setattr(ai.urllib.request, "urlopen", _route)
+

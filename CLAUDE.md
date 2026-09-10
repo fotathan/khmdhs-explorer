@@ -105,6 +105,27 @@ the script adds `js-tabs` to <html>, and without it every panel renders stacked.
 The open tab survives a POST redirect via ?tab= (what the alert forms set),
 then #hash, then sessionStorage.
 
+## Model choice for the AI summary
+`ai_summary_ab.py` measures a model change before you make one: a reproducible
+sample of notices, the real prompt/schema/quote-gate, then yield + cost per
+variant. Coverage decides, then price — never $/act, and never $/item alone
+(it flatters a model that returns few cheap items). Dry-run by default; --yes
+spends, and that path is NOT subject to AI_SUMMARY_DAILY_CAP. Results are
+JSONL under runs/ (git-ignored); it NEVER writes proc.act_ai_summary.
+- `--probe` = does this provider accept the tool schema at all (a cent).
+  `--diff` = the clauses each model missed, as published Greek. Both are the
+  cheap steps; run them before costing a port.
+- **Haiku 4.5 cannot run this**: it rejects output_config.effort AND the
+  schema itself ("the compiled grammar is too large"). Not a config change.
+- **DeepSeek Flash works** and is ~12x cheaper than Opus with comparable
+  yield; Greek tokenises 30% denser there. It rejects a FORCED tool_choice in
+  thinking mode — production doesn't force one, so use "auto" for parity.
+  What blocks it is policy (PRC-hosted, /ai names Anthropic), not capability.
+- Levers already wired: batch (50%, submit_batch is built), AI_SUMMARY_MODEL,
+  AI_SUMMARY_EFFORT (thinking bills at the OUTPUT rate, ~56% of the bill).
+- MAX_TOKENS is an output CAP, not a spend cap — you pay for what is
+  generated. A cap hit loses the whole generation and still bills it.
+
 ## /ai — AI & data-handling statement
 Public, bilingual, NOT a draft (unlike /privacy and /terms): every claim is
 checked against the code. app/templates/ai_policy.html + the route in main.

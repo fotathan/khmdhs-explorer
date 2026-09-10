@@ -75,7 +75,14 @@ MODEL = os.environ.get("AI_SUMMARY_MODEL", "claude-opus-5")
 # medium and let the measurements argue for a change: act_ai_summary records
 # output_tokens per act, and rejected_n says whether quality moved with it.
 EFFORT = os.environ.get("AI_SUMMARY_EFFORT", "medium")
-MAX_TOKENS = int(os.environ.get("AI_SUMMARY_MAX_TOKENS", "16000"))
+# The OUTPUT cap, and it is not a spend control: you are billed for the tokens
+# generated, never for the ceiling. A low cap therefore buys nothing and can
+# lose everything — when a reply runs past it the tool call is cut off
+# mid-JSON, the whole generation is discarded, and the tokens are still
+# charged. 16000 did exactly that on the largest notices in the corpus (a
+# 68k-character act with 53 items needed ~14k, and one act exceeded it
+# outright). Streaming is already on, which is what makes a large ceiling safe.
+MAX_TOKENS = int(os.environ.get("AI_SUMMARY_MAX_TOKENS", "32000"))
 MAX_INPUT_CHARS = int(os.environ.get("AI_SUMMARY_MAX_INPUT_CHARS", "120000"))
 TIMEOUT = float(os.environ.get("AI_SUMMARY_TIMEOUT", "180"))
 DAILY_CAP = int(os.environ.get("AI_SUMMARY_DAILY_CAP", "50"))
@@ -741,6 +748,15 @@ def call_model(sources: dict[str, str], record: dict, *,
 
     if stop_reason == "refusal":
         raise SummaryError("The model declined to process this document.")
+    if stop_reason == "max_tokens":
+        # Diagnosed here rather than left to the JSON parser below: the reply
+        # is valid up to the cut, so it fails as a syntax error several layers
+        # away from the cause, and the admin reads "did not parse" for what is
+        # really "the answer did not fit".
+        raise SummaryError(
+            f"The reply reached the {MAX_TOKENS:,}-token output cap before the "
+            f"tool call was complete, so nothing could be saved — and those "
+            f"tokens are still billed. Raise AI_SUMMARY_MAX_TOKENS.")
     if not tool_json.strip():
         raise SummaryError("The model returned no structured output "
                            f"(stop_reason={stop_reason!r}).")
