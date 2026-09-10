@@ -36,8 +36,14 @@
   {# Permanent and undismissable — see the CSS note. #}
   <div class="ai-band">
     <span class="ic" aria-hidden="true">⚠</span>
-    <p><b>{{ t("Εργαλείο πρώτης αξιολόγησης.") }}</b>
-       {{ t("Τα παρακάτω εξάγονται αυτόματα από το κείμενο της προκήρυξης και μπορεί να είναι ελλιπή. Επιβεβαιώνετε πάντα τα στοιχεία στα επίσημα έγγραφα πριν υποβάλετε προσφορά.") }}</p>
+    <div>
+      <p><b>{{ t("Εργαλείο πρώτης αξιολόγησης.") }}</b>
+         {{ t("Τα παρακάτω εξάγονται αυτόματα από το κείμενο της προκήρυξης και μπορεί να είναι ελλιπή. Επιβεβαιώνετε πάντα τα στοιχεία στα επίσημα έγγραφα πριν υποβάλετε προσφορά.") }}</p>
+      {# The panel is where someone first meets the AI here, so it is where
+         "what happens to my data" gets asked. Answer it in place rather than
+         sending them to hunt through the footer. #}
+      <p class="ai-band-link"><a href="/ai">{{ t("Πώς χρησιμοποιείται η ΤΝ και τι δεδομένα αποστέλλονται") }} →</a></p>
+    </div>
   </div>
 
   {# ---------------------------------------------------------------- absent #}

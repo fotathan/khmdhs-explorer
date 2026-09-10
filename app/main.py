@@ -160,9 +160,8 @@ templates.env.globals["source_doc_url"] = source_doc_url
 # Whether the tender-table extraction feature is mounted (see the /tables
 # router registration below). Templates use this to show/hide the act-detail
 # "Εξαγωγή πινάκων" button so it never points at a route that isn't there.
-templates.env.globals["tables_enabled"] = (
-    os.environ.get("TABLES_ENABLED", "1") == "1"
-)
+TABLES_ENABLED = os.environ.get("TABLES_ENABLED", "1") == "1"
+templates.env.globals["tables_enabled"] = TABLES_ENABLED
 
 # Attachment upload/store + search-inside is LOCAL-ONLY for now (prod is a
 # free-tier DB with no room for the raw files). Default OFF. When off, the edit
@@ -2058,7 +2057,8 @@ def sitemap_pages(request: Request):
     facet landings that the intro band links to, and every glossary term."""
     if not _seo.enabled():
         raise HTTPException(status_code=404, detail="not found")
-    paths = ["/", "/authorities", "/contractors", "/glossary", "/data-sources"]
+    paths = ["/", "/authorities", "/contractors", "/glossary", "/data-sources",
+             "/ai"]
     paths += [f"/?type={v}" for v in TYPE_FILTER_ORDER]
     paths += [f"/?procedure_type={v}" for v in PROCEDURE_TYPES]
     paths += [f"/?contract_type={v}" for v in CONTRACT_TYPES]
@@ -2458,6 +2458,58 @@ def help_page(request: Request):
 @app.get("/data-sources", response_class=HTMLResponse)
 def data_sources_page(request: Request):
     return templates.TemplateResponse(request, "data_sources.html", {})
+
+
+@app.get("/ai", response_class=HTMLResponse)
+def ai_policy_page(request: Request):
+    """"Τεχνητή νοημοσύνη & δεδομένα" — where AI is used here and what is sent.
+
+    NOT a draft, unlike /privacy and /terms: every claim on it is a statement
+    about how this software behaves, and the three feature states are read from
+    the LIVE configuration rather than written into the prose. Turning a
+    feature on or off therefore changes the page with it — a policy page that
+    goes quietly out of date is worse than none, because it is relied on.
+    """
+    def _mod(name):
+        try:
+            return __import__(f"app.{name}", fromlist=[name])
+        except ImportError:                  # flat layout (--app-dir=app)
+            return __import__(name)
+
+    _ocr = _mod("ocr")
+    _transcribe = _mod("transcribe")
+    _call_summary = _mod("call_summary")
+    _ai_mod = _mod("ai_summary")
+    _tables = _mod("tables")
+
+    def _flag(fn, default=False):
+        """A missing optional dependency must read as OFF, never crash the
+        page — this is the one page that has to render when things are wrong."""
+        try:
+            return bool(fn())
+        except Exception:                    # noqa: BLE001
+            return default
+
+    # Document OCR needs BOTH the key and the surface that triggers it; the
+    # local (Tesseract) tier is reported separately because it is the reason
+    # many documents never leave the server at all.
+    ocr_key = _flag(_ocr.api_key_present)
+    return templates.TemplateResponse(
+        request, "ai_policy.html",
+        {"ai_summary_on": _flag(_ai_mod.can_generate),
+         "doc_ocr_on": ocr_key and TABLES_ENABLED,
+         "local_ocr_on": _flag(_tables._local_ocr_enabled),
+         # Call handling is only live when the whole chain is: telephony on,
+         # a transcription backend reachable, and a key for the summary.
+         "calls_on": (_telephony.TELEPHONY_ENABLED
+                      and _flag(_transcribe.backend_configured)
+                      and _flag(_call_summary.api_key_present)),
+         # Whose machine hears the recording: a self-hosted Whisper server
+         # means the audio never leaves, and only the resulting TEXT reaches a
+         # model provider. That is the distinction a data-handling page exists
+         # to make, so it is read from the configured endpoint, not assumed.
+         "transcribe_hosted": (_transcribe.BASE_URL
+                               == "https://api.openai.com/v1")})
 
 
 @app.get("/privacy", response_class=HTMLResponse)

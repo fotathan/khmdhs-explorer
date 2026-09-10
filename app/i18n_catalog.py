@@ -2494,6 +2494,109 @@ _HELP_PUBLIC = {
 }
 
 
+# ---- /ai — the AI & data-handling statement ----
+# Every claim on that page is checked against the code, so a change in
+# behaviour is a change here too. Keep the two languages saying the
+# same thing: this is the page a customer's lawyer reads.
+_AI_POLICY = {
+    'Ηχογραφημένες κλήσεις υποστήριξης απομαγνητοφωνούνται και συνοψίζονται για το CRM. Αυτή είναι η μόνη λειτουργία που επεξεργάζεται προσωπικά δεδομένα με μοντέλο: το κείμενο της συνομιλίας, και το όνομα ή ο αριθμός του συνομιλητή όταν είναι γνωστά. Η ηχογράφηση και το κείμενο αποθηκεύονται στην καρτέλα της κλήσης.':
+        "Recorded support calls are transcribed and summarised for the CRM. This is the only feature that processes personal data with a model: the text of the conversation, and the other party's name or number where known. The recording and the transcript are stored on the call record.",
+    'Ο ήχος':
+        'The audio',
+    'η ηχογράφηση αποστέλλεται σε εξωτερική υπηρεσία απομαγνητοφώνησης.':
+        'the recording is sent to an external transcription service.',
+    'η απομαγνητοφώνηση γίνεται σε διακομιστή που ελέγχουμε εμείς — η ηχογράφηση δεν φεύγει από την υπηρεσία. Στον πάροχο μοντέλου φτάνει μόνο το κείμενο που προκύπτει.':
+        'transcription runs on a server we control — the recording never leaves the service. Only the resulting text reaches a model provider.',
+    'δηλώνει πού χρησιμοποιείται τεχνητή νοημοσύνη, τι ακριβώς αποστέλλεται σε πάροχο μοντέλου και τι δεν φεύγει ποτέ. Δεν είναι προσχέδιο: κάθε ισχυρισμός του ελέγχεται στον κώδικα, και η κατάσταση κάθε λειτουργίας (σύνοψη, OCR, κλήσεις) διαβάζεται από τη ζωντανή ρύθμιση — αν ανάψει ένας διακόπτης, αλλάζει μαζί του. Αν προσθέσετε λειτουργία ΤΝ, ενημερώστε το στην ίδια κίνηση.':
+        'states where artificial intelligence is used, exactly what is sent to a model provider and what never leaves. It is not a draft: every claim on it is checked against the code, and the state of each feature (summary, OCR, calls) is read from the live configuration — flip a switch and the page changes with it. If you add an AI feature, update it in the same breath.',
+    'Τεχνητή νοημοσύνη & δεδομένα':
+        'AI & data handling',
+    'Πού χρησιμοποιείται τεχνητή νοημοσύνη στον Εξερευνητή, τι ακριβώς αποστέλλεται σε πάροχο μοντέλου, και τι δεν φεύγει ποτέ από την υπηρεσία.':
+        'Where artificial intelligence is used in the Explorer, exactly what is sent to a model provider, and what never leaves the service.',
+    'Η σύντομη απάντηση: η τεχνητή νοημοσύνη χρησιμοποιείται εδώ σε λίγα, συγκεκριμένα σημεία, και πάντοτε πάνω σε δημόσια έγγραφα διαγωνισμών. Ο λογαριασμός σας, οι αναζητήσεις σας, οι ειδοποιήσεις σας και το τι κοιτάξατε δεν αποστέλλονται ποτέ σε μοντέλο. Τίποτα από όσα κάνετε εδώ δεν χρησιμοποιείται για την εκπαίδευση μοντέλων.':
+        'The short answer: AI is used here in a few specific places, always on public tender documents. Your account, your searches, your alerts and what you looked at are never sent to a model. Nothing you do here is used to train models.',
+    'Πού χρησιμοποιείται':
+        'Where it is used',
+    'Σύνοψη διαγωνισμού':
+        'Tender summary',
+    'ενεργό':
+        'on',
+    'Διαβάζει το πλήρες κείμενο μιας προκήρυξης και τους δημοσιευμένους πίνακές της, και βγάζει στην επιφάνεια προθεσμίες, εγγυήσεις, τεχνικές απαιτήσεις και σημεία προσοχής.':
+        'Reads the full text of a notice and its published tables, and surfaces deadlines, guarantees, technical requirements and things to watch for.',
+    'Αποστέλλεται':
+        'Sent',
+    'το κείμενο του δημόσιου εγγράφου και οι πίνακές του — τίποτε άλλο.':
+        'the text of the public document and its tables — nothing else.',
+    'Δεν αποστέλλεται':
+        'Not sent',
+    'κανένα στοιχείο του αναγνώστη. Η σύνοψη παράγεται μία φορά ανά πράξη και τη διαβάζουν όλοι: είναι εξ ορισμού ίδια για κάθε επισκέπτη, άρα δεν μπορεί να περιέχει τίποτα για εσάς.':
+        'nothing about the reader. The summary is generated once per act and read by everyone: it is by definition identical for every visitor, so it cannot contain anything about you.',
+    'Αναγνώριση κειμένου σε σαρωμένα έγγραφα (OCR)':
+        'Text recognition in scanned documents (OCR)',
+    'Πολλά έγγραφα δημοσιεύονται ως σαρώσεις χωρίς κείμενο. Κατόπιν ρητής ενέργειας διαχειριστή, οι σελίδες τους διαβάζονται από μοντέλο ώστε να γίνουν αναζητήσιμες και να εξαχθούν οι πίνακές τους.':
+        'Many documents are published as scans with no text layer. After an explicit administrator action, their pages are read by a model so they become searchable and their tables can be extracted.',
+    'εικόνες σελίδων του δημόσιου εγγράφου.':
+        'page images of the public document.',
+    'Πριν από αυτό δοκιμάζεται πάντα δωρεάν αναγνώριση που τρέχει στον δικό μας διακομιστή· όταν αυτή επαρκεί, τίποτα δεν φεύγει από την υπηρεσία.':
+        'Before that, free recognition running on our own server is always tried first; when it suffices, nothing leaves the service.',
+    'Κλήσεις: απομαγνητοφώνηση & σύνοψη':
+        'Calls: transcription & summary',
+    'Η λειτουργία τηλεφωνίας υπάρχει στον κώδικα αλλά είναι απενεργοποιημένη σε αυτή την εγκατάσταση: δεν ηχογραφείται, δεν απομαγνητοφωνείται και δεν συνοψίζεται καμία κλήση. Αν ενεργοποιηθεί, αυτή η σελίδα θα το λέει πριν συμβεί.':
+        'The telephony feature exists in the code but is switched off on this installation: no call is recorded, transcribed or summarised. If it is ever switched on, this page will say so before it happens.',
+    'Τι δεν φεύγει ποτέ από την υπηρεσία':
+        'What never leaves the service',
+    'Ο λογαριασμός σας — όνομα χρήστη, email, κωδικός.':
+        'Your account — username, email, password.',
+    'Οι αποθηκευμένες αναζητήσεις σας και οι ρυθμίσεις των ειδοποιήσεών σας.':
+        'Your saved searches and your alert settings.',
+    'Τι αναζητήσατε, ποιες πράξεις ανοίξατε, τι κατεβάσατε.':
+        'What you searched for, which acts you opened, what you downloaded.',
+    'Οτιδήποτε περιγράφει την επιχείρησή σας. Η σύνοψη απαντά «τι απαιτεί αυτός ο διαγωνισμός», ποτέ «μπορεί αυτή η εταιρεία να τον αναλάβει» — ο περιορισμός είναι δομικός, όχι πολιτική: ο κώδικας που παράγει τη σύνοψη δεν έχει καν πρόσβαση σε στοιχεία πελάτη.':
+        'Anything describing your business. The summary answers “what does this tender require”, never “can this company take it on” — and the limit is structural rather than a policy: the code that produces the summary has no access to customer data at all.',
+    'Ποιος επεξεργάζεται τα δεδομένα':
+        'Who processes the data',
+    'Οι κλήσεις προς μοντέλα γίνονται στο API της Anthropic (μοντέλα Claude). Σύμφωνα με τους εμπορικούς όρους του API, τα δεδομένα που αποστέλλονται και οι απαντήσεις δεν χρησιμοποιούνται για την εκπαίδευση μοντέλων· η πολιτική του παρόχου διέπει τη δική του πλευρά και είναι διαθέσιμη στο':
+        "Model calls are made to the Anthropic API (Claude models). Under the commercial terms of that API, the data sent and the responses returned are not used to train models; the provider's own policy governs their side and is available at",
+    'Καμία άλλη υπηρεσία τρίτου δεν δέχεται δεδομένα σας από αυτή τη σελίδα: δεν υπάρχουν αναλυτικά τρίτων, ιχνηλάτες, εξωτερικές γραμματοσειρές ή σενάρια. Ό,τι φορτώνει ο περιηγητής σας προέρχεται από αυτόν τον διακομιστή, και αυτό επιβάλλεται τεχνικά από Content-Security-Policy. Τα μόνα cookies είναι της συνεδρίας σας και της γλώσσας που επιλέξατε.':
+        'No other third-party service receives your data from this site: there are no third-party analytics, no trackers, no external fonts and no external scripts. Everything your browser loads comes from this server, and that is enforced technically by a Content-Security-Policy. The only cookies are your session and the language you chose.',
+    'Γιατί να εμπιστευτείτε τη σύνοψη':
+        'Why you can trust the summary',
+    'Δεν σας ζητάμε να την εμπιστευτείτε — σας δίνουμε τον τρόπο να την ελέγξετε. Κάθε στοιχείο της συνοδεύεται από το αυτολεξεί απόσπασμα του εγγράφου που το παρήγαγε, και ένα κλικ σας πηγαίνει στην ακριβή παράγραφο. Το απόσπασμα εντοπίζεται στο ίδιο το κείμενο από τον κώδικα, όχι από το μοντέλο· αν δεν βρεθεί επί λέξει, το στοιχείο δεν εμφανίζεται καθόλου.':
+        'We are not asking you to trust it — we are giving you the means to check it. Every item carries the verbatim excerpt of the document that produced it, and one click takes you to the exact paragraph. The excerpt is located in the text by the code, not by the model; if it cannot be found word for word, the item is not shown at all.',
+    'Επιπλέον, όσα γνωρίζει ήδη η επίσημη εγγραφή — καταληκτική ημερομηνία, προϋπολογισμός, είδος διαδικασίας — δεν τα ξαναλέει το μοντέλο: εμφανίζονται από την πηγή. Όταν η απάντηση του μοντέλου έρχεται σε αντίφαση με την εγγραφή, απορρίπτεται και καταγράφεται για έλεγχο.':
+        "Beyond that, what the official record already knows — the closing date, the budget, the type of procedure — is not restated by the model: it is shown from the source. When the model's answer contradicts the record, it is discarded and logged for review.",
+    'Τι δεν κάνει':
+        'What it does not do',
+    'Δεν συντάσσει προσφορές ούτε συμπληρώνει έντυπα διαγωνισμού.':
+        'It does not write tenders or fill in bid forms.',
+    'Δεν βαθμολογεί επιχειρήσεις και δεν κρίνει αν πληροίτε τα κριτήρια συμμετοχής.':
+        'It does not score companies or judge whether you meet the participation criteria.',
+    'Δεν λαμβάνει αποφάσεις για πρόσωπα, ούτε αυτοματοποιημένες αποφάσεις με νομικές συνέπειες.':
+        'It makes no decisions about people, and no automated decisions with legal effect.',
+    'Δεν υποκαθιστά την ανάγνωση της διακήρυξης. Είναι εργαλείο πρώτης αξιολόγησης· πριν υποβάλετε προσφορά, επιβεβαιώνετε πάντα στα επίσημα έγγραφα.':
+        'It is not a substitute for reading the tender documents. It is a first-assessment tool; before you bid, always confirm against the official documents.',
+    'Διατήρηση':
+        'Retention',
+    'Η σύνοψη μιας πράξης αποθηκεύεται μαζί με την πράξη και είναι ορατή σε όσους έχουν πρόσβαση σε αυτήν — δεν είναι δικό σας δεδομένο και δεν συνδέεται με λογαριασμό. Όταν αλλάξει το κείμενο της πράξης, η παλιά σύνοψη αποσύρεται αυτόματα, γιατί οι παραπομπές της θα έδειχναν σε κείμενο που δεν υπάρχει πια. Δεν διατηρείται καμία ανά χρήστη πληροφορία από τη χρήση των λειτουργιών ΤΝ.':
+        "An act's summary is stored with the act and visible to anyone with access to it — it is not your data and is not tied to an account. When the act's text changes, the old summary is withdrawn automatically, because its references would point at text that no longer exists. No per-user information is kept from the use of the AI features.",
+    'Αλλαγές':
+        'Changes',
+    'Αν προστεθεί λειτουργία τεχνητής νοημοσύνης που αγγίζει προσωπικά δεδομένα, αυτή η σελίδα αλλάζει πρώτη. Για τα δεδομένα του λογαριασμού σας γενικότερα, δείτε την':
+        'If an AI feature that touches personal data is ever added, this page changes first. For your account data in general, see the',
+    'πολιτική απορρήτου':
+        'privacy policy',
+    '· για την προέλευση των δεδομένων των διαγωνισμών, τις':
+        '; for where the tender data comes from, see',
+    'πηγές & δεδομένα':
+        'sources & data',
+    'Ερωτήσεις για την επεξεργασία δεδομένων: [συμπληρώστε στοιχεία επικοινωνίας].':
+        'Questions about data processing: [add contact details].',
+    'ΤΝ & δεδομένα':
+        'AI & data',
+    'Πώς χρησιμοποιείται η ΤΝ και τι δεδομένα αποστέλλονται':
+        'How AI is used and what data is sent',
+}
+
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
@@ -2502,6 +2605,6 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _NUTS_REGIONS, _CPV_EDIT, _DIAVGEIA, _NUTS_FIELD, _ATTACHMENTS,
              _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMCARD, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
              _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY, _DIGESTS,
-             _SELF_SERVE, _PUBLIC, _HELP_PUBLIC,
+             _SELF_SERVE, _PUBLIC, _HELP_PUBLIC, _AI_POLICY,
              _MATCH):
     UI_EN.update(_grp)
