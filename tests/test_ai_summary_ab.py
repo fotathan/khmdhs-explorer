@@ -160,7 +160,10 @@ def test_openai_stream_accumulates_a_tool_call(monkeypatch):
     args, usage, finish = ab._stream_openai(object())
     assert json.loads(args) == {"a": 1}
     assert usage == {"input_tokens": 120, "output_tokens": 34}
-    assert finish == "tool_calls"
+    # translated into the Anthropic vocabulary by the app's reader, which this
+    # harness now shares — the two paths must fail identically as well as
+    # succeed identically, or a transport difference reads as a quality one
+    assert finish == "tool_use"
 
 
 def test_openai_stream_ignores_unparseable_events(monkeypatch):

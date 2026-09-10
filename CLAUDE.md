@@ -124,24 +124,51 @@ on the CRM card's Ταίριασμα tab. Deterministic arithmetic, NO model.
 - Components are always shown, never just the total. `why` is a fixed Greek
   phrase (a translation key) and the variable part rides in `detail`.
 
-## Model choice for the AI summary
-`ai_summary_ab.py` measures a model change before you make one: a reproducible
-sample of notices, the real prompt/schema/quote-gate, then yield + cost per
-variant. Coverage decides, then price — never $/act, and never $/item alone
-(it flatters a model that returns few cheap items). Dry-run by default; --yes
-spends, and that path is NOT subject to AI_SUMMARY_DAILY_CAP. Results are
-JSONL under runs/ (git-ignored); it NEVER writes proc.act_ai_summary.
+## Two providers for the AI summary
+**DeepSeek is production; Anthropic is the second option.** AI_SUMMARY_MODEL
+defaults to `deepseek-flash`, and the MODEL NAME is the whole switch — deepseek-*
+→ api.deepseek.com + DEEPSEEK_API_KEY, anything else → Anthropic Messages +
+ANTHROPIC_API_KEY. There is deliberately no AI_SUMMARY_PROVIDER var: two
+settings that must agree can disagree, and that posts one key to the other API.
+- The prompt, system text and tool schema are IDENTICAL on both. request_params
+  builds the Anthropic shape and `_to_openai` rewraps the ENVELOPE only; nothing
+  is reworded per provider, which is what makes the A/B result transfer.
+  `_stream_openai` translates finish_reason back into the Anthropic stop_reason
+  vocabulary at the edge, so one vocabulary reasons downstream.
+- `output_config.effort` is ANTHROPIC-ONLY (DeepSeek rejects it); never built
+  for a deepseek-* request. Don't "strip it later" — batch needs it kept.
+- **Batch is Anthropic-only.** DeepSeek has no batch endpoint, and batch exists
+  only to halve the price, so submit_batch REFUSES a deepseek-* model rather
+  than falling back to full rate. Its auth comes from `_anthropic_headers`, NOT
+  `_headers(key)` — the latter reads the configured model, which is DeepSeek.
+- **Changing AI_SUMMARY_MODEL invalidates the cache**: input_hash covers the
+  model, so every stored payload AND every queued job goes stale. A provider
+  switch is a re-generation under the daily cap, not a config tweak.
+- **/ai must follow.** It reads the provider from ai_summary.provider_of() and
+  states the PRC hosting + EEA transfer in words, both languages, test-enforced.
+  It does NOT repeat the "not used for training" claim for DeepSeek — their open
+  platform terms permit training on API data. Don't add that sentence back
+  without a contract that says it.
+- OCR and call summaries stay Anthropic. When the summary is on DeepSeek and
+  either of those is live, /ai declares BOTH processors.
+
+## Measuring a model change first
+`ai_summary_ab.py` measures before you switch: a reproducible sample of notices,
+the real prompt/schema/quote-gate, then yield + cost per variant. Coverage
+decides, then price — never $/act, and never $/item alone (it flatters a model
+that returns few cheap items). Dry-run by default; --yes spends, and that path
+is NOT subject to AI_SUMMARY_DAILY_CAP. Results are JSONL under runs/
+(git-ignored); it NEVER writes proc.act_ai_summary.
+- It RE-EXPORTS the app's transport (ai.provider_of/_to_openai/_stream_openai)
+  rather than keeping its own copy. A harness whose transport has drifted is
+  measuring something nobody ships, and the drift would be invisible.
 - `--probe` = does this provider accept the tool schema at all (a cent).
   `--diff` = the clauses each model missed, as published Greek. Both are the
   cheap steps; run them before costing a port.
 - **Haiku 4.5 cannot run this**: it rejects output_config.effort AND the
   schema itself ("the compiled grammar is too large"). Not a config change.
-- **DeepSeek Flash works** and is ~12x cheaper than Opus with comparable
-  yield; Greek tokenises 30% denser there. It rejects a FORCED tool_choice in
-  thinking mode — production doesn't force one, so use "auto" for parity.
-  What blocks it is policy (PRC-hosted, /ai names Anthropic), not capability.
-- Levers already wired: batch (50%, submit_batch is built), AI_SUMMARY_MODEL,
-  AI_SUMMARY_EFFORT (thinking bills at the OUTPUT rate, ~56% of the bill).
+- DeepSeek rejects a FORCED tool_choice in thinking mode — production doesn't
+  force one, so "auto" is used on both sides for parity.
 - MAX_TOKENS is an output CAP, not a spend cap — you pay for what is
   generated. A cap hit loses the whole generation and still bills it.
 

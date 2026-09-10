@@ -31,6 +31,12 @@ RECORD = {
 }
 
 
+# The configured default is a DeepSeek model, so a test that means to exercise
+# the Anthropic transport has to say so. Naming it once here keeps the intent
+# readable and stops the suite silently following a future default change.
+ANTHROPIC_MODEL = "claude-opus-5"
+
+
 def _item(**kw):
     base = {"label": "Ετικέτα", "value": "Τιμή", "obligation": "mandatory",
             "quote": "εγγύηση\n     συμμετοχής", "source": "full_text",
@@ -320,11 +326,23 @@ def test_generation_needs_both_the_switch_and_a_key(monkeypatch):
 def test_call_model_without_a_key_raises_rather_than_calling_out(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with pytest.raises(ai.SummaryError, match="ANTHROPIC_API_KEY"):
-        ai.call_model({"full_text": TEXT}, RECORD)
+        ai.call_model({"full_text": TEXT}, RECORD, model=ANTHROPIC_MODEL)
+
+
+def test_the_missing_key_error_names_the_variable_for_THIS_model(monkeypatch):
+    """Two providers, two keys. Telling an admin to check ANTHROPIC_API_KEY
+    when the configured model runs on DeepSeek sends them to inspect a variable
+    the request never read."""
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    with pytest.raises(ai.SummaryError) as e:
+        ai.call_model({"full_text": TEXT}, RECORD, model="deepseek-flash")
+    assert "DEEPSEEK_API_KEY" in str(e.value)
+    assert "ANTHROPIC_API_KEY" not in str(e.value)
 
 
 def test_call_model_with_no_sources_raises_before_spending_anything(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-not-a-real-key")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-not-a-real-key")
     with pytest.raises(ai.SummaryError, match="no full text"):
         ai.call_model({}, RECORD)
 
@@ -437,7 +455,7 @@ def test_a_refusal_is_reported_not_parsed(monkeypatch, tmp_path):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-not-a-real-key")
     _serve(monkeypatch, _tool_call(['{"not_found": []}'], stop_reason="refusal"))
     with pytest.raises(ai.SummaryError, match="declined"):
-        ai.call_model({"full_text": TEXT}, RECORD)
+        ai.call_model({"full_text": TEXT}, RECORD, model=ANTHROPIC_MODEL)
 
 
 def test_truncated_tool_arguments_say_so(monkeypatch):
@@ -451,7 +469,7 @@ def test_truncated_tool_arguments_say_so(monkeypatch):
     _serve(monkeypatch, _tool_call(['{"pricing": [{"label": "Εγγ'],
                                     stop_reason="max_tokens"))
     with pytest.raises(ai.SummaryError) as e:
-        ai.call_model({"full_text": TEXT}, RECORD)
+        ai.call_model({"full_text": TEXT}, RECORD, model=ANTHROPIC_MODEL)
     msg = str(e.value)
     assert "output cap" in msg
     assert "AI_SUMMARY_MAX_TOKENS" in msg      # names the way out
@@ -464,7 +482,7 @@ def test_a_genuinely_malformed_reply_still_reports_a_parse_error(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-not-a-real-key")
     _serve(monkeypatch, _tool_call(["not json at all"], stop_reason="end_turn"))
     with pytest.raises(ai.SummaryError, match="did not parse"):
-        ai.call_model({"full_text": TEXT}, RECORD)
+        ai.call_model({"full_text": TEXT}, RECORD, model=ANTHROPIC_MODEL)
 
 
 def test_the_cap_leaves_room_for_the_largest_acts_seen():
@@ -479,7 +497,7 @@ def test_empty_stream_is_an_error_not_an_empty_summary(monkeypatch):
                          {"type": "message_delta", "delta": {"stop_reason": "end_turn"},
                           "usage": {}}])
     with pytest.raises(ai.SummaryError, match="no structured output"):
-        ai.call_model({"full_text": TEXT}, RECORD)
+        ai.call_model({"full_text": TEXT}, RECORD, model=ANTHROPIC_MODEL)
 
 
 def test_the_request_actually_asks_for_a_stream(monkeypatch):
@@ -492,7 +510,7 @@ def test_the_request_actually_asks_for_a_stream(monkeypatch):
         return _FakeStream(_tool_call(['{"not_found": []}']))
 
     monkeypatch.setattr(ai.urllib.request, "urlopen", _capture)
-    ai.call_model({"full_text": TEXT}, RECORD)
+    ai.call_model({"full_text": TEXT}, RECORD, model=ANTHROPIC_MODEL)
     assert seen["body"]["stream"] is True
 
 
@@ -521,9 +539,13 @@ def test_batch_requests_must_not_ask_for_a_stream(monkeypatch):
 
 def test_both_paths_send_the_same_prompt_and_schema():
     """A prompt that differed between paths would poison the cache: input_hash
-    covers PROMPT_VERSION, not which code path produced the row."""
-    imm = ai.request_params({"full_text": TEXT}, RECORD, stream=True)
-    bat = ai.request_params({"full_text": TEXT}, RECORD)
+    covers PROMPT_VERSION, not which code path produced the row.
+
+    Anthropic on both sides: batch is Anthropic-only, so "the same prompt on
+    both paths" is only a claim about that provider."""
+    imm = ai.request_params({"full_text": TEXT}, RECORD, stream=True,
+                            model=ANTHROPIC_MODEL)
+    bat = ai.request_params({"full_text": TEXT}, RECORD, model=ANTHROPIC_MODEL)
     assert imm["system"] == bat["system"]
     assert imm["tools"] == bat["tools"]
     assert imm["messages"] == bat["messages"]
@@ -543,7 +565,7 @@ def test_submit_batch_posts_one_entry_per_act_and_maps_the_ids(monkeypatch):
     batch_id, ids = ai.submit_batch([
         ("ΨΔΞΞΟΡΛΟ-Χ5Δ", {"full_text": TEXT}, RECORD),
         ("ΨΧ3846ΨΧ0Ε-6Κ8", {"full_text": TEXT}, RECORD),
-    ])
+    ], model=ANTHROPIC_MODEL)
     assert batch_id == "msgbatch_01"
     assert seen["url"].endswith("/v1/messages/batches")
     assert len(seen["body"]["requests"]) == 2
@@ -556,7 +578,8 @@ def test_submit_batch_skips_acts_with_nothing_to_read(monkeypatch):
     monkeypatch.setattr(ai.urllib.request, "urlopen",
                         lambda *a, **k: _Bytes(json.dumps({"id": "msgbatch_02"})))
     _bid, ids = ai.submit_batch([("ΑΔΕΙΟ", {}, RECORD),
-                                 ("ΨΔΞΞΟΡΛΟ-Χ5Δ", {"full_text": TEXT}, RECORD)])
+                                 ("ΨΔΞΞΟΡΛΟ-Χ5Δ", {"full_text": TEXT}, RECORD)],
+                                model=ANTHROPIC_MODEL)
     assert list(ids.values()) == ["ΨΔΞΞΟΡΛΟ-Χ5Δ"]
 
 
@@ -565,7 +588,8 @@ def test_submit_batch_refuses_rather_than_silently_truncating(monkeypatch):
     monkeypatch.setattr(ai, "BATCH_MAX_REQUESTS", 1)
     with pytest.raises(ai.SummaryError, match="chunk the work"):
         ai.submit_batch([("Α", {"full_text": TEXT}, RECORD),
-                         ("Β", {"full_text": TEXT}, RECORD)])
+                         ("Β", {"full_text": TEXT}, RECORD)],
+                        model=ANTHROPIC_MODEL)
 
 
 def test_batch_results_are_keyed_by_custom_id_not_position(monkeypatch):
@@ -606,7 +630,8 @@ def test_effort_defaults_to_medium():
     """Thinking bills at the output rate, and this is extraction against a strict
     schema, not open-ended reasoning."""
     assert ai.EFFORT == "medium"
-    assert ai.request_params({"full_text": TEXT}, RECORD)["output_config"]["effort"] == "medium"
+    params = ai.request_params({"full_text": TEXT}, RECORD, model=ANTHROPIC_MODEL)
+    assert params["output_config"]["effort"] == "medium"
 
 
 class _Bytes:
@@ -641,3 +666,276 @@ def _serve_batch(monkeypatch, lines):
                                   "results_url": ai.BATCH_URL + "/x/results"}))
     monkeypatch.setattr(ai.urllib.request, "urlopen", _route)
 
+
+
+# --------------------------------------------------------------------------- #
+# Two providers
+#
+# The summary runs on DeepSeek by default and on Anthropic when asked, and the
+# MODEL NAME is the only switch. What these guard is that the switch reaches all
+# the way down — endpoint, auth header, request shape, error vocabulary — because
+# a half-applied switch does not fail loudly. It posts a well-formed request,
+# with the right key, to the wrong company.
+# --------------------------------------------------------------------------- #
+DEEPSEEK_MODEL = "deepseek-flash"
+
+
+def test_the_default_model_is_deepseek():
+    """Not a preference — a measurement (ai_summary_ab.py): comparable yield at
+    roughly a twelfth of the price. Changing it changes what /ai tells the
+    public, so it is asserted rather than assumed."""
+    assert ai.MODEL.startswith("deepseek")
+    assert ai.provider_of() == "deepseek"
+
+
+@pytest.mark.parametrize("model,provider,var", [
+    ("deepseek-flash", "deepseek", "DEEPSEEK_API_KEY"),
+    ("deepseek-v4-pro", "deepseek", "DEEPSEEK_API_KEY"),
+    ("claude-opus-5", "anthropic", "ANTHROPIC_API_KEY"),
+    ("claude-sonnet-5", "anthropic", "ANTHROPIC_API_KEY"),
+])
+def test_the_model_name_picks_the_provider_and_the_key(model, provider, var):
+    assert ai.provider_of(model) == provider
+    assert ai.key_var(model) == var
+
+
+def test_an_unknown_model_is_treated_as_anthropic():
+    """It has to land somewhere. Anthropic's model list answers a bad name with
+    a clear 404; posting it to DeepSeek would be a 404 from a provider that was
+    never meant to see the request at all."""
+    assert ai.provider_of("gpt-9-turbo") == "anthropic"
+
+
+def test_api_key_present_asks_about_the_right_provider(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-not-a-real-key")
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    assert ai.api_key_present("claude-opus-5") is True
+    assert ai.api_key_present("deepseek-flash") is False
+    # zero-arg asks about the CONFIGURED model — which is what can_generate()
+    # and the /ai page mean by "is this feature available"
+    assert ai.api_key_present() is False
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-not-a-real-key")
+    assert ai.api_key_present() is True
+
+
+def test_effort_is_anthropic_only(monkeypatch):
+    """output_config.effort is an Anthropic field. DeepSeek rejects the request
+    outright when it is present, so it is never built rather than stripped."""
+    a = ai.request_params({"full_text": TEXT}, RECORD, model=ANTHROPIC_MODEL)
+    d = ai.request_params({"full_text": TEXT}, RECORD, model=DEEPSEEK_MODEL)
+    assert a["output_config"] == {"effort": ai.EFFORT}
+    assert "output_config" not in d
+
+
+def test_deepseek_gets_the_identical_prompt_schema_and_system_text():
+    """The whole reason the A/B result transfers to production: nothing is
+    reworded per provider, only rewrapped. A per-provider prompt would make the
+    measured yield a statement about a request nobody sends."""
+    a = ai.request_params({"full_text": TEXT}, RECORD, model=ANTHROPIC_MODEL)
+    d = ai.request_params({"full_text": TEXT}, RECORD, model=DEEPSEEK_MODEL)
+    o = ai._to_openai(d)
+    assert o["messages"][0]["content"] == a["system"]
+    assert o["messages"][1]["content"] == a["messages"][0]["content"][0]["text"]
+    assert o["tools"][0]["function"]["parameters"] == a["tools"][0]["input_schema"]
+    assert o["tools"][0]["function"]["name"] == "record_summary"
+
+
+def test_the_deepseek_request_does_not_force_the_tool_call():
+    """DeepSeek refuses a forced tool_choice while thinking is on, and the app
+    has never forced one — "reply through the tool or not at all" is enforced
+    after the reply, not in the request."""
+    d = ai.request_params({"full_text": TEXT}, RECORD, model=DEEPSEEK_MODEL)
+    assert ai._to_openai(d)["tool_choice"] == "auto"
+
+
+def test_nothing_anthropic_shaped_crosses_over():
+    d = ai.request_params({"full_text": TEXT}, RECORD, model=DEEPSEEK_MODEL,
+                          stream=True)
+    o = ai._to_openai(d)
+    assert "system" not in o and "output_config" not in o
+    assert o["stream"] is True and o["stream_options"]["include_usage"] is True
+
+
+def test_auth_header_matches_the_provider():
+    assert ai._headers("k", DEEPSEEK_MODEL) == {
+        "content-type": "application/json", "authorization": "Bearer k"}
+    an = ai._headers("k", ANTHROPIC_MODEL)
+    assert an["x-api-key"] == "k" and an["anthropic-version"] == ai.API_VERSION
+    assert "authorization" not in an
+
+
+# --- the DeepSeek stream ---------------------------------------------------- #
+def _openai_events(fragments, finish="tool_calls", usage=True):
+    events = [{"choices": [{"delta": {"tool_calls": [
+        {"index": 0, "function": {"name": "record_summary", "arguments": f}}]}}]}
+        for f in fragments]
+    events.append({"choices": [{"delta": {}, "finish_reason": finish}]})
+    if usage:
+        events.append({"choices": [],
+                       "usage": {"prompt_tokens": 1234, "completion_tokens": 567}})
+    return events
+
+
+def _serve_openai(monkeypatch, events):
+    lines = [f"data: {json.dumps(e)}\n".encode() for e in events]
+    lines.append(b"data: [DONE]\n")
+
+    class _S:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def __iter__(self): return iter(lines)
+    monkeypatch.setattr(ai.urllib.request, "urlopen", lambda *a, **k: _S())
+
+
+def test_openai_stream_reassembles_arguments_and_usage(monkeypatch):
+    """Arguments arrive as fragments and the usage only in the final event.
+    Reassembling either wrongly reads as a model failure, not a parser bug."""
+    _serve_openai(monkeypatch, _openai_events(['{"pri', 'cing": [], "not_',
+                                               'found": ["α"]}']))
+    body, usage, stop = ai._stream_openai(object())
+    assert json.loads(body) == {"pricing": [], "not_found": ["α"]}
+    # renamed to the Anthropic names: cost_micro_usd and the act_ai_summary
+    # columns already speak them, on rows generated before this provider existed
+    assert usage == {"input_tokens": 1234, "output_tokens": 567}
+    assert stop == "tool_use"
+
+
+def test_openai_finish_reasons_are_translated(monkeypatch):
+    """One vocabulary past the transport. "length" arriving untranslated would
+    turn the output-cap diagnosis back into "did not parse" — the exact
+    misdiagnosis that check was added to end."""
+    for finish, expected in [("length", "max_tokens"),
+                             ("content_filter", "refusal"),
+                             ("stop", "end_turn")]:
+        _serve_openai(monkeypatch, _openai_events(['{"not_found": []}'], finish))
+        _b, _u, stop = ai._stream_openai(object())
+        assert stop == expected, finish
+
+
+def test_openai_stream_raises_on_an_error_frame(monkeypatch):
+    _serve_openai(monkeypatch, [{"error": {"message": "rate limit exceeded"}}])
+    with pytest.raises(ai.SummaryError, match="rate limit exceeded"):
+        ai._stream_openai(object())
+
+
+def test_openai_stream_survives_unparseable_framing(monkeypatch):
+    events = _openai_events(['{"not_found": []}'])
+    lines = [b": keep-alive\n", b"data: not json\n",
+             *[f"data: {json.dumps(e)}\n".encode() for e in events], b"data: [DONE]\n"]
+
+    class _S:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def __iter__(self): return iter(lines)
+    monkeypatch.setattr(ai.urllib.request, "urlopen", lambda *a, **k: _S())
+    body, _u, _s = ai._stream_openai(object())
+    assert json.loads(body) == {"not_found": []}
+
+
+def test_call_model_posts_a_deepseek_model_to_deepseek(monkeypatch):
+    """The switch has to reach the SOCKET. A request with the right key, the
+    right schema and the wrong URL is the failure this exists to catch."""
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-not-a-real-key")
+    seen = {}
+    lines = [f"data: {json.dumps(e)}\n".encode()
+             for e in _openai_events(['{"not_found": []}'])] + [b"data: [DONE]\n"]
+
+    class _S:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def __iter__(self): return iter(lines)
+
+    def _capture(req, *a, **k):
+        seen["url"] = req.full_url
+        seen["headers"] = {k.lower(): v for k, v in req.headers.items()}
+        seen["body"] = json.loads(req.data)
+        return _S()
+
+    monkeypatch.setattr(ai.urllib.request, "urlopen", _capture)
+    raw, usage, _t = ai.call_model({"full_text": TEXT}, RECORD,
+                                   model=DEEPSEEK_MODEL)
+    assert seen["url"] == ai.DEEPSEEK_URL
+    assert seen["headers"]["authorization"] == "Bearer sk-not-a-real-key"
+    assert "x-api-key" not in seen["headers"]
+    assert seen["body"]["model"] == DEEPSEEK_MODEL
+    assert seen["body"]["stream"] is True
+    assert raw == {"not_found": []}
+    assert usage["input_tokens"] == 1234
+
+
+def test_the_output_cap_is_diagnosed_on_deepseek_too(monkeypatch):
+    """Same error, same wording, same way out — the message an admin reads must
+    not depend on which provider was configured."""
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-not-a-real-key")
+    _serve_openai(monkeypatch, _openai_events(['{"pricing": [{"label": "Εγγ'],
+                                               finish="length"))
+    with pytest.raises(ai.SummaryError) as e:
+        ai.call_model({"full_text": TEXT}, RECORD, model=DEEPSEEK_MODEL)
+    msg = str(e.value)
+    assert "output cap" in msg and "AI_SUMMARY_MAX_TOKENS" in msg
+    assert "did not parse" not in msg
+
+
+def test_a_deepseek_transport_error_names_deepseek(monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-not-a-real-key")
+
+    def _boom(*a, **k):
+        raise ai.urllib.error.URLError("nodename nor servname provided")
+    monkeypatch.setattr(ai.urllib.request, "urlopen", _boom)
+    with pytest.raises(ai.SummaryError) as e:
+        ai.call_model({"full_text": TEXT}, RECORD, model=DEEPSEEK_MODEL)
+    assert "DeepSeek" in str(e.value) and "Anthropic" not in str(e.value)
+
+
+# --- batch stays Anthropic-only --------------------------------------------- #
+def test_batch_refuses_a_deepseek_model(monkeypatch):
+    """Batch exists for ONE reason — half price — and DeepSeek publishes no
+    batch endpoint. Falling back to full-rate single calls would charge more
+    for the job someone asked to run cheaply, silently."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-not-a-real-key")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-not-a-real-key")
+    with pytest.raises(ai.SummaryError, match="Anthropic-only"):
+        ai.submit_batch([("Α", {"full_text": TEXT}, RECORD)],
+                        model=DEEPSEEK_MODEL)
+
+
+def test_batch_refuses_the_configured_default_when_it_is_deepseek(monkeypatch):
+    """submit_batch() with no model must not quietly inherit a DeepSeek default
+    and post an Anthropic-shaped body to Anthropic under a DeepSeek name."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-not-a-real-key")
+    with pytest.raises(ai.SummaryError, match="Anthropic-only"):
+        ai.submit_batch([("Α", {"full_text": TEXT}, RECORD)])
+
+
+def test_batch_auth_does_not_follow_the_configured_model(monkeypatch):
+    """The batch path reads its auth from _anthropic_headers, not from the
+    configured model — which is a DeepSeek one. Reading it from the model would
+    send a Bearer token to Anthropic and read as a revoked key."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-not-a-real-key")
+    seen = {}
+
+    def _capture(req, *a, **k):
+        seen["headers"] = {k.lower(): v for k, v in req.headers.items()}
+        return _Bytes(json.dumps({"id": "msgbatch_09"}))
+
+    monkeypatch.setattr(ai.urllib.request, "urlopen", _capture)
+    ai.submit_batch([("Α", {"full_text": TEXT}, RECORD)], model=ANTHROPIC_MODEL)
+    assert seen["headers"]["x-api-key"] == "sk-ant-not-a-real-key"
+    assert "authorization" not in seen["headers"]
+
+
+# --- money ------------------------------------------------------------------ #
+def test_deepseek_is_priced_at_the_peak_rate():
+    """The conservative half of DeepSeek's peak/off-peak split. Recording the
+    off-peak number would understate every act generated in business hours, and
+    this column is what any "what did this cost" answer reads."""
+    usage = {"input_tokens": 1_000_000, "output_tokens": 1_000_000}
+    assert ai.cost_micro_usd(usage, "deepseek-flash") == round(0.30e6 + 1.20e6)
+
+
+def test_the_cheaper_provider_is_actually_cheaper():
+    """The reason for the move, asserted so a future price edit that reverses it
+    cannot land quietly."""
+    usage = {"input_tokens": 20_000, "output_tokens": 3_000}
+    assert (ai.cost_micro_usd(usage, "deepseek-flash")
+            < ai.cost_micro_usd(usage, "claude-opus-5") / 10)

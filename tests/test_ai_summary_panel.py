@@ -63,7 +63,11 @@ def ai_on(monkeypatch):
     template global that decides whether the act page mounts the panel at all
     (frozen at import, like login_links_enabled)."""
     monkeypatch.setenv("AI_SUMMARY_ENABLED", "1")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-used")
+    # WHICH key is the configured provider's business, not the panel's — these
+    # tests are about the panel, so they ask ai_summary which variable it reads
+    # rather than hard-coding one and breaking on the next provider change.
+    from app import ai_summary as _ai
+    monkeypatch.setenv(_ai.key_var(), "test-key-not-used")
     from app.main import templates
     monkeypatch.setitem(templates.env.globals, "ai_summary_enabled", True)
 
@@ -174,7 +178,8 @@ def test_only_an_affirmative_value_turns_the_panel_on(admin, act, monkeypatch, v
     surprise in the list is '1 ' with a space: it IS on, because the value is
     stripped before it is read."""
     monkeypatch.setenv("AI_SUMMARY_ENABLED", value)
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-used")
+    from app import ai_summary as _ai
+    monkeypatch.setenv(_ai.key_var(), "test-key-not-used")
     r = admin.get(f"/act/{act}/ai")
     if value.strip() == "1":
         assert r.text.strip() != ""
@@ -215,7 +220,8 @@ def test_an_admin_with_no_summary_gets_the_generate_button(admin, ai_on, act):
 def test_without_an_api_key_cached_rows_still_render_and_the_button_is_gone(
         db, admin, ai_on, act, monkeypatch):
     _store_payload(db.cursor(), act)
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    from app import ai_summary as _ai
+    monkeypatch.delenv(_ai.key_var(), raising=False)
     body = admin.get(f"/act/{act}/ai").text
     assert "ISO 9001:2015" in body               # the payload still reads
     assert "Δημιουργία σύνοψης" not in body      # nothing offers to spend money
@@ -308,7 +314,8 @@ def test_generation_is_gone_when_the_switch_is_off(admin, act, monkeypatch):
 
 
 def test_generation_is_refused_without_an_api_key(admin, ai_on, act, monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    from app import ai_summary as _ai
+    monkeypatch.delenv(_ai.key_var(), raising=False)
     assert _post(admin, act).status_code == 400
 
 
@@ -521,6 +528,13 @@ def test_the_runner_stores_what_the_model_returned(db, act, monkeypatch):
     model (verify → store → cached) is real."""
     import db as db_cli
     from app import ai_summary as ai
+
+    # Pinned BEFORE the job is queued, because the assertion at the end is an
+    # exact price and input_hash covers the model — pinning it afterwards would
+    # change the hash under the queued job and the runner would (correctly)
+    # call it stale. Letting it follow the configured default instead would
+    # turn a cost regression into a test that "just needs its number updated".
+    monkeypatch.setattr(ai, "MODEL", "claude-opus-5")
 
     cur = db.cursor()
     cur.execute("""INSERT INTO proc.ai_summary_job (adam, input_hash, requested_by, status)

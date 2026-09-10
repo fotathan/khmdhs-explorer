@@ -39,15 +39,32 @@ services:
       # every use spends money.
       #
       # READ THIS BEFORE ASSUMING IT WORKS: the button and the model call run in
-      # DIFFERENT containers. can_generate() is evaluated on the web service,
-      # which already has ANTHROPIC_API_KEY for OCR and call summaries — so the
-      # button offers itself. The call itself runs in khmdhs-worker (see below),
-      # and without the key there every generation queues and then fails.
+      # DIFFERENT containers. can_generate() is evaluated on the web service and
+      # the call itself runs in khmdhs-worker (see below), so the key for the
+      # CONFIGURED PROVIDER has to exist in BOTH — otherwise the button offers
+      # itself here and every generation queues and then fails there.
       - key: AI_SUMMARY_ENABLED
         value: "1"
+      # The model name is also the provider switch: deepseek-* → DeepSeek, with
+      # DEEPSEEK_API_KEY; anything else → Anthropic, with ANTHROPIC_API_KEY.
+      # deepseek-flash is the app default (measured in ai_summary_ab.py:
+      # comparable yield to Opus 5 at roughly a twelfth of the price). It is
+      # named here anyway, so the provider a customer's documents are sent to is
+      # a visible, reviewable line rather than a library default.
+      #
+      # CHANGING IT IS NOT FREE: input_hash covers the model, so every stored
+      # summary and every queued job goes stale and has to be regenerated under
+      # the cap below. It also changes what /ai tells the public — the page
+      # reads the provider from the live config, so that part follows on its own.
+      - key: AI_SUMMARY_MODEL
+        value: deepseek-flash
+      - key: DEEPSEEK_API_KEY
+        sync: false            # set in dashboard (secret)
       # Acts generated per DAY, whole deployment — the blast radius while the
-      # prompt is still settling. ~$0.12-0.20 per notice, paid once per act and
-      # then read from the cache forever, so 10/day caps this at roughly $2/day.
+      # prompt is still settling. On deepseek-flash a notice is ~$0.01-0.02
+      # (it was ~$0.12-0.20 on Opus 5), paid once per act and then read from the
+      # cache forever. The cap is left at 10 regardless: it is there to bound a
+      # runaway loop and a prompt regression, not the invoice.
       # Enforced at enqueue time on the web service; the worker does not read it.
       # Raise it once rejected_n and the reported-issue count are boring.
       - key: AI_SUMMARY_DAILY_CAP
@@ -75,11 +92,17 @@ services:
   # dyno and survives a web deploy/restart. INERT until you apply the Blueprint.
   #   DATABASE_URL — the DB URL the worker runs jobs against (app_runtime is
   #                  fine; the jobs only do DML). Set it in the dashboard.
-  #   ANTHROPIC_API_KEY — required once AI_SUMMARY_ENABLED is on above. The
-  #                  summary job (db.py ai-summary) makes the model call HERE,
-  #                  not on the web dyno, so the key has to exist in THIS
-  #                  container too. Without it the web service still offers the
-  #                  button (it has its own key) and every job fails.
+  #   DEEPSEEK_API_KEY — required once AI_SUMMARY_ENABLED is on above, because
+  #                  AI_SUMMARY_MODEL is a deepseek-* model. The summary job
+  #                  (db.py ai-summary) makes the model call HERE, not on the
+  #                  web dyno, so the key has to exist in THIS container too.
+  #                  Without it the web service still offers the button (it has
+  #                  its own copy) and every job fails.
+  #   ANTHROPIC_API_KEY — the second option. Needed here only if AI_SUMMARY_MODEL
+  #                  is pointed at a claude-* model, or if the batch path is
+  #                  ever wired up (batch is Anthropic-only). Harmless to set
+  #                  either way, and setting it is what makes the fallback a
+  #                  dashboard edit rather than a deploy.
   - type: worker
     name: khmdhs-worker
     runtime: docker
@@ -89,6 +112,12 @@ services:
     envVars:
       - key: DATABASE_URL
         sync: false
+      - key: AI_SUMMARY_MODEL
+        value: deepseek-flash  # must match the web service, or the worker
+                               # generates under a model the cache key does not
+                               # expect and every result reads as stale
+      - key: DEEPSEEK_API_KEY
+        sync: false            # set in dashboard (secret)
       - key: ANTHROPIC_API_KEY
         sync: false            # set in dashboard (secret)
 

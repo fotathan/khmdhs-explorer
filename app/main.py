@@ -2494,16 +2494,29 @@ def ai_policy_page(request: Request):
     # local (Tesseract) tier is reported separately because it is the reason
     # many documents never leave the server at all.
     ocr_key = _flag(_ocr.api_key_present)
+    calls_on = (_telephony.TELEPHONY_ENABLED
+                and _flag(_transcribe.backend_configured)
+                and _flag(_call_summary.api_key_present))
+    # WHICH provider gets the notice text is a fact about the configuration, so
+    # it is read like the on/off badges are — from the module, not from memory.
+    # The summary may run on DeepSeek while OCR and call summaries stay on
+    # Anthropic (those two are Anthropic-only), so the page can have to name
+    # both; `anthropic_elsewhere` is "is there a SECOND processor to declare".
+    try:
+        summary_provider_id = _ai_mod.provider_of()
+    except Exception:                        # noqa: BLE001 — never 500 here
+        summary_provider_id = "anthropic"
     return templates.TemplateResponse(
         request, "ai_policy.html",
         {"ai_summary_on": _flag(_ai_mod.can_generate),
+         "summary_provider_id": summary_provider_id,
+         "anthropic_elsewhere": (summary_provider_id != "anthropic"
+                                 and ((ocr_key and TABLES_ENABLED) or calls_on)),
          "doc_ocr_on": ocr_key and TABLES_ENABLED,
          "local_ocr_on": _flag(_tables._local_ocr_enabled),
          # Call handling is only live when the whole chain is: telephony on,
          # a transcription backend reachable, and a key for the summary.
-         "calls_on": (_telephony.TELEPHONY_ENABLED
-                      and _flag(_transcribe.backend_configured)
-                      and _flag(_call_summary.api_key_present)),
+         "calls_on": calls_on,
          # Whose machine hears the recording: a self-hosted Whisper server
          # means the audio never leaves, and only the resulting TEXT reaches a
          # model provider. That is the distinction a data-handling page exists
@@ -3771,8 +3784,13 @@ def act_ai_generate(adam: str, request: Request):
     if not _ai.enabled():
         raise HTTPException(status_code=404, detail="Not found")
     if not _ai.can_generate():
-        raise HTTPException(status_code=400,
-                            detail="ANTHROPIC_API_KEY is not set — generation is off.")
+        # Which key depends on which model: AI_SUMMARY_MODEL picks the provider
+        # (deepseek-* → DEEPSEEK_API_KEY, claude-* → ANTHROPIC_API_KEY). Naming
+        # the wrong one here sends an admin to check a key that was never used.
+        raise HTTPException(
+            status_code=400,
+            detail=f"{_ai.key_var()} is not set — generation is off "
+                   f"({_ai.MODEL} runs on {_ai.provider_label()}).")
     user = getattr(request.state, "user", None) or {}
     who = user.get("username") or "admin"
 
