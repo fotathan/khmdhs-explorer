@@ -8,6 +8,19 @@ Dates are the day the change landed on `main` (which auto-deploys to prod on
 Render). This project has no version tags — the git history is the source of
 truth; this is a curated digest.
 
+## 2026-09-11
+
+### Fixed — the ΓΕΜΗ company search button did nothing
+- The panel is a fragment shared by the customer card (an `include`) and the
+  three HTMX routes that swap it. The routes pass `cust_id`; the card's context
+  never did, so on a freshly loaded page Jinja rendered the missing value as an
+  empty string and the form posted to `/admin/crm//company-match/search` — no
+  such route, 404, and nothing visible anywhere but the browser console. The
+  search was unreachable from the only place it is ever started.
+- `_customer_ctx` now supplies `cust_id`. The panel test asserted only that the
+  string `company-match/search` appeared in the page, which was true of the
+  broken markup too; it now asserts the customer's id is *in* the URL.
+
 ## 2026-09-10
 
 ### Added — match a CRM customer to their ΓΕΜΗ company by name or email domain

@@ -441,6 +441,10 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 "fields": _auth.PROFILE_FIELDS,
                 "contacts": contacts, "lead_operator": lead_operator,
                 "linked_contractor": linked_contractor, "profile_vat": pvat,
+                # cust_id is what _crm_company_match.html builds its three
+                # hx-post URLs from. _match_panel passes it; the card must too,
+                # or the included panel posts to /admin/crm//company-match/...
+                "cust_id": uid,
                 "company_match": company_match, "match_result": None,
                 "field_labels": _cm.FIELD_LABELS,
                 "notes": notes, "calls": calls, "tasks": tasks, "admins": admins,

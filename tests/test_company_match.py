@@ -467,7 +467,11 @@ def test_panel_renders_on_the_customer_card(client, match_clean):
     _admin(client)
     html = client.get(f"/admin/crm/{uid}").text
     assert 'id="company-match"' in html
-    assert "company-match/search" in html
+    # The uid has to be IN the posted URL. The panel is an include, so a
+    # context that forgets cust_id still renders a form — one that posts to
+    # /admin/crm//company-match/search and 404s. That shipped once.
+    assert f"/admin/crm/{uid}/company-match/search" in html
+    assert "/admin/crm//company-match/" not in html
 
 
 # --------------------------------------------------------------------------- #
