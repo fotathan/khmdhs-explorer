@@ -42,7 +42,6 @@ from fastapi import FastAPI, Request, Query, HTTPException, Form, Depends
 from fastapi.responses import (HTMLResponse, JSONResponse,
                                PlainTextResponse, Response)
 from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
 from jinja2 import pass_context as _jinja_pass_context
 
 
@@ -1156,6 +1155,13 @@ try:
 except ImportError:
     import auth as _auth
 
+# Static delivery: the cache tiers, and the one definition of "this is a file,
+# not a page" that both middleware short-circuits below share.
+try:
+    from app import static_assets as _static
+except ImportError:
+    import static_assets as _static      # flat layout (run with --app-dir=app)
+
 try:
     from app import interconnect as _interconnect
 except ImportError:
@@ -1374,6 +1380,13 @@ def _audit(request, status_code: int) -> None:
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
+        # /static is a file tree: no session to mint, no account to resolve, no
+        # admin surface to audit. Returning HERE — before request.session is so
+        # much as read — is what keeps Set-Cookie and Vary: Cookie off an asset
+        # (so Cloudflare will cache it) and keeps a signed-in reader from paying
+        # a Supabase lookup per stylesheet. See app/static_assets.py.
+        if _static.is_static_path(request.url.path):
+            return await call_next(request)
         # Ensure a CSRF token exists in the (signed) session; templates read it
         # and every unsafe request must echo it back (see csrf_protect).
         if not request.session.get("csrf"):
@@ -1428,11 +1441,30 @@ class AuthMiddleware(BaseHTTPMiddleware):
         return response
 
 
-# Order matters: SessionMiddleware is added LAST so it's OUTERMOST and populates
-# request.session before AuthMiddleware reads it.
+class _SessionExceptStatic(SessionMiddleware):
+    """SessionMiddleware, minus /static.
+
+    Its send-wrapper is what writes `Set-Cookie` (when the session was modified)
+    and `Vary: Cookie` (when it was merely read). AuthMiddleware no longer
+    touches the session on a static path, but the wrapper itself still has to go
+    — a `Vary: Cookie` alone splits the edge cache per visitor. Downstream still
+    finds a `session` in the scope, an ordinary empty dict, so the request log's
+    `request.session.get("uid")` gets a miss instead of an assertion.
+    """
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and _static.is_static_path(scope.get("path", "")):
+            scope["session"] = {}
+            await self.app(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
+
+
+# Order matters: the session middleware is added LAST so it's OUTERMOST and
+# populates request.session before AuthMiddleware reads it.
 app.add_middleware(AuthMiddleware)
 app.add_middleware(
-    SessionMiddleware, secret_key=_SECRET_KEY, session_cookie="khmdhs_session",
+    _SessionExceptStatic, secret_key=_SECRET_KEY, session_cookie="khmdhs_session",
     same_site="lax", https_only=_SESSION_SECURE, max_age=14 * 24 * 3600)
 
 
@@ -1900,9 +1932,15 @@ async def register_submit(request: Request):
     _auth.login_session(request, user)
     return _Redirect("/", status_code=303)
 
-if os.path.isdir(os.path.join(APP_DIR, "static")):
-    app.mount("/static", StaticFiles(directory=os.path.join(APP_DIR, "static")),
+_STATIC_DIR = os.path.join(APP_DIR, "static")
+if os.path.isdir(_STATIC_DIR):
+    # CachedStaticFiles is the only difference from a plain mount: it attaches
+    # the Cache-Control that StaticFiles omits. `asset()` is its other half —
+    # templates emit /static/x.css?v=<build>, which is what makes the immutable
+    # tier safe across a deploy. Both live in app/static_assets.py.
+    app.mount("/static", _static.CachedStaticFiles(directory=_STATIC_DIR),
               name="static")
+templates.env.globals["asset"] = _static.make_asset_url(_STATIC_DIR)
 
 # Backfill admin UI (separate module, mounted under /admin).
 try:

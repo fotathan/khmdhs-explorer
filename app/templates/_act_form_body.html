@@ -369,8 +369,8 @@
 {% if is_authored %}
 <script>
 (function () {
-  var CSS = '/static/vendor/quill-2.0.3.snow.css';
-  var JS  = '/static/vendor/quill-2.0.3.js';
+  var CSS = '{{ asset('/static/vendor/quill-2.0.3.snow.css') }}';
+  var JS  = '{{ asset('/static/vendor/quill-2.0.3.js') }}';
   var mount = document.querySelector('.ftc-editor');
   if (!mount) return;
   function ensureCss() {

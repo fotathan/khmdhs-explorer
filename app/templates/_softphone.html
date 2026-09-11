@@ -2,7 +2,7 @@
    Included from beta_base.html's {% block body_end %} only for authenticated
    users when telephony is enabled. All behaviour is in /static/telephony.js;
    this file is markup + scoped styles + the i18n string bootstrap. #}
-<link rel="stylesheet" href="/static/telephony.css">
+<link rel="stylesheet" href="{{ asset('/static/telephony.css') }}">
 <div id="tp-root" hidden
      data-config-url="/telephony/config"
      data-ws-url="/telephony/ws"
@@ -95,5 +95,5 @@
     unmute:      {{ t('Κατάργηση σίγασης')|tojson }},
   };
 </script>
-<script src="/static/vendor/jssip-3.11.1.min.js"></script>
-<script src="/static/telephony.js" defer></script>
+<script src="{{ asset('/static/vendor/jssip-3.11.1.min.js') }}"></script>
+<script src="{{ asset('/static/telephony.js') }}" defer></script>

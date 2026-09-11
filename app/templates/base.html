@@ -8,9 +8,9 @@
   <meta name="robots" content="noindex, nofollow">
   <title>{% block title %}{{ t("Ελληνικές Δημόσιες Συμβάσεις · Εξερευνητής") }}{% endblock %}</title>
 
-  <link rel="stylesheet" href="/static/fonts/fira.css">
+  <link rel="stylesheet" href="{{ asset('/static/fonts/fira.css') }}">
 
-  <script src="/static/vendor/htmx-1.9.12.min.js" defer></script>
+  <script src="{{ asset('/static/vendor/htmx-1.9.12.min.js') }}" defer></script>
 
   <style>
     :root {

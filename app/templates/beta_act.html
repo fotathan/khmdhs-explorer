@@ -15,7 +15,7 @@
    CSS is a stylesheet rather than an inline style block riding along with each
    swap. Linked only when the feature is on — an act page with
    AI_SUMMARY_ENABLED unset must fetch nothing extra. #}
-{% block head_extra %}{% if ai_summary_enabled %}<link rel="stylesheet" href="/static/css/ai_summary.css">{% endif %}{% endblock %}
+{% block head_extra %}{% if ai_summary_enabled %}<link rel="stylesheet" href="{{ asset('/static/css/ai_summary.css') }}">{% endif %}{% endblock %}
 {% block content %}
 <main>
   <a class="back-link" href="/" hx-boost="false">{{ t("‹ πίσω στην αναζήτηση") }}</a>
@@ -563,10 +563,10 @@
 {# Occurrence navigator: one popover reused by every chip, filled over HTMX. #}
 {% if match %}
 <div id="occ-popover" class="occ-pop" role="dialog" aria-modal="false" hidden></div>
-<script src="/static/js/occurrences.js" defer></script>
+<script src="{{ asset('/static/js/occurrences.js') }}" defer></script>
 {% endif %}
 {# Click-through from an extracted item to the sentence that produced it. #}
 {% if ai_summary_enabled and atype == 'notice' %}
-<script src="/static/js/ai_summary.js" defer></script>
+<script src="{{ asset('/static/js/ai_summary.js') }}" defer></script>
 {% endif %}
 {% endblock %}

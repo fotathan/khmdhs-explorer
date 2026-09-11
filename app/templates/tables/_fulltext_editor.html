@@ -32,8 +32,8 @@
 
 <script>
 (function () {
-  var CDN_JS  = '/static/vendor/quill-2.0.3.js';
-  var CDN_CSS = '/static/vendor/quill-2.0.3.snow.css';
+  var CDN_JS  = '{{ asset('/static/vendor/quill-2.0.3.js') }}';
+  var CDN_CSS = '{{ asset('/static/vendor/quill-2.0.3.snow.css') }}';
 
   function ensureCss() {
     if (document.getElementById('ft-quill-css')) return;

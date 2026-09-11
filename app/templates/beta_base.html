@@ -19,8 +19,8 @@
 <meta property="og:locale" content="{{ 'en_GB' if lang == 'en' else 'el_GR' }}">
 <meta name="twitter:card" content="summary">
 {% block head_json_ld %}{% endblock %}
-<link rel="stylesheet" href="/static/fonts/fira.css">
-<script src="/static/vendor/htmx-1.9.12.min.js"></script>
+<link rel="stylesheet" href="{{ asset('/static/fonts/fira.css') }}">
+<script src="{{ asset('/static/vendor/htmx-1.9.12.min.js') }}"></script>
 <style>
   :root{
     --paper:#ffffff; --paper-2:#f6f7f9; --paper-3:#fbfcfd;
