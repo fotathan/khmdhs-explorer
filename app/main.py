@@ -314,21 +314,72 @@ templates.env.filters["vname"] = _vname
 # sync route handlers in a threadpool, so several could touch one connection at
 # once. Each request now checks out its own connection and returns it on exit.
 #
-#  * prepare_threshold=None — no server-side prepared statements; required behind
-#    Supabase's transaction pooler (port 6543), where consecutive statements can
-#    land on different physical connections ("prepared statement _pg3_N already
-#    exists"). Harmless on a direct connection (local dev).
+#  * prepare_threshold — server-side prepared statements. MUST stay off (None)
+#    behind Supabase's TRANSACTION pooler (port 6543), where consecutive
+#    statements can land on different physical connections ("prepared statement
+#    _pg3_N already exists"). The SESSION pooler (port 5432) and a direct
+#    connection both hold one backend for the session and DO support them — see
+#    the connection-mode note below. Tunable so turning them on is a config
+#    change after the connection mode is confirmed, not a code change.
 #  * statement_timeout — a best-effort guard against runaway queries tying up a
 #    connection. Behind the transaction pooler a session SET may not persist, so
 #    for GUARANTEED enforcement also set it at the DB role level
-#    (ALTER ROLE <app_role> SET statement_timeout = '15s').
+#    (ALTER ROLE <app_role> SET statement_timeout = '15s'). On the session pooler
+#    the SET does persist for the life of the connection, but the role-level
+#    setting is still the belt to this braces.
 #  * check on checkout — a dead/idle-dropped pooler connection is replaced
 #    instead of handed out. Gated on idle time; see _check_if_idle below for
 #    why that is enough. Sizes/timeouts are env-tunable.
 # ---------------------------------------------------------------------------- #
+# ---------------------------------------------------------------------------- #
+# WHICH SUPABASE CONNECTION MODE. Three of them, and two share a port number,
+# which is the trap: the SESSION pooler and a DIRECT connection are both 5432
+# but on different hosts, with different usernames.
+#
+#   direct       db.<ref>.supabase.co:5432          user postgres
+#                IPv6 only unless you buy the IPv4 add-on. Prepared statements OK.
+#   session      aws-<n>-<region>.pooler.supabase.com:5432   user postgres.<ref>
+#                IPv4 on every plan. Prepared statements OK. For PERSISTENT
+#                backends on IPv4-only networks — which is what Render is.
+#   transaction  aws-<n>-<region>.pooler.supabase.com:6543   user postgres.<ref>
+#                IPv4. NO prepared statements. For serverless / edge, where many
+#                short-lived connections open and close.
+#
+# This app is a long-running uvicorn process holding a connection pool: the
+# SESSION pooler is the right match, not 6543. Transaction mode buys nothing
+# here (we are not serverless) and costs the prepared statements plus the
+# reliability of session-level SETs. See render.yaml for the exact URI to set.
+#
+# POOL SIZING. max_size is a CEILING, not a reservation: psycopg_pool opens
+# min_size connections and grows only under concurrent demand. Measured — idle
+# and after 20 SEQUENTIAL requests the pool holds 1 connection; it reached 8
+# only under 8 genuinely concurrent ones. So lowering DB_POOL_MAX does not
+# reduce steady-state connections; it only makes the app queue sooner in a
+# burst, and then fail at DB_POOL_TIMEOUT. Size it from the stats /version
+# reports to an admin (pool_size is the high-water mark, requests_queued counts
+# the requests that ever had to wait) rather than from a guess.
+# ---------------------------------------------------------------------------- #
 _POOL_MIN = int(os.environ.get("DB_POOL_MIN", "1"))
 _POOL_MAX = int(os.environ.get("DB_POOL_MAX", "10"))
 _POOL_TIMEOUT = float(os.environ.get("DB_POOL_TIMEOUT", "20"))
+# None = off, which is the only safe setting behind the TRANSACTION pooler.
+# A positive integer is psycopg's threshold: prepare a statement after it has
+# been seen that many times. Only turn this on once the connection string is
+# confirmed to be session-mode or direct.
+def _prepare_threshold(raw: str | None) -> int | None:
+    """Parse DB_PREPARE_THRESHOLD, failing towards OFF.
+
+    Only a plain non-negative integer turns prepared statements on. Anything
+    else — "true", "yes", "on", a typo, an empty string — means off, because
+    the failure mode is not cosmetic: prepared statements behind the
+    TRANSACTION pooler raise "prepared statement _pg3_N already exists" on live
+    traffic. An affirmative-looking word must never be read as a threshold.
+    """
+    raw = (raw or "").strip()
+    return int(raw) if raw.isdigit() else None
+
+
+_PREPARE_THRESHOLD = _prepare_threshold(os.environ.get("DB_PREPARE_THRESHOLD"))
 _STMT_TIMEOUT_MS = int(os.environ.get("DB_STATEMENT_TIMEOUT_MS", "15000"))
 
 # How long a pooled connection may sit idle before the next checkout verifies
@@ -393,7 +444,8 @@ _pool = ConnectionPool(
     DATABASE_URL, min_size=_POOL_MIN, max_size=_POOL_MAX, timeout=_POOL_TIMEOUT,
     name="khmdhs", open=False, configure=_configure_conn,
     check=_check_if_idle,
-    kwargs={"row_factory": dict_row, "autocommit": True, "prepare_threshold": None},
+    kwargs={"row_factory": dict_row, "autocommit": True,
+            "prepare_threshold": _PREPARE_THRESHOLD},
 )
 _pool.open()
 
@@ -2311,13 +2363,35 @@ def healthz():
 
 
 @app.get("/version")
-def version():
+def version(request: Request):
     """Deployed build marker — makes infra-only deploys (no visible route
     change) externally verifiable. RENDER_GIT_COMMIT is set by Render to the
     deployed commit SHA; 'dev' locally. Also reports pool sizing + a live DB
-    check so this doubles as a richer health probe."""
+    check so this doubles as a richer health probe.
+
+    An ADMIN additionally gets the pool's live statistics, which is how
+    DB_POOL_MAX gets sized from evidence instead of a guess:
+
+      pool_size        connections currently open — the high-water mark, since
+                       the pool grows on demand and shrinks only after max_idle
+      requests_queued  how many checkouts have EVER had to wait for one.
+                       Still 0 under real traffic ⇒ the ceiling is never
+                       reached and could come down; climbing ⇒ it is working
+      requests_wait_ms total time spent waiting, cumulative
+      connections_num  connections opened over the process's lifetime; far
+                       above pool_size means churn (connections being dropped
+                       and reopened), which points at the connection MODE
+
+    Admin-only because it is a load signal, and /version is public.
+    """
     out = {"commit": os.environ.get("RENDER_GIT_COMMIT", "dev"),
-           "pool": {"min": _POOL_MIN, "max": _POOL_MAX}}
+           "pool": {"min": _POOL_MIN, "max": _POOL_MAX,
+                    "prepared_statements": _PREPARE_THRESHOLD is not None}}
+    if (getattr(request.state, "user", None) or {}).get("role") == "admin":
+        try:
+            out["pool"]["stats"] = _pool.get_stats()
+        except Exception:      # noqa: BLE001 — a probe must never 500
+            pass
     try:
         with cursor() as c:
             c.execute("SELECT 1")

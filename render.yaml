@@ -30,12 +30,37 @@
 #
 # After it deploys, set the SECRET env vars in the Render dashboard (they're
 # marked sync:false so they are NOT read from this file / git):
-#   DATABASE_URL  — from Supabase: Project Settings → Database → Connection
-#                   string → URI (use the "Connection pooler" / port 6543 URI
-#                   for serverless-style web apps). Use the app_runtime role,
-#                   NOT the owner: prod's DML-only role is what keeps
-#                   proc.schema_migration and the proc.admin_action audit log
-#                   out of the app's reach.
+#   DATABASE_URL  — from Supabase: Connect → Connection string. Pick the
+#                   SESSION POOLER, not the transaction pooler:
+#
+#                     aws-<n>-<region>.pooler.supabase.com : 5432
+#                     username postgres.<project-ref>
+#
+#                   WATCH THE HOST, NOT JUST THE PORT. The session pooler and a
+#                   DIRECT connection are both on 5432; they differ by hostname
+#                   (pooler.supabase.com vs db.<ref>.supabase.co) and by
+#                   username (postgres.<ref> vs postgres). The direct one is
+#                   IPv6-only without the paid IPv4 add-on, and Render is
+#                   IPv4-only, so direct is not an option here.
+#
+#                   Why session and not 6543: transaction mode exists for
+#                   serverless/edge workloads that open many short-lived
+#                   connections. This service is one long-running uvicorn
+#                   process holding a pool — the opposite shape. Transaction
+#                   mode buys it nothing and costs prepared statements (which
+#                   it forbids) and reliable session-level SETs (statement_
+#                   timeout, timezone). Supabase's own guidance:
+#                   https://supabase.com/docs/guides/database/connecting-to-postgres
+#
+#                   Use the app_runtime role, NOT the owner: prod's DML-only
+#                   role is what keeps proc.schema_migration and the
+#                   proc.admin_action audit log out of the app's reach. With
+#                   the pooler the role goes in the username as
+#                   app_runtime.<project-ref>.
+#
+#                   AFTER switching, and only then, prepared statements can be
+#                   turned on with DB_PREPARE_THRESHOLD=5 (default: off). Do it
+#                   as a separate change so a failure is unambiguous.
 #   SECRET_KEY    — random key that signs the session cookies (accounts / auth).
 #                   Generate with: python3 -c "import secrets; print(secrets.token_hex(32))"
 #                   MUST be set before/with the auth deploy — without it the app
