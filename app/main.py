@@ -321,14 +321,36 @@ templates.env.filters["vname"] = _vname
 #    connection. Behind the transaction pooler a session SET may not persist, so
 #    for GUARANTEED enforcement also set it at the DB role level
 #    (ALTER ROLE <app_role> SET statement_timeout = '15s').
-#  * check_connection on checkout — a dead/idle-dropped pooler connection is
-#    replaced instead of handed out, preserving the old reconnect-on-stale
-#    behaviour. Sizes/timeouts are env-tunable.
+#  * check on checkout — a dead/idle-dropped pooler connection is replaced
+#    instead of handed out. Gated on idle time; see _check_if_idle below for
+#    why that is enough. Sizes/timeouts are env-tunable.
 # ---------------------------------------------------------------------------- #
 _POOL_MIN = int(os.environ.get("DB_POOL_MIN", "1"))
 _POOL_MAX = int(os.environ.get("DB_POOL_MAX", "10"))
 _POOL_TIMEOUT = float(os.environ.get("DB_POOL_TIMEOUT", "20"))
 _STMT_TIMEOUT_MS = int(os.environ.get("DB_STATEMENT_TIMEOUT_MS", "15000"))
+
+# How long a pooled connection may sit idle before the next checkout verifies
+# it. ConnectionPool.check_connection sends an empty query — one full round trip
+# to the database — and psycopg runs it on EVERY checkout. One signed-in act
+# page checks out five times (AuthMiddleware's account lookup, then the route's
+# own blocks), so always-on checking bought five round trips per page to
+# re-prove a connection that had been used milliseconds earlier. Against
+# Supabase in Paris that is the same kind of cost the Oregon->Frankfurt move was
+# made to remove: latency multiplied by the number of round trips.
+#
+# What the check protects against is narrower than it looks. psycopg_pool
+# already discards, ON RETURN, any connection whose transaction_status is
+# UNKNOWN (_return_connection), so a connection that breaks WHILE IN USE never
+# goes back into the pool. The only connection that can be dead at checkout is
+# one that died while SITTING IDLE — the pooler's idle timeout, a network drop,
+# a database restart — and that one is idle by definition, so checking only
+# idle connections still catches every case the eager check caught. Both halves
+# of that argument are test-enforced (tests/test_db_pool.py).
+#
+# 0 restores a check on every checkout.
+_POOL_CHECK_IDLE_S = float(os.environ.get("DB_POOL_CHECK_IDLE_SECONDS", "15"))
+_LAST_USED_ATTR = "_khmdhs_used_at"
 # Session time zone for every pooled connection, so timestamptz values render in
 # local wall-clock time app-wide (Greek app → Europe/Athens) instead of UTC. Uses
 # the named zone, so EET/EEST DST is handled automatically. `timezone` is one of
@@ -347,12 +369,29 @@ def _configure_conn(c: psycopg.Connection) -> None:
             # set_config takes the zone as a bound parameter (injection-safe, unlike
             # SET TIME ZONE which can't parameterise the zone name).
             cur.execute("SELECT set_config('timezone', %s, false)", (_APP_TIMEZONE,))
+    # Stamp it as freshly used: `configure` runs once, on a connection that was
+    # opened moments ago, so its first checkout has nothing to verify.
+    setattr(c, _LAST_USED_ATTR, _time.monotonic())
+
+
+def _check_if_idle(c: psycopg.Connection) -> None:
+    """Pool `check` callback: verify a connection only if it has been sitting.
+
+    Raising is the contract — psycopg_pool disposes of a connection whose check
+    fails and hands out another — so this delegates to the real check and lets
+    it raise. Skipping is the whole optimisation: a connection returned to the
+    pool microseconds ago, by the same request that is about to take it back,
+    has already proved itself.
+    """
+    last = getattr(c, _LAST_USED_ATTR, None)
+    if last is None or (_time.monotonic() - last) >= _POOL_CHECK_IDLE_S:
+        ConnectionPool.check_connection(c)
 
 
 _pool = ConnectionPool(
     DATABASE_URL, min_size=_POOL_MIN, max_size=_POOL_MAX, timeout=_POOL_TIMEOUT,
     name="khmdhs", open=False, configure=_configure_conn,
-    check=ConnectionPool.check_connection,
+    check=_check_if_idle,
     kwargs={"row_factory": dict_row, "autocommit": True, "prepare_threshold": None},
 )
 _pool.open()
@@ -364,8 +403,15 @@ def cursor():
     (autocommit, dict rows), and return it to the pool on exit. Reconnection and
     dead-connection replacement are handled by the pool itself."""
     with _pool.connection() as c:
-        with c.cursor() as cur:
-            yield cur
+        try:
+            with c.cursor() as cur:
+                yield cur
+        finally:
+            # When this connection was last known good, which is what
+            # _check_if_idle reads at its next checkout. Stamped on the way out
+            # even if the block raised: a connection broken in use is discarded
+            # by the pool on return and never reaches a checkout again.
+            setattr(c, _LAST_USED_ATTR, _time.monotonic())
 
 
 def _load_code_lists():
