@@ -1,0 +1,48 @@
+{# _panel_top_contractors.html — "who has won work under these CPV codes".
+
+   Loaded on its own, over HTMX, from GET /act/<adam>/top-contractors. It is
+   NOT part of the act page render, and the reason is measured: the aggregation
+   behind it scans every line item carrying any of this act's CPV codes and
+   groups the winners. On a common code (33140000-3 appears on 189k line items)
+   that is ~1-2.7s, against ~40ms for every other query on the page combined.
+   It was the page's whole latency.
+
+   The panel is comparative context — "who else plays in this space" — not the
+   act itself, so it is the right thing to arrive a beat later. The mount in
+   beta_act.html sits exactly where the panel used to, between the full text
+   and the extracted tables, so nothing moves once it lands.
+
+   Swapped with outerHTML and rendered empty when there is nothing to show, so
+   an act with no CPV history leaves no placeholder behind. #}
+{% if top_cpv_contractors %}
+<div class="panel">
+  <h3 class="panel-h">{{ t("Κορυφαίοι ανάδοχοι σε αυτούς τους κωδικούς CPV") }}</h3>
+  <table class="dtable">
+    <thead><tr>
+      <th>{{ t("Ανάδοχος") }}</th>
+      <th>CPV</th>
+      <th class="val">{{ t("Κατακυρωμένες συμβάσεις") }}</th>
+      <th class="val">{{ t("Συνολική αξία") }}</th>
+      <th class="val">{{ t("Πιο πρόσφατη") }}</th>
+    </tr></thead>
+    <tbody>
+      {% for row in top_cpv_contractors %}
+      <tr>
+        <td><a href="/contractor/{{ row.vat_number }}">{{ row.name or row.vat_number }}</a></td>
+        <td style="font-size:12.5px;">
+          {% for code in row.matched_cpvs %}
+          <code class="adam">{{ code }}</code>{% if not loop.last %} {% endif %}
+          {% endfor %}
+        </td>
+        <td class="val">{{ row.n_won }}</td>
+        <td class="val">
+          {% if row.total_value %}€ {{ "{:,.2f}".format(row.total_value).replace(",", ".") }}
+          {% else %}—{% endif %}
+        </td>
+        <td class="val">{{ row.last_won.strftime("%d/%m/%Y") if row.last_won else "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
