@@ -1,53 +1,269 @@
-# Frankfurt performance-test Blueprint.
+# ---------------------------------------------------------------------------- #
+# render.yaml — Render Blueprint. With this file in your repo root, Render can
+# create the service automatically (New → Blueprint → pick your repo).
 #
-# This branch intentionally declares only one isolated web service. It mirrors
-# the current production topology, where background jobs run inline, so the
-# region comparison does not also introduce a worker/cron architecture change.
-# Production remains managed by the main branch's existing Blueprint.
+# REGION: frankfurt. The database is Supabase in Paris (West EU); the app was in
+# Oregon until 2026-09-11, which put ~150 ms of Atlantic on EVERY query — a page
+# that runs ten of them in sequence paid one and a half seconds in pure network.
+# Measured before/after on the same corpus (performance-baselines/): p50 1695 ms
+# → 832 ms, mean 1612 ms → 901 ms, 6.1 → 11.0 req/s, zero errors either side.
+# Greek visitors gained a second time, ~180 ms → ~45 ms to the app itself.
+#
+# A Render service's region is FIXED AT CREATION, so this is not the Oregon
+# service moved: it is a separate Frankfurt service that replaced it on
+# 2026-09-11.
+#
+# READ THIS BEFORE YOU GET CONFUSED BY THE HOSTNAME. This service is NAMED
+# khmdhs-explorer and is production, but it answers on
+#     https://khmdhs-explorer-eu.onrender.com
+# because RENAMING A RENDER SERVICE DOES NOT MOVE ITS onrender.com SUBDOMAIN —
+# the subdomain is allocated when the service is created and stays with it for
+# life. khmdhs-explorer.onrender.com still belongs to the retired Oregon
+# service (now named khmdhs-explorer-oregon), and the only way to get that
+# subdomain onto this service would be to delete Oregon and CREATE a new
+# service under the name, which risks losing the subdomain to no one for the
+# sake of cosmetics.
+#
+# The real fix is a domain you own pointed at this service, at which point the
+# onrender.com name stops mattering and the next region change is a DNS record
+# instead of a cutover. APP_BASE_URL below is the single line to change.
+#
+# After it deploys, set the SECRET env vars in the Render dashboard (they're
+# marked sync:false so they are NOT read from this file / git):
+#   DATABASE_URL  — from Supabase: Project Settings → Database → Connection
+#                   string → URI (use the "Connection pooler" / port 6543 URI
+#                   for serverless-style web apps). Use the app_runtime role,
+#                   NOT the owner: prod's DML-only role is what keeps
+#                   proc.schema_migration and the proc.admin_action audit log
+#                   out of the app's reach.
+#   SECRET_KEY    — random key that signs the session cookies (accounts / auth).
+#                   Generate with: python3 -c "import secrets; print(secrets.token_hex(32))"
+#                   MUST be set before/with the auth deploy — without it the app
+#                   falls back to an insecure built-in key and sessions are forgeable.
+#                   It must also be IDENTICAL to whatever the previous service on
+#                   this hostname used, or every live session cookie fails to
+#                   verify and every customer is silently logged out.
+# ---------------------------------------------------------------------------- #
 services:
   - type: web
-    name: khmdhs-explorer-eu
-    region: frankfurt
+    name: khmdhs-explorer
+    region: frankfurt          # see the header — must match Supabase's region
     runtime: docker
+    # Free sleeps after ~15 minutes idle, and this image carries tesseract plus
+    # the Greek language pack, so a cold start is not quick. That was already
+    # true in Oregon, so promoting Frankfurt on "free" is not a regression — but
+    # it is the first thing to fix when this stops being a pilot, and it is a
+    # correctness issue and not only a speed one: the inline worker below only
+    # drains the job queue while the web service is actually awake.
     plan: free
     healthCheckPath: /healthz
     envVars:
       - key: DATABASE_URL
-        sync: false
+        sync: false            # set in dashboard (secret) — app_runtime role
       - key: SECRET_KEY
-        sync: false
+        sync: false            # set in dashboard (secret) — signs session cookies
 
-      # Match the current single-service production topology.
+      # Admin-launched backfills / table-extraction / AI-summary jobs run in a
+      # thread inside THIS process rather than in the dedicated khmdhs-worker
+      # service below, which has never been created (it needs a paid plan). The
+      # app defaults this OFF when RENDER is set, precisely so a web service and
+      # a worker service cannot both drain the queue, so the stopgap has to say
+      # yes explicitly.
+      # IF YOU EVER CREATE khmdhs-worker: DELETE THIS KEY, or every job has two
+      # claimants. They will not corrupt anything — worker.py claims with
+      # FOR UPDATE SKIP LOCKED — but you will be paying for a worker that races
+      # a web dyno for the same rows.
       - key: RUN_INLINE_WORKER
         value: "1"
 
-      # Keep passwordless email login disabled until mail deliverability is
-      # configured and explicitly verified.
+      # Passwordless sign-in links ("email me a link" on /login). OFF in prod
+      # until deliverability is done: this app has no SPF/DKIM/DMARC yet, and a
+      # digest in a spam folder is an annoyance while a SIGN-IN LINK in one is a
+      # locked-out customer. The app defaults this ON (harmless with
+      # EMAIL_BACKEND=console), so prod has to say no explicitly.
+      # Flip to "1" only once SMTP + domain auth are configured AND
+      # EMAIL_REDIRECT_TO is unset here — with it set, every customer's link
+      # would go to that one mailbox.
       - key: LOGIN_LINKS_ENABLED
         value: "0"
 
-      # Match the production AI-summary configuration.
+      # AI summary panel on notices (docs/specs/ai-summary.md). Unlike the
+      # switch above, this one has to say YES explicitly: the app defaults it
+      # OFF and treats anything not recognisably affirmative as off, because
+      # every use spends money.
       - key: AI_SUMMARY_ENABLED
         value: "1"
+      # The model name is also the provider switch: deepseek-* → DeepSeek, with
+      # DEEPSEEK_API_KEY; anything else → Anthropic, with ANTHROPIC_API_KEY.
+      # deepseek-flash is the app default (measured in ai_summary_ab.py:
+      # comparable yield to Opus 5 at roughly a twelfth of the price). It is
+      # named here anyway, so the provider a customer's documents are sent to is
+      # a visible, reviewable line rather than a library default.
+      #
+      # CHANGING IT IS NOT FREE: input_hash covers the model, so every stored
+      # summary and every queued job goes stale and has to be regenerated under
+      # the cap below. It also changes what /ai tells the public — the page
+      # reads the provider from the live config, so that part follows on its own.
       - key: AI_SUMMARY_MODEL
         value: deepseek-flash
+      - key: DEEPSEEK_API_KEY
+        sync: false            # set in dashboard (secret)
+      # The second option — needed here if AI_SUMMARY_MODEL is ever pointed at a
+      # claude-* model. It is also what powers the Anthropic OCR tier for scanned
+      # PDFs, which is live regardless of the summary provider, so this key is
+      # not optional in practice.
+      - key: ANTHROPIC_API_KEY
+        sync: false            # set in dashboard (secret)
+      # Acts generated per DAY, whole deployment — the blast radius while the
+      # prompt is still settling. On deepseek-flash a notice is ~$0.01-0.02
+      # (it was ~$0.12-0.20 on Opus 5), paid once per act and then read from the
+      # cache forever. The cap is left at 10 regardless: it is there to bound a
+      # runaway loop and a prompt regression, not the invoice.
+      # Counted from proc.ai_summary_job in the DATABASE, so it is genuinely
+      # deployment-wide: a second service on the same DB shares this budget.
       - key: AI_SUMMARY_DAILY_CAP
         value: "10"
-      - key: DEEPSEEK_API_KEY
-        sync: false
-      - key: ANTHROPIC_API_KEY
-        sync: false
 
-      # Registry enrichment used by the admin surfaces.
+      # ΓΕΜΗ business-registry lookups (app/gemi_client.py, app/company_match.py)
+      # behind the admin CRM surfaces.
       - key: GEMI_API_KEY
-        sync: false
+        sync: false            # set in dashboard (secret)
       - key: GEMI_CONTACT
         sync: false
 
-      # Use the isolated Render URL until a user-owned domain is available.
+      # Absolute origin for canonical links, sitemap entries and mailed links.
+      # Unset, these fall back to the request's own origin, which happens to be
+      # right on Render — but it is set explicitly because a service that can be
+      # reached on more than one hostname must not let the request decide what
+      # its canonical URL is. THIS IS THE LINE TO CHANGE FIRST if the app ever
+      # moves to a domain you own.
       - key: APP_BASE_URL
         value: https://khmdhs-explorer-eu.onrender.com
 
-      # Prevent the test deployment from competing with production in search.
+      # Search-engine indexing (app/seo.py): robots.txt, the sitemaps, the
+      # canonical URL and the per-page robots directive. It is ON here without
+      # this variable — production is the one host that should be findable —
+      # so the key exists only so it can be turned OFF from the dashboard
+      # without a deploy. Anything not recognisably affirmative means off.
+      #
+      # It changes nothing about who may READ what. A crawler is an anonymous
+      # visitor and gets the same freemium teaser.
+      #
+      # KEEP THIS AT "0" ON ANY SECOND DEPLOYMENT of this repo. Two indexable
+      # copies of the same corpus on two hostnames is duplicate content, and the
+      # canonical above would be pointing both of them at this one.
       - key: SEO_INDEX
-        value: "0"
+        value: "1"
+
+  # Background job worker — drains the admin job queue OFF the web process.
+  # The admin UI enqueues backfills / table-extraction jobs (proc.ingest_job,
+  # proc.table_extract_job with status='queued'); this long-running worker
+  # claims and runs them (worker.py), so heavy ingestion never runs on the web
+  # dyno and survives a web deploy/restart. INERT until you apply the Blueprint.
+  # NOT CREATED TODAY — the web service runs the worker inline instead (see
+  # RUN_INLINE_WORKER above). Creating this means removing that key.
+  #   DATABASE_URL — the DB URL the worker runs jobs against (app_runtime is
+  #                  fine; the jobs only do DML). Set it in the dashboard.
+  #   DEEPSEEK_API_KEY — required once AI_SUMMARY_ENABLED is on above, because
+  #                  AI_SUMMARY_MODEL is a deepseek-* model. The summary job
+  #                  (db.py ai-summary) makes the model call HERE, not on the
+  #                  web dyno, so the key has to exist in THIS container too.
+  #                  Without it the web service still offers the button (it has
+  #                  its own copy) and every job fails.
+  #   ANTHROPIC_API_KEY — the second option. Needed here only if AI_SUMMARY_MODEL
+  #                  is pointed at a claude-* model, or if the batch path is
+  #                  ever wired up (batch is Anthropic-only). Harmless to set
+  #                  either way, and setting it is what makes the fallback a
+  #                  dashboard edit rather than a deploy.
+  - type: worker
+    name: khmdhs-worker
+    region: frankfurt         # same region as the DB, for the same reason
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter             # Background Workers need a paid plan
+    dockerCommand: python worker.py
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: AI_SUMMARY_MODEL
+        value: deepseek-flash  # must match the web service, or the worker
+                               # generates under a model the cache key does not
+                               # expect and every result reads as stale
+      - key: DEEPSEEK_API_KEY
+        sync: false            # set in dashboard (secret)
+      - key: ANTHROPIC_API_KEY
+        sync: false            # set in dashboard (secret)
+
+  # Scheduled incremental ingestion — runs OFF the web process (a Cron Job spins
+  # up, runs cron_catchup.py = per-source `db.py catchup`, then exits). Watermark-
+  # based, so re-running is safe. INERT until you apply the Blueprint + set its env.
+  #   DATABASE_URL             — the DB URL (use the OWNER url if you set
+  #                              CRON_REFRESH_ANALYTICS=1, which REFRESHes matviews).
+  #   CRON_REFRESH_ANALYTICS   — optional "1" to refresh /analytics after catchup.
+  #   CRON_DISABLE / CRON_STEPS — optional, to skip or customise sources.
+  # Scheduled result emails — a Cron Job that runs cron_digests.py (the same
+  # sweep the admin's "run what is due" button performs) and exits. It only
+  # sends what its schedule says is due, so running it every 15 minutes is
+  # safe and a missed run is absorbed by the next one. INERT until you apply
+  # the Blueprint + set its env.
+  #   DATABASE_URL   — the app_runtime url is fine (DML only).
+  #   EMAIL_BACKEND  — console (logs only, the safe default) | file | smtp.
+  #   SMTP_*         — host/port/user/password when EMAIL_BACKEND=smtp.
+  #   EMAIL_FROM     — the From address.
+  #   APP_BASE_URL   — https://<your-app> so the links in the email resolve.
+  #   EMAIL_REDIRECT_TO — set while testing: every message goes here instead
+  #                       of to the customer.
+  # NOTE: do NOT also set DIGEST_SCHEDULER=1 on the web service — two runners
+  # would race for the same subscriptions.
+  - type: cron
+    name: khmdhs-digests
+    region: frankfurt
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    schedule: "*/15 * * * *"   # every 15 minutes; the schedules decide what actually sends
+    dockerCommand: python cron_digests.py
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: EMAIL_BACKEND
+        value: console         # change to smtp once a mail server is configured
+      - key: APP_BASE_URL
+        sync: false
+
+  - type: cron
+    name: khmdhs-catchup
+    region: frankfurt
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    schedule: "30 3 * * *"     # daily 03:30 UTC (adjust as needed)
+    dockerCommand: python cron_catchup.py
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+# ---------------------------------------------------------------------------- #
+# Enabling the background worker (needed for admin-launched jobs in prod):
+#   1. Push; in Render, apply the Blueprint change → it creates "khmdhs-worker"
+#      (Background Workers need a paid plan).
+#   2. Set its DATABASE_URL (app_runtime url is fine). It starts polling and runs
+#      whatever the admin UI enqueues.
+#   3. DELETE RUN_INLINE_WORKER from the web service, or both drain the queue.
+#   NOTE: until this worker runs, admin-launched jobs sit in 'queued' (the web
+#   process no longer runs them itself). Locally, the web app runs an inline
+#   worker thread, so no separate process is needed in dev.
+#
+# Enabling the digest emails:
+#   1. Apply the Blueprint → it creates "khmdhs-digests" (Cron Jobs need a paid
+#      plan). Locally you need none of this: run `python cron_digests.py` by
+#      hand, or set DIGEST_SCHEDULER=1 on the web process and it sweeps in a
+#      background thread.
+#   2. Set DATABASE_URL + APP_BASE_URL, leave EMAIL_BACKEND=console for a first
+#      run, and read the logs to see the messages that would have gone out.
+#   3. Configure SMTP_* + EMAIL_FROM and flip EMAIL_BACKEND=smtp when you are
+#      ready to send for real. Deliverability (SPF/DKIM/DMARC, unsubscribe) is
+#      NOT handled by this app — do that before mailing real customers.
+#
+# Enabling the catchup cron:
+#   1. Apply the Blueprint → it creates "khmdhs-catchup" (Cron Jobs need a paid plan).
+#   2. Set its DATABASE_URL (owner url recommended). Trigger a manual run to test.
+#   3. It then runs daily and replaces running `./ingest.sh prod catchup` by hand.
+# ---------------------------------------------------------------------------- #
