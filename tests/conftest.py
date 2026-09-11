@@ -113,6 +113,14 @@ def _clean(_schema):
         c.execute("TRUNCATE proc.login_throttle")
         c.execute("TRUNCATE proc.admin_action CASCADE")
         c.execute("TRUNCATE proc.ps_auths")               # no FK to cascade through
+    # Process-level caches must not leak between tests: the search totals cache
+    # is keyed on the filter, so two tests running the same search over
+    # different fixture data would otherwise see each other's numbers.
+    try:
+        from app.main import _totals_cache
+        _totals_cache.clear()
+    except Exception:      # noqa: BLE001 — app not importable in pure-unit runs
+        pass
     yield
 
 

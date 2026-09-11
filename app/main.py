@@ -31,6 +31,7 @@ import re
 import secrets
 import time as _time
 import uuid
+from collections import OrderedDict as _OrderedDict
 from contextlib import contextmanager, asynccontextmanager
 from datetime import date
 from typing import Optional
@@ -822,6 +823,97 @@ def build_where(params: dict) -> tuple[str, list]:
     return (" AND ".join(where) if where else "TRUE"), args
 
 
+# ---------------------------------------------------------------------------- #
+# Search totals cache
+#
+# Every result page reports an exact count and a summed value over the WHOLE
+# matching set, not just the rows on screen. Measured against the 2.9M-row local
+# corpus (production is ~62k today, so this is where it is heading):
+#
+#   unfiltered sum(total_cost_with_vat)   556ms   — the landing page, every load
+#   filtered count+sum, type=contract     324ms
+#   filtered count+sum, one year          163ms
+#   the correction delta                    5ms   — few overrides, always cheap
+#
+# Two things make that worth caching rather than merely optimising. The
+# unfiltered figure is IDENTICAL for every visitor and changes only when the
+# ingester runs. And paging through a filtered result set re-computes the same
+# aggregate for page 2, 3, 4 — the totals do not depend on LIMIT/OFFSET, only on
+# the WHERE clause, which is exactly the cache key.
+#
+# Bounded staleness is the right trade here: the unfiltered COUNT is already an
+# estimate (pg_class.reltuples — deliberate, see the counter rework below), so a
+# headline value that is up to a minute old is consistent with what is already
+# shown. Nothing else in the response is cached: the rows themselves are always
+# read live, so a new act appears on the page immediately even while the headline
+# is still catching up.
+#
+# Process-local, like the rate limiter, and for the same reason: one uvicorn
+# worker. A multi-instance deployment would want a shared store, or the one-row
+# materialised summary this cache is standing in for.
+#
+#   SEARCH_TOTALS_TTL_SECONDS=0   turn it off (always recompute)
+# ---------------------------------------------------------------------------- #
+_TOTALS_TTL_S = float(os.environ.get("SEARCH_TOTALS_TTL_SECONDS", "60"))
+_TOTALS_CACHE_MAX = int(os.environ.get("SEARCH_TOTALS_CACHE_MAX", "512"))
+_totals_cache: "_OrderedDict[tuple, tuple]" = _OrderedDict()
+
+
+def _totals_key(where: str, args: list) -> tuple:
+    """Cache key: the filter, and nothing else. repr() because an arg may be a
+    list (a CPV set passed to ANY) and lists are not hashable."""
+    return (where, repr(args))
+
+
+def _search_totals(c, where: str, args: list) -> dict:
+    """Count + value over the whole matching set, memoised for _TOTALS_TTL_S."""
+    key = _totals_key(where, args)
+    now = _time.monotonic()
+    if _TOTALS_TTL_S > 0:
+        hit = _totals_cache.get(key)
+        if hit and now - hit[0] < _TOTALS_TTL_S:
+            _totals_cache.move_to_end(key)
+            return dict(hit[1])
+
+    if where == "TRUE":
+        # Unfiltered: Postgres' instant row estimate instead of counting 2.9M
+        # rows exactly. Do not replace with count(*) — see CLAUDE.md.
+        c.execute("""SELECT reltuples::bigint AS n
+                     FROM pg_class
+                     WHERE oid = 'proc.procurement_act'::regclass""")
+        n = c.fetchone()["n"]
+        c.execute("""SELECT coalesce(sum(total_cost_with_vat), 0) AS base_value
+                     FROM proc.procurement_act""")
+        base_value = c.fetchone()["base_value"]
+    else:
+        c.execute(f"""
+            SELECT count(*) AS n,
+                   coalesce(sum(a.total_cost_with_vat), 0) AS base_value
+            FROM proc.procurement_act a
+            WHERE {where}
+        """, args)
+        base = c.fetchone()
+        n = base["n"]
+        base_value = base["base_value"]
+
+    c.execute(f"""
+        SELECT coalesce(sum(v.corrected_value - a.total_cost_with_vat), 0) AS delta
+        FROM proc.procurement_act a
+        JOIN proc.v_act_annotation_current v ON v.adam = a.adam
+        WHERE {where}
+          AND v.corrected_value IS NOT NULL
+    """, args)
+    delta = c.fetchone()["delta"]
+
+    totals = {"n": n, "total_value": (base_value or 0) + (delta or 0)}
+    if _TOTALS_TTL_S > 0:
+        _totals_cache[key] = (now, dict(totals))
+        _totals_cache.move_to_end(key)
+        while len(_totals_cache) > _TOTALS_CACHE_MAX:
+            _totals_cache.popitem(last=False)      # evict least recently used
+    return totals
+
+
 def run_search(params: dict, limit: int, offset: int):
     where, args = build_where(params)
 
@@ -885,36 +977,11 @@ def run_search(params: dict, limit: int, offset: int):
     # corrected total equals sum(total_cost_with_vat) + sum(corrected - base)
     # over only the few overrides — both honour the same WHERE so the figure
     # matches the filtered set. Unfiltered count uses Postgres' instant
-    # reltuples estimate instead of counting 2.67M rows exactly.
-    count_sql = f"""
-        SELECT count(*) AS n,
-               coalesce(sum(a.total_cost_with_vat), 0) AS base_value
-        FROM proc.procurement_act a
-        WHERE {where}
-    """
-    delta_sql = f"""
-        SELECT coalesce(sum(v.corrected_value - a.total_cost_with_vat), 0) AS delta
-        FROM proc.procurement_act a
-        JOIN proc.v_act_annotation_current v ON v.adam = a.adam
-        WHERE {where}
-          AND v.corrected_value IS NOT NULL
-    """
+    # reltuples estimate instead of counting 2.67M rows exactly. Both live in
+    # _search_totals now, which memoises them per filter; the ROWS below are
+    # always read live.
     with cursor() as c:
-        if where == "TRUE":
-            c.execute("""SELECT reltuples::bigint AS n
-                         FROM pg_class
-                         WHERE oid = 'proc.procurement_act'::regclass""")
-            n = c.fetchone()["n"]
-            c.execute("""SELECT coalesce(sum(total_cost_with_vat), 0) AS base_value
-                         FROM proc.procurement_act""")
-            base_value = c.fetchone()["base_value"]
-        else:
-            c.execute(count_sql, args)
-            base = c.fetchone()
-            n = base["n"]
-            base_value = base["base_value"]
-        c.execute(delta_sql, args)
-        delta = c.fetchone()
+        agg = _search_totals(c, where, args)
         c.execute(sql, select_args + args + rank_args + [limit, offset])
         rows = c.fetchall()
 
@@ -933,10 +1000,6 @@ def run_search(params: dict, limit: int, offset: int):
                 safe = safe.replace("&lt;mark&gt;", "<mark>").replace("&lt;/mark&gt;", "</mark>")
                 r["snippet"] = Markup(safe)
 
-    agg = {
-        "n": n,
-        "total_value": (base_value or 0) + (delta["delta"] or 0),
-    }
     return rows, agg
 
 

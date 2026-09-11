@@ -90,7 +90,14 @@
   {% endif %}
 </div>
 {% endif %}
+{# hx-sync="this:replace": changing a second filter while the first request is
+   still in flight ABORTS it rather than letting both finish. Without it a quick
+   pass down the filter column queues a full search per keystroke-equivalent,
+   every one of them counting and summing over the whole matching set, and the
+   answers can land out of order — the slower, older query overwriting the
+   newer one's results. #}
 <form id="filters" hx-get="/" hx-target="#results" hx-trigger="change, submit"
+      hx-sync="this:replace"
       hx-push-url="true" hx-indicator="#results-overlay, #search-spin, #busy">
 
 <div class="hero">
