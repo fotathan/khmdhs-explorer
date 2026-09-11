@@ -159,8 +159,18 @@ def cpv_terms(cur, values, lang: str = "el") -> list[Term]:
 
     Rendered with the label next to the code: a bare 33111000 is unreadable,
     and the classification already carries the words for it.
+
+    Repeats are dropped, exactly as `parse_terms` dedupes keywords: the same
+    code can reach us several times from a hand-edited, shared or accumulated
+    URL (`?cpv=336&cpv=336`), and one filter is one chip however many times the
+    querystring spells it. Order is the order the user picked them in.
     """
-    codes = [str(v).strip() for v in (values or []) if str(v).strip()]
+    codes, seen = [], set()
+    for v in (values or []):
+        code = str(v).strip()
+        if code and code not in seen:
+            seen.add(code)
+            codes.append(code)
     if not codes:
         return []
     desc = "coalesce(description_en, description)" if lang == "en" else "description"

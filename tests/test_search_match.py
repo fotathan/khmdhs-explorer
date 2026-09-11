@@ -130,6 +130,43 @@ def test_cpv_chip_carries_code_and_label(db, act):
     assert chip.count == 1          # matched the classification, not the prose
 
 
+def test_a_repeated_cpv_filter_is_one_chip(db, act):
+    """One filter is one chip, however many times the URL spells it.
+
+    A search URL used to gain a copy of `?q=…&cpv=…` on every page click (see
+    tests/test_pager_querystring.py), and the act link carried every copy —
+    which showed up as the same CPV code explained six times over. The pager is
+    fixed; this keeps a hand-edited or shared URL from doing it again.
+    """
+    from app import search_match as sm
+    cur = db.cursor()
+    cur.execute("""INSERT INTO proc.cpv_code (cpv_code, description)
+                   VALUES ('90911200-8', 'Υπηρεσίες καθαρισμού κτιρίων')
+                   ON CONFLICT (cpv_code) DO NOTHING""")
+    m = sm.detail_match(cur, _row(db, act), None, ["90911200-8"] * 6)
+    assert [c.code for c in m.chips] == ["90911200-8"]
+
+
+def test_repeated_cpv_filters_keep_their_distinct_codes(db, act):
+    """Deduping must not collapse a genuine two-code filter into one."""
+    from app import search_match as sm
+    cur = db.cursor()
+    cur.execute("""INSERT INTO proc.cpv_code (cpv_code, description)
+                   VALUES ('90911200-8', 'Υπηρεσίες καθαρισμού κτιρίων'),
+                          ('45210000-2', 'Κατασκευαστικές εργασίες κτιρίων')
+                   ON CONFLICT (cpv_code) DO NOTHING""")
+    m = sm.detail_match(cur, _row(db, act), None,
+                        ["90911200-8", "45210000-2", "90911200-8"])
+    assert [c.code for c in m.chips] == ["90911200-8", "45210000-2"]
+
+
+def test_a_repeated_keyword_in_the_url_is_one_chip(db, act):
+    """The same, for the keyword half of a doubled querystring."""
+    from app import search_match as sm
+    m = sm.detail_match(db.cursor(), _row(db, act), "καθαρισμός καθαρισμός")
+    assert [c.term for c in m.chips] == ["καθαρισμός"]
+
+
 # --------------------------------------------------------------------------- #
 # Feature C — the occurrence navigator
 # --------------------------------------------------------------------------- #

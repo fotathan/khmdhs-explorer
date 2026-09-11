@@ -627,12 +627,23 @@ def _as_list(v) -> list[str]:
     """Normalise a filter param to a clean list of values. Accepts a list
     (multi-select), a single string (legacy / single value), or None. Strips
     blanks. Lets build_where treat all five multi-filters uniformly while still
-    tolerating a stray single string."""
+    tolerating a stray single string.
+
+    Repeats are dropped, order preserved: every caller ORs its values together,
+    so `cpv=336&cpv=336` is one filter written twice. It cannot change the
+    result set — it only adds a redundant LIKE to the WHERE and a redundant
+    parameter, which is what a duplicated querystring used to buy us."""
     if v is None:
         return []
     if isinstance(v, str):
         v = [v]
-    return [s.strip() for s in v if s and s.strip()]
+    out, seen = [], set()
+    for s in v:
+        s = s.strip() if s else ""
+        if s and s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
 
 
 def build_where(params: dict) -> tuple[str, list]:
@@ -1441,7 +1452,19 @@ _MATCH_PARAMS = ("q", "fulltext", "cpv")
 
 
 def _match_qs(pairs) -> str:
-    return ("?" + "&".join(f"{k}={_quote(v)}" for k, v in pairs)) if pairs else ""
+    """`?k=v&…`, with exact repeats dropped.
+
+    A URL that already carries the same pair twice must not pass both on: the
+    detail page turns every pair into a chip, so `?cpv=336&cpv=336` would
+    explain one filter twice. Distinct values for the same key still travel —
+    the CPV filter is genuinely multi-valued.
+    """
+    seen, uniq = set(), []
+    for pair in pairs:
+        if pair not in seen:
+            seen.add(pair)
+            uniq.append(pair)
+    return ("?" + "&".join(f"{k}={_quote(v)}" for k, v in uniq)) if uniq else ""
 
 
 def match_qs(request: Request) -> str:

@@ -19,10 +19,21 @@
   {% if access_tier == 'gated' %}
     {% if total_pages > 1 %}{% include "_register_cta.html" %}{% endif %}
   {% else %}
+  {# The pager URL is built from the query params the server actually rendered
+     this page with, and NOTHING else. It must not also carry
+     hx-include="#filters": the enclosing <form id="filters"> holds those very
+     same filters as inputs, so htmx would append a second copy of every one of
+     them — and since the form sets hx-push-url="true", the doubled querystring
+     is what lands in the address bar. The next pager link is then built from
+     THAT, so `?q=…&cpv=336` grew by one copy per page click, and the act links
+     (match_qs) carried every copy onto the detail page, where each one became
+     its own "Γιατί ταιριάζει" chip. Every filter change re-submits the form, so
+     the URL is already the live state; there is nothing left for hx-include to
+     add. #}
   <div class="pager">
     {% if page > 1 %}
       <a hx-get="/?{% for k,v in request.query_params.multi_items() if k != 'page' %}{{k}}={{v|urlencode}}&{% endfor %}page={{ page-1 }}"
-         hx-target="#results" hx-include="#filters">{{ t("‹ προηγ.") }}</a>
+         hx-target="#results">{{ t("‹ προηγ.") }}</a>
     {% else %}<span class="disabled">{{ t("‹ προηγ.") }}</span>{% endif %}
 
     <span class="cur">{{ page }}</span>
@@ -30,7 +41,7 @@
 
     {% if page < total_pages %}
       <a hx-get="/?{% for k,v in request.query_params.multi_items() if k != 'page' %}{{k}}={{v|urlencode}}&{% endfor %}page={{ page+1 }}"
-         hx-target="#results" hx-include="#filters">{{ t("επόμ. ›") }}</a>
+         hx-target="#results">{{ t("επόμ. ›") }}</a>
     {% else %}<span class="disabled">{{ t("επόμ. ›") }}</span>{% endif %}
   </div>
   {% endif %}
