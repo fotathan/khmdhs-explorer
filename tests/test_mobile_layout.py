@@ -91,6 +91,19 @@ def test_the_act_tables_stack_with_captions(reader, act):
     assert 'data-label="ΑΦΜ"' in body
 
 
+def test_the_authority_totals_table_stacks_rather_than_scrolls():
+    """Five columns (type, acts, cancelled, value, filter link) need ~440-470px
+    in either language; a phone has ~330px. It shipped as a sideways-scrolling
+    table once and the link was cut off, so it is a stacked table now."""
+    import pathlib
+    src = pathlib.Path("app/templates/beta_authority.html").read_text(encoding="utf-8")
+    panel = src[src.index('t("Σύνολα ανά τύπο πράξης")'):]
+    panel = panel[: panel.index("</table>")]
+    assert 'class="dtable stack"' in panel
+    assert "table-scroll" not in panel
+    assert 'class="val cell-link"' in panel
+
+
 def test_the_menu_label_is_translated(client):
     client.cookies.set("lang", "en")
     body = client.get("/").text

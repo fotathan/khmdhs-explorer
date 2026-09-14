@@ -63,31 +63,31 @@
 
   <div class="panel">
     <h3 class="panel-h">{{ t("Σύνολα ανά τύπο πράξης") }}</h3>
-    <div class="table-scroll">
-    <table class="dtable">
+    {# Five columns do not fit a phone in either language (measured 438-468px
+       needed vs 331px available), so on a phone this stacks like the act list. #}
+    <table class="dtable stack">
       <thead>
         <tr><th>{{ t("Τύπος") }}</th><th class="val">{{ t("Πράξεις") }}</th><th class="val">{{ t("Ακυρωμένες") }}</th><th class="val">{{ t("Αξία") }}</th><th></th></tr>
       </thead>
       <tbody>
         {% for r in by_type %}
         <tr>
-          <td>{{ r.type | type_label }}</td>
-          <td class="val">{{ "{:,}".format(r.n).replace(",", ".") }}</td>
-          <td class="val">{{ r.n_cancelled or 0 }}</td>
-          <td class="val">{% if r.total_value %}€ {{ "{:,.0f}".format(r.total_value).replace(",", ".") }}{% else %}—{% endif %}</td>
-          <td class="val"><a href="/authority/{{ a.org_id }}?type={{ r.type }}">{{ t("μόνο αυτές ›") }}</a></td>
+          <td class="cell-main">{{ r.type | type_label }}</td>
+          <td class="val" data-label="{{ t('Πράξεις') }}">{{ "{:,}".format(r.n).replace(",", ".") }}</td>
+          <td class="val" data-label="{{ t('Ακυρωμένες') }}">{{ r.n_cancelled or 0 }}</td>
+          <td class="val" data-label="{{ t('Αξία') }}">{% if r.total_value %}€ {{ "{:,.0f}".format(r.total_value).replace(",", ".") }}{% else %}—{% endif %}</td>
+          <td class="val cell-link"><a href="/authority/{{ a.org_id }}?type={{ r.type }}">{{ t("μόνο αυτές ›") }}</a></td>
         </tr>
         {% endfor %}
         <tr class="total-row">
-          <td>{{ t("Σύνολο") }}</td>
-          <td class="val">{{ "{:,}".format(grand_total).replace(",", ".") }}</td>
+          <td class="cell-main">{{ t("Σύνολο") }}</td>
+          <td class="val" data-label="{{ t('Πράξεις') }}">{{ "{:,}".format(grand_total).replace(",", ".") }}</td>
           <td class="val"></td>
-          <td class="val">€ {{ "{:,.0f}".format(grand_value).replace(",", ".") }}</td>
+          <td class="val" data-label="{{ t('Αξία') }}">€ {{ "{:,.0f}".format(grand_value).replace(",", ".") }}</td>
           <td></td>
         </tr>
       </tbody>
     </table>
-    </div>
   </div>
 
   <div class="panel">

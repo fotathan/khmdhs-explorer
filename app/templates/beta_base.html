@@ -494,6 +494,9 @@
     .dtable.stack td[data-label]::before{content:attr(data-label);margin-right:6px;font-family:var(--mono);
       font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);font-weight:400;}
     .dtable.stack td.cell-wide[data-label]::before{display:block;margin:2px 0 1px;}
+    .dtable.stack td:empty{display:none;}
+    .dtable.stack td.cell-link{margin-left:auto;}
+    .dtable.stack tr.total-row{border-top:2px solid var(--rule);padding-top:11px;font-weight:700;}
   }
 </style>
 {% block head_extra %}{% endblock %}
