@@ -98,6 +98,18 @@ _SEARCH = {
     "πράξεις": "acts",
     "ανανέωση…": "refreshing…",
     "Φίλτρα": "Filters",
+    "Μενού": "Menu",
+    # /help — "Χρήση από κινητό" (nav section)
+    "Χρήση από κινητό": "Using it on a phone",
+    "Οι σελίδες για πελάτες προσαρμόζονται σε οθόνη κινητού (κάτω από ~760px πλάτος). Η κεφαλίδα δείχνει μόνο το λογότυπο και ένα κουμπί μενού (☰)· πατώντας το ανοίγουν οι σύνδεσμοι, η γλώσσα και ο λογαριασμός.":
+        "Customer pages adapt to a phone screen (below ~760px wide). The header shows only the logo and a menu button (☰); tapping it opens the links, the language switch and the account.",
+    "Στην αναζήτηση και στη Σύνοψη τα φίλτρα είναι αρχικά κλειστά, ώστε να φαίνονται πρώτα τα αποτελέσματα. Το κουμπί «Φίλτρα» τα ανοίγει· ο αριθμός δίπλα του δείχνει πόσες ομάδες φίλτρων είναι ενεργές.":
+        "On search and Explore the filters start folded, so the results come first. The “Filters” button opens them; the number beside it shows how many filter groups are active.",
+    "Οι πίνακες στις σελίδες πράξης, αρχής και αναδόχου γίνονται κάρτες, μία ανά γραμμή, με μικρή ετικέτα πάνω από κάθε τιμή. Οι αριθμητικοί πίνακες (σύνολα ανά τύπο, CPV στα Στατιστικά) κρατούν τις στήλες τους και κυλούν οριζόντια.":
+        "Tables on the act, authority and contractor pages become cards, one per row, with a small label on each value. Numeric tables (totals by type, CPV in Analytics) keep their columns and scroll sideways.",
+    "Μόνο για υπολογιστή": "Desktop only",
+    "Η κονσόλα διαχείρισης και το CRM δεν έχουν προσαρμοστεί για κινητό — χρησιμοποιήστε υπολογιστή.":
+        "The admin console and the CRM are not adapted for phones — use a computer.",
     "Τύπος πράξης": "Act type",
     "Αναθέτουσα αρχή": "Contracting authority",
     "Είδος σύμβασης": "Contract category",

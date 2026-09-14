@@ -117,7 +117,7 @@
   <div class="panel">
     <h3 class="panel-h">{{ t("Πράξεις") }}</h3>
     {% if acts %}
-    <table class="dtable">
+    <table class="dtable stack">
       <thead>
         <tr><th>ΑΔΑΜ</th><th>{{ t("Τίτλος / Αναθέτουσα") }}</th><th>{{ t("Τύπος") }}</th><th>{{ t("Ημ/νία") }}</th><th class="val">{{ t("Αξία") }}</th></tr>
       </thead>
@@ -125,14 +125,14 @@
         {% for r in acts %}
         <tr>
           <td><span class="adam">{{ r.adam }}</span></td>
-          <td>
+          <td class="cell-main">
             <a href="/act/{{ r.adam }}">{{ r.title or '—' }}</a>
             {% if r.authority_name %}<div style="font-size:12px;color:var(--ink-3);margin-top:2px;">{% if r.authority_id %}<a href="/authority/{{ r.authority_id }}" style="color:var(--ink-2);">{{ r.authority_name }}</a>{% else %}{{ r.authority_name }}{% endif %}</div>{% endif %}
             {% if r.cancelled %}<span class="pill cancel">{{ t("ακυρωμένη") }}</span>{% endif %}
           </td>
           <td style="color:var(--ink-3);">{{ r.type | type_label }}</td>
           <td style="color:var(--ink-3);">{{ r.submission_date.strftime('%d/%m/%Y') if r.submission_date else (r.signed_date.strftime('%d/%m/%Y') if r.signed_date else '—') }}</td>
-          <td class="val">
+          <td class="val" data-label="{{ t('Αξία') }}">
             {% set v = r.awarded_value_with_vat if r.awarded_value_with_vat is not none else r.resolved_value %}
             {% if v is not none %}€ {{ "{:,.0f}".format(v).replace(",", ".") }}{% else %}—{% endif %}
           </td>

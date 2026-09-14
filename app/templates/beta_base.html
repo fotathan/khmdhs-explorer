@@ -21,6 +21,9 @@
 {% block head_json_ld %}{% endblock %}
 <link rel="stylesheet" href="{{ asset('/static/fonts/fira.css') }}">
 <script src="{{ asset('/static/vendor/htmx-1.9.12.min.js') }}"></script>
+{# Marks the page as scripted BEFORE first paint, so the phone layout can hide
+   the menu / filters behind their buttons without a flash of the open state. #}
+<script>document.documentElement.classList.add('js-mobile');</script>
 <style>
   :root{
     --paper:#ffffff; --paper-2:#f6f7f9; --paper-3:#fbfcfd;
@@ -387,6 +390,111 @@
   .occ-sec{display:block;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);margin-bottom:2px;}
   .occ-snip{display:block;font-size:12.5px;line-height:1.5;color:var(--ink-2);}
   .occ-empty{padding:14px;font-size:12.5px;color:var(--ink-3);font-style:italic;margin:0;}
+
+  /* ==== small screens ====================================================
+     Everything below is additive: the desktop layout above is untouched.
+     The menu button and the filters toggle only appear when the
+     `js-mobile` class is on <html> (set by the one-line script in <head>);
+     without JavaScript the nav simply wraps and every filter stays open. */
+  .nav-toggle,.filters-toggle{display:none;}
+  /* grid children default to min-width:auto, which lets one long URL or a
+     wide table push the whole page sideways on a phone. */
+  .layout>*,.act-grid>*{min-width:0;}
+  .act-grid.grid-2{grid-template-columns:1fr 1fr;}
+  @media(max-width:980px){.act-grid.grid-2{grid-template-columns:1fr;}}
+  /* a table that must keep its columns scrolls inside its own box */
+  .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .table-scroll .dtable td,.table-scroll .dtable th{white-space:nowrap;}
+
+  @media(max-width:760px){
+    /* masthead → brand + menu button; links drop down as a list */
+    .mast-in{padding:10px 16px;}
+    .mast-row{flex-wrap:wrap;gap:8px 12px;}
+    .brand{min-width:0;flex:1 1 0;gap:10px;}
+    .brand-mark{width:30px;height:30px;font-size:14px;flex:0 0 auto;}
+    .brand-title{font-size:15px;line-height:1.25;}
+    .brand-sub{display:none;}
+    .mast-nav{flex-wrap:wrap;width:100%;gap:4px;}
+    .js-mobile .nav-toggle{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+      width:44px;height:44px;border:1px solid var(--rule);border-radius:10px;background:var(--paper);color:var(--ink);cursor:pointer;}
+    .js-mobile .mast.nav-open .nav-toggle{border-color:var(--accent);color:var(--accent);}
+    .js-mobile .mast-nav{display:none;}
+    .js-mobile .mast.nav-open .mast-nav{display:flex;flex-direction:column;align-items:stretch;
+      padding:6px 0 4px;border-top:1px solid var(--rule-2);}
+    .mast-nav a,.mast-nav button{padding:11px 12px;font-size:15px;text-align:left;}
+    .mast-nav .logout-form{display:flex;}
+    .mast-nav .logout-form button{width:100%;}
+    .mast-nav .acct-user{border-left:0;margin-left:0;font-size:15px;}
+    .mast-nav .acct-cta{text-align:center;margin-top:4px;}
+    .mast-nav .lang-sel{margin:4px 0;padding:4px 6px;border-left:0;gap:6px;}
+    .mast-nav .lang-sel a{padding:8px 14px;font-size:13px;}
+
+    /* search page */
+    .profiles-bar{padding:10px 16px 0;}
+    .sp-list,.sp-pop{min-width:0;width:min(320px,calc(100vw - 32px));}
+    .hero-in{padding:0 16px 18px;}
+    .hero-meta{flex-wrap:wrap;gap:4px 14px;}
+    .searchbar{padding:4px 4px 4px 12px;gap:8px;}
+    .searchbar input{min-width:0;}
+    .searchbar .go{padding:10px 30px 10px 14px;}
+    /* 16px stops iOS zooming the page when a field gets focus */
+    .searchbar input,.frow input,.frow select,.frow-2 input,.frow-2 select,.auth-sel,
+    .sp-pop input[type=text],.sp-pop select,.sort-sel select,#cpv-typeahead,.cat-sel{font-size:16px !important;}
+    main{padding:16px 16px 64px;}
+    .note{padding:0 16px;}
+    .filters{position:static;}
+    .js-mobile .filters-head h2{display:none;}
+    .js-mobile .filters-toggle{display:flex;align-items:center;gap:8px;flex:1;min-height:40px;background:none;border:0;
+      padding:0;font-family:var(--sans);font-size:15px;font-weight:700;color:var(--ink);cursor:pointer;text-align:left;}
+    .filters-toggle svg{transition:transform .15s;}
+    .filters.open .filters-toggle svg{transform:rotate(180deg);}
+    .filters-toggle .ft-n{background:var(--accent);color:#fff;border-radius:999px;font-size:11px;line-height:1;padding:3px 7px;}
+    .js-mobile .filters:not(.open) .fgroup{display:none;}
+    .js-mobile .filters:not(.open) .filters-head{border-bottom:0;}
+    .chip{padding:8px 13px;font-size:13px;}
+    .results-bar>div:last-child{flex-wrap:wrap;gap:10px 18px;}
+    .pager{flex-wrap:wrap;}
+    .pager a,.pager span{padding:10px 14px;min-width:44px;text-align:center;}
+
+    /* cards and lists */
+    .card{padding:14px 16px;}
+    .card:hover,.list-card:hover{transform:none;}
+    .card-top{flex-direction:column;gap:4px;}
+    .card-val{text-align:left;display:flex;align-items:baseline;gap:8px;}
+    .list-card{flex-direction:column;align-items:stretch;gap:10px;padding:14px 16px;}
+    .list-card .lc-stats{text-align:left;gap:20px;}
+
+    /* detail pages */
+    .page-head h1,.detail-title{font-size:20px;}
+    .detail-head,.act-hero{padding:16px;}
+    .act-hero h1{font-size:18px;}
+    .act-hero .value-row{gap:12px 24px;}
+    .act-hero .vbox .v{font-size:19px;}
+    .panel,.sidecard{padding:14px;}
+    .stat-box{min-width:0;flex:1 1 140px;padding:12px 14px;}
+    .stat-box .num{font-size:18px;}
+    .facts{grid-template-columns:1fr;gap:0;}
+    .facts dt{padding-top:9px;}
+    .facts dd{overflow-wrap:anywhere;}
+    .dtable td{overflow-wrap:anywhere;}
+    dialog.cpv-modal{width:calc(100vw - 16px);max-height:90vh;padding:14px;}
+
+    /* .stack tables: each row becomes a small card. The cell marked
+       .cell-main (the name/title) goes first on its own line; the rest sit
+       beside each other, each captioned by its data-label. */
+    .dtable.stack thead{display:none;}
+    .dtable.stack,.dtable.stack tbody{display:block;}
+    .dtable.stack tr{display:flex;flex-wrap:wrap;align-items:baseline;gap:3px 16px;padding:11px 0;border-bottom:1px solid var(--rule-2);}
+    .dtable.stack tr:first-child{padding-top:0;}
+    .dtable.stack tr:last-child{border-bottom:0;padding-bottom:0;}
+    .dtable.stack td{display:block;padding:0;border:0;}
+    .dtable.stack td.cell-main{flex:1 1 100%;order:-1;font-weight:500;}
+    .dtable.stack td.cell-wide{flex:1 1 100%;}
+    .dtable.stack td.val{text-align:left;}
+    .dtable.stack td[data-label]::before{content:attr(data-label);margin-right:6px;font-family:var(--mono);
+      font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);font-weight:400;}
+    .dtable.stack td.cell-wide[data-label]::before{display:block;margin:2px 0 1px;}
+  }
 </style>
 {% block head_extra %}{% endblock %}
 {% include "_csrf.html" %}
@@ -403,7 +511,10 @@
           <div class="brand-sub">{{ t("Διαφάνεια στις δημόσιες προμήθειες") }}</div>
         </div>
       </div>
-      <nav class="mast-nav">
+      <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="mast-nav" aria-label="{{ t('Μενού') }}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <nav class="mast-nav" id="mast-nav">
         {% include "_topnav.html" %}
         {% include "_lang_select.html" %}
         {% if is_authenticated %}
@@ -419,8 +530,50 @@
     </div>
   </div>
 </header>
+<script>
+  // Phone menu: the button (visible only on narrow screens) opens/closes the nav.
+  (function(){
+    var mast=document.querySelector('header.mast');
+    var btn=mast && mast.querySelector('.nav-toggle');
+    if(!btn) return;
+    btn.addEventListener('click', function(){
+      var open=mast.classList.toggle('nav-open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  })();
+</script>
 
 {% block content %}{% endblock %}
+<script>
+  // Phone filters toggle, for any page whose filter column has a
+  // .filters-toggle button (search, explore). The badge counts the filter
+  // groups in use, so a folded panel still says the results are filtered.
+  (function(){
+    var box=document.querySelector('aside.filters');
+    var btn=box && box.querySelector('.filters-toggle');
+    if(!btn) return;
+    btn.addEventListener('click', function(){
+      var open=box.classList.toggle('open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    function countActive(){
+      var n=0;
+      box.querySelectorAll('.fgroup').forEach(function(g){
+        var used=[].some.call(g.querySelectorAll('input,select'), function(el){
+          if(el.id==='cpv-typeahead' || el.closest('dialog')) return false;
+          if(el.type==='checkbox') return el.checked;
+          if(el.tagName==='SELECT') return [].some.call(el.selectedOptions, function(o){ return o.value; });
+          return el.value.trim()!=='';
+        });
+        if(used) n++;
+      });
+      var badge=btn.querySelector('.ft-n');
+      badge.textContent=n; badge.hidden=!n;
+    }
+    countActive();
+    document.addEventListener('change', countActive);
+  })();
+</script>
 
 {% include "_footer.html" %}
 {% block body_end %}{% endblock %}

@@ -28,6 +28,12 @@
     <aside class="filters">
       <div class="filters-head">
         <h2>{{ t("Φίλτρα") }}</h2>
+        {# Phone only (CSS): folds the filter groups away so the results come first. #}
+        <button type="button" class="filters-toggle" aria-expanded="false">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+          {{ t("Φίλτρα") }}
+          <span class="ft-n" hidden></span>
+        </button>
         <a href="/explore">{{ t("καθαρισμός") }}</a>
       </div>
 

@@ -172,15 +172,15 @@
       {% if operators %}
       <div class="panel">
         <h3 class="panel-h">{% if atype == 'payment' %}{{ t("Προμηθευτής") }}{% else %}{{ t("Ανάδοχος / Συμμετέχοντες") }}{% endif %}</h3>
-        <table class="dtable">
+        <table class="dtable stack">
           <thead><tr><th>{{ t("Επωνυμία") }}</th><th>{{ t("ΑΦΜ") }}</th><th>{{ t("Ρόλος") }}</th><th class="val">{{ t("Αξία (με ΦΠΑ)") }}</th></tr></thead>
           <tbody>
             {% for op in operators %}
             <tr>
-              <td>{% if op.vat_number %}<a href="/contractor/{{ op.vat_number }}">{{ op.name or '—' }}</a>{% else %}{{ op.name or '—' }}{% endif %}</td>
-              <td><code class="adam">{{ op.vat_number or '—' }}</code>{% if op.is_greek_vat %} <span style="font-size:10px;color:var(--ink-3);">ΕΛ</span>{% endif %}</td>
+              <td class="cell-main">{% if op.vat_number %}<a href="/contractor/{{ op.vat_number }}">{{ op.name or '—' }}</a>{% else %}{{ op.name or '—' }}{% endif %}</td>
+              <td data-label="{{ t('ΑΦΜ') }}"><code class="adam">{{ op.vat_number or '—' }}</code>{% if op.is_greek_vat %} <span style="font-size:10px;color:var(--ink-3);">ΕΛ</span>{% endif %}</td>
               <td style="color:var(--ink-3);">{{ op.role }}</td>
-              <td class="val">{% if op.awarded_value_with_vat %}€ {{ "{:,.0f}".format(op.awarded_value_with_vat).replace(",", ".") }}{% else %}—{% endif %}</td>
+              <td class="val" data-label="{{ t('Αξία (με ΦΠΑ)') }}">{% if op.awarded_value_with_vat %}€ {{ "{:,.0f}".format(op.awarded_value_with_vat).replace(",", ".") }}{% else %}—{% endif %}</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -191,14 +191,14 @@
       {% if act_authorities %}
       <div class="panel">
         <h3 class="panel-h">{{ t("Αναθέτουσες αρχές") }}</h3>
-        <table class="dtable">
+        <table class="dtable stack">
           <thead><tr><th>{{ t("Επωνυμία") }}</th><th>{{ t("ΑΦΜ") }}</th><th>{{ t("Πόλη") }}</th></tr></thead>
           <tbody>
             {% for a in act_authorities %}
             <tr>
-              <td>{% if a.authority_id %}<a href="/authority/{{ a.authority_id }}">{{ a.name or a.linked_name or '—' }}</a> <span title="{{ t('Συνδεδεμένο') }}" style="color:var(--ok,#1f8a63);">✓</span>{% else %}{{ a.name or '—' }}{% endif %}</td>
-              <td><code class="adam">{{ a.afm or '—' }}</code></td>
-              <td>{{ a.city or '—' }}</td>
+              <td class="cell-main">{% if a.authority_id %}<a href="/authority/{{ a.authority_id }}">{{ a.name or a.linked_name or '—' }}</a> <span title="{{ t('Συνδεδεμένο') }}" style="color:var(--ok,#1f8a63);">✓</span>{% else %}{{ a.name or '—' }}{% endif %}</td>
+              <td data-label="{{ t('ΑΦΜ') }}"><code class="adam">{{ a.afm or '—' }}</code></td>
+              <td data-label="{{ t('Πόλη') }}">{{ a.city or '—' }}</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -209,14 +209,14 @@
       {% if act_contractors %}
       <div class="panel">
         <h3 class="panel-h">{{ t("Ανάδοχοι / Νικητές") }}</h3>
-        <table class="dtable">
+        <table class="dtable stack">
           <thead><tr><th>{{ t("Επωνυμία") }}</th><th>{{ t("ΑΦΜ") }}</th><th class="val">{{ t("Ποσό ανάθεσης") }}</th></tr></thead>
           <tbody>
             {% for c in act_contractors %}
             <tr>
-              <td>{% if c.afm %}<a href="/contractor/{{ c.afm }}">{{ c.name or c.linked_name or '—' }}</a>{% if c.operator_id %} <span title="{{ t('Συνδεδεμένο') }}" style="color:var(--ok,#1f8a63);">✓</span>{% endif %}{% else %}{{ c.name or '—' }}{% endif %}</td>
-              <td><code class="adam">{{ c.afm or '—' }}</code></td>
-              <td class="val">{% if c.award_amount %}€ {{ "{:,.2f}".format(c.award_amount).replace(",", "X").replace(".", ",").replace("X", ".") }}{% else %}—{% endif %}</td>
+              <td class="cell-main">{% if c.afm %}<a href="/contractor/{{ c.afm }}">{{ c.name or c.linked_name or '—' }}</a>{% if c.operator_id %} <span title="{{ t('Συνδεδεμένο') }}" style="color:var(--ok,#1f8a63);">✓</span>{% endif %}{% else %}{{ c.name or '—' }}{% endif %}</td>
+              <td data-label="{{ t('ΑΦΜ') }}"><code class="adam">{{ c.afm or '—' }}</code></td>
+              <td class="val" data-label="{{ t('Ποσό ανάθεσης') }}">{% if c.award_amount %}€ {{ "{:,.2f}".format(c.award_amount).replace(",", "X").replace(".", ",").replace("X", ".") }}{% else %}—{% endif %}</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -227,27 +227,27 @@
       <div class="panel">
         <h3 class="panel-h">{{ t("Είδη / Αντικείμενο") }}</h3>
         {% if line_items %}
-        <table class="dtable">
+        <table class="dtable stack">
           <thead><tr><th>{{ t("Περιγραφή") }}</th><th>CPV</th><th>{{ t("Τόπος παράδοσης / εκτέλεσης") }}</th><th class="val">{{ t("Ποσότητα") }}</th><th class="val">{{ t("Αξία (χωρίς ΦΠΑ)") }}</th></tr></thead>
           <tbody>
             {% for li in line_items %}
             <tr>
-              <td>{{ li.short_description or '—' }}</td>
-              <td>
+              <td class="cell-main">{{ li.short_description or '—' }}</td>
+              <td class="cell-wide" data-label="CPV">
                 {% for c in li.cpvs %}
                 <div style="margin-bottom:3px;line-height:1.35;"><code class="adam">{{ c.code }}</code>{% if c.desc %} <span style="font-size:12px;color:var(--ink-2);">{{ c.desc }}</span>{% endif %}</div>
                 {% endfor %}
                 {% if not li.cpvs %}—{% endif %}
               </td>
-              <td style="font-size:12.5px; line-height:1.4;">
+              <td class="cell-wide" data-label="{{ t('Τόπος παράδοσης / εκτέλεσης') }}" style="font-size:12.5px; line-height:1.4;">
                 {% set place = [li.delivery_street, li.delivery_city, li.delivery_postal_code, li.delivery_country] | select | list %}
                 {% if place %}{{ place | join(', ') }}{% endif %}
                 {% if li.delivery_address %}{% if place %}<br>{% endif %}<span style="color:var(--ink-2);">{{ li.delivery_address }}</span>{% endif %}
                 {% if li.city_of_construction %}<br><span style="color:var(--ink-2);">{{ t("Τόπος εκτέλεσης") }}: {{ li.city_of_construction }}</span>{% endif %}
                 {% if not place and not li.delivery_address and not li.city_of_construction %}—{% endif %}
               </td>
-              <td class="val">{{ li.quantity if li.quantity is not none else '—' }} {% if li.unit_name %}{{ li.unit_name }}{% elif li.unit_code %}{{ li.unit_code }}{% endif %}</td>
-              <td class="val">
+              <td class="val" data-label="{{ t('Ποσότητα') }}">{{ li.quantity if li.quantity is not none else '—' }} {% if li.unit_name %}{{ li.unit_name }}{% elif li.unit_code %}{{ li.unit_code }}{% endif %}</td>
+              <td class="val" data-label="{{ t('Αξία (χωρίς ΦΠΑ)') }}">
                 {% if li.resolved_cost is not none %}
                   {% if li.cost_corrected %}<span class="corrected-val">€ {{ "{:,.2f}".format(li.resolved_cost).replace(",", ".") }}</span>
                   {% else %}€ {{ "{:,.2f}".format(li.resolved_cost).replace(",", ".") }}{% endif %}
