@@ -99,6 +99,46 @@ def test_export_menu_ships_loading_js(client):
     assert 'fmt=xlsx' in html and 'fmt=csv' in html
 
 
+def test_export_menu_uses_the_live_filters_not_the_rendered_href(client):
+    """The Export links are rendered once, with the filters of the page load.
+    Filters picked afterwards are HTMX swaps that update the address bar only,
+    so a handler that fetched `a.href` exported the UNFILTERED set (79 matching
+    acts came out as a 20,000-row file). The handler must build its URL from
+    window.location at click time."""
+    make_user("exp_live", "goodpassword1", role="customer")
+    login(client, "exp_live", "goodpassword1")
+    html = client.get("/", follow_redirects=False).text
+    assert "function exportUrl(a)" in html
+    assert "new URLSearchParams(window.location.search)" in html
+    assert "fetch(exportUrl(a)" in html
+    assert "fetch(a.href" not in html
+
+
+def test_export_applies_the_same_filters_as_the_search(client, db):
+    """The reported case: Notice + Κλειστή διαδικασία must export only those
+    acts, not every notice. The filter value is the procedure FAMILY label
+    (build_where matches a.procedure_family), not a numeric code."""
+    import csv
+    closed, open_ = "Κλειστή διαδικασία", "Ανοιχτή διαδικασία"
+    cur = db.cursor()
+    for i, family in enumerate([closed, closed, open_, open_, open_]):
+        cur.execute("""INSERT INTO proc.procurement_act
+                         (adam, type, title, submission_date, origin, data_source,
+                          procedure_family)
+                       VALUES (%s, 'notice', %s, now(), 'import', 'khmdhs', %s)
+                       ON CONFLICT (adam) DO NOTHING""",
+                    (f"PROC-{i:05d}", f"Διαδικασία {i}", family))
+    make_user("exp_proc", "goodpassword1", role="customer")
+    login(client, "exp_proc", "goodpassword1")
+    r = client.get("/export/acts", params={"type": "notice", "procedure_type": closed,
+                                           "fmt": "csv"},
+                   follow_redirects=False)
+    assert r.status_code == 200
+    rows = list(csv.reader(r.content.decode("utf-8-sig").splitlines()))[1:]
+    adams = sorted(row[0] for row in rows)
+    assert adams == ["PROC-00000", "PROC-00001"]
+
+
 def test_row_cap_enforced(client, db, monkeypatch):
     import csv
     import app.main as m

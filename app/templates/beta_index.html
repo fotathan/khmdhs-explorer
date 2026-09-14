@@ -374,6 +374,26 @@
     }
   });
 
+  // The export URL is built from the LIVE page URL, never from the link's
+  // server-rendered href. The href holds the filters as they were when the page
+  // loaded; every filter change after that is an HTMX swap that updates the
+  // address bar (hx-push-url) but not these links — so exporting after picking
+  // filters used to download the UNFILTERED set, up to the row cap. Same trap
+  // as the save-search form below, same fix.
+  function exportUrl(a){
+    var fmt=new URL(a.getAttribute('href'), window.location.href).searchParams.get('fmt') || 'csv';
+    var qs=new URLSearchParams(window.location.search);
+    qs.delete('_sp'); qs.delete('fmt'); qs.delete('page');
+    qs.set('fmt', fmt);
+    return '/export/acts?'+qs.toString();
+  }
+  // Keep the hrefs honest too, for "open in new tab" / copy link.
+  document.addEventListener('toggle', function(e){
+    if(e.target.classList && e.target.classList.contains('exp-menu') && e.target.open){
+      e.target.querySelectorAll('.exp-link').forEach(function(a){ a.setAttribute('href', exportUrl(a)); });
+    }
+  }, true);
+
   // Export downloads: fetch as a blob so we can show a spinner while the server
   // builds the file (a big XLSX takes a few seconds), then trigger the save.
   document.addEventListener('click', function(e){
@@ -381,7 +401,7 @@
     e.preventDefault();
     var menu=a.closest('.exp-menu'); if(!menu || menu.classList.contains('loading')) return;
     menu.classList.add('loading');
-    fetch(a.href, {credentials:'same-origin'}).then(function(res){
+    fetch(exportUrl(a), {credentials:'same-origin'}).then(function(res){
       if(res.status===429) throw new Error('429');
       if(!res.ok) throw new Error('HTTP '+res.status);
       var cd=res.headers.get('Content-Disposition')||'';
