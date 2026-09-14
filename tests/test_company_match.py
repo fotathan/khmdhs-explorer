@@ -474,6 +474,50 @@ def test_panel_renders_on_the_customer_card(client, match_clean):
     assert "/admin/crm//company-match/" not in html
 
 
+def _search_box_value(html):
+    import re
+    m = re.search(r'<input type="text" name="q" value="([^"]*)"', html)
+    assert m, "search box not rendered"
+    return m.group(1)
+
+
+def test_search_box_is_prefilled_with_the_company_name(client, match_clean):
+    """A customer with a company name on the profile gets it in the box, so
+    the search is one click — on the card and after an HTMX re-render."""
+    with connect() as conn:
+        uid = make_user("cust-prefill")
+        _profile(conn.cursor(), uid, company="ΒΗΤΑ ΤΕΧΝΙΚΗ ΑΕ")
+    _admin(client)
+    assert _search_box_value(
+        client.get(f"/admin/crm/{uid}").text) == "ΒΗΤΑ ΤΕΧΝΙΚΗ ΑΕ"
+    r = client.post(f"/admin/crm/{uid}/company-match/unlink",
+                    headers={"X-CSRF-Token": get_csrf(client)})
+    assert r.status_code == 200
+    assert _search_box_value(r.text) == "ΒΗΤΑ ΤΕΧΝΙΚΗ ΑΕ"
+
+
+def test_search_box_is_empty_without_a_company_name(client, match_clean):
+    with connect() as conn:
+        uid = make_user("cust-noprefill")
+        _profile(conn.cursor(), uid, company=None)
+    _admin(client)
+    assert _search_box_value(client.get(f"/admin/crm/{uid}").text) == ""
+
+
+def test_search_box_keeps_the_term_that_was_searched(monkeypatch, client,
+                                                     match_clean):
+    """After a search the box shows what was searched, not the profile name."""
+    with connect() as conn:
+        uid = make_user("cust-typed")
+        _profile(conn.cursor(), uid, company="ΒΗΤΑ ΤΕΧΝΙΚΗ ΑΕ")
+    monkeypatch.setattr(GC, "search_by_name_env",
+                        lambda name, max_results=25: ("not_found", []))
+    _admin(client)
+    r = client.post(f"/admin/crm/{uid}/company-match/search",
+                    data={"q": "ΓΑΜΜΑ"}, headers={"X-CSRF-Token": get_csrf(client)})
+    assert _search_box_value(r.text) == "ΓΑΜΜΑ"
+
+
 # --------------------------------------------------------------------------- #
 # the shared fill rule
 # --------------------------------------------------------------------------- #

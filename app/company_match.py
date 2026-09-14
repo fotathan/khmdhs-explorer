@@ -444,6 +444,17 @@ def query_for(profile: dict, cust: dict) -> str:
     return ""
 
 
+def prefill_query(c, uid: int) -> str:
+    """The search box's starting value: the company name already on the
+    profile, so a search is one click. Only the name — the email-domain
+    fallback stays implicit (query_for), since a bare domain label in the box
+    would read like something an admin typed."""
+    c.execute("SELECT company FROM proc.customer_profile WHERE user_id = %s",
+              (uid,))
+    row = c.fetchone()
+    return _s(row["company"]) if row else ""
+
+
 # --------------------------------------------------------------------------- #
 # search
 # --------------------------------------------------------------------------- #

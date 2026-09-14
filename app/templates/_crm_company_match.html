@@ -4,6 +4,8 @@
      company_match    — the current proc.customer_company_match row, or None
      match_result     — {'query','status','candidates'} from company_match.search,
                         or None (the panel at rest, before any search)
+     match_query      — the profile's company name, pre-filled in the search
+                        box while there is no match_result
      match_flash / match_tone   — outcome of the last action
      match_conflict   — an ΑΦΜ already on the profile that a link would replace
      match_candidate  — the ΑΦΜ waiting on that confirmation
@@ -66,7 +68,7 @@
         hx-target="#company-match" hx-swap="outerHTML"
         hx-indicator="#cmatch-busy" hx-disabled-elt="find button"
         class="cmatch-search">
-    <input type="text" name="q" value="{{ (match_result.query if match_result else '') or '' }}"
+    <input type="text" name="q" value="{{ (match_result.query if match_result else match_query) or '' }}"
            placeholder="{{ t("Επωνυμία ή όρος αναζήτησης") }}"
            aria-label="{{ t("Επωνυμία ή όρος αναζήτησης") }}">
     <button type="submit" class="u-mini">{{ t("Αναζήτηση εταιρείας") }}</button>

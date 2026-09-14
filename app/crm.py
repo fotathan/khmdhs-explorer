@@ -446,6 +446,7 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 # or the included panel posts to /admin/crm//company-match/...
                 "cust_id": uid,
                 "company_match": company_match, "match_result": None,
+                "match_query": ((profile or {}).get("company") or "").strip(),
                 "field_labels": _cm.FIELD_LABELS,
                 "notes": notes, "calls": calls, "tasks": tasks, "admins": admins,
                 "call_directions": _auth.CALL_DIRECTIONS,
@@ -518,9 +519,11 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
             if not _auth.get_customer(c, uid):
                 raise HTTPException(404, "customer not found")
             match = _cm.current_match(c, uid)
+            match_query = _cm.prefill_query(c, uid)
         return templates.TemplateResponse(
             request, "_crm_company_match.html",
             {"cust_id": uid, "company_match": match, "match_result": result,
+             "match_query": match_query,
              "match_flash": flash, "match_tone": tone,
              "match_conflict": conflict, "match_candidate": candidate,
              "field_labels": _cm.FIELD_LABELS},
