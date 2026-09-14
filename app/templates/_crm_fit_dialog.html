@@ -1,0 +1,102 @@
+{# _crm_fit_dialog.html — the rows behind the Fit tab's headline numbers.
+   Swapped into #fit-dlg-body (admin_crm_customer.html) by hx-get.
+   Context:
+     cust_id — the customer's user id
+     view    — 'awards' | 'buyers' | 'competitors'
+     data    — fit.awards() dict | fit.buyers() rows | fit.competitors() dict
+   Every link inside re-targets #fit-dlg-body, so paging and "this authority's
+   awards" stay inside the dialog. #}
+{% macro eur(v) %}{% if v %}{{ "{:,.0f}".format(v|float).replace(",", ".") }} €{% else %}—{% endif %}{% endmacro %}
+{% set base = "/admin/crm/" ~ cust_id ~ "/fit/" %}
+
+{% if view == "awards" %}
+  <h3 class="fit-dlg-title">{{ t("Αναθέσεις του προφίλ") }}
+    <span class="muted">({{ "{:,}".format(data.total).replace(",", ".") }})</span></h3>
+  {% if data.authority_id %}
+  <p class="fit-dlg-note">{{ t("Μόνο από") }} <strong>{{ data.authority_name }}</strong> ·
+    <a href="#" hx-get="{{ base }}awards" hx-target="#fit-dlg-body">{{ t("όλες οι αναθέσεις") }}</a> ·
+    <a href="#" hx-get="{{ base }}buyers" hx-target="#fit-dlg-body">{{ t("πίσω στις αναθέτουσες") }}</a></p>
+  {% endif %}
+  {% if data.rows %}
+  <div class="fit-dlg-scroll">
+  <table class="crm-tbl fit-dlg-tbl">
+    <thead><tr><th>{{ t("Ημερομηνία") }}</th><th>{{ t("Πράξη") }}</th>
+      <th>{{ t("Αναθέτουσα") }}</th><th class="num">{{ t("Αξία") }}</th></tr></thead>
+    <tbody>
+    {% for r in data.rows %}
+      <tr>
+        <td class="nowrap">{{ r.signed_date.strftime("%d/%m/%Y") if r.signed_date else "—" }}</td>
+        <td><a href="/act/{{ r.adam }}" target="_blank" rel="noopener">{{ (r.title or r.adam)[:90] }}</a>
+          <div class="muted">{{ r.adam }}</div></td>
+        <td>{{ r.authority_name or r.authority_id or "—" }}</td>
+        <td class="num nowrap">{{ eur(r.value) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if data.pages > 1 %}
+  {% set q = "&authority=" ~ (data.authority_id|urlencode) if data.authority_id else "" %}
+  <div class="fit-dlg-pager">
+    {% if data.page > 1 %}<a href="#" hx-get="{{ base }}awards?page={{ data.page - 1 }}{{ q }}" hx-target="#fit-dlg-body">‹ {{ t("Προηγούμενη") }}</a>{% endif %}
+    <span class="muted">{{ t("Σελίδα") }} {{ data.page }} / {{ data.pages }}</span>
+    {% if data.page < data.pages %}<a href="#" hx-get="{{ base }}awards?page={{ data.page + 1 }}{{ q }}" hx-target="#fit-dlg-body">{{ t("Επόμενη") }} ›</a>{% endif %}
+  </div>
+  {% endif %}
+  {% else %}
+  <p class="fit-dlg-note">{{ t("Δεν βρέθηκαν αναθέσεις. Πατήστε «Υπολογισμός από το ιστορικό».") }}</p>
+  {% endif %}
+
+{% elif view == "buyers" %}
+  <h3 class="fit-dlg-title">{{ t("Αναθέτουσες του προφίλ") }} <span class="muted">({{ data|length }})</span></h3>
+  <p class="fit-dlg-note">{{ t("Πατήστε μια αναθέτουσα για να δείτε τις αναθέσεις της.") }}</p>
+  {% if data %}
+  <div class="fit-dlg-scroll">
+  <table class="crm-tbl fit-dlg-tbl">
+    <thead><tr><th>{{ t("Αναθέτουσα") }}</th><th class="num">{{ t("Αναθέσεις") }}</th>
+      <th class="num">{{ t("Αξία") }}</th></tr></thead>
+    <tbody>
+    {% for r in data %}
+      <tr>
+        <td><a href="#" hx-get="{{ base }}awards?authority={{ r.authority_id|urlencode }}" hx-target="#fit-dlg-body">{{ r.authority_name or r.authority_id }}</a>
+          · <a class="muted" href="/authority/{{ r.authority_id }}" target="_blank" rel="noopener">{{ t("σελίδα") }} ↗</a></td>
+        <td class="num">{{ "{:,}".format(r.n_acts).replace(",", ".") }}</td>
+        <td class="num nowrap">{{ eur(r.total_value) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="fit-dlg-note">{{ t("Δεν βρέθηκαν αναθέσεις. Πατήστε «Υπολογισμός από το ιστορικό».") }}</p>
+  {% endif %}
+
+{% else %}
+  <h3 class="fit-dlg-title">{{ t("Κύριοι ανταγωνιστές") }}</h3>
+  <p class="fit-dlg-note">{{ t("Άλλοι ανάδοχοι που πήραν αναθέσεις στους ίδιους ακριβώς κωδικούς CPV ΚΑΙ από τις ίδιες αναθέτουσες με τον πελάτη.") }}
+    ({{ data.n_codes }} {{ t("κωδικοί CPV") }}, {{ data.n_buyers }} {{ t("αναθέτουσες") }})</p>
+  {% if data.rows %}
+  <div class="fit-dlg-scroll">
+  <table class="crm-tbl fit-dlg-tbl">
+    <thead><tr><th>#</th><th>{{ t("Ανάδοχος") }}</th>
+      <th class="num" title="{{ t('Αναθέσεις στους ίδιους κωδικούς CPV από τις ίδιες αναθέτουσες') }}">{{ t("Κοινές αναθέσεις") }}</th>
+      <th class="num">{{ t("Κοινές αναθέτουσες") }}</th>
+      <th class="num">{{ t("Αξία") }}</th></tr></thead>
+    <tbody>
+    {% for r in data.rows %}
+      <tr>
+        <td class="muted">{{ loop.index }}</td>
+        <td>{% if r.vat_number %}<a href="/contractor/{{ r.vat_number }}" target="_blank" rel="noopener">{{ r.name }}</a>
+          <div class="muted">{{ t("ΑΦΜ") }} {{ r.vat_number }}</div>{% else %}{{ r.name }}{% endif %}</td>
+        <td class="num">{{ "{:,}".format(r.n_shared).replace(",", ".") }}</td>
+        <td class="num">{{ r.n_buyers }} / {{ data.n_buyers }}</td>
+        <td class="num nowrap">{{ eur(r.total_value) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="fit-dlg-note">{{ t("Δεν βρέθηκαν ανταγωνιστές στους ίδιους κωδικούς και αναθέτουσες.") }}</p>
+  {% endif %}
+{% endif %}

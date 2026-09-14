@@ -454,3 +454,154 @@ def rank(c, user_id: int, *, limit: int = 25) -> dict:
     scored.sort(key=lambda r: (-r["score"], r["final_submission_date"]))
     return {"profile": profile, "rows": scored[:limit],
             "n_candidates": len(scored), "reason": None}
+
+
+# --------------------------------------------------------------------------- #
+# What the profile rests on — the evidence behind the headline numbers
+#
+# The card says "11,501 awards, 76 authorities". A figure nobody can open is
+# the same problem as a bare score, so each one opens into its rows. All three
+# read the STORED profile (company_profile.operator_ids), never re-resolve the
+# ΑΦΜ: the list must be the list those numbers were counted from, even if the
+# customer's ΑΦΜ has been edited since the last "Rebuild from history".
+# --------------------------------------------------------------------------- #
+AWARDS_PAGE = 50
+COMPETITORS_MAX = 25
+
+
+def _stored_operator_ids(c, user_id: int) -> list[int]:
+    c.execute("SELECT operator_ids FROM proc.company_profile WHERE user_id = %s",
+              (user_id,))
+    row = c.fetchone()
+    return [int(x) for x in (row.get("operator_ids") or [])] if row else []
+
+
+def awards(c, user_id: int, *, page: int = 1, authority_id: str | None = None) -> dict:
+    """The awards the profile was derived from, newest first, one page at a time.
+
+    Same filter as seed_from_ledger (award types, not cancelled), so page
+    through all of them and you have seen exactly what was counted.
+    `authority_id` narrows it to one buyer — what a row in buyers() opens.
+    """
+    op_ids = _stored_operator_ids(c, user_id)
+    page = max(1, int(page or 1))
+    if not op_ids:
+        return {"rows": [], "total": 0, "page": 1, "pages": 1,
+                "authority_id": authority_id, "authority_name": None}
+    where = """a.adam IN (SELECT adam FROM proc.act_operator
+                           WHERE operator_id = ANY(%(ops)s))
+               AND a.type = ANY(%(types)s)
+               AND NOT coalesce(a.cancelled, false)"""
+    params = {"ops": op_ids, "types": list(_AWARD_TYPES),
+              "limit": AWARDS_PAGE, "offset": (page - 1) * AWARDS_PAGE}
+    if authority_id:
+        where += " AND a.authority_id = %(auth)s"
+        params["auth"] = authority_id
+    c.execute(f"SELECT count(*) AS n FROM proc.procurement_act a WHERE {where}", params)
+    total = int(c.fetchone()["n"])
+    c.execute(f"""
+        SELECT a.adam, a.type, a.title, a.signed_date, a.authority_id,
+               auth.name AS authority_name,
+               coalesce(v.awarded,
+                        proc.resolved_value(a.adam, a.total_cost_with_vat)) AS value
+          FROM proc.procurement_act a
+          LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
+          CROSS JOIN LATERAL (
+                SELECT sum(ao.awarded_value_with_vat) AS awarded
+                  FROM proc.act_operator ao
+                 WHERE ao.adam = a.adam AND ao.operator_id = ANY(%(ops)s)) v
+         WHERE {where}
+         ORDER BY a.signed_date DESC NULLS LAST, a.adam
+         LIMIT %(limit)s OFFSET %(offset)s
+    """, params)
+    rows = c.fetchall()
+    authority_name = None
+    if authority_id:
+        c.execute("SELECT name FROM proc.authority WHERE org_id = %s", (authority_id,))
+        r = c.fetchone()
+        authority_name = r["name"] if r else authority_id
+    pages = max(1, -(-total // AWARDS_PAGE))
+    return {"rows": rows, "total": total, "page": min(page, pages), "pages": pages,
+            "authority_id": authority_id, "authority_name": authority_name}
+
+
+def buyers(c, user_id: int) -> list[dict]:
+    """Every authority the firm has won from, busiest first. Already counted
+    per authority at seed time, so this is a read, not an aggregate."""
+    c.execute("""
+        SELECT b.authority_id, auth.name AS authority_name,
+               b.n_acts, b.total_value
+          FROM proc.company_profile_buyer b
+          LEFT JOIN proc.authority auth ON auth.org_id = b.authority_id
+         WHERE b.user_id = %s
+         ORDER BY b.n_acts DESC, b.total_value DESC NULLS LAST
+    """, (user_id,))
+    return c.fetchall()
+
+
+def competitors(c, user_id: int, *, limit: int = COMPETITORS_MAX) -> dict:
+    """Who else wins what this firm wins, from whom it wins it.
+
+    A competitor is another operator awarded an act that shares BOTH sides of
+    this firm's history: one of its exact CPV codes AND one of its buyers.
+    Either alone is too wide — "same buyer" puts the hospital's cleaning
+    contractor next to a stent supplier, "same CPV" lists suppliers to
+    authorities the firm has never sold to.
+
+    Exact codes only, not the 2/4-digit prefixes the scorer grades by: a whole
+    division (33, medical equipment) holds firms that are not competing with
+    each other at all. Starting from the codes is also what makes this fast —
+    object_detail_cpv is indexed on cpv_code, so the pool is a few index
+    lookups rather than every act of 76 busy hospitals (≈3 min vs ≈6 s on a
+    real 11,000-award supplier).
+
+    Ranked by shared awards, with the number of shared buyers beside it: many
+    awards at one hospital is a local rival, fewer spread across most of your
+    buyers is the national one. Computed on request, stored nowhere — the same
+    rule as the score.
+    """
+    op_ids = _stored_operator_ids(c, user_id)
+    if not op_ids:
+        return {"rows": [], "n_codes": 0, "n_buyers": 0}
+    c.execute("""SELECT count(DISTINCT cpv_prefix) AS n FROM proc.company_profile_cpv
+                  WHERE user_id = %s AND length(cpv_prefix) > 4""", (user_id,))
+    n_codes = int(c.fetchone()["n"])
+    c.execute("SELECT count(*) AS n FROM proc.company_profile_buyer WHERE user_id = %s",
+              (user_id,))
+    n_buyers = int(c.fetchone()["n"])
+    if not n_codes or not n_buyers:
+        return {"rows": [], "n_codes": n_codes, "n_buyers": n_buyers}
+    c.execute("""
+        WITH codes AS (
+            SELECT DISTINCT cpv_prefix FROM proc.company_profile_cpv
+             WHERE user_id = %(uid)s AND length(cpv_prefix) > 4),
+        hits AS (
+            SELECT DISTINCT od.adam
+              FROM proc.object_detail_cpv oc
+              JOIN proc.act_object_detail od ON od.id = oc.object_detail_id
+             WHERE oc.cpv_code IN (SELECT cpv_prefix FROM codes)),
+        pool AS (
+            SELECT a.adam, a.authority_id, ao.operator_id,
+                   coalesce(ao.awarded_value_with_vat,
+                            proc.resolved_value(a.adam, a.total_cost_with_vat)) AS val
+              FROM hits h
+              JOIN proc.procurement_act a ON a.adam = h.adam
+              JOIN proc.act_operator ao ON ao.adam = a.adam
+             WHERE a.authority_id IN (SELECT authority_id
+                                        FROM proc.company_profile_buyer
+                                       WHERE user_id = %(uid)s)
+               AND a.type = ANY(%(types)s)
+               AND NOT coalesce(a.cancelled, false)
+               AND ao.operator_id <> ALL(%(ops)s))
+        SELECT p.operator_id, eo.name, eo.vat_number,
+               count(DISTINCT p.adam) AS n_shared,
+               count(DISTINCT p.authority_id) AS n_buyers,
+               coalesce(sum(p.val), 0) AS total_value
+          FROM pool p
+          JOIN proc.economic_operator eo ON eo.operator_id = p.operator_id
+         GROUP BY p.operator_id, eo.name, eo.vat_number
+         ORDER BY n_shared DESC, n_buyers DESC, p.operator_id
+         LIMIT %(limit)s
+    """, {"uid": user_id, "ops": op_ids, "types": list(_AWARD_TYPES),
+          "limit": limit})
+    return {"rows": c.fetchall(), "n_codes": n_codes, "n_buyers": n_buyers}

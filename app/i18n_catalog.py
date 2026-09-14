@@ -2958,6 +2958,43 @@ _FIT = {
         'same CPV group',
     'ίδιος τομέας CPV':
         'same CPV division',
+    # the evidence dialogs behind the profile's headline numbers
+    'Αναθέσεις του προφίλ':
+        'Awards in the profile',
+    'Αναθέτουσες του προφίλ':
+        'Authorities in the profile',
+    'Αναθέσεις':
+        'Awards',
+    'Μόνο από':
+        'Only from',
+    'όλες οι αναθέσεις':
+        'all awards',
+    'πίσω στις αναθέτουσες':
+        'back to authorities',
+    'Προηγούμενη':
+        'Previous',
+    'Πατήστε μια αναθέτουσα για να δείτε τις αναθέσεις της.':
+        'Click an authority to see its awards.',
+    'Δεν βρέθηκαν αναθέσεις. Πατήστε «Υπολογισμός από το ιστορικό».':
+        'No awards found. Press "Rebuild from history".',
+    'Κύριοι ανταγωνιστές':
+        'Main competitors',
+    'Άλλοι ανάδοχοι που πήραν αναθέσεις στους ίδιους ακριβώς κωδικούς CPV ΚΑΙ από τις ίδιες αναθέτουσες με τον πελάτη.':
+        'Other contractors awarded contracts in exactly the same CPV codes AND by the same authorities as the customer.',
+    'κωδικοί CPV':
+        'CPV codes',
+    'Αναθέσεις στους ίδιους κωδικούς CPV από τις ίδιες αναθέτουσες':
+        'Awards in the same CPV codes from the same authorities',
+    'Κοινές αναθέσεις':
+        'Shared awards',
+    'Κοινές αναθέτουσες':
+        'Shared authorities',
+    'Δεν βρέθηκαν ανταγωνιστές στους ίδιους κωδικούς και αναθέτουσες.':
+        'No competitors found in the same codes and authorities.',
+    'Φόρτωση… (οι ανταγωνιστές χρειάζονται μερικά δευτερόλεπτα)':
+        'Loading… (competitors take a few seconds)',
+    'Οι αριθμοί αναθέσεων και αναθετουσών ανοίγουν σε παράθυρο: όλες οι αναθέσεις του προφίλ ανά σελίδα, και οι αναθέτουσες με το πλήθος αναθέσεων η καθεμία (πατήστε μια αναθέτουσα για τις αναθέσεις της). Το «Κύριοι ανταγωνιστές» δείχνει τους άλλους αναδόχους που πήραν αναθέσεις στους ίδιους ακριβώς κωδικούς CPV και από τις ίδιες αναθέτουσες, με σειρά κοινών αναθέσεων. Υπολογίζεται τη στιγμή που το ανοίγετε και μπορεί να πάρει μερικά δευτερόλεπτα.':
+        'The award and authority counts open in a window: every award in the profile, page by page, and the authorities with the number of awards from each (click an authority for its awards). "Main competitors" lists the other contractors awarded contracts in exactly the same CPV codes and by the same authorities, ranked by shared awards. It is computed when you open it and can take a few seconds.',
     'Μέγεθος':
         'Size',
     'Περιοχή':

@@ -278,11 +278,14 @@
       {% if fit_row and fit_row.derived_at %}
       <p class="fit-sub">
         {{ t("Προφίλ από το ιστορικό αναθέσεων") }}:
-        <strong>{{ fit_row.n_awards }}</strong> {{ t("αναθέσεις") }},
-        <strong>{{ fit_row.n_buyers }}</strong> {{ t("αναθέτουσες") }}{% if fit_row.value_p10 %},
+        <a href="/admin/crm/{{ cust.id }}/fit/awards" class="fit-link" onclick="return fitDialog(this)"><strong>{{ fit_row.n_awards }}</strong> {{ t("αναθέσεις") }}</a>,
+        <a href="/admin/crm/{{ cust.id }}/fit/buyers" class="fit-link" onclick="return fitDialog(this)"><strong>{{ fit_row.n_buyers }}</strong> {{ t("αναθέτουσες") }}</a>{% if fit_row.value_p10 %},
         {{ t("συνήθεις αξίες") }}
         <strong>{{ "{:,.0f}".format(fit_row.value_p10|float).replace(",", ".") }}–{{ "{:,.0f}".format(fit_row.value_p90|float).replace(",", ".") }} €</strong>{% endif %}.
         <span class="muted">{{ t("Ενημερώθηκε") }}: {{ fit_row.derived_at.strftime("%d/%m/%Y %H:%M") }}</span>
+      </p>
+      <p class="fit-sub" style="margin-top:6px;">
+        <a href="/admin/crm/{{ cust.id }}/fit/competitors" class="fit-link fit-comp-btn" onclick="return fitDialog(this)">{{ t("Κύριοι ανταγωνιστές") }} →</a>
       </p>
       {% else %}
       <p class="fit-sub">{{ t("Δεν έχει δημιουργηθεί προφίλ ακόμη. Το προφίλ προκύπτει από το ιστορικό αναθέσεων του ΑΦΜ — δεν χρειάζεται συμπλήρωση φόρμας.") }}</p>
@@ -325,6 +328,28 @@
   {% else %}
   <p class="fit-note">{{ t(fit.reason) if fit and fit.reason else t("Δεν βρέθηκαν ανοικτοί διαγωνισμοί που να ταιριάζουν.") }}</p>
   {% endif %}
+
+  {# One dialog for all three lists. The links are real hrefs (without JS they
+     open the bare fragment); with JS, fitDialog() opens the dialog and loads
+     the fragment into it with htmx. Competitors take a few seconds on a large
+     supplier, hence the loading line. #}
+  <dialog id="fit-dlg" class="fit-dlg" aria-label="{{ t('Ταίριασμα') }}">
+    <div class="fit-dlg-h">
+      <button type="button" class="fit-dlg-x" onclick="document.getElementById('fit-dlg').close()">{{ t("Κλείσιμο παραθύρου ✕") }}</button>
+    </div>
+    <div id="fit-dlg-body"></div>
+  </dialog>
+  <script>
+    window.fitDialog = function (a) {
+      var d = document.getElementById('fit-dlg');
+      if (!d || !d.showModal || !window.htmx) return true;   // fall back to the link
+      document.getElementById('fit-dlg-body').innerHTML =
+        '<p class="fit-dlg-note">{{ t("Φόρτωση… (οι ανταγωνιστές χρειάζονται μερικά δευτερόλεπτα)") }}</p>';
+      if (!d.open) d.showModal();
+      htmx.ajax('GET', a.getAttribute('href'), {target: '#fit-dlg-body', swap: 'innerHTML'});
+      return false;
+    };
+  </script>
 </section>
 
 <section class="cpanel" id="ctab-alerts" role="tabpanel"
@@ -1021,6 +1046,23 @@
   .fit-comp.ok{color:#1f8a63;}
   .fit-comp.mid{color:#8a5a1c;}
   .fit-comp.no{color:var(--ink-3);}
+  .fit-link{color:inherit;text-decoration:underline dotted;text-underline-offset:3px;}
+  .fit-link:hover{color:var(--accent);}
+  .fit-comp-btn{font-weight:600;color:var(--accent);text-decoration:none;}
+  .fit-dlg{width:min(960px,calc(100vw - 32px));max-height:calc(100vh - 48px);
+    border:1px solid var(--rule);border-radius:12px;padding:14px 18px 18px;
+    background:var(--paper);color:var(--ink);}
+  .fit-dlg::backdrop{background:rgba(20,20,30,.35);}
+  .fit-dlg-h{display:flex;justify-content:flex-end;margin-bottom:4px;}
+  .fit-dlg-x{background:none;border:1px solid var(--rule);border-radius:8px;
+    padding:4px 10px;font:inherit;font-size:12px;cursor:pointer;color:var(--ink-2);}
+  .fit-dlg-title{margin:0 0 6px;font-size:15px;}
+  .fit-dlg-note{font-size:12.5px;color:var(--ink-2);line-height:1.55;margin:0 0 10px;}
+  .fit-dlg-scroll{overflow-x:auto;}
+  .fit-dlg-tbl td{vertical-align:top;}
+  .fit-dlg-tbl .num{text-align:right;font-variant-numeric:tabular-nums;}
+  .fit-dlg-pager{display:flex;gap:16px;align-items:center;justify-content:center;
+    margin-top:12px;font-size:13px;}
 </style>
 
 <script>

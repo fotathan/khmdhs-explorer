@@ -488,6 +488,26 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
         return RedirectResponse(
             f"/admin/crm/{uid}?tab=fit&flash={quote(flash)}", status_code=303)
 
+    @router.get("/{uid}/fit/{view}", response_class=HTMLResponse)
+    def crm_fit_view(uid: int, view: str, request: Request, page: int = 1,
+                     authority: str = None):
+        """The rows behind the profile's headline numbers, as a dialog fragment:
+        the awards (paged, optionally one authority's), the authorities with
+        their award counts, and the competitors. GETs — nothing is written."""
+        if view not in ("awards", "buyers", "competitors"):
+            raise HTTPException(404, "unknown view")
+        with cursor() as c:
+            if not _auth.get_customer(c, uid):
+                raise HTTPException(404, "customer not found")
+            ctx = {"cust_id": uid, "view": view}
+            if view == "awards":
+                ctx["data"] = _fit.awards(c, uid, page=page, authority_id=authority)
+            elif view == "buyers":
+                ctx["data"] = _fit.buyers(c, uid)
+            else:
+                ctx["data"] = _fit.competitors(c, uid)
+        return templates.TemplateResponse(request, "_crm_fit_dialog.html", ctx)
+
     # ---- ΓΕΜΗ company match ------------------------------------------- #
     # Three POSTs, all returning the same HTMX fragment so the card never
     # reloads and the open tab survives. Admin-only and audited for free:

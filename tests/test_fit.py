@@ -151,10 +151,12 @@ def _cleanup(cur):
     cur.execute("""DELETE FROM proc.act_operator WHERE adam LIKE 'FIT%'
                     OR operator_id IN (SELECT operator_id
                                          FROM proc.economic_operator
-                                        WHERE vat_number = '123456789')""")
+                                        WHERE vat_number IN ('123456789',
+                                              '987654321', '555555555'))""")
     cur.execute("DELETE FROM proc.procurement_act WHERE adam LIKE 'FIT%'")
-    cur.execute("DELETE FROM proc.economic_operator WHERE vat_number = '123456789'")
-    cur.execute("DELETE FROM proc.authority WHERE org_id = 'FITAUTH'")
+    cur.execute("""DELETE FROM proc.economic_operator
+                    WHERE vat_number IN ('123456789', '987654321', '555555555')""")
+    cur.execute("DELETE FROM proc.authority WHERE org_id IN ('FITAUTH', 'FITOTHER')")
 
 
 @pytest.fixture()
@@ -429,6 +431,121 @@ def test_derive_on_an_unknown_customer_is_404(client, firm):
     r = client.post("/admin/crm/999999/fit/derive",
                     data={"csrf_token": csrf}, follow_redirects=False)
     assert r.status_code == 404
+
+
+# --------------------------------------------------------------------------- #
+# The evidence behind the headline numbers: awards, buyers, competitors
+# --------------------------------------------------------------------------- #
+def _award(cur, adam, op, cpv, authority="FITAUTH", value=10_000):
+    cur.execute("""INSERT INTO proc.procurement_act
+                     (adam, type, title, origin, data_source, authority_id,
+                      nuts_code, total_cost_with_vat)
+                   VALUES (%s,'contract','Δοκιμή','import','khmdhs',%s,'EL303',%s)""",
+                (adam, authority, value))
+    cur.execute("""INSERT INTO proc.act_operator (adam, operator_id, role)
+                   VALUES (%s, %s, 'winner')""", (adam, op))
+    cur.execute("""INSERT INTO proc.act_object_detail (adam, short_description)
+                   VALUES (%s, 'είδος') RETURNING id""", (adam,))
+    od = cur.fetchone()["id"]
+    cur.execute("""INSERT INTO proc.object_detail_cpv (object_detail_id, cpv_code)
+                   VALUES (%s, %s)""", (od, cpv))
+
+
+@pytest.fixture()
+def market(firm):
+    """The firm plus three rivals: one who shares codes AND buyer (the real
+    competitor), one who shares only the buyer, one who shares only the code."""
+    uid, cur = firm
+    cur.execute("""INSERT INTO proc.cpv_code (cpv_code, description)
+                   VALUES ('90910000','Καθαρισμός') ON CONFLICT (cpv_code) DO NOTHING""")
+    cur.execute("""INSERT INTO proc.authority (org_id, name)
+                   VALUES ('FITOTHER','ΑΛΛΗ ΑΡΧΗ') ON CONFLICT (org_id) DO NOTHING""")
+    ops = {}
+    for vat, name in (("987654321", "ΑΝΤΑΓΩΝΙΣΤΗΣ ΑΕ"), ("555555555", "ΚΑΘΑΡΙΣΜΟΙ ΑΕ")):
+        cur.execute("""INSERT INTO proc.economic_operator (vat_number, name, is_greek_vat)
+                       VALUES (%s, %s, true) RETURNING operator_id""", (vat, name))
+        ops[vat] = cur.fetchone()["operator_id"]
+    _award(cur, "FITR0001", ops["987654321"], "33184100")               # code + buyer
+    _award(cur, "FITR0002", ops["987654321"], "33184100")
+    _award(cur, "FITR0003", ops["555555555"], "90910000")               # buyer only
+    _award(cur, "FITR0004", ops["555555555"], "33184100", "FITOTHER")   # code only
+    fit.seed_from_ledger(cur, uid)
+    return uid, cur, ops
+
+
+def test_awards_lists_exactly_what_was_counted(firm):
+    uid, cur = firm
+    fit.seed_from_ledger(cur, uid)
+    out = fit.awards(cur, uid)
+    assert out["total"] == 6 and len(out["rows"]) == 6 and out["pages"] == 1
+    assert {r["authority_name"] for r in out["rows"]} == {"ΝΟΣΟΚΟΜΕΙΟ ΔΟΚΙΜΗΣ"}
+
+
+def test_awards_pages_and_filters_by_authority(firm, monkeypatch):
+    uid, cur = firm
+    fit.seed_from_ledger(cur, uid)
+    monkeypatch.setattr(fit, "AWARDS_PAGE", 4)
+    p1, p2 = fit.awards(cur, uid, page=1), fit.awards(cur, uid, page=2)
+    assert p1["pages"] == 2 and len(p1["rows"]) == 4 and len(p2["rows"]) == 2
+    assert not {r["adam"] for r in p1["rows"]} & {r["adam"] for r in p2["rows"]}
+    assert fit.awards(cur, uid, authority_id="FITAUTH")["total"] == 6
+    assert fit.awards(cur, uid, authority_id="NOPE")["total"] == 0
+
+
+def test_awards_without_a_profile_is_empty_not_an_error(db):
+    uid = make_user("fitnoaw", "goodpassword1")
+    assert fit.awards(db.cursor(), uid)["rows"] == []
+
+
+def test_buyers_carry_their_award_counts(firm):
+    uid, cur = firm
+    fit.seed_from_ledger(cur, uid)
+    rows = fit.buyers(cur, uid)
+    assert [(r["authority_id"], r["n_acts"]) for r in rows] == [("FITAUTH", 6)]
+
+
+def test_a_competitor_shares_both_the_code_and_the_buyer(market):
+    """Same buyer alone is the hospital's cleaner; same code alone is a supplier
+    to authorities the firm never sold to. Neither is a competitor."""
+    uid, cur, ops = market
+    out = fit.competitors(cur, uid)
+    assert [r["vat_number"] for r in out["rows"]] == ["987654321"]
+    top = out["rows"][0]
+    assert top["n_shared"] == 2 and top["n_buyers"] == 1
+    assert out["n_buyers"] == 1
+
+
+def test_the_firm_is_never_its_own_competitor(market):
+    uid, cur, _ = market
+    names = [r["name"] for r in fit.competitors(cur, uid)["rows"]]
+    assert "ΔΟΚΙΜΗ ΑΕ" not in names
+
+
+def test_evidence_dialogs_are_admin_only(client, firm):
+    uid, _cur = firm
+    for view in ("awards", "buyers", "competitors"):
+        r = client.get(f"/admin/crm/{uid}/fit/{view}", follow_redirects=False)
+        assert r.status_code in (303, 403), view
+
+
+def test_evidence_dialogs_render_for_an_admin(client, market):
+    uid, _cur, _ = market
+    _admin(client)
+    awards_html = client.get(f"/admin/crm/{uid}/fit/awards").text
+    assert "FIT0000" in awards_html
+    buyers_html = client.get(f"/admin/crm/{uid}/fit/buyers").text
+    assert "ΝΟΣΟΚΟΜΕΙΟ ΔΟΚΙΜΗΣ" in buyers_html and "authority=FITAUTH" in buyers_html
+    comp_html = client.get(f"/admin/crm/{uid}/fit/competitors").text
+    assert "ΑΝΤΑΓΩΝΙΣΤΗΣ ΑΕ" in comp_html and "ΚΑΘΑΡΙΣΜΟΙ ΑΕ" not in comp_html
+    card = client.get(f"/admin/crm/{uid}").text
+    assert f"/admin/crm/{uid}/fit/competitors" in card and 'id="fit-dlg"' in card
+
+
+def test_unknown_evidence_view_is_404(client, firm):
+    uid, _cur = firm
+    _admin(client)
+    assert client.get(f"/admin/crm/{uid}/fit/everything").status_code == 404
+    assert client.get("/admin/crm/999999/fit/awards").status_code == 404
 
 
 def test_a_customer_with_no_profile_still_renders_the_card(client, db):
