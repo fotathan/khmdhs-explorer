@@ -2,7 +2,7 @@
 # The app itself needs httpx (FastAPI TestClient) — that's in requirements.txt.
 -r requirements.txt
 pytest>=9.1.1,<10
-ruff==0.16.3          # fast linter — CI runs the correctness rule subset
+ruff==0.16.7          # fast linter — CI runs the correctness rule subset
 pip-audit==2.10.1      # dependency CVE scanner (CI)
 jsonschema==4.26.0     # mobile API contract test validates responses against the OpenAPI spec
 PyYAML==6.0.3          # ...and reads that spec from docs/specs/mobile-api-v1.openapi.yaml
