@@ -8,7 +8,70 @@ Dates are the day the change landed on `main` (which auto-deploys to prod on
 Render). This project has no version tags — the git history is the source of
 truth; this is a curated digest.
 
+## 2026-09-14
+
+### Added — customer pages usable on a phone
+- Below ~760px the masthead folds into a menu button, the search/explore
+  filters sit behind a "Φίλτρα" toggle (with a count of active groups), and the
+  act, contractor and authority tables become stacked cards. Additive CSS; the
+  desktop layout is unchanged and admin/CRM stays desktop-only.
+- Follow-up: an authority's "totals by act type" table stacks too — at 393px it
+  scrolled sideways and hid the "μόνο αυτές ›" link.
+
+### Added — the act page in tabs (desktop) / an accordion (phone)
+- Hero strip with value, publication, deadline and a "closes in N days" badge;
+  sections Overview, Tender summary, Items & CPV, Full text, Competition,
+  Linked acts, Documents. The open tab lives in the #hash; print shows every
+  section; the gated teaser is unchanged. Supersedes the 09-11 panel reorder.
+
+### Added — Fit tab: the profile's awards, authorities and main competitors
+- The award and authority counts open a dialog with the rows behind them;
+  "main competitors" ranks contractors sharing the same exact CPVs and
+  authorities. Computed on request, stored nowhere.
+
+### Added — ΓΕΜΗ search box pre-filled with the profile's company name
+
+### Fixed — Export downloaded the filters the page loaded with
+- Filters changed after load (HTMX swaps) never reached the Export links, so a
+  79-act search exported 20,000 rows. The URL is now built from the address bar
+  at click time.
+
+### Fixed — ΓΕΜΗ candidate ranking
+- Scored against the typed term, not the profile's company; a name that is a
+  fragment of the query is capped at the share it covers; name similarity is
+  scaled by word coverage; the ledger bonus is a tie-breaker (0.10 → 0.05, name
+  0.45 → 0.50). For "food prime", both FOOD PRIME companies now rank first.
+
+### Fixed — Fit scored exact CPV matches as group matches
+- Real codes carry a check digit ('33184100-4'); the exact level looked up
+  code[:8] and never fired. Live scores rise for exact matches; nothing stored.
+
+### Chore
+- jsonschema + PyYAML added to the dev requirements (mobile API contract test).
+
 ## 2026-09-11
+
+### Fixed — the pager duplicated the filters in the URL
+- Pager links carried the querystring AND included the filter form, so every
+  page click doubled each filter; the act page then showed one "Γιατί
+  ταιριάζει" chip per copy. Dropped the double include on all four pagers and
+  dedupe repeats in match_qs, cpv_terms and multi-value filters.
+
+### Performance
+- Search: result totals are no longer recomputed on every page.
+- DB pool: a connection is health-checked only after sitting idle, not on every
+  checkout.
+- Act page: the CPV contractor ranking loads off the critical path.
+- Static assets are served without a session, cookie or database hit.
+- Act page: full text moved above the comparative panels (since replaced by tabs).
+
+### Ops
+- Production moved to the Frankfurt Render service (Supabase is in Paris):
+  p50 1695 → 832 ms on the same corpus.
+- render.yaml no longer lets a Blueprint sync create three paid services
+  (worker, digests, catch-up) that were never meant to exist.
+- Deployment docs point DATABASE_URL at Supabase's session pooler; prepared
+  statements are a switch.
 
 ### Fixed — the ΓΕΜΗ company search button did nothing
 - The panel is a fragment shared by the customer card (an `include`) and the
