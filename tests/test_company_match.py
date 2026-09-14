@@ -159,20 +159,35 @@ def test_a_name_that_is_a_fragment_of_the_query_is_not_a_near_match():
 
 
 def test_exact_names_outrank_a_fragment_that_is_in_the_ledger():
-    """The live case: B.T.Prime is a contractor (+ledger) and was ranked above
-    both FOOD PRIME companies for the search 'food prime'."""
+    """The live case, twice: B.T.Prime (a fragment) and then BT PRIME /
+    OPTIMUS PRIME (sharing only the word 'prime') are contractors, and the
+    ledger bonus lifted them over FOOD PRIME ΔΙΑΝΟΜΗ for the search
+    'food prime'. Every name holding BOTH words must come first."""
     cands = [
         CM._from_record(_rec("801736295", "B.T.Prime Ο.Ε.")),
+        CM._from_record(_rec("801736296", "BT PRIME Ο.Ε.")),
+        CM._from_record(_rec("996974839", "OPTIMUS PRIME")),
         CM._from_record(_rec("802952543",
                              "FOOD PRIME ΜΟΝΟΠΡΟΣΩΠΗ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ")),
         CM._from_record(_rec("802162766", "FOOD PRIME ΔΙΑΝΟΜΗ ΜΟΝΟΠΡΟΣΩΠΗ Ι.Κ.Ε.")),
     ]
-    cands[0]["operator_id"] = 1
+    for cand in cands[:3]:
+        cand["operator_id"] = 1
     for cand in cands:
         cand["_query"] = "food prime"
         cand["score"], _ = _score(cand, {"company": "ΑΣΧΕΤΗ ΕΠΩΝΥΜΙΑ"})
     ranked = [x["afm"] for x in sorted(cands, key=lambda x: -x["score"])]
-    assert ranked == ["802952543", "802162766", "801736295"]
+    assert ranked[:2] == ["802952543", "802162766"]
+
+
+def test_sharing_one_word_of_two_is_not_a_strong_name_match():
+    assert CM.name_similarity("food prime", "BT PRIME Ο.Ε.") <= 0.5
+    assert CM.name_similarity("food prime", "OPTIMUS PRIME") <= 0.5
+
+
+def test_the_ledger_bonus_is_a_tie_breaker():
+    """Being a contractor says nothing about WHICH company this is."""
+    assert CM.W_LEDGER < CM.W_NAME * 0.15
 
 
 def test_the_typed_query_is_scored_not_the_profile_company():

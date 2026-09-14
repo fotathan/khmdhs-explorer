@@ -125,6 +125,10 @@ company-match/ (search / link / unlink), one HTMX panel.
   that is a fragment OF the query ('B.T.Prime' → 'prime' in 'food prime') is
   capped at the share it covers; only the query inside a longer name gets the
   0.82 containment floor. Both once put B.T.Prime above FOOD PRIME (tested).
+- Name similarity is scaled by WORD coverage of the query (0.5 + 0.5×coverage):
+  letters alone scored BT PRIME 67% like 'food prime'. The ledger bonus is a
+  tie-breaker (W_LEDGER 0.05 vs W_NAME 0.50) — at 0.10 it outranked a better
+  name. Don't raise it back.
 - Candidates = our contractor ledger (trigram) + the registry, merged on ΑΦΜ.
   The ledger SQL must spell the fold as `translate(proc.f_unaccent(lower(x)),
   'ς','σ')` — the nesting order of `ix_eo_name_trgm`. `leads._fold_sql` builds

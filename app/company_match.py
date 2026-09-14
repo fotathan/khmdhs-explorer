@@ -90,11 +90,14 @@ PROTECTED = ("full_name", "crm_stage", "service", "manager_id",
              "lead_source", "about", "is_recipient")
 
 # Scoring weights. Argued, not fitted — there is no win/loss data to fit to.
-W_NAME = 0.45          # folded, legal-form-stripped name similarity
+W_NAME = 0.50          # folded, legal-form-stripped name similarity
 W_EMAIL_DOMAIN = 0.25  # customer's email domain == the candidate's registry email
 W_SITE_DOMAIN = 0.10   # ... or its website host
 W_PLACE = 0.10         # city / postal code agree
-W_LEDGER = 0.10        # already a contractor in our award ledger
+# Already a contractor in our award ledger. A tie-breaker, not evidence of
+# WHICH company this is: at 0.10 it was worth ~22 points of name similarity and
+# lifted BT PRIME Ο.Ε. over FOOD PRIME ΔΙΑΝΟΜΗ for the search 'food prime'.
+W_LEDGER = 0.05
 
 PENALTY_INACTIVE = 0.6   # struck off / in liquidation — demoted, never hidden
 PENALTY_BRANCH = 0.9     # a branch (υποκατάστημα) of another entity
@@ -155,6 +158,18 @@ def normalize_name(s: str) -> str:
     return " ".join(kept or words)
 
 
+def _word_coverage(q: str, cn: str) -> float:
+    """How much of the (normalised) query's words the (normalised) name has,
+    0..1. Each query word counts by its closest word in the name, so a typo or
+    an inflection ('ελληνικα' / 'ελλαδικα') is partial credit, not zero. Words
+    the name has and the query lacks cost nothing — legal names are longer."""
+    qw, cw = q.split(), cn.split()
+    if not qw or not cw:
+        return 0.0
+    return sum(max(difflib.SequenceMatcher(None, w, c).ratio() for c in cw)
+               for w in qw) / len(qw)
+
+
 def best_name_match(query: str, *names) -> tuple[float, str]:
     """(similarity, the string that matched) for `query` against any of `names`
     — a legal name and its trade titles.
@@ -186,6 +201,10 @@ def best_name_match(query: str, *names) -> tuple[float, str]:
                 # floor and, with the ledger bonus, outranked FOOD PRIME itself.
                 # A fragment can claim at most the share of the query it covers.
                 ratio = min(ratio, len(cn) / len(q))
+            # Character similarity alone rewards sharing the LONGER word:
+            # 'bt prime' is 67% like 'food prime' without containing 'food'.
+            # Scale by how many of the query's words the name actually has.
+            ratio *= 0.5 + 0.5 * _word_coverage(q, cn)
             if ratio > best:
                 best, matched = ratio, _s(candidate)
     return round(best, 4), matched
