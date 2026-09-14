@@ -246,6 +246,18 @@ _ACT = {
     "αυτή η πράξη": "this act",
     "Δεν εντοπίστηκαν κατάντη συνδεδεμένες πράξεις.": "No downstream linked acts found.",
     "Συσχετιζόμενα προηγούμενα": "Related upstream",
+    # Sections (tabs on desktop, accordion on a phone) + hero actions
+    "Ενότητες πράξης": "Act sections",
+    "Επισκόπηση": "Overview",
+    "Είδη & CPV": "Items & CPV",
+    "Ανταγωνισμός": "Competition",
+    "Συνδεδεμένες πράξεις": "Linked acts",
+    "Έγγραφα": "Documents",
+    "Εκτύπωση": "Print",
+    "λήγει σήμερα": "closes today",
+    "λήγει αύριο": "closes tomorrow",
+    "λήγει σε {n} ημέρες": "closes in {n} days",
+    "η προθεσμία έληξε": "deadline passed",
 }
 
 # Authority / contractor detail + list pages (beta_authority/contractor[_results])
@@ -1706,7 +1718,11 @@ _HELP = {
     "Κάθε πράξη έχει σελίδα στο": "Every act has a page at",
     "όπου ΑΔΑΜ είναι ο μοναδικός αριθμός αναφοράς της πράξης. Είναι η πιο πλούσια προβολή της εφαρμογής.": "where ADAM is the act's unique reference number. It's the richest view in the app.",
     "Κεφαλίδα": "Header",
-    "Τύπος, πηγή, τίτλος, ο αγοραστής, αξία προϋπολογισμού και ημ/νία δημοσίευσης.": "Type, source, title, the buyer, budget value and publication date.",
+    "Τύπος, πηγή, τίτλος, ο αγοραστής, οι αξίες, η ημ/νία δημοσίευσης και η προθεσμία με τις ημέρες που απομένουν, ο τόπος εκτέλεσης, και κουμπιά για το επίσημο έγγραφο και την εκτύπωση.":
+        "Type, source, title, the buyer, the values, publication date and the deadline with the days left, place of performance, and buttons for the official document and printing.",
+    "Καρτέλες & ενότητες": "Tabs & sections",
+    "Σε υπολογιστή η σελίδα χωρίζεται σε καρτέλες: Επισκόπηση, Σύνοψη διαγωνισμού (όπου υπάρχει), Είδη & CPV, Πλήρες κείμενο, Ανταγωνισμός, Συνδεδεμένες πράξεις, Έγγραφα. Στο κινητό γίνονται ενότητες που ανοίγουν με ένα άγγιγμα. Οι ετικέτες «Γιατί ταιριάζει» και οι παραπομπές της σύνοψης AI ανοίγουν μόνες τους τη σωστή ενότητα.":
+        "On a computer the page is split into tabs: Overview, Tender summary (where there is one), Items & CPV, Full text, Competition, Linked acts, Documents. On a phone they become sections that open with one tap. The “Why it matches” chips and the AI summary’s citations open the right section by themselves.",
     "Βασικά στοιχεία": "Key facts",
     "ΑΔΑΜ, είδος διαδικασίας & κριτηρίου, σημαίες συμφωνίας-πλαισίου, ημ/νία υπογραφής.": "ADAM, procedure & criterion type, framework-agreement flags, signing date.",
     "Είδη / αντικείμενο": "Items / object",

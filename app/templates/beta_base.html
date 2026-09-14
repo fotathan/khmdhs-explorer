@@ -315,10 +315,46 @@
   .act-hero h1{font-size:22px;font-weight:700;line-height:1.35;margin:0 0 10px;letter-spacing:-.01em;}
   .act-hero .auth-line{font-size:14px;color:var(--ink-2);margin-bottom:16px;}
   .act-hero .auth-line a{color:var(--accent);}
-  .act-hero .value-row{display:flex;gap:32px;flex-wrap:wrap;padding-top:16px;border-top:1px solid var(--rule-2);}
-  .act-hero .vbox .v{font-size:24px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;}
+  /* key facts: one ruled strip of cells. The separators are shadows cast left
+     and up from each cell, clipped by the strip's own edge — so a wrapped row
+     never shows a stray line or an empty grey cell. */
+  .act-hero .value-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));border:1px solid var(--rule);border-radius:var(--radius-sm);overflow:hidden;background:var(--paper-3);}
+  .act-hero .vbox{padding:12px 16px;min-width:0;box-shadow:-1px 0 0 var(--rule),0 -1px 0 var(--rule);}
+  .act-hero .vbox .v{font-size:22px;font-weight:700;line-height:1.25;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .act-hero .vbox .v-date{font-size:18px;}
+  .act-hero .vbox .v-deadline{color:var(--warn);}
+  .act-hero .vbox .v-text{font-size:15px;font-weight:600;overflow-wrap:anywhere;}
   .act-hero .vbox .v.corrected{color:var(--ok);}
   .act-hero .vbox .vl{font-size:10.5px;font-family:var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);margin-top:2px;}
+  .dl-left{display:inline-block;margin-top:6px;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--paper-2);color:var(--ink-2);}
+  .dl-left.soon{background:#fff5e6;color:var(--warn);}
+  .dl-left.closed{background:var(--rule-2);color:var(--ink-3);}
+  .act-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;}
+  .act-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border:1px solid var(--rule);border-radius:9px;background:var(--paper);font-family:var(--sans);font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;text-decoration:none;}
+  .act-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);}
+  .act-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .act-btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2);color:#fff;}
+  .act-btn[hidden]{display:none;}
+  /* sections (act_page.js). Without `js-tabs` none of this folds anything and
+     the page stays stacked; with it, a desktop gets tabs and a phone an
+     accordion (see the 760px block). */
+  .atabs{display:none;}
+  .js-tabs .atabs{display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--rule);margin:4px 0 18px;}
+  .atab{background:none;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;padding:10px 16px;font-family:var(--sans);font-size:14px;font-weight:600;color:var(--ink-2);cursor:pointer;display:flex;align-items:center;gap:6px;}
+  .atab:hover{color:var(--accent);}
+  .atab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+  .atab.on{color:var(--accent);border-bottom-color:var(--accent);}
+  .atab-n{font-size:10.5px;font-weight:700;background:var(--rule);color:var(--ink-3);border-radius:9px;padding:1px 6px;}
+  .atab.on .atab-n{background:var(--accent);color:#fff;}
+  .atab[hidden],.apanel[hidden]{display:none !important;}
+  .apanel-toggle{display:none;}
+  .js-tabs .apanel{display:none;}
+  .js-tabs .apanel.on{display:block;}
+  @media print{
+    header.mast,.back-link,.act-actions,.atabs,.apanel-toggle{display:none !important;}
+    .js-tabs .apanel,.js-tabs .apanel-body{display:block !important;}
+    .act-grid,.act-grid.grid-2{grid-template-columns:1fr !important;}
+  }
   .act-grid{display:grid;grid-template-columns:1fr 360px;gap:18px;align-items:start;}
   @media(max-width:980px){.act-grid{grid-template-columns:1fr;}}
   .facts{display:grid;grid-template-columns:auto 1fr;gap:8px 18px;font-size:13.5px;margin:0;}
@@ -468,8 +504,26 @@
     .page-head h1,.detail-title{font-size:20px;}
     .detail-head,.act-hero{padding:16px;}
     .act-hero h1{font-size:18px;}
-    .act-hero .value-row{gap:12px 24px;}
-    .act-hero .vbox .v{font-size:19px;}
+    .act-hero .value-row{grid-template-columns:1fr 1fr;}
+    .act-hero .vbox{padding:10px 12px;}
+    .act-hero .vbox .v{font-size:17px;}
+    .act-hero .vbox .v-date{font-size:15px;}
+    .act-hero .vbox .v-text{font-size:13.5px;}
+    .act-actions .act-btn{flex:1 1 auto;justify-content:center;min-height:44px;}
+    /* act sections → accordion: every header visible, any number unfolded */
+    .js-tabs .atabs{display:none;}
+    .js-tabs .apanel,.js-tabs .apanel.on{display:block;background:var(--paper);border:1px solid var(--rule);
+      border-radius:var(--radius);box-shadow:var(--shadow-sm);margin-bottom:10px;}
+    .js-tabs .apanel-toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
+      min-height:50px;padding:12px 16px;background:none;border:0;font-family:var(--sans);font-size:15px;
+      font-weight:700;color:var(--ink);cursor:pointer;text-align:left;}
+    .js-tabs .apanel-toggle svg{flex:0 0 auto;color:var(--ink-3);transition:transform .15s;}
+    .js-tabs .apanel.open .apanel-toggle svg{transform:rotate(180deg);}
+    .js-tabs .apanel-body{display:none;padding:0 14px 4px;border-top:1px solid var(--rule-2);}
+    .js-tabs .apanel.open .apanel-body{display:block;}
+    /* no card inside a card: the section is the card now */
+    .js-tabs .apanel-body .panel,.js-tabs .apanel-body .sidecard{border:0;border-radius:0;box-shadow:none;
+      padding:14px 0;margin:0;border-bottom:1px solid var(--rule-2);}
     .panel,.sidecard{padding:14px;}
     .stat-box{min-width:0;flex:1 1 140px;padding:12px 14px;}
     .stat-box .num{font-size:18px;}

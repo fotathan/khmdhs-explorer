@@ -18,6 +18,8 @@
   function goTo(anchor) {
     var target = document.getElementById(anchor);
     if (!target) return;
+    // It may also sit in a folded section of the act page (act_page.js).
+    if (window.actTabs) window.actTabs.reveal(target);
     // The full text lives in a collapsed <details>; an element inside a closed
     // one has no layout, so open it BEFORE measuring where to scroll.
     var box = target.closest ? target.closest('details') : null;

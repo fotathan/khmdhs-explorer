@@ -44,6 +44,8 @@
     // one has no layout, so open it BEFORE measuring where to scroll.
     var target = document.getElementById(anchor);
     if (!target) return;
+    // It may also sit in a folded section of the act page (act_page.js).
+    if (window.actTabs) window.actTabs.reveal(target);
     var box = target.closest('details');
     if (box && !box.open) box.open = true;
     close();

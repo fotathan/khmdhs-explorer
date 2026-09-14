@@ -17,9 +17,15 @@
    AI_SUMMARY_ENABLED unset must fetch nothing extra. #}
 {% block head_extra %}{% if ai_summary_enabled %}<link rel="stylesheet" href="{{ asset('/static/css/ai_summary.css') }}">{% endif %}{% endblock %}
 {% block content %}
+{% set doc_url = source_doc_url(n) %}
 <main>
   <a class="back-link" href="/" hx-boost="false">{{ t("‹ πίσω στην αναζήτηση") }}</a>
 
+  {# ===== HERO =====
+     What a GATED visitor sees is exactly what it always was: badges, title,
+     authority, the amounts, publication date and deadline. Anything added to
+     the hero for a subscriber sits behind `not gated` — the teaser is a
+     commercial decision, not a layout detail (test_act_page_tabs.py pins it). #}
   <div class="act-hero">
     <div class="badges">
       <span class="card-type t-{{ atype }}">{{ type_label_el }}</span>
@@ -53,20 +59,86 @@
       <div class="vbox"><div class="v">€ {{ "{:,.0f}".format(n.budget).replace(",", ".") }}</div><div class="vl">{{ t("προϋπολογισμός") }}</div></div>
       {% endif %}
       {% if n.submission_date %}
-      <div class="vbox"><div class="v" style="font-size:18px;">{{ n.submission_date.strftime('%d/%m/%Y') }}</div><div class="vl">{{ t("δημοσίευση") }}</div></div>
+      <div class="vbox"><div class="v v-date">{{ n.submission_date.strftime('%d/%m/%Y') }}</div><div class="vl">{{ t("δημοσίευση") }}</div></div>
       {% endif %}
       {% if atype == 'notice' and n.final_submission_date %}
-      <div class="vbox"><div class="v" style="font-size:18px;color:var(--warn);">{{ n.final_submission_date.strftime('%d/%m/%Y') }}</div><div class="vl">{{ t("λήξη υποβολής") }}</div></div>
+      <div class="vbox vbox-deadline">
+        <div class="v v-date v-deadline">{{ n.final_submission_date.strftime('%d/%m/%Y') }}</div>
+        <div class="vl">{{ t("λήξη υποβολής") }}</div>
+        {# Filled by act_page.js from the viewer's clock — the date above is the
+           fact; this is only arithmetic on it. A cancelled act is never chased. #}
+        {% if not n.cancelled %}
+        <span class="dl-left" hidden data-deadline="{{ n.final_submission_date.isoformat() }}"
+              data-l-today="{{ t('λήγει σήμερα') }}" data-l-tomorrow="{{ t('λήγει αύριο') }}"
+              data-l-days="{{ t('λήγει σε {n} ημέρες') }}" data-l-closed="{{ t('η προθεσμία έληξε') }}"></span>
+        {% endif %}
+      </div>
+      {% endif %}
+      {% if not gated and n.nuts_code %}
+      <div class="vbox vbox-text"><div class="v v-text">{{ n.nuts_label or n.nuts_code }}</div><div class="vl">{{ t("Τόπος εκτέλεσης") }}</div></div>
       {% endif %}
     </div>
+
+    {% if not gated %}
+    <div class="act-actions">
+      {% if doc_url %}
+      {% set is_diavgeia = n.data_source == 'diavgeia' %}
+      {% set is_ted = n.data_source == 'ted' %}
+      <a class="act-btn primary" href="{{ doc_url }}" target="_blank" rel="noopener">
+        <span aria-hidden="true">↗</span>
+        {% if is_ted %}{{ t("Προκήρυξη στο TED") }}{% elif is_diavgeia %}{{ t("Έγγραφο στη Διαύγεια") }}{% else %}{{ t("Έγγραφο στο ΚΗΜΔΗΣ") }}{% endif %}
+      </a>
+      {% endif %}
+      {% if attachments|length > 1 %}
+      <a class="act-btn" href="/act/{{ n.adam }}/attachments.zip"><span aria-hidden="true">⭳</span> {{ t("Λήψη όλων (zip)") }}</a>
+      {% endif %}
+      <button type="button" class="act-btn" data-act-print hidden><span aria-hidden="true">⎙</span> {{ t("Εκτύπωση") }}</button>
+    </div>
+    {% endif %}
   </div>
 
   {% if gated %}
   {% include "_register_cta.html" %}
   {% else %}
 
-  <div class="act-grid">
-    <!-- ===== MAIN COLUMN ===== -->
+  {# ===== SECTIONS =====
+     Tabs on a desktop, an accordion on a phone, plain stacked panels with
+     scripts off (act_page.js adds `js-tabs`; the CSS folds nothing without it).
+     HTML order = tab order, and the full text keeps its place ahead of the
+     comparative panels (test_act_page_layout.py). #}
+  {% set sections = [] %}
+  {% set _ = sections.append(('overview', t("Επισκόπηση"), none)) %}
+  {% set has_ai = ai_summary_enabled and atype == 'notice' %}
+  {% if has_ai %}{% set _ = sections.append(('ai', t("Σύνοψη διαγωνισμού"), none)) %}{% endif %}
+  {% set _ = sections.append(('items', t("Είδη & CPV"), (line_items|length) or none)) %}
+  {% if n.full_text %}{% set _ = sections.append(('fulltext', t("Πλήρες κείμενο"), none)) %}{% endif %}
+  {% set _ = sections.append(('market', t("Ανταγωνισμός"), none)) %}
+  {% set _ = sections.append(('linked', t("Συνδεδεμένες πράξεις"), ((downstream|length) + (incoming|length)) or none)) %}
+  {% set has_docs = attachments or tables_enabled %}
+  {% if has_docs %}{% set _ = sections.append(('docs', t("Έγγραφα"), (attachments|length) or none)) %}{% endif %}
+
+  <div class="atabs" role="tablist" id="act-tabs" aria-label="{{ t('Ενότητες πράξης') }}">
+    {% for key, label, count in sections %}
+    <button type="button" role="tab" class="atab{% if loop.first %} on{% endif %}"
+            id="atab-{{ key }}" data-tab="{{ key }}" aria-controls="tab-{{ key }}"
+            aria-selected="{{ 'true' if loop.first else 'false' }}">
+      {{ label }}{% if count %}<span class="atab-n">{{ count }}</span>{% endif %}
+    </button>
+    {% endfor %}
+  </div>
+
+  {% macro section_toggle(label, count) -%}
+    <button type="button" class="apanel-toggle" aria-expanded="false">
+      <span>{{ label }}{% if count %} <span class="atab-n">{{ count }}</span>{% endif %}</span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+  {%- endmacro %}
+
+  {# ---------- Overview ---------- #}
+  <section class="apanel on" id="tab-overview" data-tab="overview" role="tabpanel" aria-labelledby="atab-overview">
+    {{ section_toggle(t("Επισκόπηση"), none) }}
+    <div class="apanel-body">
+    <div class="act-grid">
     <div>
       {# Γιατί ταιριάζει — one chip per matched term. Every count here is the
          number of <mark>s rendered below; both come from the same scan. #}
@@ -122,16 +194,6 @@
           {% if n.cancellation_reason %}<dt>{{ t("Αιτία ακύρωσης") }}</dt><dd>{{ n.cancellation_reason }}</dd>{% endif %}
         </dl>
       </div>
-
-      {# AI summary — lazy, so an act page costs nothing when there is no
-         summary, and collapses to nothing for anything but a notice. Sits here,
-         directly under the record's own facts, because it answers the question
-         the reader has next: what does this notice require that the fields above
-         do not say? See docs/specs/ai-summary.md. #}
-      {% if ai_summary_enabled and atype == 'notice' %}
-      <div id="ai-summary-mount" hx-get="/act/{{ n.adam }}/ai"
-           hx-trigger="load" hx-swap="outerHTML"></div>
-      {% endif %}
 
       {# Extended multi-source fields (authored / non-KHMDHS acts). The whole
          panel is hidden unless at least one is set, and every row is guarded so
@@ -223,7 +285,70 @@
         </table>
       </div>
       {% endif %}
+    </div>
 
+    <aside>
+      <div class="sidecard">
+        <div class="sidecard-h">{{ t("Προέλευση δεδομένων") }}</div>
+        <dl class="prov">
+          <dt>{{ t("Πηγή") }}</dt>
+          <dd>{% if n.data_source=='ted' %}TED{% elif n.data_source=='diavgeia' %}{{ t("Διαύγεια") }}{% else %}{{ t("ΚΗΜΔΗΣ") }}{% endif %}</dd>
+          {% if n.last_update_date %}<dt>{{ t("Επικαιροποίηση πηγής") }}</dt><dd>{{ n.last_update_date.strftime('%Y-%m-%d') }}</dd>{% endif %}
+          {% if n.ingested_at %}<dt>{{ t("Εισαγωγή") }}</dt><dd>{{ n.ingested_at.strftime('%Y-%m-%d') }}</dd>{% endif %}
+          {% if n.last_edited_at %}<dt>{{ t("Επιμέλεια") }}</dt><dd>{{ n.last_edited_by or t("διαχειριστής") }} · {{ n.last_edited_at.strftime('%Y-%m-%d') }}</dd>{% endif %}
+        </dl>
+        <p class="prov-note">{{ t("Δεδομένα από επίσημη πηγή, όχι αυθεντικό αντίγραφο.") }} <a href="/data-sources">{{ t("Περισσότερα") }}</a></p>
+        <style>
+          .prov{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:0 0 10px;font-size:12.5px;}
+          .prov dt{color:var(--ink-3);font-family:var(--mono);font-size:10px;text-transform:uppercase;
+            letter-spacing:.04em;padding-top:2px;white-space:nowrap;}
+          .prov dd{margin:0;color:var(--ink);}
+          .prov-note{margin:0;font-size:11.5px;color:var(--ink-3);line-height:1.5;}
+          .prov-note a{color:var(--accent);}
+        </style>
+      </div>
+
+      <div class="sidecard">
+        <div class="sidecard-h">{{ t("Σημειώσεις ομάδας") }}
+          {% if is_admin %}<a href="/admin/act/{{ n.adam }}/edit?tab=fields">{{ t("επεξεργασία ›") }}</a>{% endif %}
+        </div>
+        {% if annotation and (annotation.note or annotation.tags or annotation.flag) %}
+          {% if annotation.flag %}
+            {% if annotation.flag == 'verified' %}<span class="anno-flag" style="background:#eaf6ef;color:var(--ok);">{{ t("Επαληθευμένο") }}</span>
+            {% elif annotation.flag == 'review' %}<span class="anno-flag" style="background:#fff5e6;color:var(--warn);">{{ t("Προς έλεγχο") }}</span>
+            {% elif annotation.flag == 'suspicious' %}<span class="anno-flag" style="background:#fdecec;color:#b3261e;">{{ t("Ύποπτο") }}</span>{% endif %}
+          {% endif %}
+          {% if annotation.note %}<p style="font-size:13.5px;color:var(--ink);margin:0 0 8px;">{{ annotation.note }}</p>{% endif %}
+          {% if annotation.tags %}<div style="margin-bottom:8px;">{% for tg in annotation.tags %}<code class="adam" style="margin-right:3px;">{{ tg }}</code>{% endfor %}</div>{% endif %}
+          <div style="font-size:11px;color:var(--ink-3);">— {{ annotation.author }}, {{ annotation.created_at.strftime('%d/%m/%Y') }}</div>
+        {% else %}
+          <p style="font-style:italic;color:var(--ink-3);font-size:13px;margin:0;">{{ t("Καμία σημείωση.") }}</p>
+        {% endif %}
+      </div>
+    </aside>
+    </div>
+    </div>
+  </section>
+
+  {# ---------- Tender summary (AI) ----------
+     Lazy, so an act page costs nothing when there is no summary. Its own tab,
+     right after the record's facts, because it answers the question the reader
+     has next: what does this notice require that the fields do not say? The
+     route answers "" when there is no summary and the reader may not generate
+     one (_panel_ai.html), and then the tab removes itself. A citation jumps to
+     the Full text tab (window.actTabs.reveal). See docs/specs/ai-summary.md. #}
+  {% if has_ai %}
+  <section class="apanel" id="tab-ai" data-tab="ai" role="tabpanel" aria-labelledby="atab-ai" data-autohide>
+    {{ section_toggle(t("Σύνοψη διαγωνισμού"), none) }}
+    <div class="apanel-body"><div id="ai-summary-mount" hx-get="/act/{{ n.adam }}/ai"
+           hx-trigger="load" hx-swap="outerHTML"></div></div>
+  </section>
+  {% endif %}
+
+  {# ---------- Items & CPV ---------- #}
+  <section class="apanel" id="tab-items" data-tab="items" role="tabpanel" aria-labelledby="atab-items">
+    {{ section_toggle(t("Είδη & CPV"), (line_items|length) or none) }}
+    <div class="apanel-body">
       <div class="panel">
         <h3 class="panel-h">{{ t("Είδη / Αντικείμενο") }}</h3>
         {% if line_items %}
@@ -295,12 +420,20 @@
         </div>
       </div>
       {% endif %}
+    </div>
+  </section>
 
-      {% if n.full_text %}
+  {# ---------- Full text ---------- #}
+  {% if n.full_text %}
+  <section class="apanel" id="tab-fulltext" data-tab="fulltext" role="tabpanel" aria-labelledby="atab-fulltext">
+    {{ section_toggle(t("Πλήρες κείμενο"), none) }}
+    <div class="apanel-body">
       <div class="panel">
         <h3 class="panel-h">{{ t("Πλήρες κείμενο") }}
           {% if is_admin %}<a href="/admin/act/{{ n.adam }}/edit?tab=fulltext" style="font-weight:400;font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;float:right;">{{ t("επεξεργασία ›") }}</a>{% endif %}
         </h3>
+        {# Folded when the page is stacked (no script). Opening the section
+           unfolds it too (act_page.js), so a tab click shows the text. #}
         <details id="ft-details">
           <summary style="cursor:pointer;font-size:13px;color:var(--ink-2);">{{ n.full_text | length }} {{ t("χαρακτήρες") }}{% if n.full_text_extracted_at %} · {{ n.full_text_extracted_at.strftime('%d/%m/%Y') }}{% endif %} — {{ t("προβολή") }}</summary>
           {% if match and match.has_full_text_hits %}
@@ -332,88 +465,26 @@
           {% endif %}
         </details>
       </div>
-      {% endif %}
-
-      {# Top contractors in these CPV codes: the one genuinely expensive
-         query on this page (see _panel_top_contractors.html), so it loads
-         on its own rather than holding back the act itself. #}
-      <div id="top-cpv-mount" hx-get="/act/{{ n.adam }}/top-contractors"
-           hx-trigger="load" hx-swap="outerHTML"></div>
-
-      {# lazy-loaded published extracted tables — collapses to nothing if none #}
-      {% if tables_enabled %}
-      <div id="tt-pub-tables-mount" hx-get="/tables/public/{{ n.adam }}" hx-trigger="load" hx-swap="outerHTML"></div>
-      {% endif %}
     </div>
+  </section>
+  {% endif %}
 
-    <!-- ===== SIDEBAR ===== -->
-    <aside>
-      <div class="sidecard">
-        <div class="sidecard-h">{{ t("Ενέργειες") }}</div>
-        {% set doc_url = source_doc_url(n) %}
-        {% if doc_url %}
-        {% set is_diavgeia = n.data_source == 'diavgeia' %}
-        {% set is_ted = n.data_source == 'ted' %}
-        <a class="action-link" href="{{ doc_url }}" target="_blank" rel="noopener">
-          <span class="ico">↗</span>
-          <span><span class="at">{% if is_ted %}{{ t("Προκήρυξη στο TED") }}{% elif is_diavgeia %}{{ t("Έγγραφο στη Διαύγεια") }}{% else %}{{ t("Έγγραφο στο ΚΗΜΔΗΣ") }}{% endif %}</span><span class="ad">{% if is_ted %}{{ t("Η προκήρυξη στην πύλη TED") }}{% elif is_diavgeia %}{{ t("Η πράξη στη Διαύγεια") }}{% else %}{{ t("Το επίσημο PDF της πράξης") }}{% endif %}</span></span>
-        </a>
-        {% endif %}
+  {# ---------- Competition ----------
+     Top contractors in these CPV codes: the one genuinely expensive query on
+     this page (see _panel_top_contractors.html), so it loads on its own rather
+     than holding back the act itself. An empty answer removes the tab. #}
+  <section class="apanel" id="tab-market" data-tab="market" role="tabpanel" aria-labelledby="atab-market" data-autohide>
+    {{ section_toggle(t("Ανταγωνισμός"), none) }}
+    <div class="apanel-body"><div id="top-cpv-mount" hx-get="/act/{{ n.adam }}/top-contractors"
+           hx-trigger="load" hx-swap="outerHTML"></div></div>
+  </section>
 
-        {% if attachments %}
-        {% if attachments|length > 1 %}
-        <a class="action-link" href="/act/{{ n.adam }}/attachments.zip">
-          <span class="ico">⭳</span>
-          <span><span class="at">{{ t("Λήψη όλων (zip)") }}</span><span class="ad">{{ attachments|length }} {{ t("αρχεία") }}</span></span>
-        </a>
-        {% endif %}
-        {% for a in attachments %}
-        <a class="action-link" href="/act/{{ n.adam }}/attachment/{{ a.id }}">
-          <span class="ico">⭳</span>
-          <span><span class="at">{{ a.filename or 'attachment' }}</span><span class="ad">{{ ((a.size_bytes or 0) / 1024) | round(0) | int }} KB</span></span>
-        </a>
-        {% endfor %}
-        {% endif %}
-      </div>
-
-      <div class="sidecard">
-        <div class="sidecard-h">{{ t("Προέλευση δεδομένων") }}</div>
-        <dl class="prov">
-          <dt>{{ t("Πηγή") }}</dt>
-          <dd>{% if n.data_source=='ted' %}TED{% elif n.data_source=='diavgeia' %}{{ t("Διαύγεια") }}{% else %}{{ t("ΚΗΜΔΗΣ") }}{% endif %}</dd>
-          {% if n.last_update_date %}<dt>{{ t("Επικαιροποίηση πηγής") }}</dt><dd>{{ n.last_update_date.strftime('%Y-%m-%d') }}</dd>{% endif %}
-          {% if n.ingested_at %}<dt>{{ t("Εισαγωγή") }}</dt><dd>{{ n.ingested_at.strftime('%Y-%m-%d') }}</dd>{% endif %}
-          {% if n.last_edited_at %}<dt>{{ t("Επιμέλεια") }}</dt><dd>{{ n.last_edited_by or t("διαχειριστής") }} · {{ n.last_edited_at.strftime('%Y-%m-%d') }}</dd>{% endif %}
-        </dl>
-        <p class="prov-note">{{ t("Δεδομένα από επίσημη πηγή, όχι αυθεντικό αντίγραφο.") }} <a href="/data-sources">{{ t("Περισσότερα") }}</a></p>
-        <style>
-          .prov{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:0 0 10px;font-size:12.5px;}
-          .prov dt{color:var(--ink-3);font-family:var(--mono);font-size:10px;text-transform:uppercase;
-            letter-spacing:.04em;padding-top:2px;white-space:nowrap;}
-          .prov dd{margin:0;color:var(--ink);}
-          .prov-note{margin:0;font-size:11.5px;color:var(--ink-3);line-height:1.5;}
-          .prov-note a{color:var(--accent);}
-        </style>
-      </div>
-
-      <div class="sidecard">
-        <div class="sidecard-h">{{ t("Σημειώσεις ομάδας") }}
-          {% if is_admin %}<a href="/admin/act/{{ n.adam }}/edit?tab=fields">{{ t("επεξεργασία ›") }}</a>{% endif %}
-        </div>
-        {% if annotation and (annotation.note or annotation.tags or annotation.flag) %}
-          {% if annotation.flag %}
-            {% if annotation.flag == 'verified' %}<span class="anno-flag" style="background:#eaf6ef;color:var(--ok);">{{ t("Επαληθευμένο") }}</span>
-            {% elif annotation.flag == 'review' %}<span class="anno-flag" style="background:#fff5e6;color:var(--warn);">{{ t("Προς έλεγχο") }}</span>
-            {% elif annotation.flag == 'suspicious' %}<span class="anno-flag" style="background:#fdecec;color:#b3261e;">{{ t("Ύποπτο") }}</span>{% endif %}
-          {% endif %}
-          {% if annotation.note %}<p style="font-size:13.5px;color:var(--ink);margin:0 0 8px;">{{ annotation.note }}</p>{% endif %}
-          {% if annotation.tags %}<div style="margin-bottom:8px;">{% for tg in annotation.tags %}<code class="adam" style="margin-right:3px;">{{ tg }}</code>{% endfor %}</div>{% endif %}
-          <div style="font-size:11px;color:var(--ink-3);">— {{ annotation.author }}, {{ annotation.created_at.strftime('%d/%m/%Y') }}</div>
-        {% else %}
-          <p style="font-style:italic;color:var(--ink-3);font-size:13px;margin:0;">{{ t("Καμία σημείωση.") }}</p>
-        {% endif %}
-      </div>
-
+  {# ---------- Linked acts ---------- #}
+  <section class="apanel" id="tab-linked" data-tab="linked" role="tabpanel" aria-labelledby="atab-linked">
+    {{ section_toggle(t("Συνδεδεμένες πράξεις"), ((downstream|length) + (incoming|length)) or none) }}
+    <div class="apanel-body">
+    <div class="act-grid grid-2">
+    <div>
       <div class="sidecard">
         <div class="sidecard-h">{{ t("Κύκλος ζωής διαδικασίας") }}</div>
         <ul class="timeline">
@@ -449,7 +520,9 @@
         </ul>
       </div>
       {% endif %}
+    </div>
 
+    <div>
       {% if interconnect_group %}
       <div class="sidecard">
         <div class="sidecard-h">{{ t("Διασυνδεδεμένες πράξεις") }}</div>
@@ -528,11 +601,40 @@
         {% endif %}
       </div>
       {% endif %}
-    </aside>
-  </div>
+    </div>
+    </div>
+    </div>
+  </section>
+
+  {# ---------- Documents ----------
+     Uploaded attachments (flag-gated) and the published extracted tables
+     (lazy, flag-gated). With no attachments the section holds only the tables
+     mount, so it removes itself if that comes back empty. #}
+  {% if has_docs %}
+  <section class="apanel" id="tab-docs" data-tab="docs" role="tabpanel" aria-labelledby="atab-docs"{% if not attachments %} data-autohide{% endif %}>
+    {{ section_toggle(t("Έγγραφα"), (attachments|length) or none) }}
+    <div class="apanel-body">
+      {%- if attachments %}
+      <div class="sidecard">
+        <div class="sidecard-h">{{ t("Συνημμένα") }}</div>
+        {% for a in attachments %}
+        <a class="action-link" href="/act/{{ n.adam }}/attachment/{{ a.id }}">
+          <span class="ico">⭳</span>
+          <span><span class="at">{{ a.filename or 'attachment' }}</span><span class="ad">{{ ((a.size_bytes or 0) / 1024) | round(0) | int }} KB</span></span>
+        </a>
+        {% endfor %}
+      </div>
+      {% endif -%}
+      {%- if tables_enabled %}<div id="tt-pub-tables-mount" hx-get="/tables/public/{{ n.adam }}" hx-trigger="load" hx-swap="outerHTML"></div>{% endif -%}
+    </div>
+  </section>
+  {% endif %}
 
   {% endif %}{# /gated #}
 </main>
+{# Sections + deadline badge. Loaded for gated visitors too: the badge is only
+   arithmetic on the deadline the teaser already shows. #}
+<script src="{{ asset('/static/js/act_page.js') }}" defer></script>
 {# Occurrence navigator: one popover reused by every chip, filled over HTMX. #}
 {% if match %}
 <div id="occ-popover" class="occ-pop" role="dialog" aria-modal="false" hidden></div>
