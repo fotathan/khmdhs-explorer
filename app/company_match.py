@@ -174,10 +174,18 @@ def best_name_match(query: str, *names) -> tuple[float, str]:
             if not cn:
                 continue
             ratio = difflib.SequenceMatcher(None, q, cn).ratio()
-            # a full containment ('ιντρακατ' inside 'κοινοπραξια ιντρακατ εργω')
-            # is a strong signal that the raw ratio punishes for length
-            if q in cn or cn in q:
+            if q in cn:
+                # the query inside a longer name ('ιντρακατ' inside
+                # 'κοινοπραξια ιντρακατ εργω') is a strong signal that the raw
+                # ratio punishes for length
                 ratio = max(ratio, 0.82)
+            elif cn in q:
+                # the NAME inside the query is the opposite: a fragment. Legal
+                # forms and initials are stripped first, so 'B.T.Prime Ο.Ε.' is
+                # just 'prime' — found in 'food prime', it once got the same
+                # floor and, with the ledger bonus, outranked FOOD PRIME itself.
+                # A fragment can claim at most the share of the query it covers.
+                ratio = min(ratio, len(cn) / len(q))
             if ratio > best:
                 best, matched = ratio, _s(candidate)
     return round(best, 4), matched
@@ -216,7 +224,11 @@ def score_candidate(cand: dict, profile: dict, cust: dict,
     freemail = {d.lower() for d in (freemail or set())}
     signals: dict = {}
 
-    query = _s(profile.get("company")) or _s(cand.get("_query"))
+    # What was SEARCHED is what gets scored. The profile's company name is only
+    # the fallback: it once came first, so typing 'food prime' for a customer
+    # with some other company on file ranked the results against that other
+    # name, and the exact FOOD PRIME showed 23%.
+    query = _s(cand.get("_query")) or _s(profile.get("company"))
     sim, matched = best_name_match(query, cand.get("name"),
                                    cand.get("titles") or [],
                                    cand.get("ledger_name"))

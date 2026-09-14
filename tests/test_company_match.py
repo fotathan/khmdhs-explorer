@@ -148,6 +148,44 @@ def test_exact_name_outranks_the_registry_order():
     assert ranked[0]["afm"] == "094049864"
 
 
+def test_a_name_that_is_a_fragment_of_the_query_is_not_a_near_match():
+    """'B.T.Prime Ο.Ε.' normalises to 'prime', which sits inside 'food prime'.
+    That is half the query, not a containment hit."""
+    assert CM.name_similarity("food prime", "B.T.Prime Ο.Ε.") <= 0.5
+    assert CM.name_similarity(
+        "food prime", "FOOD PRIME ΜΟΝΟΠΡΟΣΩΠΗ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ") == 1.0
+    # the query inside a longer name keeps its floor
+    assert CM.name_similarity("food prime", "FOOD PRIME ΔΙΑΝΟΜΗ Ι.Κ.Ε.") >= 0.82
+
+
+def test_exact_names_outrank_a_fragment_that_is_in_the_ledger():
+    """The live case: B.T.Prime is a contractor (+ledger) and was ranked above
+    both FOOD PRIME companies for the search 'food prime'."""
+    cands = [
+        CM._from_record(_rec("801736295", "B.T.Prime Ο.Ε.")),
+        CM._from_record(_rec("802952543",
+                             "FOOD PRIME ΜΟΝΟΠΡΟΣΩΠΗ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ")),
+        CM._from_record(_rec("802162766", "FOOD PRIME ΔΙΑΝΟΜΗ ΜΟΝΟΠΡΟΣΩΠΗ Ι.Κ.Ε.")),
+    ]
+    cands[0]["operator_id"] = 1
+    for cand in cands:
+        cand["_query"] = "food prime"
+        cand["score"], _ = _score(cand, {"company": "ΑΣΧΕΤΗ ΕΠΩΝΥΜΙΑ"})
+    ranked = [x["afm"] for x in sorted(cands, key=lambda x: -x["score"])]
+    assert ranked == ["802952543", "802162766", "801736295"]
+
+
+def test_the_typed_query_is_scored_not_the_profile_company():
+    cand = CM._from_record(_rec("802952543", "FOOD PRIME ΙΚΕ"))
+    cand["_query"] = "food prime"
+    _, sig = _score(cand, {"company": "ΑΣΧΕΤΗ ΕΠΩΝΥΜΙΑ"})
+    assert sig["name"]["value"] == 1.0
+    # with nothing typed, the profile's name is still what is compared
+    blank = CM._from_record(_rec("802952543", "FOOD PRIME ΙΚΕ"))
+    _, sig = _score(blank, {"company": "FOOD PRIME"})
+    assert sig["name"]["value"] == 1.0
+
+
 def test_email_domain_confirms_a_candidate():
     profile = {"company": "ΑΛΦΑ"}
     cust = {"email": "kostas@alfa-tech.gr"}
@@ -280,6 +318,23 @@ def test_search_merges_the_ledger_and_the_registry_on_one_afm(monkeypatch, db,
     hits = [x for x in out["candidates"] if x["afm"] == "999012345"]
     assert len(hits) == 1, "the same company must not appear twice"
     assert hits[0]["source"] == "both" and hits[0]["operator_id"]
+
+
+def test_search_ranks_by_the_typed_query(monkeypatch, db, match_clean):
+    c = db.cursor()
+    uid = make_user("cust-typed")
+    _profile(c, uid, company="ΑΣΧΕΤΗ ΕΠΩΝΥΜΙΑ")
+    monkeypatch.setattr(
+        GC, "search_by_name_env",
+        lambda name, max_results=25: ("ok", [
+            _rec("801736295", "B.T.Prime Ο.Ε."),
+            _rec("802162766", "FOOD PRIME ΔΙΑΝΟΜΗ ΜΟΝΟΠΡΟΣΩΠΗ Ι.Κ.Ε."),
+            _rec("802952543", "FOOD PRIME ΜΟΝΟΠΡΟΣΩΠΗ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ"),
+        ]))
+    out = CM.search(c, uid, "food prime")
+    afms = [x["afm"] for x in out["candidates"]]
+    assert afms[:2] == ["802952543", "802162766"]
+    assert out["candidates"][0]["signals"]["name"]["value"] == 1.0
 
 
 def test_search_still_works_without_an_api_key(monkeypatch, db, match_clean):
