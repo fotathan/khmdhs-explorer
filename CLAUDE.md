@@ -157,6 +157,14 @@ on the CRM card's Ταίριασμα tab. Deterministic arithmetic, NO model.
 - CPV weights normalise WITHIN each prefix depth. Globally normalising makes
   every 8-digit code a fraction of its division, so the most specific match
   scores lowest; that bug shipped once and is caught by a test now.
+- Real CPVs carry a check digit ('33184100-4', 10 chars) and the seed stores
+  them that way. The EXACT level matches on the code before the '-'
+  (fit._cpv_base), on both sides; 4/2-digit levels are plain prefixes. It once
+  looked up code[:8] instead, so exact matches silently scored as group
+  matches (0.7 not 1.0) — fixing it raised live scores. An exact match only
+  ADDS: per code it is max(exact, deeper of group/sector), never "deepest
+  wins", or a code won once pre-empts the firm's core group and scores DROP.
+  Test with real-format codes, not bare 8 digits.
 - Components are always shown, never just the total. `why` is a fixed Greek
   phrase (a translation key) and the variable part rides in `detail`.
 

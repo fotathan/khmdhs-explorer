@@ -67,6 +67,17 @@ class Profile:
         return bool(self.cpv)
 
 
+def _cpv_base(code: str | None) -> str:
+    """The code without its check digit: '33184100-4' -> '33184100'.
+
+    The corpus stores CPVs as 10 characters WITH the check digit, and the
+    ledger seed copies that into company_profile_cpv as-is. A declared row or
+    a hand-built profile may carry the bare 8 digits. Both mean the same code,
+    so exact matching compares on this and nothing else.
+    """
+    return (code or "").strip().split("-", 1)[0]
+
+
 # --------------------------------------------------------------------------- #
 # Components — each returns 0..1 with a reason a person can read
 # --------------------------------------------------------------------------- #
@@ -78,30 +89,61 @@ def score_cpv(profile: Profile, act_cpvs: list[str]) -> tuple[float, str, str | 
     the same family, the same 2 is the same industry. The firm's own weight
     for that prefix scales it — one contract in a division is not a
     speciality.
+
+    The exact level matches on the code WITHOUT its check digit, on both
+    sides. It used to look up code[:8] ('33184100') in a profile keyed
+    '33184100-4', which never exists — so in production the exact branch
+    never fired and every exact match was scored as a 4-digit group match
+    (credit 0.7 instead of 1.0).
+
+    An exact match can only ADD to a code's score, never replace a better
+    group score. Exact weights are normalised among exact codes, so a code
+    the firm won once scores low — and letting that pre-empt its core group
+    (as "deepest match wins" would) dropped real tenders by up to 21 points
+    when the exact branch first came alive. So per code: the better of the
+    exact level and the group/sector level, which is never below what the
+    same tender scored before the fix. Group vs sector is unchanged: still
+    the deeper one.
     """
     if not act_cpvs or not profile.cpv:
         return 0.0, "δεν υπάρχουν κωδικοί CPV για σύγκριση", None
+    # base code -> (weight, the profile's own key). Only keys longer than a
+    # group are exact codes; if both spellings of one code are present (a
+    # declared '33184100' beside a derived '33184100-4'), the stronger wins.
+    exact: dict[str, tuple[float, str]] = {}
+    for key, w in profile.cpv.items():
+        base = _cpv_base(key)
+        if len(base) > 4 and w > exact.get(base, (-1.0, ""))[0]:
+            exact[base] = (w, key)
+
+    def graded(credit: float, weight: float) -> float:
+        # The floor is deliberately low. For a broad supplier — 76 buyers,
+        # 18 regions — value, geography and buyer history all saturate at
+        # 1.0 and stop discriminating, so CPV carries the whole signal and
+        # a group touched once in 11,000 awards must not read as half a
+        # match. Centrality, not mere presence.
+        return credit * (0.25 + 0.75 * weight)
+
     best, why, detail = 0.0, "", None
     for code in act_cpvs:
-        code = (code or "").strip()
-        if not code:
+        base = _cpv_base(code)
+        if not base:
             continue
-        for depth, credit, label in ((8, 1.0, "ακριβής κωδικός CPV"),
-                                     (4, 0.7, "ίδια ομάδα CPV"),
+        candidates = []
+        if base in exact:
+            weight, key = exact[base]
+            candidates.append((graded(1.0, weight), "ακριβής κωδικός CPV", key))
+        for depth, credit, label in ((4, 0.7, "ίδια ομάδα CPV"),
                                      (2, 0.4, "ίδιος τομέας CPV")):
-            prefix = code[:depth]
+            prefix = base[:depth]
             weight = profile.cpv.get(prefix)
             if weight is None:
                 continue
-            # The floor is deliberately low. For a broad supplier — 76 buyers,
-            # 18 regions — value, geography and buyer history all saturate at
-            # 1.0 and stop discriminating, so CPV carries the whole signal and
-            # a group touched once in 11,000 awards must not read as half a
-            # match. Centrality, not mere presence.
-            value = credit * (0.25 + 0.75 * weight)
+            candidates.append((graded(credit, weight), label, prefix))
+            break                          # the deeper of group / sector
+        for value, label, d in candidates:  # exact first, so it wins a tie
             if value > best:
-                best, why, detail = value, label, prefix
-            break                                    # deepest match wins
+                best, why, detail = value, label, d
     return ((best, why, detail) if best
             else (0.0, "δεν προμηθεύει τίποτα σε αυτούς τους CPV", None))
 
@@ -373,11 +415,17 @@ def load_profile(c, user_id: int) -> Profile | None:
     # the deepest, most specific match is punished hardest. That is backwards,
     # and it showed up immediately on a real firm: a medical supplier's core
     # CPV group scored 0.36 on its own speciality.
+    #
+    # Depth is measured WITHOUT the check digit, so a derived '33184100-4' and
+    # a declared '33184100' are the same depth and share one peak.
+    def depth(prefix: str) -> int:
+        return len(_cpv_base(prefix))
+
     peak: dict[int, int] = {}
     for r in cpv_rows:
-        d = len(r["cpv_prefix"])
+        d = depth(r["cpv_prefix"])
         peak[d] = max(peak.get(d, 0), int(r["n"]))
-    cpv = {r["cpv_prefix"]: min(1.0, int(r["n"]) / (peak[len(r["cpv_prefix"])] or 1))
+    cpv = {r["cpv_prefix"]: min(1.0, int(r["n"]) / (peak[depth(r["cpv_prefix"])] or 1))
            for r in cpv_rows}
 
     c.execute("""SELECT DISTINCT nuts_prefix FROM proc.company_profile_nuts

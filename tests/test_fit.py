@@ -39,6 +39,47 @@ def test_cpv_grades_by_prefix_depth():
     assert exact > group > div > 0
 
 
+def test_cpv_exact_match_works_on_real_codes_with_check_digits():
+    """The corpus stores '33184100-4', and so does the ledger seed. Looking up
+    code[:8] in a profile keyed like that never matched, so every exact match
+    in production was scored as a group match. Real-format codes, both sides."""
+    p = _profile(cpv={"33": 1.0, "3318": 1.0, "33184100-4": 1.0})
+    exact, why, detail = fit.score_cpv(p, ["33184100-4"])
+    group, *_ = fit.score_cpv(p, ["33189999-1"])
+    assert "ακριβής" in why and detail == "33184100-4" and exact == 1.0
+    assert exact > group
+
+
+@pytest.mark.parametrize("profile_key,act_code", [
+    ("33184100-4", "33184100"),       # derived profile, bare act code
+    ("33184100", "33184100-4"),       # declared bare code, real act code
+    ("33184100-4", " 33184100-4 "),   # stray whitespace
+])
+def test_cpv_exact_match_ignores_the_check_digit_spelling(profile_key, act_code):
+    p = _profile(cpv={"3318": 1.0, profile_key: 1.0})
+    score, why, _ = fit.score_cpv(p, [act_code])
+    assert "ακριβής" in why and score == 1.0
+
+
+def test_cpv_a_different_exact_code_in_the_same_group_is_not_exact():
+    p = _profile(cpv={"3318": 1.0, "33184100-4": 1.0})
+    score, why, detail = fit.score_cpv(p, ["33182000-3"])
+    assert "ομάδα" in why and detail == "3318" and score < 1.0
+
+
+def test_a_rare_exact_code_never_hides_a_core_group():
+    """Exact weights are normalised among exact codes, so a code won once
+    scores low. It must not replace the firm's strong 4-digit group — that
+    is what dropped real tenders by up to 21 points when the exact level
+    first started matching. An exact match can only add."""
+    p = _profile(cpv={"33": 1.0, "3314": 1.0,
+                      "33141100-1": 1.0, "33141700-7": 0.01})
+    score, why, detail = fit.score_cpv(p, ["33141700-7"])
+    group_only = fit.score_cpv(_profile(cpv={"33": 1.0, "3314": 1.0}),
+                               ["33141700-7"])[0]
+    assert score == group_only and detail == "3314" and "ομάδα" in why
+
+
 def test_cpv_is_zero_for_something_they_do_not_supply():
     p = _profile(cpv={"33": 1.0})
     score, why, _ = fit.score_cpv(p, ["45000000"])
@@ -280,6 +321,37 @@ def test_rank_orders_by_score_and_explains_each_row(firm):
     assert "FITOPEN1" in adams
     row = next(r for r in out["rows"] if r["adam"] == "FITOPEN1")
     assert row["score"] >= 95 and len(row["components"]) == 4
+
+
+def test_real_format_codes_score_as_exact_from_seed_to_rank(firm):
+    """End to end on the code format production actually has: the ledger
+    holds '33184100-4', the seed stores it as-is, and an open notice with the
+    same code must come back as an EXACT match — not a 4-digit group one."""
+    uid, cur = firm
+    cur.execute("""INSERT INTO proc.cpv_code (cpv_code, description)
+                   VALUES ('33184100-4','Χειρουργικά εμφυτεύματα')
+                   ON CONFLICT (cpv_code) DO NOTHING""")
+    cur.execute("""UPDATE proc.object_detail_cpv SET cpv_code = '33184100-4'
+                    WHERE object_detail_id IN (SELECT id FROM proc.act_object_detail
+                                                WHERE adam LIKE 'FIT%%')""")
+    fit.seed_from_ledger(cur, uid)
+    p = fit.load_profile(cur, uid)
+    assert p.cpv.get("33184100-4") == 1.0 and "33184100" not in p.cpv
+
+    cur.execute("""INSERT INTO proc.procurement_act
+                     (adam, type, title, origin, data_source, authority_id,
+                      nuts_code, total_cost_with_vat, final_submission_date)
+                   VALUES ('FITREAL1','notice','Ανοικτή','import','khmdhs',
+                           'FITAUTH','EL303', 12000, now() + interval '10 days')""")
+    cur.execute("""INSERT INTO proc.act_object_detail (adam, short_description)
+                   VALUES ('FITREAL1','είδος') RETURNING id""")
+    od = cur.fetchone()["id"]
+    cur.execute("""INSERT INTO proc.object_detail_cpv (object_detail_id, cpv_code)
+                   VALUES (%s,'33184100-4')""", (od,))
+    row = next(r for r in fit.rank(cur, uid)["rows"] if r["adam"] == "FITREAL1")
+    cpv = next(c for c in row["components"] if c["key"] == "cpv")
+    assert "ακριβής" in cpv["why"] and cpv["score"] == 1.0
+    assert row["score"] >= 95
 
 
 def test_rank_skips_closed_and_cancelled_tenders(firm):
