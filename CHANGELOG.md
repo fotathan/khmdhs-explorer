@@ -20,6 +20,8 @@ truth; this is a curated digest.
 - The overview (/explore) too: an authority or contractor opened from it links
   back to it, with its filters ("‹ πίσω στη σύνοψη"). Its "view as act list"
   link now carries the live filters instead of the ones the page loaded with.
+- And /analytics: it has no filters, but an authority or contractor opened
+  from its top-15 tables now links back to it ("‹ πίσω στα στατιστικά").
 
 ### Added — tables in the full-text editor, one format for rich full text
 - Both Quill editors (act form, /tables + edit hub) enable Quill 2's table

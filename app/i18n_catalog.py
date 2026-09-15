@@ -265,6 +265,7 @@ _PARTY = {
     "‹ πίσω στις αναθέτουσες": "‹ back to authorities",
     "‹ πίσω στους αναδόχους": "‹ back to contractors",
     "‹ πίσω στη σύνοψη": "‹ back to summary",
+    "‹ πίσω στα στατιστικά": "‹ back to analytics",
     "Συγχωνευμένη οντότητα —": "Merged entity —",
     "εγγραφές:": "records:",
     "ΑΦΜ:": "Tax ID:",

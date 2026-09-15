@@ -123,4 +123,8 @@ psql "$REMOTE" -c "SELECT proc.refresh_analytics();"</pre>
   <p style="font-size:11.5px;color:var(--ink-3);margin-top:18px;">{{ t("Τα στοιχεία ανανεώνονται μετά από κάθε εισαγωγή με") }} <code class="adam">SELECT proc.refresh_analytics();</code></p>
   {% endif %}
 </main>
+{# No filters here, but the authority/contractor pages it links to should
+   still lead back to it rather than to their own lists. #}
+{% from "_back_to_results.html" import remember_results %}
+{{ remember_results('/analytics') }}
 {% endblock %}

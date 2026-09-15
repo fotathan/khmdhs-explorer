@@ -43,7 +43,8 @@ def _key(path):
     return f"""var PATH="{path}", KEY='khmdhs:lastResults:'+PATH"""
 
 
-@pytest.mark.parametrize("path", ["/authorities", "/contractors", "/explore"])
+@pytest.mark.parametrize("path", ["/authorities", "/contractors", "/explore",
+                                  "/analytics"])
 def test_list_page_remembers_itself(admin, entities, path):
     r = admin.get(path, params={"q": "επιστροφ"})
     assert r.status_code == 200
@@ -62,6 +63,7 @@ def test_detail_back_link_restores_its_list(admin, entities, detail, path):
     # both lists that lead here, the entity's own list first (the default)
     assert f'var LISTS=[["{path}", ' in r.text
     assert '["/explore", ' in r.text
+    assert '["/analytics", ' in r.text
     assert "document.referrer" in r.text
 
 
