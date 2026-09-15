@@ -304,6 +304,9 @@ _PARTY = {
     "Πόλη": "City",
     "Τ.Κ.": "Postal code",
     "Κορυφαίες αναθέτουσες (πελάτες)": "Top authorities (clients)",
+    "Κορυφαίοι ανάδοχοι (προμηθευτές)": "Top contractors (suppliers)",
+    "Κάθε προφίλ αρχής δείχνει και τους κορυφαίους αναδόχους της — ποιοι κερδίζουν τις συμβάσεις της, κατά αξία. Μετρούν μόνο συμβάσεις, ώστε ένας διαγωνισμός και η σύμβασή του να μη μετρούν διπλά· ο πίνακας φορτώνει λίγο μετά τη σελίδα.":
+        "Each authority profile also shows its top contractors — who wins its contracts, by value. Only contracts count, so a tender and its contract are not counted twice; the table loads a moment after the page.",
     "Αναθέτουσα": "Authority",
     "Συμβάσεις": "Contracts",
     "Δεν υπάρχουν συμβάσεις.": "No contracts.",

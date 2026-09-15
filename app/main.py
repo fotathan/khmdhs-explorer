@@ -4566,6 +4566,50 @@ def authority_detail(org_id: str, request: Request,
     )
 
 
+@app.get("/authority/{org_id}/top-contractors", response_class=HTMLResponse)
+def authority_top_contractors(org_id: str, request: Request):
+    """The authority page's "top contractors" panel, loaded on its own.
+
+    The mirror of contractor_detail's top_buyers: who wins this authority's
+    contracts, top 10 by value. Measured on the local 2.7M-act table: ~1.3s for
+    the largest authority (~45k contracts, hashed against all 2.1M act_operator
+    rows), while the authority page itself is a handful of index lookups — so,
+    like act_top_contractors, the page mounts it rather than waiting for it
+    (test_authority_top_contractors.py counts the page's queries).
+
+    Contracts only, so an auction and its follow-on contract are not two awards;
+    winners only (role is 'winner' in practice). Across every record of a merged
+    authority, the same member resolution as authority_detail. Contractors are
+    grouped per record, not per merge group, as in the act page's panel.
+    """
+    if _is_gated(request):
+        # Paid content, and not mounted for a gated visitor — but the URL is
+        # guessable and the query is the expensive part. Refused here too.
+        return HTMLResponse("")
+    # Its own budget: a second of DB work per call, on a URL a scraper can hit.
+    _rate_limit(request, "authtopcontractors")
+    with cursor() as c:
+        grp = resolve_entity_group(c, "authority", org_id)
+        member_ids = grp["members"] if grp else [org_id]
+        c.execute("""
+            /* authority_top_contractors */
+            SELECT eo.vat_number, eo.name,
+                   count(DISTINCT a.adam) AS n_acts,
+                   coalesce(sum(coalesce(ao.awarded_value_with_vat,
+                                         proc.resolved_value(a.adam, a.total_cost_with_vat))), 0) AS total_value
+            FROM proc.procurement_act a
+            JOIN proc.act_operator ao      ON ao.adam = a.adam AND ao.role = 'winner'
+            JOIN proc.economic_operator eo ON eo.operator_id = ao.operator_id
+            WHERE a.authority_id = ANY(%s) AND a.type = 'contract'
+            GROUP BY eo.vat_number, eo.name
+            ORDER BY total_value DESC NULLS LAST, n_acts DESC
+            LIMIT 10
+        """, (member_ids,))
+        rows = c.fetchall()
+    return templates.TemplateResponse(
+        request, "_panel_authority_top_contractors.html", {"top_contractors": rows})
+
+
 # ---------------------------------------------------------------------------- #
 # Contractor drill-down: /contractor/{vat}
 #   All acts where this economic operator was a winner / member.

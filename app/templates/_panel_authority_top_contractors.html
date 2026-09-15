@@ -1,0 +1,38 @@
+{# _panel_authority_top_contractors.html — "who wins this authority's contracts".
+
+   The mirror of the contractor page's "Κορυφαίες αναθέτουσες (πελάτες)", and
+   loaded the same way as the act page's top-contractors panel: on its own, over
+   HTMX, from GET /authority/<org_id>/top-contractors — NOT inline. Measured on
+   the local 2.7M-act table: ~1.3s for the largest authority (~45k contracts,
+   a hash join against all 2.1M act_operator rows), while the rest of the
+   authority page is a few index lookups. A ministry's page would otherwise wait
+   a second and a half for a side table.
+
+   Contracts only (an auction and its follow-on contract are one award, as in
+   contractor_detail's top_buyers), winners only, grouped per contractor record
+   — a merged contractor's members appear as separate rows, as they do in the
+   act page's panel. Ranked by value, like top_buyers.
+
+   Swapped with outerHTML over the placeholder in beta_authority.html, which
+   already shows the heading, so the page does not jump when this lands. #}
+<div class="panel" id="authority-top-contractors">
+  <h3 class="panel-h">{{ t("Κορυφαίοι ανάδοχοι (προμηθευτές)") }}</h3>
+  {% if top_contractors %}
+  <table class="dtable">
+    <thead>
+      <tr><th>{{ t("Ανάδοχος") }}</th><th class="val">{{ t("Συμβάσεις") }}</th><th class="val">{{ t("Αξία") }}</th></tr>
+    </thead>
+    <tbody>
+      {% for r in top_contractors %}
+      <tr>
+        <td>{% if r.vat_number %}<a href="/contractor/{{ r.vat_number }}">{{ r.name or r.vat_number }}</a>{% else %}{{ r.name or '—' }}{% endif %}</td>
+        <td class="val">{{ r.n_acts }}</td>
+        <td class="val">{% if r.total_value %}€ {{ "{:,.0f}".format(r.total_value).replace(",", ".") }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">{{ t("Δεν υπάρχουν συμβάσεις.") }}</div>
+  {% endif %}
+</div>

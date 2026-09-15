@@ -10,6 +10,15 @@ truth; this is a curated digest.
 
 ## 2026-09-15
 
+### Added — top contractors on the authority page
+- "Κορυφαίοι ανάδοχοι (προμηθευτές)": who wins the authority's contracts, top
+  10 by value — contracts only, winners only, across a merged authority's
+  records. The mirror of the contractor page's top authorities.
+- Loaded on its own (`GET /authority/<id>/top-contractors`, rate-limited, empty
+  for a gated visitor): ~1.3s for the largest authority, so the page mounts it
+  instead of waiting for it. A test counts the page's queries to keep it so.
+- A contractor opened from it links back to the authority.
+
 ### Fixed — "back to search" on an act page keeps the search
 - The link was a hard-coded `/`, so every filter and the result page were lost.
   The search page now remembers its live URL per tab (sessionStorage), and the

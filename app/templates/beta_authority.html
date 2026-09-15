@@ -107,6 +107,15 @@
     </table>
   </div>
 
+  {# Top contractors: ~1.3s for the largest authority, so it loads on its own
+     (_panel_authority_top_contractors.html). The placeholder already carries
+     the heading, and outerHTML replaces it, so nothing below moves. #}
+  <div class="panel" id="authority-top-contractors"
+       hx-get="/authority/{{ a.org_id }}/top-contractors" hx-trigger="load" hx-swap="outerHTML">
+    <h3 class="panel-h">{{ t("Κορυφαίοι ανάδοχοι (προμηθευτές)") }}</h3>
+    <div style="min-height:48px;"></div>
+  </div>
+
   <div class="panel">
     <h3 class="panel-h">
       {{ t("Πράξεις") }}
