@@ -1,23 +1,31 @@
 {# beta_results.html — real result cards, swapped into #results by HTMX.
    Field names mirror _results.html exactly (r.adam, r.title, r.type, etc.). #}
 <script>
-  // Out-of-band: refresh the count/value displays outside #results, since HTMX
-  // only swaps the cards. Mirrors the technique used by the classic _results.html.
+  // Out-of-band: the count/value displays live outside #results. The rows are on
+  // screen BEFORE the headline (the whole-set count and value were most of a
+  // search's cost), so this stamps which results these are and shows
+  // placeholders; #totals-mount below fetches the real figures, and
+  // _search_totals.html applies them only while this stamp is still current.
   (function(){
-    var c = "{{ '{:,}'.format(total_count).replace(',', '.') }}";
-    var v = "{{ t('συνολική αξία €') }} {{ '{:,.0f}'.format(total_value).replace(',', '.') }}";
-    var hc=document.getElementById('hero-count'); if(hc) hc.textContent=c;
-    var rc=document.getElementById('rb-count');   if(rc) rc.textContent=c;
-    var rv=document.getElementById('rb-value');   if(rv) rv.textContent=v;
+    window.__searchSeq = {{ totals_seq|tojson }};
+    var hc=document.getElementById('hero-count'); if(hc) hc.textContent='…';
+    var rc=document.getElementById('rb-count');   if(rc) rc.textContent='…';
+    var rv=document.getElementById('rb-value');   if(rv) rv.textContent={{ (t('συνολική αξία €') ~ ' …')|tojson }};
   })();
 </script>
+{# hx-target / hx-push-url are explicit because this sits INSIDE <form id="filters">,
+   which sets hx-target="#results" and hx-push-url="true": inherited, the totals
+   script would replace the whole results list and push /search/totals into the
+   address bar. #}
+<div id="totals-mount" hx-get="{{ totals_url }}&seq={{ totals_seq }}" hx-trigger="load"
+     hx-target="this" hx-swap="outerHTML" hx-push-url="false"></div>
 {% if rows %}
   {% for r in rows %}
   {% include "_result_card.html" %}
   {% endfor %}
 
   {% if access_tier == 'gated' %}
-    {% if total_pages > 1 %}{% include "_register_cta.html" %}{% endif %}
+    {% if has_next %}{% include "_register_cta.html" %}{% endif %}
   {% else %}
   {# The pager URL is built from the query params the server actually rendered
      this page with, and NOTHING else. It must not also carry
@@ -37,9 +45,12 @@
     {% else %}<span class="disabled">{{ t("‹ προηγ.") }}</span>{% endif %}
 
     <span class="cur">{{ page }}</span>
-    <span style="border:0;background:transparent;color:var(--ink-3);">{% if lang=='en' %}of{% else %}από{% endif %} {{ total_pages }}</span>
+    {# The page total arrives with the headline (/search/totals fills
+       #pager-total); whether there IS a next page is known now, from one extra
+       row fetched past this page. #}
+    <span style="border:0;background:transparent;color:var(--ink-3);">{% if lang=='en' %}of{% else %}από{% endif %} <span id="pager-total">{{ total_pages or '…' }}</span></span>
 
-    {% if page < total_pages %}
+    {% if has_next %}
       <a hx-get="/?{% for k,v in request.query_params.multi_items() if k != 'page' %}{{k}}={{v|urlencode}}&{% endfor %}page={{ page+1 }}"
          hx-target="#results">{{ t("επόμ. ›") }}</a>
     {% else %}<span class="disabled">{{ t("επόμ. ›") }}</span>{% endif %}

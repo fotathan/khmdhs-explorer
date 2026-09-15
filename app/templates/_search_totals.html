@@ -1,0 +1,21 @@
+{# _search_totals.html — the search headline, delivered after the results.
+
+   Returned by GET /search/totals and swapped over #totals-mount (outerHTML) in
+   beta_results.html. The count and value cover the WHOLE matching set, which on
+   a broad keyword is most of a search's cost; the rows are already on screen.
+
+   `seq` is the number the results partial set when it rendered. If the reader
+   has changed a filter since, the partial now on screen carries a newer number
+   and this answer is for results that are gone — it must not overwrite the
+   newer headline, so it does nothing. #}
+<script>
+  (function(){
+    if (window.__searchSeq !== {{ seq|tojson }}) return;
+    function set(id, text){ var el = document.getElementById(id); if (el) el.textContent = text; }
+    var count = "{{ '{:,}'.format(total_count).replace(',', '.') }}";
+    set('hero-count', count);
+    set('rb-count', count);
+    set('rb-value', "{{ t('συνολική αξία €') }} {{ '{:,.0f}'.format(total_value).replace(',', '.') }}");
+    set('pager-total', "{{ total_pages }}");
+  })();
+</script>

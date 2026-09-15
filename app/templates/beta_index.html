@@ -108,7 +108,8 @@
       <button class="go" type="submit">{{ t("Αναζήτηση") }}<span id="search-spin" class="btn-spin htmx-indicator"></span></button>
     </div>
     <div class="hero-meta">
-      <span>{{ t("βρέθηκαν") }} <b id="hero-count">{{ "{:,}".format(total_count).replace(",", ".") }}</b> {{ t("πράξεις") }}</span>
+      {# total_count is None until /search/totals answers (see beta_results.html). #}
+      <span>{{ t("βρέθηκαν") }} <b id="hero-count">{% if total_count is not none %}{{ "{:,}".format(total_count).replace(",", ".") }}{% else %}…{% endif %}</b> {{ t("πράξεις") }}</span>
       <span id="busy" class="htmx-indicator">{{ t("ανανέωση…") }}</span>
       {% if active_profile %}
       <span class="sp-active-badge" id="sp-active-badge">
@@ -287,8 +288,8 @@
     <section>
       <div class="results-bar">
         <div class="results-count">
-          <b id="rb-count">{{ "{:,}".format(total_count).replace(",", ".") }}</b> {{ t("πράξεις") }}
-          <span class="val" id="rb-value">{{ t("συνολική αξία €") }} {{ "{:,.0f}".format(total_value).replace(",", ".") }}</span>
+          <b id="rb-count">{% if total_count is not none %}{{ "{:,}".format(total_count).replace(",", ".") }}{% else %}…{% endif %}</b> {{ t("πράξεις") }}
+          <span class="val" id="rb-value">{{ t("συνολική αξία €") }} {% if total_value is not none %}{{ "{:,.0f}".format(total_value).replace(",", ".") }}{% else %}…{% endif %}</span>
         </div>
         <div style="display:flex;gap:18px;align-items:center;">
           <div class="sort-sel">{{ t("ανά σελίδα") }}

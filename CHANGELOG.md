@@ -10,6 +10,22 @@ truth; this is a curated digest.
 
 ## 2026-09-15
 
+### Fixed — the search page: rows first, headline after
+- The count and value over the whole matching set ("βρέθηκαν N πράξεις ·
+  συνολική αξία €") held back every search: 0.68s first time in production on
+  a broad keyword, 2.4s on the 2.9M-act local corpus, against tens of ms for the
+  page of rows. The page now renders its rows at once and fetches the headline
+  from `GET /search/totals`; a `seq` stops a slow answer for an older filter
+  overwriting a newer one. The pager knows there is a next page from one extra
+  row. The JSON shape (`Accept: application/json`) keeps the totals inline.
+- The totals cache lives ten minutes instead of one (`SEARCH_TOTALS_TTL_SECONDS`
+  still overrides), so a repeated search rarely recounts.
+- The filter lists (authorities, regions, types, procedures, categories) are
+  built in the background at startup instead of by the first search (~2.2s at
+  2.9M acts, after every free-plan wake-up), and rebuilt in the background once
+  older than an hour (`LOOKUPS_TTL_SECONDS`) — a newly imported authority used
+  to stay out of the filter until the next restart.
+
 ### Fixed — the act page's competition panel: on demand, correct, and fast
 - "Κορυφαίοι ανάδοχοι σε αυτούς τους κωδικούς CPV" loaded with every act page
   and took 1.6s on a 6k-line CPV code, 2.8-4.4s on a 96k-line one (680 of 1,950

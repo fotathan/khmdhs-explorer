@@ -906,7 +906,7 @@ def build_where(params: dict) -> tuple[str, list]:
 #
 # Bounded staleness is the right trade here: the unfiltered COUNT is already an
 # estimate (pg_class.reltuples — deliberate, see the counter rework below), so a
-# headline value that is up to a minute old is consistent with what is already
+# headline value that is up to ten minutes old is consistent with what is already
 # shown. Nothing else in the response is cached: the rows themselves are always
 # read live, so a new act appears on the page immediately even while the headline
 # is still catching up.
@@ -915,9 +915,13 @@ def build_where(params: dict) -> tuple[str, list]:
 # worker. A multi-instance deployment would want a shared store, or the one-row
 # materialised summary this cache is standing in for.
 #
+#   SEARCH_TOTALS_TTL_SECONDS=600 the default: ten minutes. It was 60s, so most
+#                                 searches missed the cache and paid the whole
+#                                 count+sum (0.5s in production on a broad
+#                                 keyword, 2.4s at 2.9M acts).
 #   SEARCH_TOTALS_TTL_SECONDS=0   turn it off (always recompute)
 # ---------------------------------------------------------------------------- #
-_TOTALS_TTL_S = float(os.environ.get("SEARCH_TOTALS_TTL_SECONDS", "60"))
+_TOTALS_TTL_S = float(os.environ.get("SEARCH_TOTALS_TTL_SECONDS", "600"))
 _TOTALS_CACHE_MAX = int(os.environ.get("SEARCH_TOTALS_CACHE_MAX", "512"))
 _totals_cache: "_OrderedDict[tuple, tuple]" = _OrderedDict()
 
@@ -977,7 +981,7 @@ def _search_totals(c, where: str, args: list) -> dict:
     return totals
 
 
-def run_search(params: dict, limit: int, offset: int):
+def run_search(params: dict, limit: int, offset: int, *, with_totals: bool = True):
     where, args = build_where(params)
 
     # Relevance sort and snippet highlighting only apply to STEMMED full-text
@@ -1044,7 +1048,9 @@ def run_search(params: dict, limit: int, offset: int):
     # _search_totals now, which memoises them per filter; the ROWS below are
     # always read live.
     with cursor() as c:
-        agg = _search_totals(c, where, args)
+        # The browser page fetches the headline separately (search_totals), so
+        # its rows are never held back by it; every other caller gets it here.
+        agg = _search_totals(c, where, args) if with_totals else None
         c.execute(sql, select_args + args + rank_args + [limit, offset])
         rows = c.fetchall()
 
@@ -1077,11 +1083,26 @@ def _desc_col(lang, alias="c", col="description"):
 # ---------------------------------------------------------------------------- #
 # Lookups for filter dropdowns (cached lazily to avoid hammering the DB)
 # ---------------------------------------------------------------------------- #
-_lookup_cache: dict = {}
+# Built once per process and served from memory. Two things made that costly:
+# the first request after every start paid ~2.2s (2.9M acts) for them, and on
+# the free plan the process restarts after each idle spell; and they were never
+# rebuilt, so an authority imported after the start stayed out of the filter
+# until the next restart. Now: warmed in the background at startup (_lifespan),
+# and once older than LOOKUPS_TTL_SECONDS rebuilt in the background while the
+# old lists keep being served. The dict is updated IN PLACE — callers (and tests
+# that .clear() it) hold this very object.
+import threading as _lk_threading
 
-def lookups() -> dict:
-    if _lookup_cache:
-        return _lookup_cache
+_lookup_cache: dict = {}
+_lookup_built_at = 0.0
+_lookup_refreshing = False
+_lookup_build_lock = _lk_threading.Lock()
+_LOOKUPS_TTL_S = float(os.environ.get("LOOKUPS_TTL_SECONDS", "3600"))
+
+
+def _build_lookups() -> dict:
+    """The filter lists, read fresh from the database."""
+    built: dict = {}
     with cursor() as c:
         # Top authorities by notice volume — for the dropdown's first ~200.
         c.execute("""
@@ -1092,7 +1113,7 @@ def lookups() -> dict:
             ORDER BY n DESC
             LIMIT 200
         """)
-        _lookup_cache["authorities"] = c.fetchall()
+        built["authorities"] = c.fetchall()
         # Contract types present across all acts. Labels come from the
         # CONTRACT_TYPES dict so we don't need code_list populated.
         c.execute("""
@@ -1104,7 +1125,7 @@ def lookups() -> dict:
         ct = [{"code": r["code"], "label": CONTRACT_TYPES.get(str(r["code"]), r["code"])}
               for r in rows]
         ct.sort(key=lambda x: x["label"])
-        _lookup_cache["contract_types"] = ct
+        built["contract_types"] = ct
         # Procedure families — already normalized in the procedure_family
         # column (see procedure_family_migration.sql), so just list the
         # distinct families present. No dict mapping or dedup needed.
@@ -1115,7 +1136,7 @@ def lookups() -> dict:
             ORDER BY procedure_family
         """)
         pt = [{"code": r["code"], "label": r["code"]} for r in c.fetchall()]
-        _lookup_cache["procedure_types"] = pt
+        built["procedure_types"] = pt
         # NUTS regions present across all acts.
         c.execute("""
             SELECT DISTINCT a.nuts_code AS code,
@@ -1125,7 +1146,7 @@ def lookups() -> dict:
             WHERE a.nuts_code IS NOT NULL
             ORDER BY code
         """)
-        _lookup_cache["nuts"] = c.fetchall()
+        built["nuts"] = c.fetchall()
         # Custom category taxonomy for the two-level filter (see
         # tender_category_migration.sql). Returned as categories each carrying
         # their subcategories, so the template can render one grouped
@@ -1143,7 +1164,50 @@ def lookups() -> dict:
             parent = by_id.get(r["parent_category_id"])
             if parent is not None:
                 parent["subs"].append({"id": r["id"], "name": r["name"], "name_en": r["name_en"]})
-        _lookup_cache["categories"] = cats
+        built["categories"] = cats
+    return built
+
+
+def _store_lookups(fresh: dict) -> None:
+    global _lookup_built_at
+    _lookup_cache.update(fresh)          # in place: never an empty moment
+    _lookup_built_at = _time.monotonic()
+
+
+def _refresh_lookups_in_background() -> None:
+    global _lookup_refreshing
+    try:
+        _store_lookups(_build_lookups())
+    except Exception:      # noqa: BLE001 — the old lists stay; the next request retries
+        _obs.log_event(logging.WARNING, "lookups_refresh_failed", exc_info=True)
+    finally:
+        _lookup_refreshing = False
+
+
+def _warm_lookups() -> None:
+    """Startup: build the lists before the first search asks for them."""
+    try:
+        lookups()
+    except Exception:      # noqa: BLE001 — lookups() builds on demand as before
+        _obs.log_event(logging.WARNING, "lookups_warm_failed", exc_info=True)
+
+
+def lookups() -> dict:
+    """The search filter lists. The first call in a process builds them (and
+    raises if it cannot, as before); later calls return them at once, starting
+    one background rebuild when they are older than _LOOKUPS_TTL_S."""
+    global _lookup_refreshing
+    if not _lookup_cache:
+        with _lookup_build_lock:
+            if not _lookup_cache:
+                _store_lookups(_build_lookups())
+        return _lookup_cache
+    stale = (_LOOKUPS_TTL_S > 0
+             and _time.monotonic() - _lookup_built_at > _LOOKUPS_TTL_S)
+    if stale and not _lookup_refreshing:
+        _lookup_refreshing = True
+        _lk_threading.Thread(target=_refresh_lookups_in_background,
+                             name="khmdhs-lookups-refresh", daemon=True).start()
     return _lookup_cache
 
 
@@ -1251,6 +1315,14 @@ async def _lifespan(_app):
             _digest_thread.start()
         except Exception as e:      # noqa: BLE001 — never block app startup
             print(f"digest scheduler failed to start: {e!r}", flush=True)
+
+    # Build the search filter lists now, in the background, so the first search
+    # after a (free-plan) wake-up does not wait ~2s for them. Not under pytest:
+    # a test must not race a background read of its fixtures.
+    if (os.environ.get("DATABASE_URL") and os.environ.get("LOOKUPS_WARM", "1") != "0"
+            and "PYTEST_CURRENT_TEST" not in os.environ):
+        threading.Thread(target=_warm_lookups, name="khmdhs-lookups-warm",
+                         daemon=True).start()
 
     # Start the CTI screen-pop listener (no-op unless TELEPHONY_ENABLED). Needs a
     # running event loop, so it starts here rather than at import.
@@ -3056,6 +3128,37 @@ def _public_stats() -> dict | None:
     return data
 
 
+def _search_totals_url(request: Request, per_page: int) -> str:
+    """/search/totals for the filter on screen: the same query minus paging."""
+    from urllib.parse import urlencode as _urlencode
+    pairs = [(k, v) for k, v in request.query_params.multi_items()
+             if k not in ("page", "per_page", "_sp", "seq")]
+    pairs.append(("per_page", str(per_page)))
+    return "/search/totals?" + _urlencode(pairs)
+
+
+@app.get("/search/totals", response_class=HTMLResponse)
+def search_totals(request: Request,
+                  per_page: int = Query(10, ge=1, le=100),
+                  seq: str = Query("", max_length=32)):
+    """The search headline — count and value over the WHOLE matching set —
+    fetched after the results are on screen (see home). Returns a script that
+    fills the count, the value and the pager's page total, only while `seq`
+    still names the results being shown: a slow answer for an older filter must
+    never overwrite a newer one. Same WHERE, hence the same _search_totals cache
+    entry, as the rows."""
+    _rate_limit(request, "searchtotals", per_min=_RL_SEARCH_PER_MIN)
+    where, args = build_where(_params_from(request))
+    with cursor() as c:
+        agg = _search_totals(c, where, args)
+    return templates.TemplateResponse(request, "_search_totals.html", {
+        "seq": seq,
+        "total_count": agg["n"],
+        "total_value": float(agg["total_value"] or 0),
+        "total_pages": max(1, (agg["n"] + per_page - 1) // per_page),
+    })
+
+
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request,
          page: int = Query(1, ge=1),
@@ -3083,10 +3186,20 @@ def home(request: Request,
     if gated:
         page = 1
     offset = (page - 1) * per_page
-    rows, agg = run_search(params, per_page, offset)
-    total_pages = max(1, (agg["n"] + per_page - 1) // per_page)
+    # The HTML page no longer waits for the whole-set count and value: on a broad
+    # keyword that aggregate is nearly all of the response (0.5s in production,
+    # up to 2.4s at 2.9M acts) while the page of rows takes tens of ms. Rows
+    # render at once and #totals-mount fetches /search/totals. One extra row says
+    # whether a next page exists without the count. JSON callers keep the totals
+    # inline, the shape they rely on.
+    wants_json = "application/json" in (request.headers.get("accept") or "")
+    rows, agg = run_search(params, per_page if wants_json else per_page + 1, offset,
+                           with_totals=wants_json)
+    has_next = len(rows) > per_page
+    rows = rows[:per_page]
+    total_pages = max(1, (agg["n"] + per_page - 1) // per_page) if agg else None
 
-    if "application/json" in (request.headers.get("accept") or ""):
+    if wants_json:
         from decimal import Decimal
         def _j(v):
             if hasattr(v, "isoformat"):
@@ -3121,9 +3234,12 @@ def home(request: Request,
 
     ctx = {
         "rows": rows,
-        "total_count": agg["n"],
-        "total_value": float(agg["total_value"] or 0),
+        # Filled in after the rows by /search/totals (see _search_totals.html).
+        "total_count": None, "total_value": None,
         "page": page, "per_page": per_page, "total_pages": total_pages,
+        "has_next": has_next,
+        "totals_url": _search_totals_url(request, per_page),
+        "totals_seq": os.urandom(4).hex(),
         "params": params,
         "match_chips": match_chips,
         "match_chip_cap": _match.LIST_CHIP_CAP,
