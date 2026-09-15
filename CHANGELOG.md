@@ -10,6 +10,12 @@ truth; this is a curated digest.
 
 ## 2026-09-15
 
+### Fixed — "back to search" on an act page keeps the search
+- The link was a hard-coded `/`, so every filter and the result page were lost.
+  The search page now remembers its live URL per tab (sessionStorage), and the
+  act page restores it — or, in a new tab, reads it from the referrer. Without
+  script the link still keeps the match terms the act URL carries.
+
 ### Added — tables in the full-text editor, one format for rich full text
 - Both Quill editors (act form, /tables + edit hub) enable Quill 2's table
   module with a small toolbar: new 3×3 table, add/delete rows and columns,

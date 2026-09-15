@@ -19,7 +19,39 @@
 {% block content %}
 {% set doc_url = source_doc_url(n) %}
 <main>
-  <a class="back-link" href="/" hx-boost="false">{{ t("‹ πίσω στην αναζήτηση") }}</a>
+  {# Back to the search the reader came FROM, with every filter and the page.
+     The act link only carries the match terms (q / fulltext / cpv), so the
+     server can rebuild just those — that is the no-script fallback. The full
+     search is recovered in the browser, most precise first:
+       1. sessionStorage 'khmdhs:lastResults' — written by the search page on
+          load and on every filter/pager swap, so it survives hopping from this
+          act to a related act and back;
+       2. document.referrer, when it IS the search page — covers an act opened
+          in a new tab, which may start with empty sessionStorage (Referrer-
+          Policy strict-origin-when-cross-origin sends the full same-origin URL).
+     Only a same-origin "/" or "/?…" is accepted, never anything else. #}
+  <a class="back-link" id="back-to-results" href="/{{ match_qs(request) }}" hx-boost="false">{{ t("‹ πίσω στην αναζήτηση") }}</a>
+  <script>
+  (function(){
+    var a=document.getElementById('back-to-results'); if(!a) return;
+    var KEY='khmdhs:lastResults';
+    function clean(u){
+      try{
+        var x=new URL(u, location.href);
+        if(x.origin!==location.origin || x.pathname!=='/') return null;
+        x.searchParams.delete('_sp');
+        return '/'+x.search;
+      }catch(e){ return null; }
+    }
+    var target=null;
+    try{ var s=sessionStorage.getItem(KEY); if(s) target=clean(s); }catch(e){}
+    if(!target && document.referrer){
+      target=clean(document.referrer);
+      if(target){ try{ sessionStorage.setItem(KEY, target); }catch(e){} }
+    }
+    if(target) a.setAttribute('href', target);
+  })();
+  </script>
 
   {# ===== HERO =====
      What a GATED visitor sees is exactly what it always was: badges, title,

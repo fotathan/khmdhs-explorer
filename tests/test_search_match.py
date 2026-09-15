@@ -263,3 +263,32 @@ def test_act_page_without_a_query_renders_the_plain_full_text(admin, act):
     # the element, not the stylesheet rule of the same name
     assert '<pre class="full-text-pre">' in r.text
     assert '<div class="full-text-marked">' not in r.text
+
+
+# --------------------------------------------------------------------------- #
+# "Back to search" keeps the search
+# --------------------------------------------------------------------------- #
+def test_back_link_without_a_search_goes_to_the_bare_search(admin, act):
+    r = admin.get(f"/act/{act}")
+    assert 'id="back-to-results" href="/"' in r.text
+
+
+def test_back_link_falls_back_to_the_carried_match_terms(admin, act):
+    """Without script the link still keeps what the act URL carries, instead of
+    dropping the search entirely (it used to be a hard-coded "/")."""
+    r = admin.get(f"/act/{act}", params={"q": "καθαρισμός", "cpv": "90910000"})
+    m = re.search(r'id="back-to-results" href="([^"]*)"', r.text)
+    assert m, "the back link did not render"
+    href = m.group(1)
+    assert href.startswith("/?")
+    assert "q=" in href and "cpv=90910000" in href
+
+
+def test_back_link_recovers_the_full_search_in_the_browser(admin, act):
+    """The other filters are not on the act URL, so the page must restore them
+    from what the search page stored — both halves of that handshake render."""
+    act_page = admin.get(f"/act/{act}").text
+    search_page = admin.get("/", params={"q": "καθαρισμός", "page": "1"}).text
+    assert "khmdhs:lastResults" in act_page
+    assert "document.referrer" in act_page
+    assert "sessionStorage.setItem('khmdhs:lastResults'" in search_page
