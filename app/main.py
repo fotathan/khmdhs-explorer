@@ -4728,6 +4728,10 @@ def contractor_detail(vat: str, request: Request,
                  "nav_active": "contractors"})
 
         # Aggregates per act type (mostly payment/contract for winners).
+        # A manual correction is applied through one join against the
+        # current-annotation view, not proc.resolved_value() per row — the same
+        # change as authority_detail's by_type (a lookup per act was most of the
+        # query). The view is DISTINCT ON (adam), so no act is duplicated.
         c.execute("""
             SELECT a.type,
                    count(*) AS n,
@@ -4782,7 +4786,11 @@ def contractor_detail(vat: str, request: Request,
               JOIN proc.act_object_detail od ON od.adam = a.adam
               JOIN proc.object_detail_cpv oc ON oc.object_detail_id = od.id
               WHERE ao.operator_id = ANY(%s) AND a.type = 'contract'
-              GROUP BY substr(oc.cpv_code, 1, 2)
+            ), agg AS (
+              SELECT division, count(DISTINCT adam) AS n_acts,
+                     coalesce(sum(value), 0) AS total_value
+              FROM lines
+              GROUP BY division
             )
             SELECT agg.division, agg.n_acts, agg.total_value,
               (SELECT {_desc_col(lang, "cpv_code")} FROM proc.cpv_code
