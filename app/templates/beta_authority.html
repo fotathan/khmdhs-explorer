@@ -5,13 +5,15 @@
 {% block content %}
 <main>
   {# Back to the list this authority was opened from — the authorities list, the
-     overview (/explore), the statistics (/analytics) or an alert results page
-     (/digests/<token>) — with its filters and page (_back_to_results.html). #}
+     overview (/explore), the statistics (/analytics), an alert results page
+     (/digests/<token>) or the search, whose result cards link the authority —
+     with its filters and page (_back_to_results.html). #}
   {% from "_back_to_results.html" import back_link %}
   {{ back_link([['/authorities', t("‹ πίσω στις αναθέτουσες")],
                 ['/explore', t("‹ πίσω στη σύνοψη")],
                 ['/analytics', t("‹ πίσω στα στατιστικά")],
-                ['/digests/', t("‹ πίσω στα αποτελέσματα ειδοποίησης"), true]],
+                ['/digests/', t("‹ πίσω στα αποτελέσματα ειδοποίησης"), true],
+                ['/', t("‹ πίσω στην αναζήτηση")]],
                '/authorities') }}
 
   <div class="detail-head">

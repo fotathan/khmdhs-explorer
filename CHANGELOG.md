@@ -25,6 +25,8 @@ truth; this is a curated digest.
 - And the alert results page (/digests/<token>): an act or authority opened
   from it links back to it and its page ("‹ πίσω στα αποτελέσματα
   ειδοποίησης"). Lists with a variable address are registered by prefix.
+- And the search's result cards: an authority opened from a card's authority
+  link returns to the search with its filters and page.
 
 ### Added — tables in the full-text editor, one format for rich full text
 - Both Quill editors (act form, /tables + edit hub) enable Quill 2's table

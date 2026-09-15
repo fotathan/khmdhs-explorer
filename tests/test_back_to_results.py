@@ -67,6 +67,15 @@ def test_detail_back_link_restores_its_list(admin, entities, detail, path):
     assert "document.referrer" in r.text
 
 
+def test_authority_back_link_also_returns_to_the_search(admin, entities):
+    """Search result cards link the authority, so the search is one of its
+    origins — listed last, so the default label stays the authorities list."""
+    body = admin.get(f"/authority/{ORG}").text
+    assert '["/", ' in body
+    assert body.index('["/authorities", ') < body.index('["/", ')
+    assert '["/", ' not in admin.get(f"/contractor/{VAT}").text   # cards link no contractor
+
+
 def test_explore_list_link_follows_the_live_filters(admin, entities):
     body = admin.get("/explore").text
     assert 'class="back-link js-as-list"' in body
