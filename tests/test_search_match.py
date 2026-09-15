@@ -299,3 +299,15 @@ def test_act_page_registers_itself_for_its_party_links(admin, act):
     body = admin.get(f"/act/{act}").text
     assert """var PATH="/act/", KEY='khmdhs:lastResults:'+PATH""" in body
     assert "var PFX=true;" in body
+
+
+def test_act_back_link_also_returns_to_a_related_act(admin, act):
+    """A related act (timeline, same procedure) links to another act page, so
+    '/act/' is an origin of the act page itself — listed last. Being both origin
+    and destination needs the two guards: never this page, and never the page
+    we are returning from (else A → B → back offers B, an A ⇄ B loop)."""
+    body = admin.get(f"/act/{act}").text
+    assert 'var LISTS=[["/", ' in body
+    assert body.index('["/digests/", ') < body.index('["/act/", ')
+    assert "x.pathname===location.pathname) return null" in body   # never itself
+    assert "function isReturn(p)" in body                            # no loop

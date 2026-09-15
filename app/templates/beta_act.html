@@ -26,7 +26,8 @@
      are all the no-script fallback can keep. #}
   {% from "_back_to_results.html" import back_link %}
   {{ back_link([['/', t("‹ πίσω στην αναζήτηση")],
-                ['/digests/', t("‹ πίσω στα αποτελέσματα ειδοποίησης"), true]],
+                ['/digests/', t("‹ πίσω στα αποτελέσματα ειδοποίησης"), true],
+                ['/act/', t("‹ πίσω στην πράξη"), true]],
                '/' ~ match_qs(request)) }}
   {# This act is itself somewhere to come back to: its authority and contractor
      links lead to pages whose back link offers "‹ πίσω στην πράξη". Registered

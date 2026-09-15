@@ -100,7 +100,8 @@ def test_authority_back_link_also_returns_to_the_contractor(admin, entities):
     # A registered detail page overwrites the last-visited mark, so each back
     # link also keeps the origin it chose, under its own address — or act →
     # contractor → authority → back loses the act.
-    assert "'khmdhs:backFrom:'+location.pathname" in contractor
+    assert "BACK='khmdhs:backFrom:'" in contractor
+    assert "var SELF=BACK+location.pathname" in contractor
 
 
 def test_explore_list_link_follows_the_live_filters(admin, entities):

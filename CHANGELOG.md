@@ -31,6 +31,9 @@ truth; this is a curated digest.
   that act ("‹ πίσω στην πράξη"), keeping its match terms.
 - And the contractor page: an authority opened from its tables links back to
   that contractor ("‹ πίσω στον ανάδοχο").
+- And related acts: an act opened from another act's timeline links back to
+  it ("‹ πίσω στην πράξη"). A page that is both an origin and a destination
+  never offers itself, nor the page you are returning from (no A ⇄ B loop).
 
 ### Added — tables in the full-text editor, one format for rich full text
 - Both Quill editors (act form, /tables + edit hub) enable Quill 2's table

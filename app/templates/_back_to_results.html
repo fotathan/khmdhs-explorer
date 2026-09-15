@@ -7,7 +7,8 @@
      /explore      (overview)     → /authority/<org_id>, /contractor/<vat>
      /analytics    (statistics)   → /authority/<org_id>, /contractor/<vat>
      /digests/<token> (alert)     → /act/<adam>, /authority/<org_id>
-     /act/<adam>                  → /authority/<org_id>, /contractor/<vat>
+     /act/<adam>                  → /act/<related>, /authority/<org_id>,
+                                    /contractor/<vat>
      /contractor/<vat>            → /authority/<org_id>
 
    Every list keeps its state (filters, page) in the address bar: the HTMX lists
@@ -28,16 +29,23 @@
      3. what THIS page picked last time ('khmdhs:backFrom:<its path>'). A detail
         page that is itself registered (an act, a contractor) overwrites the
         last-visited mark on load, so after act → contractor → authority → back,
-        rules 1 and 2 no longer know the contractor came from the act. Without
-        this rule the link fell through to whatever list happened to be stored;
+        rules 1 and 2 no longer know the contractor came from the act;
      4. any of them this tab has stored, in the order given — e.g. search →
         act → authority still returns to the authorities list you filtered;
      5. the server-rendered `fallback` href — no script, or nothing visited.
-   The label follows the place it returns to. Only a same-origin URL on one of
-   the given paths is ever accepted.
 
-   Stored per tab, never sent anywhere. Imported without context: the caller
-   passes already-translated labels and the fallback href. #}
+   Two guards, because a page can be both an origin and a destination (act →
+   related act, and back):
+     - never THIS page: a reload of act B finds "/act/" = B itself stored;
+     - never a page you are RETURNING from: after A → B → back, the last-visited
+       mark and the referrer both name B, and B's own back link points to A.
+       A candidate whose 'backFrom' names this page is skipped (rules 1, 2, 4),
+       so A falls to rule 3 and returns where A came from — no A ⇄ B loop.
+
+   The label follows the place it returns to. Only a same-origin URL on one of
+   the given paths is ever accepted. Stored per tab, never sent anywhere.
+   Imported without context: the caller passes already-translated labels and
+   the fallback href. #}
 
 {% macro remember_results(path, prefix=false) -%}
 <script>
@@ -67,8 +75,8 @@
 <script>
 (function(){
   var a=document.getElementById('back-to-results'); if(!a) return;
-  var LISTS={{ lists|tojson }}, PREFIX='khmdhs:lastResults:';
-  var SELF='khmdhs:backFrom:'+location.pathname;
+  var LISTS={{ lists|tojson }}, PREFIX='khmdhs:lastResults:', BACK='khmdhs:backFrom:';
+  var SELF=BACK+location.pathname;
   function byKey(k){
     for(var i=0;i<LISTS.length;i++){ if(LISTS[i][0]===k) return LISTS[i]; }
     return null;
@@ -83,20 +91,30 @@
   function clean(u){
     try{
       var x=new URL(u, location.href);
-      var l=(x.origin===location.origin) ? byPath(x.pathname) : null;
+      if(x.origin!==location.origin || x.pathname===location.pathname) return null;
+      var l=byPath(x.pathname);
       if(!l) return null;
       x.searchParams.delete('_sp');
-      return {list:l, href:x.pathname+x.search};
+      return {list:l, path:x.pathname, href:x.pathname+x.search};
     }catch(e){ return null; }
   }
   function stored(key){
     try{ var s=sessionStorage.getItem(key); return s ? clean(s) : null; }catch(e){ return null; }
   }
+  // The candidate's own back link points HERE: we are coming back from it.
+  function isReturn(p){
+    try{
+      var b=sessionStorage.getItem(BACK+p.path);
+      return !!b && new URL(b, location.href).pathname===location.pathname;
+    }catch(e){ return false; }
+  }
+  function usable(p){ return (p && !isReturn(p)) ? p : null; }
+
   var pick=null, last=null;
   try{ last=sessionStorage.getItem('khmdhs:lastList'); }catch(e){}
-  if(last && byKey(last)) pick=stored(PREFIX+last);
+  if(last && byKey(last)) pick=usable(stored(PREFIX+last));
   if(!pick && document.referrer){
-    pick=clean(document.referrer);
+    pick=usable(clean(document.referrer));
     if(pick){
       try{
         sessionStorage.setItem(PREFIX+pick.list[0], pick.href);
@@ -105,7 +123,7 @@
     }
   }
   if(!pick) pick=stored(SELF);
-  for(var i=0; !pick && i<LISTS.length; i++) pick=stored(PREFIX+LISTS[i][0]);
+  for(var i=0; !pick && i<LISTS.length; i++) pick=usable(stored(PREFIX+LISTS[i][0]));
   if(pick){
     a.setAttribute('href', pick.href); a.textContent=pick.list[1];
     try{ sessionStorage.setItem(SELF, pick.href); }catch(e){}
