@@ -17,6 +17,11 @@
                 ['/act/', t("‹ πίσω στην πράξη"), true],
                 ['/contractor/', t("‹ πίσω στον ανάδοχο"), true]],
                '/authorities') }}
+  {# This authority is itself somewhere to come back to: its acts table leads to
+     act pages whose back link offers "‹ πίσω στην αναθέτουσα". Registered by
+     prefix — the address carries the authority id. #}
+  {% from "_back_to_results.html" import remember_results %}
+  {{ remember_results('/authority/', true) }}
 
   <div class="detail-head">
     <div class="detail-kicker">{{ t("Αναθέτουσα αρχή") }} · {{ a.org_id }}</div>

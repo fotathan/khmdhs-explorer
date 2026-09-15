@@ -36,6 +36,8 @@ truth; this is a curated digest.
   never offers itself, nor the page you are returning from (no A ⇄ B loop).
 - And the contractor page's acts: an act opened from it links back to that
   contractor ("‹ πίσω στον ανάδοχο").
+- And the authority page's acts: an act opened from it links back to that
+  authority ("‹ πίσω στην αναθέτουσα").
 
 ### Added — tables in the full-text editor, one format for rich full text
 - Both Quill editors (act form, /tables + edit hub) enable Quill 2's table

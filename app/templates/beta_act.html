@@ -28,7 +28,8 @@
   {{ back_link([['/', t("‹ πίσω στην αναζήτηση")],
                 ['/digests/', t("‹ πίσω στα αποτελέσματα ειδοποίησης"), true],
                 ['/act/', t("‹ πίσω στην πράξη"), true],
-                ['/contractor/', t("‹ πίσω στον ανάδοχο"), true]],
+                ['/contractor/', t("‹ πίσω στον ανάδοχο"), true],
+                ['/authority/', t("‹ πίσω στην αναθέτουσα"), true]],
                '/' ~ match_qs(request)) }}
   {# This act is itself somewhere to come back to: its authority and contractor
      links lead to pages whose back link offers "‹ πίσω στην πράξη". Registered

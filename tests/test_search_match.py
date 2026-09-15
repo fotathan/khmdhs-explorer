@@ -319,3 +319,11 @@ def test_act_back_link_also_returns_to_the_contractor(admin, act):
     body = admin.get(f"/act/{act}").text
     assert '["/contractor/", ' in body
     assert body.index('["/act/", ') < body.index('["/contractor/", ')
+
+
+def test_act_back_link_also_returns_to_the_authority(admin, act):
+    """The authority page lists its acts; the act accepts it as its last
+    origin, so authority → act → back returns to that authority."""
+    body = admin.get(f"/act/{act}").text
+    assert '["/authority/", ' in body
+    assert body.index('["/contractor/", ') < body.index('["/authority/", ')

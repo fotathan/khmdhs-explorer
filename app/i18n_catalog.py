@@ -269,6 +269,7 @@ _PARTY = {
     "‹ πίσω στα αποτελέσματα ειδοποίησης": "‹ back to alert results",
     "‹ πίσω στην πράξη": "‹ back to the act",
     "‹ πίσω στον ανάδοχο": "‹ back to the contractor",
+    "‹ πίσω στην αναθέτουσα": "‹ back to the authority",
     "Συγχωνευμένη οντότητα —": "Merged entity —",
     "εγγραφές:": "records:",
     "ΑΦΜ:": "Tax ID:",

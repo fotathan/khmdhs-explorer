@@ -104,6 +104,13 @@ def test_authority_back_link_also_returns_to_the_contractor(admin, entities):
     assert "var SELF=BACK+location.pathname" in contractor
 
 
+def test_authority_page_registers_itself_for_its_acts(admin, entities):
+    """Its acts table leads to act pages that return to the authority."""
+    body = admin.get(f"/authority/{ORG}").text
+    assert """var PATH="/authority/", KEY='khmdhs:lastResults:'+PATH""" in body
+    assert "var PFX=true;" in body
+
+
 def test_explore_list_link_follows_the_live_filters(admin, entities):
     body = admin.get("/explore").text
     assert 'class="back-link js-as-list"' in body
