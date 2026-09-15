@@ -87,6 +87,22 @@ def test_detail_back_link_also_returns_to_the_act(admin, entities, detail):
     assert body.index('["/act/", ') > body.index('var LISTS=')
 
 
+def test_authority_back_link_also_returns_to_the_contractor(admin, entities):
+    """The contractor page links the authorities it worked for; that page
+    registers itself by prefix and the authority accepts it as an origin."""
+    contractor = admin.get(f"/contractor/{VAT}").text
+    assert """var PATH="/contractor/", KEY='khmdhs:lastResults:'+PATH""" in contractor
+    assert "var PFX=true;" in contractor
+
+    authority = admin.get(f"/authority/{ORG}").text
+    assert '["/contractor/", ' in authority
+
+    # A registered detail page overwrites the last-visited mark, so each back
+    # link also keeps the origin it chose, under its own address — or act →
+    # contractor → authority → back loses the act.
+    assert "'khmdhs:backFrom:'+location.pathname" in contractor
+
+
 def test_explore_list_link_follows_the_live_filters(admin, entities):
     body = admin.get("/explore").text
     assert 'class="back-link js-as-list"' in body

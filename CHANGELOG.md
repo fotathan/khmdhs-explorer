@@ -29,6 +29,8 @@ truth; this is a curated digest.
   link returns to the search with its filters and page.
 - And the act page: an authority or contractor opened from it links back to
   that act ("‹ πίσω στην πράξη"), keeping its match terms.
+- And the contractor page: an authority opened from its tables links back to
+  that contractor ("‹ πίσω στον ανάδοχο").
 
 ### Added — tables in the full-text editor, one format for rich full text
 - Both Quill editors (act form, /tables + edit hub) enable Quill 2's table

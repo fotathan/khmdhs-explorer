@@ -12,6 +12,11 @@
                 ['/explore', t("‹ πίσω στη σύνοψη")],
                 ['/analytics', t("‹ πίσω στα στατιστικά")],
                 ['/act/', t("‹ πίσω στην πράξη"), true]], '/contractors') }}
+  {# This contractor is itself somewhere to come back to: its authority links
+     lead to a page whose back link offers "‹ πίσω στον ανάδοχο". Registered by
+     prefix — the address carries the ΑΦΜ. #}
+  {% from "_back_to_results.html" import remember_results %}
+  {{ remember_results('/contractor/', true) }}
 
   <div class="detail-head">
     <div class="detail-kicker">{{ t("Ανάδοχος / Προμηθευτής") }}</div>

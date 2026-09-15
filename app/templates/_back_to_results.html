@@ -1,33 +1,39 @@
 {# _back_to_results.html — a "back to the list" link that keeps the list.
 
    Lists and the detail pages they lead to:
-     /             (search)       → /act/<adam>
+     /             (search)       → /act/<adam>, /authority/<org_id>
      /authorities                 → /authority/<org_id>
      /contractors                 → /contractor/<vat>
      /explore      (overview)     → /authority/<org_id>, /contractor/<vat>
      /analytics    (statistics)   → /authority/<org_id>, /contractor/<vat>
      /digests/<token> (alert)     → /act/<adam>, /authority/<org_id>
+     /act/<adam>                  → /authority/<org_id>, /contractor/<vat>
+     /contractor/<vat>            → /authority/<org_id>
 
    Every list keeps its state (filters, page) in the address bar: the HTMX lists
    push their querystring (hx-push-url), the others are plain GET links. The
    list page calls remember_results(path), which on load and after every swap
    copies window.location into sessionStorage under that path, and marks the
-   path as the LAST list this tab visited. A list whose address varies
-   (/digests/<token>) is registered by prefix: remember_results('/digests/',
-   true), and ['/digests/', label, true] on the detail side.
+   path as the LAST list this tab visited. A page whose address varies
+   (/digests/<token>, /act/<adam>) is registered by prefix:
+   remember_results('/act/', true), and ['/act/', label, true] on the other side.
 
-   A detail page can be reached from more than one list (an authority from
-   /authorities or from /explore), so back_link takes every list that leads to
-   it, as [path, label] or [path, label, prefix] — the first is the default —
-   and picks, most precise first:
+   A detail page can be reached from more than one place, so back_link takes
+   every place that leads to it, as [path, label] or [path, label, prefix] — the
+   first is the default — and picks, most precise first:
      1. the tab's last visited list, when it is one of them;
      2. document.referrer, when it IS one of them — a detail page opened in a
         new tab may start with empty sessionStorage (Referrer-Policy
         strict-origin-when-cross-origin sends the full same-origin URL);
-     3. any of them this tab has stored, in the order given — e.g. search →
+     3. what THIS page picked last time ('khmdhs:backFrom:<its path>'). A detail
+        page that is itself registered (an act, a contractor) overwrites the
+        last-visited mark on load, so after act → contractor → authority → back,
+        rules 1 and 2 no longer know the contractor came from the act. Without
+        this rule the link fell through to whatever list happened to be stored;
+     4. any of them this tab has stored, in the order given — e.g. search →
         act → authority still returns to the authorities list you filtered;
-     4. the server-rendered `fallback` href — no script, or no list visited.
-   The label follows the list it returns to. Only a same-origin URL on one of
+     5. the server-rendered `fallback` href — no script, or nothing visited.
+   The label follows the place it returns to. Only a same-origin URL on one of
    the given paths is ever accepted.
 
    Stored per tab, never sent anywhere. Imported without context: the caller
@@ -62,6 +68,7 @@
 (function(){
   var a=document.getElementById('back-to-results'); if(!a) return;
   var LISTS={{ lists|tojson }}, PREFIX='khmdhs:lastResults:';
+  var SELF='khmdhs:backFrom:'+location.pathname;
   function byKey(k){
     for(var i=0;i<LISTS.length;i++){ if(LISTS[i][0]===k) return LISTS[i]; }
     return null;
@@ -82,12 +89,12 @@
       return {list:l, href:x.pathname+x.search};
     }catch(e){ return null; }
   }
-  function stored(k){
-    try{ var s=sessionStorage.getItem(PREFIX+k); return s ? clean(s) : null; }catch(e){ return null; }
+  function stored(key){
+    try{ var s=sessionStorage.getItem(key); return s ? clean(s) : null; }catch(e){ return null; }
   }
   var pick=null, last=null;
   try{ last=sessionStorage.getItem('khmdhs:lastList'); }catch(e){}
-  if(last && byKey(last)) pick=stored(last);
+  if(last && byKey(last)) pick=stored(PREFIX+last);
   if(!pick && document.referrer){
     pick=clean(document.referrer);
     if(pick){
@@ -97,8 +104,12 @@
       }catch(e){}
     }
   }
-  for(var i=0; !pick && i<LISTS.length; i++) pick=stored(LISTS[i][0]);
-  if(pick){ a.setAttribute('href', pick.href); a.textContent=pick.list[1]; }
+  if(!pick) pick=stored(SELF);
+  for(var i=0; !pick && i<LISTS.length; i++) pick=stored(PREFIX+LISTS[i][0]);
+  if(pick){
+    a.setAttribute('href', pick.href); a.textContent=pick.list[1];
+    try{ sessionStorage.setItem(SELF, pick.href); }catch(e){}
+  }
 })();
 </script>
 {%- endmacro %}
