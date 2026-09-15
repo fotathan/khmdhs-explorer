@@ -6,7 +6,7 @@ Greek procurement platform. FastAPI/HTMX/Jinja2/PostgreSQL. Render + Supabase. ~
 Domain expert, not a developer. Write all code yourself. Give numbered steps. Complete files, not diffs. Diagnose root cause — don't guess iteratively.
 
 ## Hard rules
-- DB host: 127.0.0.1 (never localhost). Local port 5433.
+- DB host: 127.0.0.1 (never localhost). Local port 5432.
 - uvicorn: no --reload
 - Migrations: run on BOTH local and Supabase before any dependent code push
 - CREATE INDEX CONCURRENTLY needs direct port 5432 (not the pooler)
