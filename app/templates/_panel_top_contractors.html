@@ -12,8 +12,10 @@
    beta_act.html sits exactly where the panel used to, between the full text
    and the extracted tables, so nothing moves once it lands.
 
-   Swapped with outerHTML and rendered empty when there is nothing to show, so
-   an act with no CPV history leaves no placeholder behind. #}
+   Loaded when the Competition tab is opened ("intersect once"), so the reader
+   is already looking at it when it lands: with nothing to show it says so,
+   rather than returning nothing and making the tab vanish mid-view. A gated
+   reader still gets "" from the route. #}
 {% if top_cpv_contractors %}
 <div class="panel">
   <h3 class="panel-h">{{ t("Κορυφαίοι ανάδοχοι σε αυτούς τους κωδικούς CPV") }}</h3>
@@ -44,5 +46,10 @@
       {% endfor %}
     </tbody>
   </table>
+</div>
+{% else %}
+<div class="panel">
+  <h3 class="panel-h">{{ t("Κορυφαίοι ανάδοχοι σε αυτούς τους κωδικούς CPV") }}</h3>
+  <div class="empty">{{ t("Δεν υπάρχουν κατακυρωμένες συμβάσεις σε αυτούς τους κωδικούς CPV.") }}</div>
 </div>
 {% endif %}

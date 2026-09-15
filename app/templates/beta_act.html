@@ -488,12 +488,17 @@
 
   {# ---------- Competition ----------
      Top contractors in these CPV codes: the one genuinely expensive query on
-     this page (see _panel_top_contractors.html), so it loads on its own rather
-     than holding back the act itself. An empty answer removes the tab. #}
+     this page (see _panel_top_contractors.html). It loads on its own, and only
+     when the section becomes VISIBLE — "intersect once" — not with the page: a
+     hidden tab panel does not intersect, so opening the tab (or unfolding it
+     on a phone, or scrolling to it with scripts off) is what fires it. Most
+     readers never open it, and they no longer pay ~1-4s of database work on a
+     common CPV code. Because the reader is looking at the tab when it lands,
+     an empty answer is a short message, not a removed tab. #}
   <section class="apanel" id="tab-market" data-tab="market" role="tabpanel" aria-labelledby="atab-market" data-autohide>
     {{ section_toggle(t("Ανταγωνισμός"), none) }}
     <div class="apanel-body"><div id="top-cpv-mount" hx-get="/act/{{ n.adam }}/top-contractors"
-           hx-trigger="load" hx-swap="outerHTML"></div></div>
+           hx-trigger="intersect once" hx-swap="outerHTML"></div></div>
   </section>
 
   {# ---------- Linked acts ---------- #}

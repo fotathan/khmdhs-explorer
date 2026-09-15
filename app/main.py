@@ -3800,6 +3800,82 @@ def act_detail(adam: str, request: Request):
     )
 
 
+# The act page's competition panel, in two interchangeable sources feeding ONE
+# ranking, so the two paths cannot drift apart (test_act_page_layout.py compares
+# their output). Both yield one row per (cpv_code, award) — the award being the
+# act_operator row — so a contract with several line items under a code counts
+# ONCE; the old query summed its value once per line item.
+#
+#   rollup  proc.mv_cpv_contract_wins, refreshed by refresh_analytics():
+#           ~110-150ms on 33696500-0 (96k line items).
+#   live    the same rows from the base tables: ~0.7-1.1s there (it was 2.8-4.4s),
+#           ~57ms on a 6k-line code. Used until the rollup is populated.
+#
+# Manual corrections apply at read time in both, so they show before a refresh.
+_TOPCPV_WINS_ROLLUP = """
+    /* act_top_contractors_rollup */
+    SELECT w.cpv_code, w.award_id, w.adam, w.operator_id, w.won_at,
+           coalesce(w.awarded_value, ann.corrected_value, w.source_value) AS value
+    FROM proc.mv_cpv_contract_wins w
+    LEFT JOIN proc.v_act_annotation_current ann
+           ON ann.adam = w.adam AND ann.corrected_value IS NOT NULL
+    WHERE w.cpv_code = ANY(%(codes)s) AND w.adam <> %(adam)s
+"""
+
+_TOPCPV_WINS_LIVE = """
+    /* act_top_contractors_live */
+    SELECT DISTINCT oc.cpv_code, ao.id AS award_id, a.adam, ao.operator_id,
+           coalesce(a.signed_date, a.submission_date) AS won_at,
+           coalesce(ao.awarded_value_with_vat, ann.corrected_value, a.total_cost_with_vat) AS value
+    FROM proc.object_detail_cpv oc
+    JOIN proc.act_object_detail od ON od.id = oc.object_detail_id
+    JOIN proc.procurement_act a    ON a.adam = od.adam AND a.type = 'contract'
+                                  AND a.adam <> %(adam)s
+    JOIN proc.act_operator ao      ON ao.adam = a.adam AND ao.role = 'winner'
+    LEFT JOIN proc.v_act_annotation_current ann
+           ON ann.adam = a.adam AND ann.corrected_value IS NOT NULL
+    WHERE oc.cpv_code = ANY(%(codes)s)
+"""
+
+_TOPCPV_RANKING = """
+    WITH wins AS ({wins}),
+    wins_eo AS (
+      SELECT w.*, eo.vat_number, eo.name, eo.is_greek_vat, eo.country
+      FROM wins w
+      JOIN proc.economic_operator eo ON eo.operator_id = w.operator_id
+    ),
+    per_award AS (          -- an award matching two of the act's codes counts once
+      SELECT vat_number, name, is_greek_vat, country, adam, award_id,
+             max(value) AS value, max(won_at) AS won_at
+      FROM wins_eo
+      GROUP BY vat_number, name, is_greek_vat, country, adam, award_id
+    ),
+    agg AS (
+      SELECT vat_number, name, is_greek_vat, country,
+             count(DISTINCT adam) AS n_won,
+             coalesce(sum(value), 0) AS total_value,
+             max(won_at) AS last_won
+      FROM per_award
+      GROUP BY vat_number, name, is_greek_vat, country
+      ORDER BY n_won DESC, total_value DESC NULLS LAST
+      LIMIT 10
+    ),
+    codes AS (
+      SELECT vat_number, name, is_greek_vat, country,
+             array_agg(DISTINCT cpv_code ORDER BY cpv_code) AS matched_cpvs
+      FROM wins_eo
+      GROUP BY vat_number, name, is_greek_vat, country
+    )
+    SELECT agg.*, codes.matched_cpvs
+    FROM agg
+    JOIN codes ON codes.vat_number   IS NOT DISTINCT FROM agg.vat_number
+              AND codes.name         IS NOT DISTINCT FROM agg.name
+              AND codes.is_greek_vat IS NOT DISTINCT FROM agg.is_greek_vat
+              AND codes.country      IS NOT DISTINCT FROM agg.country
+    ORDER BY agg.n_won DESC, agg.total_value DESC NULLS LAST
+"""
+
+
 @app.get("/act/{adam}/top-contractors", response_class=HTMLResponse)
 def act_top_contractors(adam: str, request: Request):
     """The "top contractors in these CPV codes" panel, loaded on its own.
@@ -3846,25 +3922,15 @@ def act_top_contractors(adam: str, request: Request):
             cpv_codes = [r["cpv_code"] for r in c.fetchall()] or None
         rows = []
         if cpv_codes:
-            c.execute("""
-                SELECT eo.vat_number, eo.name, eo.is_greek_vat, eo.country,
-                       count(DISTINCT a.adam) AS n_won,
-                       coalesce(sum(coalesce(ao.awarded_value_with_vat,
-                                             proc.resolved_value(a.adam, a.total_cost_with_vat))), 0) AS total_value,
-                       max(coalesce(a.signed_date, a.submission_date)) AS last_won,
-                       array_agg(DISTINCT oc.cpv_code ORDER BY oc.cpv_code) AS matched_cpvs
-                FROM proc.object_detail_cpv oc
-                JOIN proc.act_object_detail od ON od.id = oc.object_detail_id
-                JOIN proc.procurement_act a    ON a.adam = od.adam
-                JOIN proc.act_operator ao      ON ao.adam = a.adam AND ao.role = 'winner'
-                JOIN proc.economic_operator eo ON eo.operator_id = ao.operator_id
-                WHERE oc.cpv_code = ANY(%s)
-                  AND a.type = 'contract'
-                  AND a.adam <> %s
-                GROUP BY eo.vat_number, eo.name, eo.is_greek_vat, eo.country
-                ORDER BY n_won DESC, total_value DESC NULLS LAST
-                LIMIT 10
-            """, (cpv_codes, adam))
+            # The pre-computed rollup once it has been populated; the live query
+            # until then (a fresh deploy, a DB the migration has not reached yet).
+            c.execute("""SELECT relispopulated FROM pg_class
+                          WHERE oid = to_regclass('proc.mv_cpv_contract_wins')""")
+            populated = c.fetchone()
+            wins = _TOPCPV_WINS_ROLLUP if (populated and populated["relispopulated"]) \
+                else _TOPCPV_WINS_LIVE
+            c.execute(_TOPCPV_RANKING.replace("{wins}", wins),
+                      {"codes": cpv_codes, "adam": adam})
             rows = c.fetchall()
     return templates.TemplateResponse(
         request, "_panel_top_contractors.html", {"top_cpv_contractors": rows})

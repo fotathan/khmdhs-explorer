@@ -143,11 +143,17 @@ def test_the_panel_renders_the_ranking(reader, act):
     assert f"/contractor/{VAT}" in body
 
 
-def test_an_act_with_no_cpv_history_leaves_nothing_behind(db, reader, act):
-    """outerHTML swap: an empty answer must be genuinely empty, not a heading
-    with an empty table under it."""
+NO_WINS = "Δεν υπάρχουν κατακυρωμένες συμβάσεις σε αυτούς τους κωδικούς CPV."
+
+
+def test_an_act_with_no_cpv_history_says_so(db, reader, act):
+    """The panel now loads when its tab is opened, so the reader is looking at
+    it when it lands: an empty answer says so instead of making the tab vanish
+    from under them."""
     db.cursor().execute("DELETE FROM proc.act_operator WHERE adam = %s", (PEER,))
-    assert reader.get(TOPCPV_URL).text.strip() == ""
+    body = reader.get(TOPCPV_URL).text
+    assert NO_WINS in body
+    assert "/contractor/" not in body
 
 
 def test_the_current_act_never_ranks_its_own_winner(db, reader, act):
@@ -160,7 +166,50 @@ def test_the_current_act_never_ranks_its_own_winner(db, reader, act):
     cur.execute("UPDATE proc.procurement_act SET type='contract' WHERE adam=%s", (ADAM,))
     cur.execute("""INSERT INTO proc.act_operator (adam, operator_id, role)
                    VALUES (%s, %s, 'winner')""", (ADAM, op))
-    assert reader.get(TOPCPV_URL).text.strip() == ""
+    assert "/contractor/" not in reader.get(TOPCPV_URL).text
+
+
+def test_the_competition_panel_loads_when_its_tab_is_opened(reader, act):
+    """Not with the page: most readers never open the tab, and on a common CPV
+    code the query is seconds of database work. A hidden tab panel does not
+    intersect, so "intersect once" fires when the tab is opened."""
+    import re
+    body = reader.get(f"/act/{act}").text
+    mount = re.search(r'<div id="top-cpv-mount"[^>]*>', body, re.S)
+    assert mount, "the competition panel is not mounted"
+    assert 'hx-trigger="intersect once"' in mount.group(0)
+    assert 'hx-trigger="load"' not in mount.group(0)
+
+
+def test_a_contract_with_several_line_items_counts_once(db, reader, act):
+    """PEER is a 50,000 contract; a second line item under the same code used
+    to add its value again (100,000)."""
+    cur = db.cursor()
+    cur.execute("""INSERT INTO proc.act_object_detail (adam, short_description)
+                   VALUES (%s, 'δεύτερο είδος') RETURNING id""", (PEER,))
+    cur.execute("""INSERT INTO proc.object_detail_cpv (object_detail_id, cpv_code)
+                   VALUES (%s, %s)""", (cur.fetchone()["id"], CPV))
+    body = reader.get(TOPCPV_URL).text
+    assert "50.000.00" in body
+    assert "100.000.00" not in body
+
+
+def test_the_panel_reads_the_rollup_once_populated_and_ranks_the_same(db, reader, act, monkeypatch):
+    """Live query while proc.mv_cpv_contract_wins is unpopulated (as in a fresh
+    test schema, or before the migration reaches a database); the rollup once
+    it is — with byte-identical output, so the two paths cannot drift."""
+    live_qs = _queries_for(reader, monkeypatch, TOPCPV_URL)
+    assert any("act_top_contractors_live" in q for q in live_qs)
+    live = reader.get(TOPCPV_URL).text
+    cur = db.cursor()
+    cur.execute("REFRESH MATERIALIZED VIEW proc.mv_cpv_contract_wins")
+    try:
+        qs = _queries_for(reader, monkeypatch, TOPCPV_URL)
+        assert any("act_top_contractors_rollup" in q for q in qs)
+        assert not any("act_top_contractors_live" in q for q in qs)
+        assert reader.get(TOPCPV_URL).text == live
+    finally:
+        cur.execute("REFRESH MATERIALIZED VIEW proc.mv_cpv_contract_wins WITH NO DATA")
 
 
 def test_the_panel_is_paid_content(client, act):

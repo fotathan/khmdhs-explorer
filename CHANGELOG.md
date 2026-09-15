@@ -10,6 +10,18 @@ truth; this is a curated digest.
 
 ## 2026-09-15
 
+### Fixed — the act page's competition panel: on demand, correct, and fast
+- "Κορυφαίοι ανάδοχοι σε αυτούς τους κωδικούς CPV" loaded with every act page
+  and took 1.6s on a 6k-line CPV code, 2.8-4.4s on a 96k-line one (680 of 1,950
+  open notices carry a 10k+ code). It now loads only when the Competition tab
+  is opened (`hx-trigger="intersect once"`); an empty answer says so rather than
+  removing the tab mid-view.
+- It added a contract's value once per line item; each award now counts once.
+- New `proc.mv_cpv_contract_wins` (migration 20260915200000, refreshed by
+  `refresh_analytics()`): one row per (CPV code, award), ~1.3M rows. Read from
+  it the panel is ~110-150ms on the 96k-line code. Until it is populated the
+  route uses a rewritten live query (~0.7-1.1s there) with identical output.
+
 ### Changed — the summary tab stays on notices without full text
 - A notice with no full text and no published tables used to lose its
   "Σύνοψη διαγωνισμού" tab silently, which read as a broken feature. The tab

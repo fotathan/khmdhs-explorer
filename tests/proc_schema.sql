@@ -6332,3 +6332,26 @@ ALTER TABLE ONLY proc.user_subscription
 
 \unrestrict L7evn2cdWWY5jGRFkNbkFZt51RrWxcYquncC6hWhnLD5QoXImaAtH7h7UsRgRTy
 
+
+--
+-- mv_cpv_contract_wins — migrations/20260915200000_cpv_contract_wins_rollup.sql.
+-- Appended by hand (the rest of this file is a pg_dump): like every analytics
+-- view here it is created WITH NO DATA, so tests exercise the live fallback
+-- unless they REFRESH it (test_act_page_layout.py does, then resets it).
+--
+
+CREATE MATERIALIZED VIEW proc.mv_cpv_contract_wins AS
+ SELECT DISTINCT oc.cpv_code,
+    ao.id AS award_id,
+    a.adam,
+    ao.operator_id,
+    ao.awarded_value_with_vat AS awarded_value,
+    a.total_cost_with_vat AS source_value,
+    COALESCE(a.signed_date, a.submission_date) AS won_at
+   FROM (((proc.object_detail_cpv oc
+     JOIN proc.act_object_detail od ON ((od.id = oc.object_detail_id)))
+     JOIN proc.procurement_act a ON (((a.adam = od.adam) AND (a.type = 'contract'::proc.act_type))))
+     JOIN proc.act_operator ao ON (((ao.adam = a.adam) AND (ao.role = 'winner'::proc.participation_role))))
+  WITH NO DATA;
+
+CREATE UNIQUE INDEX ux_mv_cpv_contract_wins ON proc.mv_cpv_contract_wins USING btree (cpv_code, award_id);
