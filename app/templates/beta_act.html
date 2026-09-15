@@ -23,7 +23,7 @@
      (see _back_to_results.html). The act link only carries the match terms
      (q / fulltext / cpv), so those are all the no-script fallback can keep. #}
   {% from "_back_to_results.html" import back_link %}
-  {{ back_link('/', t("‹ πίσω στην αναζήτηση"), '/' ~ match_qs(request)) }}
+  {{ back_link([['/', t("‹ πίσω στην αναζήτηση")]], '/' ~ match_qs(request)) }}
 
   {# ===== HERO =====
      What a GATED visitor sees is exactly what it always was: badges, title,

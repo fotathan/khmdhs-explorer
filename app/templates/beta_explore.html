@@ -102,7 +102,7 @@
       </div>
 
       <div class="fgroup">
-        <a href="/?{{ request.url.query }}" class="back-link" hx-boost="false">{{ t("→ προβολή ως λίστα πράξεων") }}</a>
+        <a href="/?{{ request.url.query }}" class="back-link js-as-list" hx-boost="false">{{ t("→ προβολή ως λίστα πράξεων") }}</a>
       </div>
     </aside>
 
@@ -120,6 +120,21 @@
 {% endblock %}
 
 {% block body_end %}
+{# Remember this overview for the authority/contractor back links. #}
+{% from "_back_to_results.html" import remember_results %}
+{{ remember_results('/explore') }}
+<script>
+  // "View as act list" carries the LIVE filters. Its href is server-rendered
+  // with the query the page loaded with; every filter change after that is an
+  // HTMX swap that updates the address bar but not this link. Rewritten just
+  // before any use: click, middle-click, or right-click → copy link.
+  ['click','auxclick','contextmenu'].forEach(function(ev){
+    document.addEventListener(ev, function(e){
+      var a=e.target.closest && e.target.closest('.js-as-list');
+      if(a) a.setAttribute('href', '/'+window.location.search);
+    }, true);
+  });
+</script>
 <script>
   document.addEventListener('change', function(e){
     if(e.target.matches('.chip input[type=checkbox]')){

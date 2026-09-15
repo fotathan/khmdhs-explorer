@@ -43,11 +43,13 @@ def _key(path):
     return f"""var PATH="{path}", KEY='khmdhs:lastResults:'+PATH"""
 
 
-@pytest.mark.parametrize("path", ["/authorities", "/contractors"])
+@pytest.mark.parametrize("path", ["/authorities", "/contractors", "/explore"])
 def test_list_page_remembers_itself(admin, entities, path):
-    body = admin.get(path, params={"q": "επιστροφ", "page": "1"}).text
-    assert _key(path) in body
-    assert "sessionStorage.setItem(KEY" in body
+    r = admin.get(path, params={"q": "επιστροφ"})
+    assert r.status_code == 200
+    assert _key(path) in r.text
+    assert "sessionStorage.setItem(KEY" in r.text
+    assert "sessionStorage.setItem('khmdhs:lastList', PATH)" in r.text
 
 
 @pytest.mark.parametrize("detail, path", [(f"/authority/{ORG}", "/authorities"),
@@ -57,5 +59,13 @@ def test_detail_back_link_restores_its_list(admin, entities, detail, path):
     assert r.status_code == 200
     # no-script fallback: the bare list, never the search page
     assert f'id="back-to-results" href="{path}"' in r.text
-    assert _key(path) in r.text
+    # both lists that lead here, the entity's own list first (the default)
+    assert f'var LISTS=[["{path}", ' in r.text
+    assert '["/explore", ' in r.text
     assert "document.referrer" in r.text
+
+
+def test_explore_list_link_follows_the_live_filters(admin, entities):
+    body = admin.get("/explore").text
+    assert 'class="back-link js-as-list"' in body
+    assert "'/'+window.location.search" in body

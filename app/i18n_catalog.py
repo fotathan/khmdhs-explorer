@@ -264,6 +264,7 @@ _ACT = {
 _PARTY = {
     "‹ πίσω στις αναθέτουσες": "‹ back to authorities",
     "‹ πίσω στους αναδόχους": "‹ back to contractors",
+    "‹ πίσω στη σύνοψη": "‹ back to summary",
     "Συγχωνευμένη οντότητα —": "Merged entity —",
     "εγγραφές:": "records:",
     "ΑΦΜ:": "Tax ID:",

@@ -17,6 +17,9 @@ truth; this is a curated digest.
   script the link still keeps the match terms the act URL carries.
 - The same for "back to authorities" / "back to contractors": one shared
   template (`_back_to_results.html`) serves all three list → detail pairs.
+- The overview (/explore) too: an authority or contractor opened from it links
+  back to it, with its filters ("‹ πίσω στη σύνοψη"). Its "view as act list"
+  link now carries the live filters instead of the ones the page loaded with.
 
 ### Added — tables in the full-text editor, one format for rich full text
 - Both Quill editors (act form, /tables + edit hub) enable Quill 2's table

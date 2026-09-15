@@ -1,26 +1,34 @@
 {# _back_to_results.html — a "back to the list" link that keeps the list.
 
-   Used by three list → detail pairs:
+   Lists and the detail pages they lead to:
      /             (search)       → /act/<adam>
      /authorities                 → /authority/<org_id>
      /contractors                 → /contractor/<vat>
+     /explore      (overview)     → /authority/<org_id>, /contractor/<vat>
 
-   Every list keeps its filters AND page in the address bar: the results sit
-   inside <form id="filters" hx-push-url="true">, so the form and the pager both
-   push their querystring. The list page calls remember_results(path), which
-   copies window.location into sessionStorage on load and after every swap.
+   Every list keeps its filters (and page, where it has one) in the address
+   bar: the results sit inside <form id="filters" hx-push-url="true">, so the
+   form and the pager both push their querystring. The list page calls
+   remember_results(path), which on load and after every swap copies
+   window.location into sessionStorage under that path, and marks the path as
+   the LAST list this tab visited.
 
-   The detail page calls back_link(path, label, fallback) and picks, most
+   A detail page can be reached from more than one list (an authority from
+   /authorities or from /explore), so back_link takes every list that leads to
+   it, as [path, label] pairs — the first is the default — and picks, most
    precise first:
-     1. sessionStorage — survives hopping from one detail page to a related one;
-     2. document.referrer, when it IS the list — a detail page opened in a new
-        tab may start with empty sessionStorage (Referrer-Policy
+     1. the tab's last visited list, when it is one of them;
+     2. document.referrer, when it IS one of them — a detail page opened in a
+        new tab may start with empty sessionStorage (Referrer-Policy
         strict-origin-when-cross-origin sends the full same-origin URL);
-     3. the server-rendered `fallback` href — no script, or no list visited.
-   Only a same-origin URL on exactly `path` is ever accepted.
+     3. any of them this tab has stored, in the order given — e.g. search →
+        act → authority still returns to the authorities list you filtered;
+     4. the server-rendered `fallback` href — no script, or no list visited.
+   The label follows the list it returns to. Only a same-origin URL on exactly
+   one of the given paths is ever accepted.
 
    Stored per tab, never sent anywhere. Imported without context: the caller
-   passes the already-translated label and the fallback href. #}
+   passes already-translated labels and the fallback href. #}
 
 {% macro remember_results(path) -%}
 <script>
@@ -32,6 +40,7 @@
       if(u.pathname!==PATH) return;
       u.searchParams.delete('_sp');
       sessionStorage.setItem(KEY, PATH+u.search);
+      sessionStorage.setItem('khmdhs:lastList', PATH);
     }catch(e){}
   }
   remember();
@@ -43,27 +52,42 @@
 </script>
 {%- endmacro %}
 
-{% macro back_link(path, label, fallback) -%}
-<a class="back-link" id="back-to-results" href="{{ fallback }}" hx-boost="false">{{ label }}</a>
+{% macro back_link(lists, fallback) -%}
+<a class="back-link" id="back-to-results" href="{{ fallback }}" hx-boost="false">{{ lists[0][1] }}</a>
 <script>
 (function(){
   var a=document.getElementById('back-to-results'); if(!a) return;
-  var PATH={{ path|tojson }}, KEY='khmdhs:lastResults:'+PATH;
+  var LISTS={{ lists|tojson }}, PREFIX='khmdhs:lastResults:';
+  function find(p){
+    for(var i=0;i<LISTS.length;i++){ if(LISTS[i][0]===p) return LISTS[i]; }
+    return null;
+  }
   function clean(u){
     try{
       var x=new URL(u, location.href);
-      if(x.origin!==location.origin || x.pathname!==PATH) return null;
+      var l=(x.origin===location.origin) ? find(x.pathname) : null;
+      if(!l) return null;
       x.searchParams.delete('_sp');
-      return PATH+x.search;
+      return {list:l, href:x.pathname+x.search};
     }catch(e){ return null; }
   }
-  var target=null;
-  try{ var s=sessionStorage.getItem(KEY); if(s) target=clean(s); }catch(e){}
-  if(!target && document.referrer){
-    target=clean(document.referrer);
-    if(target){ try{ sessionStorage.setItem(KEY, target); }catch(e){} }
+  function stored(p){
+    try{ var s=sessionStorage.getItem(PREFIX+p); return s ? clean(s) : null; }catch(e){ return null; }
   }
-  if(target) a.setAttribute('href', target);
+  var pick=null, last=null;
+  try{ last=sessionStorage.getItem('khmdhs:lastList'); }catch(e){}
+  if(last && find(last)) pick=stored(last);
+  if(!pick && document.referrer){
+    pick=clean(document.referrer);
+    if(pick){
+      try{
+        sessionStorage.setItem(PREFIX+pick.list[0], pick.href);
+        sessionStorage.setItem('khmdhs:lastList', pick.list[0]);
+      }catch(e){}
+    }
+  }
+  for(var i=0; !pick && i<LISTS.length; i++) pick=stored(LISTS[i][0]);
+  if(pick){ a.setAttribute('href', pick.href); a.textContent=pick.list[1]; }
 })();
 </script>
 {%- endmacro %}
