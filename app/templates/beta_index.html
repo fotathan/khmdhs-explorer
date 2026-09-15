@@ -318,27 +318,10 @@
 </form>
 {% endblock %}
 {% block body_end %}
+{# Remember this search for the act page's "back to search" link. #}
+{% from "_back_to_results.html" import remember_results %}
+{{ remember_results('/') }}
 <script>
-  // Remember this search for the act page's "back to search" link. The form and
-  // the pager both push their querystring into the address bar (hx-push-url), so
-  // window.location is the live state: filters AND page. Stored per tab
-  // (sessionStorage), never sent anywhere. See beta_act.html#back-to-results.
-  (function(){
-    function remember(){
-      try{
-        var u=new URL(window.location.href);
-        if(u.pathname!=='/') return;
-        u.searchParams.delete('_sp');
-        sessionStorage.setItem('khmdhs:lastResults', '/'+u.search);
-      }catch(e){}
-    }
-    remember();
-    ['htmx:pushedIntoHistory','htmx:replacedInHistory','htmx:historyRestore','htmx:afterSettle']
-      .forEach(function(ev){ document.body.addEventListener(ev, remember); });
-    window.addEventListener('popstate', remember);
-    window.addEventListener('pageshow', remember);
-  })();
-
   // Toggle the .on class on a chip label when its checkbox changes, so the
   // visual state follows selection without a server round-trip for the styling.
   document.addEventListener('change', function(e){

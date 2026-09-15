@@ -28,6 +28,9 @@
       {% include "beta_contractors_results.html" %}
     </div>
   </form>
+  {# Remember this list for the contractor page's back link. #}
+  {% from "_back_to_results.html" import remember_results %}
+  {{ remember_results('/contractors') }}
 
   {% if is_admin %}
   {# Admin-only: import selected contractors into the CRM as prospective leads.

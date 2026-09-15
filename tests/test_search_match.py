@@ -289,6 +289,6 @@ def test_back_link_recovers_the_full_search_in_the_browser(admin, act):
     from what the search page stored — both halves of that handshake render."""
     act_page = admin.get(f"/act/{act}").text
     search_page = admin.get("/", params={"q": "καθαρισμός", "page": "1"}).text
-    assert "khmdhs:lastResults" in act_page
-    assert "document.referrer" in act_page
-    assert "sessionStorage.setItem('khmdhs:lastResults'" in search_page
+    key = """var PATH="/", KEY='khmdhs:lastResults:'+PATH"""
+    assert key in act_page and "document.referrer" in act_page
+    assert key in search_page and "sessionStorage.setItem(KEY" in search_page

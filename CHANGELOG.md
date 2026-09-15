@@ -15,6 +15,8 @@ truth; this is a curated digest.
   The search page now remembers its live URL per tab (sessionStorage), and the
   act page restores it — or, in a new tab, reads it from the referrer. Without
   script the link still keeps the match terms the act URL carries.
+- The same for "back to authorities" / "back to contractors": one shared
+  template (`_back_to_results.html`) serves all three list → detail pairs.
 
 ### Added — tables in the full-text editor, one format for rich full text
 - Both Quill editors (act form, /tables + edit hub) enable Quill 2's table

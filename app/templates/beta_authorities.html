@@ -28,5 +28,8 @@
       {% include "beta_authorities_results.html" %}
     </div>
   </form>
+  {# Remember this list for the authority page's back link. #}
+  {% from "_back_to_results.html" import remember_results %}
+  {{ remember_results('/authorities') }}
 </main>
 {% endblock %}

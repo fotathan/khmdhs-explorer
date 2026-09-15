@@ -1,0 +1,69 @@
+{# _back_to_results.html — a "back to the list" link that keeps the list.
+
+   Used by three list → detail pairs:
+     /             (search)       → /act/<adam>
+     /authorities                 → /authority/<org_id>
+     /contractors                 → /contractor/<vat>
+
+   Every list keeps its filters AND page in the address bar: the results sit
+   inside <form id="filters" hx-push-url="true">, so the form and the pager both
+   push their querystring. The list page calls remember_results(path), which
+   copies window.location into sessionStorage on load and after every swap.
+
+   The detail page calls back_link(path, label, fallback) and picks, most
+   precise first:
+     1. sessionStorage — survives hopping from one detail page to a related one;
+     2. document.referrer, when it IS the list — a detail page opened in a new
+        tab may start with empty sessionStorage (Referrer-Policy
+        strict-origin-when-cross-origin sends the full same-origin URL);
+     3. the server-rendered `fallback` href — no script, or no list visited.
+   Only a same-origin URL on exactly `path` is ever accepted.
+
+   Stored per tab, never sent anywhere. Imported without context: the caller
+   passes the already-translated label and the fallback href. #}
+
+{% macro remember_results(path) -%}
+<script>
+(function(){
+  var PATH={{ path|tojson }}, KEY='khmdhs:lastResults:'+PATH;
+  function remember(){
+    try{
+      var u=new URL(window.location.href);
+      if(u.pathname!==PATH) return;
+      u.searchParams.delete('_sp');
+      sessionStorage.setItem(KEY, PATH+u.search);
+    }catch(e){}
+  }
+  remember();
+  ['htmx:pushedIntoHistory','htmx:replacedInHistory','htmx:historyRestore','htmx:afterSettle']
+    .forEach(function(ev){ document.body.addEventListener(ev, remember); });
+  window.addEventListener('popstate', remember);
+  window.addEventListener('pageshow', remember);
+})();
+</script>
+{%- endmacro %}
+
+{% macro back_link(path, label, fallback) -%}
+<a class="back-link" id="back-to-results" href="{{ fallback }}" hx-boost="false">{{ label }}</a>
+<script>
+(function(){
+  var a=document.getElementById('back-to-results'); if(!a) return;
+  var PATH={{ path|tojson }}, KEY='khmdhs:lastResults:'+PATH;
+  function clean(u){
+    try{
+      var x=new URL(u, location.href);
+      if(x.origin!==location.origin || x.pathname!==PATH) return null;
+      x.searchParams.delete('_sp');
+      return PATH+x.search;
+    }catch(e){ return null; }
+  }
+  var target=null;
+  try{ var s=sessionStorage.getItem(KEY); if(s) target=clean(s); }catch(e){}
+  if(!target && document.referrer){
+    target=clean(document.referrer);
+    if(target){ try{ sessionStorage.setItem(KEY, target); }catch(e){} }
+  }
+  if(target) a.setAttribute('href', target);
+})();
+</script>
+{%- endmacro %}
