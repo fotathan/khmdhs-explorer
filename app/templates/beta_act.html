@@ -28,6 +28,11 @@
   {{ back_link([['/', t("‹ πίσω στην αναζήτηση")],
                 ['/digests/', t("‹ πίσω στα αποτελέσματα ειδοποίησης"), true]],
                '/' ~ match_qs(request)) }}
+  {# This act is itself somewhere to come back to: its authority and contractor
+     links lead to pages whose back link offers "‹ πίσω στην πράξη". Registered
+     by prefix (the address carries the ΑΔΑΜ), keeping the ?q= match terms. #}
+  {% from "_back_to_results.html" import remember_results %}
+  {{ remember_results('/act/', true) }}
 
   {# ===== HERO =====
      What a GATED visitor sees is exactly what it always was: badges, title,

@@ -27,6 +27,8 @@ truth; this is a curated digest.
   ειδοποίησης"). Lists with a variable address are registered by prefix.
 - And the search's result cards: an authority opened from a card's authority
   link returns to the search with its filters and page.
+- And the act page: an authority or contractor opened from it links back to
+  that act ("‹ πίσω στην πράξη"), keeping its match terms.
 
 ### Added — tables in the full-text editor, one format for rich full text
 - Both Quill editors (act form, /tables + edit hub) enable Quill 2's table

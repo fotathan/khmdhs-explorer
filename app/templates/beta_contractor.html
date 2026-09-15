@@ -10,7 +10,8 @@
   {% from "_back_to_results.html" import back_link %}
   {{ back_link([['/contractors', t("‹ πίσω στους αναδόχους")],
                 ['/explore', t("‹ πίσω στη σύνοψη")],
-                ['/analytics', t("‹ πίσω στα στατιστικά")]], '/contractors') }}
+                ['/analytics', t("‹ πίσω στα στατιστικά")],
+                ['/act/', t("‹ πίσω στην πράξη"), true]], '/contractors') }}
 
   <div class="detail-head">
     <div class="detail-kicker">{{ t("Ανάδοχος / Προμηθευτής") }}</div>

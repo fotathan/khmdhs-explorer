@@ -292,3 +292,10 @@ def test_back_link_recovers_the_full_search_in_the_browser(admin, act):
     assert 'var LISTS=[["/", ' in act_page and "document.referrer" in act_page
     assert """var PATH="/", KEY='khmdhs:lastResults:'+PATH""" in search_page
     assert "sessionStorage.setItem(KEY" in search_page
+
+
+def test_act_page_registers_itself_for_its_party_links(admin, act):
+    """Its authority/contractor links lead to pages that return to the act."""
+    body = admin.get(f"/act/{act}").text
+    assert """var PATH="/act/", KEY='khmdhs:lastResults:'+PATH""" in body
+    assert "var PFX=true;" in body

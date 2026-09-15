@@ -76,6 +76,17 @@ def test_authority_back_link_also_returns_to_the_search(admin, entities):
     assert '["/", ' not in admin.get(f"/contractor/{VAT}").text   # cards link no contractor
 
 
+@pytest.mark.parametrize("detail", [f"/authority/{ORG}", f"/contractor/{VAT}"])
+def test_detail_back_link_also_returns_to_the_act(admin, entities, detail):
+    """The act page links its authority and contractors; an act address varies,
+    so it is accepted by prefix — and listed last, so a stale act never
+    outranks a list."""
+    body = admin.get(detail).text
+    assert '["/act/", ' in body
+    assert body.rstrip().count('["/act/", ') == 1
+    assert body.index('["/act/", ') > body.index('var LISTS=')
+
+
 def test_explore_list_link_follows_the_live_filters(admin, entities):
     body = admin.get("/explore").text
     assert 'class="back-link js-as-list"' in body
