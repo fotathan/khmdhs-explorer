@@ -34,6 +34,8 @@ truth; this is a curated digest.
 - And related acts: an act opened from another act's timeline links back to
   it ("‹ πίσω στην πράξη"). A page that is both an origin and a destination
   never offers itself, nor the page you are returning from (no A ⇄ B loop).
+- And the contractor page's acts: an act opened from it links back to that
+  contractor ("‹ πίσω στον ανάδοχο").
 
 ### Added — tables in the full-text editor, one format for rich full text
 - Both Quill editors (act form, /tables + edit hub) enable Quill 2's table

@@ -311,3 +311,11 @@ def test_act_back_link_also_returns_to_a_related_act(admin, act):
     assert body.index('["/digests/", ') < body.index('["/act/", ')
     assert "x.pathname===location.pathname) return null" in body   # never itself
     assert "function isReturn(p)" in body                            # no loop
+
+
+def test_act_back_link_also_returns_to_the_contractor(admin, act):
+    """The contractor page lists the acts it won; the act accepts it as its
+    last origin, so contractor → act → back returns to that contractor."""
+    body = admin.get(f"/act/{act}").text
+    assert '["/contractor/", ' in body
+    assert body.index('["/act/", ') < body.index('["/contractor/", ')
