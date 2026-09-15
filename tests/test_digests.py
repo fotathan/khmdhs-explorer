@@ -896,6 +896,27 @@ def test_the_results_page_shows_exactly_what_was_mailed(client, clean_digests,
     assert "DGST-PG-LATER" not in r.text
 
 
+def test_the_results_page_is_a_place_the_act_page_leads_back_to(
+        client, clean_digests, memory_mail):
+    """An act opened from an alert's results returns there ("‹ πίσω στα
+    αποτελέσματα ειδοποίησης"), not to a blank search. The page registers itself
+    by PREFIX — its address carries the token — and the act page accepts that
+    prefix; the browser half is in _back_to_results.html."""
+    from app import digests as dg
+    cur = clean_digests
+    _, _, _, sub_id = _subscribed(cur, "back")
+    _act(cur, "DGST-BACK-1", ingested_at=dt.datetime.now(UTC) - dt.timedelta(hours=2))
+    res = dg.run_subscription(cur, dg.get_subscription(cur, sub_id))
+
+    login(client, "dg_cust_back", "goodpassword1")
+    page = client.get(f"/digests/{res['token']}").text
+    assert """var PATH="/digests/", KEY='khmdhs:lastResults:'+PATH""" in page
+    assert "var PFX=true;" in page
+
+    act = client.get("/act/DGST-BACK-1").text
+    assert '["/digests/", ' in act and ', true]]' in act
+
+
 def test_the_results_page_explains_why_each_act_matched(client, clean_digests,
                                                        memory_mail):
     """The list one email produced reads like the search page it came from: a

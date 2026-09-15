@@ -5,12 +5,14 @@
 {% block content %}
 <main>
   {# Back to the list this authority was opened from — the authorities list, the
-     overview (/explore) or the statistics (/analytics) — with its filters and
-     page (_back_to_results.html). #}
+     overview (/explore), the statistics (/analytics) or an alert results page
+     (/digests/<token>) — with its filters and page (_back_to_results.html). #}
   {% from "_back_to_results.html" import back_link %}
   {{ back_link([['/authorities', t("‹ πίσω στις αναθέτουσες")],
                 ['/explore', t("‹ πίσω στη σύνοψη")],
-                ['/analytics', t("‹ πίσω στα στατιστικά")]], '/authorities') }}
+                ['/analytics', t("‹ πίσω στα στατιστικά")],
+                ['/digests/', t("‹ πίσω στα αποτελέσματα ειδοποίησης"), true]],
+               '/authorities') }}
 
   <div class="detail-head">
     <div class="detail-kicker">{{ t("Αναθέτουσα αρχή") }} · {{ a.org_id }}</div>

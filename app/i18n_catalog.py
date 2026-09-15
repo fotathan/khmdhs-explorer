@@ -266,6 +266,7 @@ _PARTY = {
     "‹ πίσω στους αναδόχους": "‹ back to contractors",
     "‹ πίσω στη σύνοψη": "‹ back to summary",
     "‹ πίσω στα στατιστικά": "‹ back to analytics",
+    "‹ πίσω στα αποτελέσματα ειδοποίησης": "‹ back to alert results",
     "Συγχωνευμένη οντότητα —": "Merged entity —",
     "εγγραφές:": "records:",
     "ΑΦΜ:": "Tax ID:",

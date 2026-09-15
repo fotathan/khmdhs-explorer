@@ -22,6 +22,9 @@ truth; this is a curated digest.
   link now carries the live filters instead of the ones the page loaded with.
 - And /analytics: it has no filters, but an authority or contractor opened
   from its top-15 tables now links back to it ("‹ πίσω στα στατιστικά").
+- And the alert results page (/digests/<token>): an act or authority opened
+  from it links back to it and its page ("‹ πίσω στα αποτελέσματα
+  ειδοποίησης"). Lists with a variable address are registered by prefix.
 
 ### Added — tables in the full-text editor, one format for rich full text
 - Both Quill editors (act form, /tables + edit hub) enable Quill 2's table

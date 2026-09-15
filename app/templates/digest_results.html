@@ -79,6 +79,10 @@
     <a href="/account">{{ t("Ρυθμίσεις λογαριασμού") }}</a>
   </div>
 </main>
+{# Remember this page (and its ?page=) for the act/authority back links. The
+   address carries the token, so it is registered by prefix. #}
+{% from "_back_to_results.html" import remember_results %}
+{{ remember_results('/digests/', true) }}
 
 <style>
   .dgr-kicker{font-family:var(--mono);font-size:11px;letter-spacing:.08em;
