@@ -1139,6 +1139,16 @@ _TABLES = {
     "✕ κλείσιμο": "✕ close",
     "προεπισκόπηση σελίδας": "page preview",
     "Εφαρμογή": "Apply",
+    # table tools in the full-text editors (_quill_table_bar.html)
+    "Εργαλεία πίνακα": "Table tools",
+    "Νέος πίνακας 3×3": "New 3×3 table",
+    "Γραμμή πάνω": "Row above",
+    "Γραμμή κάτω": "Row below",
+    "Στήλη αριστερά": "Column left",
+    "Στήλη δεξιά": "Column right",
+    "Διαγραφή γραμμής": "Delete row",
+    "Διαγραφή στήλης": "Delete column",
+    "Διαγραφή πίνακα": "Delete table",
 }
 
 # Procedure-family filter chips (proc.procurement_act.procedure_family — a
@@ -2081,6 +2091,9 @@ _HELP = {
     "Στο κάτω μέρος του": "At the foot of",
     "κλειστή": "closed",
     "Τελευταία ενημέρωση": "Last updated",
+    "Πίνακες στο πλήρες κείμενο": "Tables in the full text",
+    "Ο επεξεργαστής πλήρους κειμένου υποστηρίζει πίνακες. Το «Νέος πίνακας 3×3» εισάγει πίνακα στη θέση του δρομέα· με τον δρομέα μέσα σε κελί προσθέτετε ή διαγράφετε γραμμές και στήλες. Κάθε κελί κρατά μία γραμμή κειμένου, και δεν υπάρχουν συγχωνευμένα κελιά. Κείμενο που έρχεται από μια πηγή ως ιστοσελίδα καθαρίζεται σε ενιαία μορφή — επικεφαλίδες, παράγραφοι, λίστες, πίνακες — και εμφανίζεται με την ίδια μορφοποίηση στη σελίδα της πράξης και στον επεξεργαστή.":
+        "The full-text editor supports tables. “New 3×3 table” inserts a table at the cursor; with the cursor inside a cell you add or delete rows and columns. Each cell holds one line of text, and there are no merged cells. Text that arrives from a source as a web page is cleaned into one format — headings, paragraphs, lists, tables — and looks the same on the act page and in the editor.",
 }
 
 

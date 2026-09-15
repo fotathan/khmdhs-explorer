@@ -76,6 +76,7 @@
         <p class="meta" style="margin:0 0 8px; letter-spacing:0; text-transform:none;">
           {{ t("Επικολλήστε, πληκτρολογήστε ή εξάγετε (από το εργαλείο πάνω) το πλήρες κείμενο· αποθηκεύεται μαζί με την πράξη, ώστε να συμπληρώσετε τα πεδία διαβάζοντάς το.") }}
         </p>
+        {% include "_quill_table_bar.html" %}
         <div class="ftc-editor"></div>
         <input type="hidden" name="full_text" class="ftc-plain">
         <input type="hidden" name="full_text_html" class="ftc-html">
@@ -371,8 +372,16 @@
 (function () {
   var CSS = '{{ asset('/static/vendor/quill-2.0.3.snow.css') }}';
   var JS  = '{{ asset('/static/vendor/quill-2.0.3.js') }}';
+  var TABLES_JS = '{{ asset('/static/js/quill_tables.js') }}';
   var mount = document.querySelector('.ftc-editor');
   if (!mount) return;
+  function withTables(cb) {
+    if (window.khmdhsQuillTables) { cb(window.khmdhsQuillTables); return; }
+    var s = document.createElement('script');
+    s.src = TABLES_JS;
+    s.onload = function () { if (window.khmdhsQuillTables) cb(window.khmdhsQuillTables); };
+    document.head.appendChild(s);
+  }
   function ensureCss() {
     if (document.getElementById('ftc-quill-css')) return;
     var l = document.createElement('link');
@@ -381,11 +390,12 @@
   }
   function init() {
     if (mount.__quill) return;
-    var q = new Quill(mount, { theme: 'snow', modules: { toolbar: [
+    var q = new Quill(mount, { theme: 'snow', modules: { table: true, toolbar: [
       [{ header: [1, 2, 3, false] }], ['bold', 'italic', 'underline'],
       [{ list: 'ordered' }, { list: 'bullet' }], ['blockquote', 'link'], ['clean'],
     ] } });
     mount.__quill = q;
+    withTables(function (qt) { qt.attach(q, mount.parentNode.querySelector('.qt-bar')); });
 
     // Seed existing full text (edit) — prefer sanitised HTML, else plain.
     var parent = mount.parentNode;
