@@ -4480,43 +4480,28 @@ def authority_detail(org_id: str, request: Request,
 
         # Aggregates per act type (always — regardless of the type filter, so the
         # user sees the full picture and can switch tabs).
+        # The value applies a manual correction where one exists. It used to call
+        # proc.resolved_value() once per act — a lookup per row, ~720ms of this
+        # query's ~960ms for the largest authority (122k acts, while the whole
+        # table holds two corrections). One join against the current-annotation
+        # view gives identical totals (checked with EXCEPT both ways) in ~216ms;
+        # the view is DISTINCT ON (adam), so the join cannot duplicate an act.
         c.execute("""
-            SELECT type,
+            SELECT a.type,
                    count(*) AS n,
-                   coalesce(sum(proc.resolved_value(adam, total_cost_with_vat)), 0) AS total_value,
-                   sum(CASE WHEN cancelled THEN 1 ELSE 0 END) AS n_cancelled
-            FROM proc.procurement_act
-            WHERE authority_id = ANY(%s)
-            GROUP BY type
-            ORDER BY type
+                   coalesce(sum(coalesce(ann.corrected_value, a.total_cost_with_vat)), 0) AS total_value,
+                   sum(CASE WHEN a.cancelled THEN 1 ELSE 0 END) AS n_cancelled
+            FROM proc.procurement_act a
+            LEFT JOIN proc.v_act_annotation_current ann
+                   ON ann.adam = a.adam AND ann.corrected_value IS NOT NULL
+            WHERE a.authority_id = ANY(%s)
+            GROUP BY a.type
+            ORDER BY a.type
         """, (member_ids,))
         by_type = c.fetchall()
 
-        # Top CPV divisions (first 2 digits) with the catalog label resolved
-        # by taking the shortest CPV that starts with that division prefix —
-        # the canonical division-level entry. The catalog uses real EU
-        # checksums (e.g. 33000000-0, 45000000-7), so we can't hardcode them.
-        c.execute(f"""
-            WITH agg AS (
-              SELECT substr(oc.cpv_code, 1, 2) AS division,
-                     count(DISTINCT a.adam) AS n_acts,
-                     coalesce(sum(a.total_cost_with_vat), 0) AS total_value
-              FROM proc.procurement_act a
-              JOIN proc.act_object_detail od ON od.adam = a.adam
-              JOIN proc.object_detail_cpv oc ON oc.object_detail_id = od.id
-              WHERE a.authority_id = ANY(%s) AND a.type = 'notice'
-              GROUP BY substr(oc.cpv_code, 1, 2)
-            )
-            SELECT agg.division, agg.n_acts, agg.total_value,
-              (SELECT {_desc_col(lang, "cpv_code")} FROM proc.cpv_code
-               WHERE substr(cpv_code, 1, 2) = agg.division
-                 AND substr(cpv_code, 3, 6) = '000000'
-               LIMIT 1) AS label
-            FROM agg
-            ORDER BY agg.total_value DESC NULLS LAST
-            LIMIT 8
-        """, (member_ids,))
-        top_cpv = c.fetchall()
+        # Top CPV divisions load on their own (authority_top_cpv): grouping every
+        # line item of the authority's notices is ~0.9s for the largest one.
 
         # Paginated act list, optionally filtered to one type.
         where = ["a.authority_id = ANY(%s)"]
@@ -4554,7 +4539,7 @@ def authority_detail(org_id: str, request: Request,
 
     return templates.TemplateResponse(
         request, "beta_authority.html",
-        {"a": auth, "gated": False, "by_type": by_type, "top_cpv": top_cpv,
+        {"a": auth, "gated": False, "by_type": by_type,
          "acts": acts, "total": total, "type_filter": type, "merge_info": merge_info,
          "grand_total": grand_total, "grand_value": grand_value,
          "orgld": _seo.organization_ld(request, name=auth["name"] or org_id,
@@ -4564,6 +4549,60 @@ def authority_detail(org_id: str, request: Request,
          "page": page, "per_page": per_page, "total_pages": total_pages,
          "nav_active": "authorities"},
     )
+
+
+@app.get("/authority/{org_id}/top-cpv", response_class=HTMLResponse)
+def authority_top_cpv(org_id: str, request: Request):
+    """The authority page's "top CPV divisions" panel, loaded on its own.
+
+    Grouping every line item of the authority's notices by 2-digit division is
+    ~0.9s for the largest authority (42k notices, ~80k line items), and no
+    index removes that work — a per-notice index lookup measured 915ms against
+    the planner's 963ms. So, like authority_top_contractors, the page mounts it.
+
+    Each notice counts ONCE per division. The value used to be summed over the
+    line-item join itself, so a notice with six items in one division added its
+    whole value six times: division 15 for the largest authority showed EUR 1.99bn
+    against EUR 324M counted once. `lines` is one row per (division, notice)
+    before anything is summed. A notice spanning two divisions still appears in
+    both — the table answers "which divisions does it buy in", per division.
+    The value applies a manual correction where one exists, as the totals do.
+    """
+    if _is_gated(request):
+        return HTMLResponse("")
+    _rate_limit(request, "authtopcpv")
+    lang = _i18n.lang_from_request(request)
+    with cursor() as c:
+        grp = resolve_entity_group(c, "authority", org_id)
+        member_ids = grp["members"] if grp else [org_id]
+        c.execute(f"""
+            /* authority_top_cpv */
+            WITH lines AS (
+              SELECT DISTINCT substr(oc.cpv_code, 1, 2) AS division, a.adam,
+                     coalesce(ann.corrected_value, a.total_cost_with_vat) AS value
+              FROM proc.procurement_act a
+              LEFT JOIN proc.v_act_annotation_current ann
+                     ON ann.adam = a.adam AND ann.corrected_value IS NOT NULL
+              JOIN proc.act_object_detail od ON od.adam = a.adam
+              JOIN proc.object_detail_cpv oc ON oc.object_detail_id = od.id
+              WHERE a.authority_id = ANY(%s) AND a.type = 'notice'
+            ), agg AS (
+              SELECT division, count(*) AS n_acts, coalesce(sum(value), 0) AS total_value
+              FROM lines
+              GROUP BY division
+            )
+            SELECT agg.division, agg.n_acts, agg.total_value,
+              (SELECT {_desc_col(lang, "cpv_code")} FROM proc.cpv_code
+               WHERE substr(cpv_code, 1, 2) = agg.division
+                 AND substr(cpv_code, 3, 6) = '000000'
+               LIMIT 1) AS label
+            FROM agg
+            ORDER BY agg.total_value DESC NULLS LAST
+            LIMIT 8
+        """, (member_ids,))
+        rows = c.fetchall()
+    return templates.TemplateResponse(
+        request, "_panel_authority_top_cpv.html", {"top_cpv": rows})
 
 
 @app.get("/authority/{org_id}/top-contractors", response_class=HTMLResponse)
@@ -4596,8 +4635,10 @@ def authority_top_contractors(org_id: str, request: Request):
             SELECT eo.vat_number, eo.name,
                    count(DISTINCT a.adam) AS n_acts,
                    coalesce(sum(coalesce(ao.awarded_value_with_vat,
-                                         proc.resolved_value(a.adam, a.total_cost_with_vat))), 0) AS total_value
+                                         ann.corrected_value, a.total_cost_with_vat)), 0) AS total_value
             FROM proc.procurement_act a
+            LEFT JOIN proc.v_act_annotation_current ann
+                   ON ann.adam = a.adam AND ann.corrected_value IS NOT NULL
             JOIN proc.act_operator ao      ON ao.adam = a.adam AND ao.role = 'winner'
             JOIN proc.economic_operator eo ON eo.operator_id = ao.operator_id
             WHERE a.authority_id = ANY(%s) AND a.type = 'contract'
@@ -4691,9 +4732,11 @@ def contractor_detail(vat: str, request: Request,
             SELECT a.type,
                    count(*) AS n,
                    coalesce(sum(coalesce(ao.awarded_value_with_vat,
-                                         proc.resolved_value(a.adam, a.total_cost_with_vat))), 0) AS total_value
+                                         ann.corrected_value, a.total_cost_with_vat)), 0) AS total_value
             FROM proc.act_operator ao
             JOIN proc.procurement_act a ON a.adam = ao.adam
+            LEFT JOIN proc.v_act_annotation_current ann
+                   ON ann.adam = a.adam AND ann.corrected_value IS NOT NULL
             WHERE ao.operator_id = ANY(%s)
             GROUP BY a.type
             ORDER BY a.type
@@ -4707,9 +4750,11 @@ def contractor_detail(vat: str, request: Request,
             SELECT auth.org_id, auth.name,
                    count(DISTINCT a.adam) AS n_acts,
                    coalesce(sum(coalesce(ao.awarded_value_with_vat,
-                                         proc.resolved_value(a.adam, a.total_cost_with_vat))), 0) AS total_value
+                                         ann.corrected_value, a.total_cost_with_vat)), 0) AS total_value
             FROM proc.act_operator ao
             JOIN proc.procurement_act a ON a.adam = ao.adam
+            LEFT JOIN proc.v_act_annotation_current ann
+                   ON ann.adam = a.adam AND ann.corrected_value IS NOT NULL
             LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
             WHERE ao.operator_id = ANY(%s) AND a.type = 'contract'
             GROUP BY auth.org_id, auth.name
@@ -4720,14 +4765,20 @@ def contractor_detail(vat: str, request: Request,
 
         # Top CPV divisions this contractor has supplied. Contracts only, for
         # the same anti-double-count reason as above.
+        # Each award counts ONCE per division: the value used to be summed over
+        # the line-item join itself, so a contract with several items in one
+        # division added its value once per item. `lines` is one row per
+        # (division, award) — the award being the act_operator row — before
+        # anything is summed. A contract spanning two divisions appears in both.
         c.execute(f"""
-            WITH agg AS (
-              SELECT substr(oc.cpv_code, 1, 2) AS division,
-                     count(DISTINCT a.adam) AS n_acts,
-                     coalesce(sum(coalesce(ao.awarded_value_with_vat,
-                                           proc.resolved_value(a.adam, a.total_cost_with_vat))), 0) AS total_value
+            WITH lines AS (
+              SELECT DISTINCT substr(oc.cpv_code, 1, 2) AS division, a.adam, ao.id AS award_id,
+                     coalesce(ao.awarded_value_with_vat,
+                              ann.corrected_value, a.total_cost_with_vat) AS value
               FROM proc.act_operator ao
               JOIN proc.procurement_act a ON a.adam = ao.adam
+              LEFT JOIN proc.v_act_annotation_current ann
+                     ON ann.adam = a.adam AND ann.corrected_value IS NOT NULL
               JOIN proc.act_object_detail od ON od.adam = a.adam
               JOIN proc.object_detail_cpv oc ON oc.object_detail_id = od.id
               WHERE ao.operator_id = ANY(%s) AND a.type = 'contract'

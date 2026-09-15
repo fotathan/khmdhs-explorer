@@ -10,6 +10,19 @@ truth; this is a curated digest.
 
 ## 2026-09-15
 
+### Fixed — authority/contractor pages: speed, and inflated CPV values
+- The CPV tables' value counted an act once per line item, not once per act:
+  for the largest authority division 15 showed €1.99bn against €324M counted
+  once (division 34: €2.6bn vs €1.18bn). Both pages now reduce to one row per
+  (division, act) — contractor: per award — before summing.
+- Totals no longer call `proc.resolved_value()` per row (a correction lookup
+  per act, ~720ms of ~960ms for 122k acts, with two corrections in the table);
+  one join against `v_act_annotation_current` gives identical totals.
+- The authority's CPV panel loads on its own (`GET /authority/<id>/top-cpv`,
+  ~0.9s for the largest authority — no index removes that work). Measured
+  locally, the largest authority's page went from ~1.7s to ~194ms; the largest
+  contractor's aggregates from ~530ms to ~220ms combined.
+
 ### Added — top contractors on the authority page
 - "Κορυφαίοι ανάδοχοι (προμηθευτές)": who wins the authority's contracts, top
   10 by value — contracts only, winners only, across a merged authority's
