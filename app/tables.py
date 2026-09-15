@@ -92,25 +92,21 @@ except ImportError:
 # HTML sanitisation for curator-authored rich full text
 # --------------------------------------------------------------------------- #
 # full_text_html is rendered with |safe on the detail page, so it MUST be
-# sanitised before it is ever stored. We use nh3 (the Rust `ammonia` binding):
-# its default allow-list keeps common formatting tags (p, br, h*, ul/ol/li,
-# b/strong, i/em, u, a, blockquote, code, table…) and strips <script>, inline
-# event handlers, javascript: URLs, etc. Links get rel="noopener noreferrer".
+# sanitised before it is ever stored. The allow-list lives in app/rich_text.py
+# (nh3 with an explicit tag/attribute list), shared with the importers, so a
+# curator's save and an import can never disagree about what is allowed. It
+# keeps exactly what Quill needs to round-trip — li[data-list] (bullet vs
+# numbered) and td[data-row] (tables) — which nh3's default list dropped.
 #
 # If nh3 is not installed we DO NOT store HTML at all (return None) — the plain
 # text in full_text is still saved, so the feature degrades safely rather than
 # persisting unsanitised markup.
 def sanitize_full_text_html(raw: str | None) -> str | None:
-    raw = (raw or "").strip()
-    if not raw:
-        return None
     try:
-        import nh3
+        from app.rich_text import sanitize
     except ImportError:
-        return None
-    cleaned = nh3.clean(raw).strip()
-    # Quill serialises an empty editor as "<p><br></p>"; treat that as no HTML.
-    return cleaned or None
+        from rich_text import sanitize
+    return sanitize(raw)
 
 
 # --------------------------------------------------------------------------- #

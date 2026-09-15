@@ -12,6 +12,7 @@
 <form class="ft-save-form" hx-post="/tables/fulltext/save"
       hx-target="#tt-save-result" hx-swap="innerHTML">
   <input type="hidden" name="adam" value="{{ act.adam }}">
+  {% include "_quill_table_bar.html" %}
   <div class="ft-editor"></div>
   <div style="margin-top:10px; display:flex; gap:.8rem; align-items:center;">
     <button type="submit" class="tt-btn">{{ t("Αποθήκευση κειμένου") }}</button>
@@ -69,7 +70,7 @@
     if (!mount || mount.__quill) return;            // already initialised
     var quill = new Quill(mount, {
       theme: 'snow',
-      modules: { toolbar: [
+      modules: { table: true, toolbar: [
         [{ header: [1, 2, 3, false] }],
         ['bold', 'italic', 'underline'],
         [{ list: 'ordered' }, { list: 'bullet' }],
@@ -78,6 +79,15 @@
       ] },
     });
     mount.__quill = quill;
+
+    // Table tools (quill_tables.js) — loaded once, attached per editor.
+    (function withTables(cb) {
+      if (window.khmdhsQuillTables) { cb(window.khmdhsQuillTables); return; }
+      var s = document.createElement('script');
+      s.src = '{{ asset('/static/js/quill_tables.js') }}';
+      s.onload = function () { if (window.khmdhsQuillTables) cb(window.khmdhsQuillTables); };
+      document.head.appendChild(s);
+    })(function (qt) { qt.attach(quill, mount.parentNode.querySelector('.qt-bar')); });
 
     var form = mount.closest('form');
     var parent = form ? form.parentNode : document;

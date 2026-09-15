@@ -458,8 +458,9 @@
               {% endfor %}
             </div>
           {% elif n.full_text_html %}
-            {# Curator-authored rich text. Sanitised with nh3 at save time. #}
-            <div class="full-text-html">{{ n.full_text_html | safe }}</div>
+            {# Rich text — curator-authored or normalised on import. Sanitised
+               at write time by app/rich_text.sanitize; styled by rich_text.css. #}
+            <div class="full-text-html rich-text">{{ n.full_text_html | safe }}</div>
           {% else %}
             <pre class="full-text-pre">{{ n.full_text }}</pre>
           {% endif %}

@@ -1,0 +1,43 @@
+/* rich_text.css — one look for an act's rich full text (full_text_html):
+   on the act page (.full-text-html.rich-text) AND inside the Quill editors
+   (the editor root gets .rich-text from quill_tables.js). app/rich_text.py
+   decides which tags exist at all; this decides how they read. */
+
+.rich-text{font-size:14px;line-height:1.65;color:var(--ink,#14181f);overflow-wrap:anywhere;}
+.rich-text p{margin:0 0 .6em;}
+.rich-text h1,.rich-text h2{font-size:17px;font-weight:600;line-height:1.35;margin:1.2em 0 .5em;}
+.rich-text h3{font-size:15px;font-weight:600;line-height:1.4;margin:1.1em 0 .45em;}
+.rich-text h4{font-size:14px;font-weight:600;margin:1em 0 .4em;}
+.rich-text > :first-child{margin-top:0;}
+.rich-text a{color:var(--accent,#1d4ea0);text-decoration:underline;}
+.rich-text blockquote{margin:.6em 0;padding:.2em 0 .2em 12px;border-left:3px solid var(--rule,#d9dde3);color:var(--ink-2,#5b626d);}
+.rich-text pre,.rich-text code{font-family:var(--mono,ui-monospace,monospace);font-size:12.5px;}
+.rich-text table{border-collapse:collapse;width:100%;margin:.4em 0 1em;font-size:13px;table-layout:auto;}
+.rich-text td{border:1px solid var(--rule,#d9dde3);padding:5px 8px;vertical-align:top;}
+
+/* Lists. Quill writes <ol><li data-list="bullet|ordered"> for both kinds and
+   draws its own markers inside the editor — so these rules are for the act
+   page only, never .ql-editor, or the editor shows two markers per item. */
+.rich-text:not(.ql-editor) ul,.rich-text:not(.ql-editor) ol{margin:0 0 .6em;padding-left:1.4em;}
+.rich-text:not(.ql-editor) li[data-list="bullet"]{list-style-type:disc;}
+.rich-text:not(.ql-editor) li[data-list="ordered"]{list-style-type:decimal;}
+.rich-text:not(.ql-editor) li > .ql-ui{display:none;}
+
+/* Act page: a long document scrolls inside its panel, like the plain-text view. */
+.full-text-html{max-height:640px;overflow:auto;padding:14px 16px;margin:8px 0 0;
+  background:var(--paper,#fff);border-left:2px solid var(--rule,#d9dde3);}
+
+/* Editors: Quill's snow theme fixes the column widths and draws black borders. */
+.ql-editor.rich-text table{table-layout:auto;}
+.ql-editor.rich-text td{border:1px solid var(--rule,#d9dde3);padding:4px 7px;}
+
+/* Table tools, between Quill's toolbar and the editing area. */
+.qt-bar{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:6px 8px;
+  border:1px solid #ccc;border-top:0;border-bottom:0;background:var(--paper-2,#f6f7f9);
+  font-family:var(--sans,inherit);font-size:12px;}
+.qt-bar .qt-label{color:var(--ink-2,#5b626d);margin-right:2px;}
+.qt-bar .qt-sep{width:1px;align-self:stretch;background:var(--rule,#d9dde3);margin:0 4px;}
+.qt-bar button{font:inherit;padding:3px 8px;border:1px solid var(--rule,#d9dde3);border-radius:4px;
+  background:#fff;color:var(--ink,#14181f);cursor:pointer;}
+.qt-bar button:hover:not(:disabled){border-color:var(--ink-3,#9aa0aa);}
+.qt-bar button:disabled{opacity:.45;cursor:default;}

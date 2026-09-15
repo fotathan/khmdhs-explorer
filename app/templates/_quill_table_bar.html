@@ -1,0 +1,20 @@
+{# _quill_table_bar.html — table tools for a full-text Quill editor.
+   Include it in the same parent element as the editor mount. It stays hidden
+   until app/static/js/quill_tables.js attaches it to that editor (so a page
+   without script never shows buttons that do nothing), and it carries the
+   shared rich-text stylesheet, so any page with an editor gets the same look
+   as the act page. #}
+<link rel="stylesheet" href="{{ asset('/static/css/rich_text.css') }}">
+<div class="qt-bar" role="toolbar" aria-label="{{ t('Εργαλεία πίνακα') }}" hidden>
+  <span class="qt-label">{{ t("Εργαλεία πίνακα") }}</span>
+  <button type="button" data-tbl="insert">{{ t("Νέος πίνακας 3×3") }}</button>
+  <span class="qt-sep"></span>
+  <button type="button" data-tbl="row-above" disabled>{{ t("Γραμμή πάνω") }}</button>
+  <button type="button" data-tbl="row-below" disabled>{{ t("Γραμμή κάτω") }}</button>
+  <button type="button" data-tbl="col-left" disabled>{{ t("Στήλη αριστερά") }}</button>
+  <button type="button" data-tbl="col-right" disabled>{{ t("Στήλη δεξιά") }}</button>
+  <span class="qt-sep"></span>
+  <button type="button" data-tbl="del-row" disabled>{{ t("Διαγραφή γραμμής") }}</button>
+  <button type="button" data-tbl="del-col" disabled>{{ t("Διαγραφή στήλης") }}</button>
+  <button type="button" data-tbl="del-table" disabled>{{ t("Διαγραφή πίνακα") }}</button>
+</div>

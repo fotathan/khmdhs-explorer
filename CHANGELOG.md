@@ -8,6 +8,20 @@ Dates are the day the change landed on `main` (which auto-deploys to prod on
 Render). This project has no version tags — the git history is the source of
 truth; this is a curated digest.
 
+## 2026-09-15
+
+### Added — tables in the full-text editor, one format for rich full text
+- Both Quill editors (act form, /tables + edit hub) enable Quill 2's table
+  module with a small toolbar: new 3×3 table, add/delete rows and columns,
+  delete table (`app/static/js/quill_tables.js`, `_quill_table_bar.html`).
+- `app/rich_text.py` owns the full_text_html allow-list (explicit, not nh3's
+  default). The default dropped `li[data-list]` — a bullet list saved from the
+  editor came back numbered — and `td[data-row]`, which Quill needs for tables.
+- Imported HTML is normalised (page clutter, inline styles and form widgets
+  removed; paragraphs, headings, lists, Quill-shaped tables kept) and the plain
+  full_text is derived from it. `app/static/css/rich_text.css` styles the act
+  page and the editors the same way.
+
 ## 2026-09-14
 
 ### Added — customer pages usable on a phone
