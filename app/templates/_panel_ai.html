@@ -1,8 +1,10 @@
 {# _panel_ai.html — the AI summary panel on an act page.
 
    Returned by GET /act/<adam>/ai and by POST /admin/act/<adam>/ai, and swapped
-   into #ai-summary-mount with hx-swap="outerHTML". Four states, one template:
+   into #ai-summary-mount with hx-swap="outerHTML". Five states, one template:
 
+     no_text  the notice has no full text and no published tables → why a
+              summary is not possible, for every reader, and no button
      absent   no payload, and the reader may generate one → banner + button
      running  a job is queued or running → the panel polls itself
      failed   the last job errored → what went wrong, and a retry
@@ -21,9 +23,11 @@
       dropped server-side (§8).
 
    A reader with no payload and no right to generate one sees NOTHING: an empty
-   AI panel is a promise the page cannot keep. #}
+   AI panel is a promise the page cannot keep. The one exception is no_text,
+   which promises nothing — it explains why there is no summary, so the tab
+   does not silently disappear on text-less notices. #}
 
-{% if state == 'present' or state == 'running' or can_generate %}
+{% if state == 'present' or state == 'running' or state == 'no_text' or can_generate %}
 <div id="ai-summary-mount" class="panel ai-panel"
      {%- if state == 'running' %} hx-get="/act/{{ adam }}/ai" hx-trigger="load delay:4s" hx-swap="outerHTML"{% endif %}>
 
@@ -33,7 +37,9 @@
     {% if is_admin %}<span class="ai-model">{{ meta.model if meta else model }}</span>{% endif %}
   </h3>
 
-  {# Permanent and undismissable — see the CSS note. #}
+  {# Permanent and undismissable — see the CSS note. Not on no_text: nothing is
+     extracted there, so there is nothing for the warning to qualify. #}
+  {% if state != 'no_text' %}
   <div class="ai-band">
     <span class="ic" aria-hidden="true">⚠</span>
     <div>
@@ -45,9 +51,16 @@
       <p class="ai-band-link"><a href="/ai">{{ t("Πώς χρησιμοποιείται η ΤΝ και τι δεδομένα αποστέλλονται") }} →</a></p>
     </div>
   </div>
+  {% endif %}
+
+  {# --------------------------------------------------------------- no_text #}
+  {% if state == 'no_text' %}
+  <div class="ai-empty">
+    <p class="ai-note">{{ t("Δεν είναι δυνατή η σύνοψη για αυτή την προκήρυξη, γιατί δεν υπάρχει διαθέσιμο πλήρες κείμενο ούτε δημοσιευμένοι πίνακες. Η σύνοψη αντλεί μόνο από το κείμενο της πράξης· δείτε τα στοιχεία της στην Επισκόπηση και το επίσημο έγγραφο στην πηγή.") }}</p>
+  </div>
 
   {# ---------------------------------------------------------------- absent #}
-  {% if state == 'absent' %}
+  {% elif state == 'absent' %}
   <div class="ai-empty">
     <p class="ai-note">{{ t("Δεν έχει δημιουργηθεί σύνοψη για αυτή την προκήρυξη. Η ανάλυση διαβάζει το πλήρες κείμενο και τους δημοσιευμένους πίνακες, και εντοπίζει όσα δεν υπάρχουν ήδη στα πεδία της πράξης: προθεσμίες ερωτήσεων, βαρύτητες κριτηρίων, εγγυήσεις, τεχνικές απαιτήσεις και κριτήρια συμμετοχής.") }}</p>
     <button type="button" class="ai-btn"

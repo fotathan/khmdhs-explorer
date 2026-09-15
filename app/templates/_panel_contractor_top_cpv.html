@@ -1,0 +1,34 @@
+{# _panel_contractor_top_cpv.html — the contractor's top CPV divisions.
+
+   Loaded on its own, over HTMX, from GET /contractor/<vat>/top-cpv: ~180ms for
+   the largest contractors (see contractor_top_cpv). Swapped with outerHTML over
+   the placeholder in beta_contractor.html, which already carries the heading,
+   so nothing moves when it lands.
+
+   Contracts only; an award counts once per division however many of its line
+   items fall in it. A contract spanning two divisions appears in both. #}
+<div class="panel" id="contractor-top-cpv">
+  <h3 class="panel-h">{{ t("Κορυφαία αντικείμενα (CPV)") }}</h3>
+  {% if top_cpv %}
+  <table class="dtable">
+    <thead>
+      <tr><th>{{ t("Κατηγορία CPV") }}</th><th class="val">{{ t("Συμβάσεις") }}</th><th class="val">{{ t("Αξία") }}</th></tr>
+    </thead>
+    <tbody>
+      {% for r in top_cpv %}
+      <tr>
+        <td>
+          <code class="adam">{{ r.division }}</code>
+          {% if r.label %}<div style="font-size:12px;color:var(--ink-2);margin-top:2px;">{{ r.label }}</div>{% endif %}
+        </td>
+        <td class="val">{{ r.n_acts }}</td>
+        <td class="val">{% if r.total_value %}€ {{ "{:,.0f}".format(r.total_value).replace(",", ".") }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p style="font-size:11.5px;color:var(--ink-3);margin-top:10px;">{{ t("Πρόθεμα 2 ψηφίων CPV (επίπεδο division) · μόνο συμβάσεις.") }}</p>
+  {% else %}
+  <div class="empty">{{ t("Δεν υπάρχουν δεδομένα CPV.") }}</div>
+  {% endif %}
+</div>

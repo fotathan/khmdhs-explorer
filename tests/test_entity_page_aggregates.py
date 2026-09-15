@@ -124,7 +124,7 @@ def test_an_authority_notice_counts_once_per_division(reader, data):
 
 
 def test_a_contractor_award_counts_once_per_division(reader, data):
-    body = reader.get(f"/contractor/{VAT}").text
+    body = reader.get(f"/contractor/{VAT}/top-cpv").text
     assert _division(body, "45") == (2, "3.400")     # 2500 once + corrected 900; was 5.900
 
 
@@ -159,3 +159,37 @@ def test_the_cpv_panel_route_is_the_one_that_runs_it(reader, data, monkeypatch):
 
 def test_a_gated_visitor_gets_no_cpv_panel(client, data):
     assert client.get(CPV_PANEL).text.strip() == ""
+
+
+# --------------------------------------------------------------------------- #
+# The contractor page: CPV panel deferred, act list from its own links
+# --------------------------------------------------------------------------- #
+CONTRACTOR_CPV = f"/contractor/{VAT}/top-cpv"
+
+
+def test_the_contractor_page_mounts_the_cpv_panel_and_never_runs_it(reader, data, monkeypatch):
+    assert CONTRACTOR_CPV in reader.get(f"/contractor/{VAT}").text
+    qs = _queries_for(reader, monkeypatch, f"/contractor/{VAT}")
+    assert not [q for q in qs if "contractor_top_cpv" in q or "WITH lines AS" in q]
+
+
+def test_the_contractor_cpv_route_is_the_one_that_runs_it(reader, data, monkeypatch):
+    assert any("contractor_top_cpv" in q for q in _queries_for(reader, monkeypatch, CONTRACTOR_CPV))
+
+
+def test_a_gated_visitor_gets_no_contractor_cpv_panel(client, data):
+    assert client.get(CONTRACTOR_CPV).text.strip() == ""
+
+
+def test_the_act_list_starts_from_the_contractors_own_links(reader, data, monkeypatch):
+    """Otherwise the planner walks the site-wide date index and probes each act
+    (65k probes for a 20k-link contractor)."""
+    qs = _queries_for(reader, monkeypatch, f"/contractor/{VAT}")
+    assert any("WITH mine AS MATERIALIZED" in q and "LIMIT" in q for q in qs)
+
+
+def test_acts_sharing_a_date_keep_a_stable_order(reader, data):
+    """C1 and C2 have no dates at all; the award id decides, so the same act
+    sits on the same page every time."""
+    body = reader.get(f"/contractor/{VAT}").text
+    assert body.index("AGG-C1") < body.index("AGG-C2")

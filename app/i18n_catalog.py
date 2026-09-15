@@ -1866,6 +1866,8 @@ _HELP = {
     "Το πάνελ δεν επαναλαμβάνει ποτέ ό,τι ξέρει ήδη η πράξη — καταληκτική ημερομηνία, προϋπολογισμός, εκτιμώμενη αξία, τύπος διαδικασίας, τμήματα. Αυτά τα βλέπετε από την επίσημη εγγραφή, στα στοιχεία της πράξης, και μια μηχανή δεν είναι καλύτερη πηγή γι' αυτά.":
         "The panel never repeats what the act already knows — closing date, budget, estimated value, procedure type, lots. You get those from the official record, in the act's details, and a machine is not a better source for them.",
     "Εργαλείο πρώτης αξιολόγησης": "A first-pass assessment tool",
+    "Δεν είναι δυνατή η σύνοψη για αυτή την προκήρυξη, γιατί δεν υπάρχει διαθέσιμο πλήρες κείμενο ούτε δημοσιευμένοι πίνακες. Η σύνοψη αντλεί μόνο από το κείμενο της πράξης· δείτε τα στοιχεία της στην Επισκόπηση και το επίσημο έγγραφο στην πηγή.":
+        "A summary is not possible for this notice, because no full text or published tables are available. The summary draws only on the act's own text; see its details under Overview and the official document at the source.",
     "Η σύνοψη σας βοηθά να αποφασίσετε σε ένα λεπτό αν αξίζει να διαβάσετε ολόκληρη την προκήρυξη. Δεν την αντικαθιστά. Μπορεί να είναι ελλιπής — ιδίως όταν οι λεπτομέρειες βρίσκονται σε συνημμένα έγγραφα, τα οποία προς το παρόν δεν διαβάζονται. Επιβεβαιώνετε πάντα τα στοιχεία στα επίσημα έγγραφα πριν υποβάλετε προσφορά.":
         "The summary helps you decide in a minute whether the whole notice is worth reading. It does not replace it. It can be incomplete — especially when the details live in attached documents, which are not read for now. Always confirm the facts in the official documents before you bid.",
     "Ό,τι λείπει, το λέει": "It says what is missing",

@@ -3989,8 +3989,15 @@ def _ai_panel_ctx(c, request, adam: str) -> dict | None:
     if loaded is None:
         return None
     act, sources = loaded
+    is_admin = (getattr(request.state, "user", None) or {}).get("role") == "admin"
     if not sources:
-        return None                 # nothing to quote means nothing to extract
+        # Nothing to quote means nothing to extract — but the notice keeps its
+        # tab and says why. A tab that silently vanished on text-less notices
+        # read as a broken feature. No generate button, for anyone: there is
+        # nothing to send, and a job would only fail.
+        return {"adam": adam, "state": "no_text", "payload": None, "meta": None,
+                "job": None, "is_admin": is_admin, "can_generate": False,
+                "model": _ai.MODEL}
 
     row = _ai.cached(c, adam, _ai.input_hash(sources))
     c.execute(f"""SELECT id, status, last_error, queued_at, finished_at,
@@ -4767,41 +4774,8 @@ def contractor_detail(vat: str, request: Request,
         """, (op_ids,))
         top_buyers = c.fetchall()
 
-        # Top CPV divisions this contractor has supplied. Contracts only, for
-        # the same anti-double-count reason as above.
-        # Each award counts ONCE per division: the value used to be summed over
-        # the line-item join itself, so a contract with several items in one
-        # division added its value once per item. `lines` is one row per
-        # (division, award) — the award being the act_operator row — before
-        # anything is summed. A contract spanning two divisions appears in both.
-        c.execute(f"""
-            WITH lines AS (
-              SELECT DISTINCT substr(oc.cpv_code, 1, 2) AS division, a.adam, ao.id AS award_id,
-                     coalesce(ao.awarded_value_with_vat,
-                              ann.corrected_value, a.total_cost_with_vat) AS value
-              FROM proc.act_operator ao
-              JOIN proc.procurement_act a ON a.adam = ao.adam
-              LEFT JOIN proc.v_act_annotation_current ann
-                     ON ann.adam = a.adam AND ann.corrected_value IS NOT NULL
-              JOIN proc.act_object_detail od ON od.adam = a.adam
-              JOIN proc.object_detail_cpv oc ON oc.object_detail_id = od.id
-              WHERE ao.operator_id = ANY(%s) AND a.type = 'contract'
-            ), agg AS (
-              SELECT division, count(DISTINCT adam) AS n_acts,
-                     coalesce(sum(value), 0) AS total_value
-              FROM lines
-              GROUP BY division
-            )
-            SELECT agg.division, agg.n_acts, agg.total_value,
-              (SELECT {_desc_col(lang, "cpv_code")} FROM proc.cpv_code
-               WHERE substr(cpv_code, 1, 2) = agg.division
-                 AND substr(cpv_code, 3, 6) = '000000'
-               LIMIT 1) AS label
-            FROM agg
-            ORDER BY agg.total_value DESC NULLS LAST
-            LIMIT 8
-        """, (op_ids,))
-        top_cpv = c.fetchall()
+        # Top CPV divisions load on their own (contractor_top_cpv): ~180ms for
+        # the largest contractors, and the page should not wait for a side table.
 
         # Paginated act list.
         c.execute("""
@@ -4809,21 +4783,32 @@ def contractor_detail(vat: str, request: Request,
         """, (op_ids,))
         total = c.fetchone()["n"]
         offset = (page - 1) * per_page
+        # Start from the contractor's own links (MATERIALIZED), then sort those.
+        # Left to itself the planner walks the site-wide submission-date index
+        # newest-first and probes act_operator for every act until it has a page:
+        # 65k probes, 190-470ms, for a contractor with 20k links. From its own
+        # links it is ~210ms there and <1ms for a small one, with the same rows in
+        # the same order (checked over three pages). m.id breaks date ties, so an
+        # act can no longer shift between pages when several share a date.
         c.execute("""
+            WITH mine AS MATERIALIZED (
+              SELECT id, adam, role, awarded_value_with_vat
+              FROM proc.act_operator
+              WHERE operator_id = ANY(%s)
+            )
             SELECT a.adam, a.type, a.title, a.signed_date, a.submission_date,
                    a.total_cost_with_vat,
                    proc.resolved_value(a.adam, a.total_cost_with_vat) AS resolved_value,
                    (proc.resolved_value(a.adam, a.total_cost_with_vat)
                        IS DISTINCT FROM a.total_cost_with_vat) AS is_corrected,
                    a.cancelled,
-                   ao.role, ao.awarded_value_with_vat,
+                   m.role, m.awarded_value_with_vat,
                    auth.org_id AS authority_id, auth.name AS authority_name
-            FROM proc.act_operator ao
-            JOIN proc.procurement_act a ON a.adam = ao.adam
+            FROM mine m
+            JOIN proc.procurement_act a ON a.adam = m.adam
             LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
-            WHERE ao.operator_id = ANY(%s)
             ORDER BY a.submission_date DESC NULLS LAST,
-                     a.signed_date DESC NULLS LAST
+                     a.signed_date DESC NULLS LAST, m.id
             LIMIT %s OFFSET %s
         """, (op_ids, per_page, offset))
         acts = c.fetchall()
@@ -4862,7 +4847,6 @@ def contractor_detail(vat: str, request: Request,
     return templates.TemplateResponse(
         request, "beta_contractor.html",
         {"op": op, "gated": False, "by_type": by_type, "top_buyers": top_buyers,
-         "top_cpv": top_cpv,
          "acts": acts, "total": total, "merge_info": merge_info,
          "orgld": _seo.organization_ld(request, name=op["name"] or vat,
                                        path=f"/contractor/{vat}",
@@ -4875,6 +4859,64 @@ def contractor_detail(vat: str, request: Request,
          "page": page, "per_page": per_page, "total_pages": total_pages,
          "nav_active": "contractors"},
     )
+
+
+@app.get("/contractor/{vat}/top-cpv", response_class=HTMLResponse)
+def contractor_top_cpv(vat: str, request: Request):
+    """The contractor page's "top CPV divisions" panel, loaded on its own.
+
+    ~180ms for the largest contractors (20k links: every contract's line items
+    joined and grouped), against ~5ms for most of the rest of the page, so the
+    page mounts it — the same treatment as authority_top_cpv.
+
+    Contracts only; each award (act_operator row) counts ONCE per division
+    however many of its line items fall there — see 83f7b9a for the inflation
+    this replaced. Across every VAT of a merged contractor, resolved as in
+    contractor_detail.
+    """
+    if _is_gated(request):
+        return HTMLResponse("")
+    _rate_limit(request, "contractortopcpv")
+    lang = _i18n.lang_from_request(request)
+    with cursor() as c:
+        grp = resolve_entity_group(c, "contractor", vat)
+        member_vats = grp["members"] if grp else [vat]
+        c.execute("""SELECT operator_id FROM proc.economic_operator
+                     WHERE vat_number = ANY(%s)""", (member_vats,))
+        op_ids = [r["operator_id"] for r in c.fetchall()]
+        rows = []
+        if op_ids:
+            c.execute(f"""
+                /* contractor_top_cpv */
+                WITH lines AS (
+                  SELECT DISTINCT substr(oc.cpv_code, 1, 2) AS division, a.adam, ao.id AS award_id,
+                         coalesce(ao.awarded_value_with_vat,
+                                  ann.corrected_value, a.total_cost_with_vat) AS value
+                  FROM proc.act_operator ao
+                  JOIN proc.procurement_act a ON a.adam = ao.adam
+                  LEFT JOIN proc.v_act_annotation_current ann
+                         ON ann.adam = a.adam AND ann.corrected_value IS NOT NULL
+                  JOIN proc.act_object_detail od ON od.adam = a.adam
+                  JOIN proc.object_detail_cpv oc ON oc.object_detail_id = od.id
+                  WHERE ao.operator_id = ANY(%s) AND a.type = 'contract'
+                ), agg AS (
+                  SELECT division, count(DISTINCT adam) AS n_acts,
+                         coalesce(sum(value), 0) AS total_value
+                  FROM lines
+                  GROUP BY division
+                )
+                SELECT agg.division, agg.n_acts, agg.total_value,
+                  (SELECT {_desc_col(lang, "cpv_code")} FROM proc.cpv_code
+                   WHERE substr(cpv_code, 1, 2) = agg.division
+                     AND substr(cpv_code, 3, 6) = '000000'
+                   LIMIT 1) AS label
+                FROM agg
+                ORDER BY agg.total_value DESC NULLS LAST
+                LIMIT 8
+            """, (op_ids,))
+            rows = c.fetchall()
+    return templates.TemplateResponse(
+        request, "_panel_contractor_top_cpv.html", {"top_cpv": rows})
 
 
 # ---------------------------------------------------------------------------- #

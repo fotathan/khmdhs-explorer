@@ -199,10 +199,31 @@ def test_the_panel_is_empty_for_anything_but_a_notice(db, admin, ai_on, act):
     assert admin.get(f"/act/{act}/ai").text.strip() == ""
 
 
-def test_a_notice_with_no_text_offers_nothing_to_extract(db, admin, ai_on, act):
+NO_TEXT = "Δεν είναι δυνατή η σύνοψη για αυτή την προκήρυξη"
+
+
+@pytest.mark.parametrize("who", ["admin", "customer"])
+def test_a_notice_with_no_text_explains_why_there_is_no_summary(db, request, ai_on, act, who):
+    """The tab used to vanish silently on a text-less notice, which read as a
+    broken feature. It now says why — to every entitled reader — and offers no
+    button, because there is nothing to send and a job could only fail."""
+    reader = request.getfixturevalue(who)
     db.cursor().execute("UPDATE proc.procurement_act SET full_text=NULL WHERE adam=%s",
                         (act,))
-    assert admin.get(f"/act/{act}/ai").text.strip() == ""
+    body = reader.get(f"/act/{act}/ai").text
+    assert NO_TEXT in body
+    assert 'hx-post="/admin/act/' not in body
+    assert "Εργαλείο πρώτης αξιολόγησης" not in body     # nothing extracted to qualify
+
+
+def test_a_gated_reader_still_sees_nothing_on_a_text_less_notice(db, client, ai_on, act):
+    db.cursor().execute("UPDATE proc.procurement_act SET full_text=NULL WHERE adam=%s",
+                        (act,))
+    assert client.get(f"/act/{act}/ai").text.strip() == ""
+
+
+def test_a_notice_with_text_does_not_get_the_no_text_message(admin, ai_on, act):
+    assert NO_TEXT not in admin.get(f"/act/{act}/ai").text
 
 
 def test_a_customer_with_no_summary_sees_no_panel_at_all(db, customer, ai_on, act):

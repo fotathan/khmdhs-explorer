@@ -10,6 +10,20 @@ truth; this is a curated digest.
 
 ## 2026-09-15
 
+### Changed — the summary tab stays on notices without full text
+- A notice with no full text and no published tables used to lose its
+  "Σύνοψη διαγωνισμού" tab silently, which read as a broken feature. The tab
+  now stays and says a summary is not possible without the text. No generate
+  button for anyone (there is nothing to send); gated readers still see none.
+
+### Fixed — the contractor page for the largest contractors
+- Its CPV panel loads on its own (`GET /contractor/<vat>/top-cpv`), as the
+  authority's does: ~180ms for a contractor with 20k links.
+- The act list starts from the contractor's own links instead of letting the
+  planner walk the site-wide submission-date index and probe every act (65k
+  probes, 190-470ms, for the 20k-link contractor; ~210ms now, <1ms for small
+  ones). Acts sharing a date keep a stable order across pages.
+
 ### Fixed — authority/contractor pages: speed, and inflated CPV values
 - The CPV tables' value counted an act once per line item, not once per act:
   for the largest authority division 15 showed €1.99bn against €324M counted
