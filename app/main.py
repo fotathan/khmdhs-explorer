@@ -646,9 +646,15 @@ def _as_list(v) -> list[str]:
     return out
 
 
+# Hidden Tender Service duplicates (app/act_visibility.py). build_where always
+# starts with it, so search, exports and email alerts all skip them.
+# `where == VISIBLE_SQL` still means "unfiltered" (_search_totals).
+from app.act_visibility import VISIBLE_SQL  # noqa: E402
+
+
 def build_where(params: dict) -> tuple[str, list]:
     """Translate query parameters into a parameterised WHERE clause."""
-    where: list[str] = []
+    where: list[str] = [VISIBLE_SQL]
     args: list = []
 
     # Act type — multi-select. Empty/absent => all types. Validate each against
@@ -942,14 +948,18 @@ def _search_totals(c, where: str, args: list) -> dict:
             _totals_cache.move_to_end(key)
             return dict(hit[1])
 
-    if where == "TRUE":
+    if where in ("TRUE", VISIBLE_SQL):
         # Unfiltered: Postgres' instant row estimate instead of counting 2.9M
-        # rows exactly. Do not replace with count(*) — see CLAUDE.md.
+        # rows exactly. Do not replace with count(*) — see CLAUDE.md. The hidden
+        # Tender Service duplicates are a rounding error inside an estimate.
         c.execute("""SELECT reltuples::bigint AS n
                      FROM pg_class
                      WHERE oid = 'proc.procurement_act'::regclass""")
         n = c.fetchone()["n"]
-        c.execute("""SELECT coalesce(sum(total_cost_with_vat), 0) AS base_value
+        c.execute("""SELECT coalesce(sum(total_cost_with_vat), 0)
+                            - (SELECT coalesce(sum(h.total_cost_with_vat), 0)
+                                 FROM proc.procurement_act h
+                                WHERE h.duplicate_of IS NOT NULL) AS base_value
                      FROM proc.procurement_act""")
         base_value = c.fetchone()["base_value"]
     else:
@@ -3574,6 +3584,59 @@ def _act_crumbs(request, notice, lang: str) -> str:
          f"/act/{notice.get('adam')}")])
 
 
+def _duplicate_redirect(c, adam: str, notice, request: Request, is_admin: bool):
+    """A Tender Service act hidden as a duplicate opens the act we show instead —
+    including one that was never stored because an exact number matched at
+    first sight (its link may still sit in an old email). 302, not 301: the
+    decision can be undone. An admin may open the hidden act with ?hidden=1."""
+    target = None
+    if notice and notice.get("duplicate_of"):
+        if is_admin and request.query_params.get("hidden") == "1":
+            return None
+        target = notice["duplicate_of"]
+    elif not notice and adam.startswith("TSG:"):
+        import tsg_match as _tm
+        if not _tm.tsg_tables(c):
+            return None
+        c.execute("""SELECT t.held_adam FROM proc.tsg_record t
+                     JOIN proc.procurement_act p ON p.adam = t.held_adam
+                     WHERE t.internal_id = %s AND t.match_outcome = 'hidden'""",
+                  (adam[4:],))
+        row = c.fetchone()
+        target = row["held_adam"] if row else None
+    if not target:
+        return None
+    from urllib.parse import quote as _q
+    return _Redirect(url=f"/act/{_q(target, safe='')}?same_as={_q(adam, safe='')}",
+                     status_code=302)
+
+
+def _duplicate_banner(c, notice: dict, request: Request, is_admin: bool) -> dict | None:
+    """What the act page says about duplicates: 'you arrived from a copy'
+    (?same_as=, checked against the database so the URL cannot put words on the
+    page), or — for an admin viewing a hidden act — what it is hidden behind."""
+    if notice.get("duplicate_of"):
+        c.execute("SELECT adam, title FROM proc.procurement_act WHERE adam = %s",
+                  (notice["duplicate_of"],))
+        row = c.fetchone()
+        return {"kind": "hidden", "adam": notice["duplicate_of"],
+                "title": (row or {}).get("title")} if is_admin else None
+    same_as = request.query_params.get("same_as") or ""
+    if same_as:
+        c.execute("SELECT 1 FROM proc.procurement_act WHERE adam = %s AND duplicate_of = %s",
+                  (same_as, notice["adam"]))
+        found = c.fetchone() is not None
+        if not found and same_as.startswith("TSG:"):
+            import tsg_match as _tm
+            if _tm.tsg_tables(c):
+                c.execute("SELECT 1 FROM proc.tsg_record WHERE internal_id = %s AND held_adam = %s",
+                          (same_as[4:], notice["adam"]))
+                found = c.fetchone() is not None
+        if found:
+            return {"kind": "same_as", "adam": same_as}
+    return None
+
+
 @app.get("/act/{adam}", response_class=HTMLResponse)
 def act_detail(adam: str, request: Request):
     """Detail page for any act type (notice / auction / contract / payment / request).
@@ -3581,10 +3644,11 @@ def act_detail(adam: str, request: Request):
     The template branches on `n.type` to show type-specific fields (contract
     dates and bids for contracts, payment commitment for payments, etc.)."""
     lang = _i18n.lang_from_request(request)
+    is_admin = ((getattr(request.state, "user", None) or {}).get("role") == "admin")
     with cursor() as c:
         c.execute(f"""
             SELECT {SELECT_COLS},
-                   a.type AS act_type,
+                   a.type AS act_type, a.duplicate_of,
                    a.budget, a.total_cost_without_vat,
                    a.criteria_code, a.legal_context_code, a.notice_type_code,
                    a.conducting_proceedings_code, a.digital_platform_code,
@@ -3626,6 +3690,9 @@ def act_detail(adam: str, request: Request):
             WHERE a.adam = %s
         """, (adam,))
         notice = c.fetchone()
+        dup = _duplicate_redirect(c, adam, notice, request, is_admin)
+        if dup is not None:
+            return dup
         if not notice:
             # Not ingested yet, but it may be referenced from links we did
             # ingest (e.g. a notice's auctionRefNo[] pointing at an auction
@@ -3657,6 +3724,8 @@ def act_detail(adam: str, request: Request):
                  "referrers": referrers, "successors": successors},
             )
 
+        dup_banner = _duplicate_banner(c, notice, request, is_admin)
+
         if _is_gated(request):
             # Freemium teaser: anonymous callers see only the hero (title,
             # authority, amounts, publication date); every below-the-fold panel
@@ -3670,6 +3739,7 @@ def act_detail(adam: str, request: Request):
                  "attachments": [], "act_categories": [], "downstream": [],
                  "incoming": [], "annotation": None, "excluded_reason": None,
                  "has_extended_fields": False, "nav_active": "search",
+                 "dup_banner": dup_banner,
                  "crumbs": _act_crumbs(request, notice, lang)})
 
         # Line items + their CPVs (some types use objectDetails, others
@@ -3912,6 +3982,7 @@ def act_detail(adam: str, request: Request):
          "has_extended_fields": any(
              notice.get(f) is not None for f in EXTENDED_ACT_FIELDS),
          "crumbs": _act_crumbs(request, notice, lang),
+         "dup_banner": dup_banner,
          "nav_active": "search"},
     )
 
@@ -4683,17 +4754,17 @@ def authority_detail(org_id: str, request: Request,
             FROM proc.procurement_act a
             LEFT JOIN proc.v_act_annotation_current ann
                    ON ann.adam = a.adam AND ann.corrected_value IS NOT NULL
-            WHERE a.authority_id = ANY(%s)
+            WHERE a.authority_id = ANY(%s) AND {VISIBLE_SQL}
             GROUP BY a.type
             ORDER BY a.type
-        """, (member_ids,))
+        """.format(VISIBLE_SQL=VISIBLE_SQL), (member_ids,))
         by_type = c.fetchall()
 
         # Top CPV divisions load on their own (authority_top_cpv): grouping every
         # line item of the authority's notices is ~0.9s for the largest one.
 
         # Paginated act list, optionally filtered to one type.
-        where = ["a.authority_id = ANY(%s)"]
+        where = ["a.authority_id = ANY(%s)", VISIBLE_SQL]
         args: list = [member_ids]
         if type:
             where.append("a.type = %s::proc.act_type")
@@ -4775,6 +4846,7 @@ def authority_top_cpv(org_id: str, request: Request):
               JOIN proc.act_object_detail od ON od.adam = a.adam
               JOIN proc.object_detail_cpv oc ON oc.object_detail_id = od.id
               WHERE a.authority_id = ANY(%s) AND a.type = 'notice'
+                AND {VISIBLE_SQL}
             ), agg AS (
               SELECT division, count(*) AS n_acts, coalesce(sum(value), 0) AS total_value
               FROM lines

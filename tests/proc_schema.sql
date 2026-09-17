@@ -6355,3 +6355,51 @@ CREATE MATERIALIZED VIEW proc.mv_cpv_contract_wins AS
   WITH NO DATA;
 
 CREATE UNIQUE INDEX ux_mv_cpv_contract_wins ON proc.mv_cpv_contract_wins USING btree (cpv_code, award_id);
+
+--
+-- Tender Service duplicates — migrations/20260917130323_tender_service_duplicates.sql.
+-- Appended by hand: the parts every test needs (build_where reads duplicate_of,
+-- digests write dup_*). The tsg_record columns stay in the migration, which
+-- the Tender Service tests apply on top (like the rest of that source).
+--
+
+ALTER TABLE proc.procurement_act ADD COLUMN duplicate_of text;
+ALTER TABLE proc.procurement_act
+    ADD CONSTRAINT procurement_act_duplicate_of_fkey
+    FOREIGN KEY (duplicate_of) REFERENCES proc.procurement_act(adam) ON DELETE SET NULL NOT VALID;
+CREATE INDEX ix_act_duplicate_of ON proc.procurement_act (duplicate_of) WHERE duplicate_of IS NOT NULL;
+
+CREATE TABLE proc.tsg_match_run (
+    id           bigserial PRIMARY KEY,
+    trigger      text NOT NULL,
+    started_at   timestamptz NOT NULL DEFAULT now(),
+    finished_at  timestamptz,
+    job_id       bigint REFERENCES proc.ingest_job(id) ON DELETE SET NULL,
+    counts       jsonb NOT NULL DEFAULT '{}',
+    warnings     jsonb NOT NULL DEFAULT '[]'
+);
+
+CREATE TABLE proc.duplicate_candidate (
+    id             bigserial PRIMARY KEY,
+    adam           text NOT NULL REFERENCES proc.procurement_act(adam) ON DELETE CASCADE,
+    candidate_adam text NOT NULL REFERENCES proc.procurement_act(adam) ON DELETE CASCADE,
+    tier           smallint NOT NULL CHECK (tier BETWEEN 1 AND 3),
+    rank           smallint NOT NULL DEFAULT 1,
+    signals        jsonb NOT NULL DEFAULT '{}',
+    status         text NOT NULL DEFAULT 'pending'
+                   CHECK (status IN ('pending', 'confirmed', 'rejected', 'superseded')),
+    first_found_at timestamptz NOT NULL DEFAULT now(),
+    last_seen_at   timestamptz NOT NULL DEFAULT now(),
+    decided_by     bigint REFERENCES proc.app_user(id) ON DELETE SET NULL,
+    decided_at     timestamptz,
+    found_by_run   bigint REFERENCES proc.tsg_match_run(id) ON DELETE SET NULL,
+    CONSTRAINT duplicate_candidate_pair UNIQUE (adam, candidate_adam),
+    CONSTRAINT duplicate_candidate_not_self CHECK (adam <> candidate_adam)
+);
+CREATE INDEX ix_duplicate_candidate_pending ON proc.duplicate_candidate (adam, rank) WHERE status = 'pending';
+CREATE INDEX ix_duplicate_candidate_candidate ON proc.duplicate_candidate (candidate_adam);
+CREATE INDEX ix_duplicate_candidate_queue ON proc.duplicate_candidate (status, tier);
+
+ALTER TABLE proc.digest_run_item
+    ADD COLUMN dup_candidate_adam text,
+    ADD COLUMN dup_tier smallint;

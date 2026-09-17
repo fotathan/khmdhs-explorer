@@ -667,13 +667,17 @@ def record_run_items(c, run_id, matched, shown=0):
     is what lets the results page honour "see ALL results" when max_results
     truncated the message — and what makes the set replayable later, after the
     profile has been edited or the act re-ingested."""
-    rows = [(run_id, r["adam"], i, i < shown, r.get("ingested_at"))
+    rows = [(run_id, r["adam"], i, i < shown, r.get("ingested_at"),
+             (r.get("dup") or {}).get("candidate_adam"), (r.get("dup") or {}).get("tier"))
             for i, r in enumerate(matched or [])]
     if not rows:
         return 0
+    # dup_*: the "possible duplicate" label exactly as it was sent, so the
+    # results page keeps showing it after an admin has decided the pair.
     c.executemany("""INSERT INTO proc.digest_run_item
-                       (run_id, adam, ord, in_email, ingested_at)
-                     VALUES (%s,%s,%s,%s,%s)
+                       (run_id, adam, ord, in_email, ingested_at,
+                        dup_candidate_adam, dup_tier)
+                     VALUES (%s,%s,%s,%s,%s,%s,%s)
                      ON CONFLICT (run_id, adam) DO NOTHING""", rows)
     return len(rows)
 
@@ -727,10 +731,13 @@ def run_item_acts(c, run_id, limit=None, offset=0):
     the honest answer — the page shows what still exists of what was sent.
     `limit` pages the results view: one run may hold up to ITEM_CAP acts, and
     rendering two thousand cards in one response is a several-megabyte page."""
-    sql = f"""SELECT {_main().SELECT_COLS}, ri.in_email, ri.ord
+    sql = f"""SELECT {_main().SELECT_COLS}, ri.in_email, ri.ord,
+                     ri.dup_candidate_adam, ri.dup_tier,
+                     dup.title AS dup_title, dup.data_source AS dup_source
               FROM proc.digest_run_item ri
               JOIN proc.procurement_act a ON a.adam = ri.adam
               LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
+              LEFT JOIN proc.procurement_act dup ON dup.adam = ri.dup_candidate_adam
               WHERE ri.run_id = %s
               ORDER BY ri.ord, ri.id"""
     args = [run_id]
@@ -838,7 +845,10 @@ def window_stats(c, params, since, until):
                          count(*) FILTER (
                              WHERE a.final_submission_date > %s) AS open_deadlines,
                          min(a.final_submission_date) FILTER (
-                             WHERE a.final_submission_date > %s) AS next_deadline
+                             WHERE a.final_submission_date > %s) AS next_deadline,
+                         count(*) FILTER (WHERE a.data_source = 'tsg' AND EXISTS (
+                             SELECT 1 FROM proc.duplicate_candidate dc
+                              WHERE dc.adam = a.adam AND dc.status = 'pending')) AS possible_duplicates
                   FROM proc.procurement_act a
                   WHERE {where}{window}""",
               [until, until] + list(args) + [since, until])
@@ -1109,6 +1119,74 @@ def _strip_markers(html):
     return _MARKER.sub("", html or "").strip()
 
 
+SOURCE_LABELS = {"khmdhs": "ΚΗΜΔΗΣ", "diavgeia": "Διαύγεια", "ted": "TED",
+                 "tsg": "Tender Service", "manual": "ΚΗΜΔΗΣ"}
+
+
+def annotate_duplicates(c, matched, *, shown=None, subscription_id=None):
+    """Label each Tender Service act that is a POSSIBLE duplicate (tsg_match.py):
+    it is sent — a fuzzy match never hides anything — but the reader is told
+    which act it may repeat. Sets row['dup'] in place; returns how many.
+
+    'same message' when the other act is listed in this email too; 'sent on'
+    when this subscription already mailed it."""
+    rows = [r for r in (matched or []) if str(r.get("adam", "")).startswith("TSG:")]
+    if not rows:
+        return 0
+    import tsg_match
+    labels = tsg_match.labels_for(c, [r["adam"] for r in rows])
+    if not labels:
+        return 0
+    listed = {r["adam"] for r in (shown if shown is not None else matched)}
+    cands = sorted({v["candidate_adam"] for v in labels.values()})
+    sent = {}
+    if subscription_id:
+        c.execute("""SELECT ri.adam, max(coalesce(r.finished_at, r.started_at)) AS at
+                       FROM proc.digest_run_item ri
+                       JOIN proc.digest_run r ON r.id = ri.run_id
+                      WHERE r.subscription_id = %s AND r.status = 'sent'
+                        AND ri.in_email AND ri.adam = ANY(%s)
+                      GROUP BY ri.adam""", (subscription_id, cands))
+        sent = {row["adam"]: row["at"] for row in c.fetchall()}
+    for r in rows:
+        lab = labels.get(r["adam"])
+        if not lab:
+            continue
+        cand = lab["candidate_adam"]
+        r["dup"] = {"candidate_adam": cand, "tier": lab["tier"], "title": lab["title"],
+                    "source": lab["data_source"], "published": lab["submission_date"],
+                    "more": lab["more"], "same_message": cand in listed,
+                    "sent_on": sent.get(cand)}
+    return sum(1 for r in rows if r.get("dup"))
+
+
+def _dup_view(dup, t):
+    """Display strings for a possible-duplicate label, shared by the HTML and
+    plain-text bodies so the two cannot word it differently."""
+    if not dup:
+        return None
+    if dup.get("same_message"):
+        when = t("στο ίδιο μήνυμα")
+    elif dup.get("sent_on"):
+        when = f"{t('στάλθηκε')} {_fmt_date(dup['sent_on'])}"
+    else:
+        when = _fmt_date(dup.get("published"))
+    source = SOURCE_LABELS.get(dup.get("source") or "", dup.get("source") or "")
+    return {"head": t("Πιθανή διπλοεγγραφή"), "lead": t("ίσως ίδιο με"),
+            "title": dup.get("title") or dup["candidate_adam"],
+            "url": f"{base_url()}/act/{dup['candidate_adam']}",
+            "meta": ", ".join(x for x in (t(source), when) if x and x != "—"),
+            "more": int(dup.get("more") or 0)}
+
+
+def _plain_dup(it) -> str:
+    d = it.get("dup")
+    if not d:
+        return ""
+    more = f" +{d['more']}" if d["more"] else ""
+    return f"\n{d['head']} — {d['lead']} «{d['title']}» ({d['meta']}){more}: {d['url']}"
+
+
 def render_digest(*, subscription, profile, params, rows, total, since, until,
                   intro, subject, token=None, stats=None):
     """One recipient's email: HTML plus the plain-text alternative.
@@ -1135,6 +1213,7 @@ def render_digest(*, subscription, profile, params, rows, total, since, until,
             "published": _fmt_date(r.get("submission_date")),
             "deadline": _fmt_date(r.get("final_submission_date")),
             "cancelled": bool(r.get("cancelled")),
+            "dup": _dup_view(r.get("dup"), t),
         })
     # "See all results" opens THIS email's own result set (/digests/<token>),
     # not a live re-run of the filters: by the time it is clicked, replaying the
@@ -1208,6 +1287,7 @@ def _summary_view(stats, type_labels, lang, t):
         "value": _fmt_money(stats.get("value"), lang),
         "authorities": int(stats.get("authorities") or 0),
         "cancelled": int(stats.get("cancelled") or 0),
+        "possible_duplicates": int(stats.get("possible_duplicates") or 0),
         "open_deadlines": int(stats.get("open_deadlines") or 0),
         "next_deadline": _fmt_date(stats.get("next_deadline")),
         "by_type": rows, "top_authorities": top,
@@ -1265,7 +1345,8 @@ def _plain_deadline(*, t, intro, items, total, until, profile_name,
             f"{t('Προθεσμία')}: {it['deadline']}"
             + (f" ({it['left_label']})" if it['left_label'] else "")
             + f"\n{it['type_label']}\n{it['title']}\n{it['authority']}\n"
-            f"{t('Προϋπολογισμός')}: {it['value']}\n{it['adam']}\n{it['url']}")
+            f"{t('Προϋπολογισμός')}: {it['value']}" + _plain_dup(it)
+            + f"\n{it['adam']}\n{it['url']}")
     if items:
         lines.append(f"{t('Δείτε όλα τα αποτελέσματα')}: {results_url}")
     why = t("Λαμβάνετε αυτό το μήνυμα επειδή έχει οριστεί ειδοποίηση προθεσμιών "
@@ -1288,6 +1369,8 @@ def _plain_summary(*, t, intro, stats, total, since, until, profile_name,
                          f"({t('επόμενη')} {stats['next_deadline']})")
         if stats["cancelled"]:
             block.append(f"{t('Ακυρωμένες')}: {stats['cancelled']}")
+        if stats.get("possible_duplicates"):
+            block.append(f"{t('Πιθανές διπλοεγγραφές')}: {stats['possible_duplicates']}")
         lines.append("\n".join(block))
         lines.append("\n".join(
             f"{row['label']}: {row['n']} · {row['value']}"
@@ -1331,6 +1414,7 @@ def _plain_digest(*, t, intro, items, total, since, until, profile_name,
             f"{t('Προϋπολογισμός')}: {it['value']} · {t('Δημοσίευση')}: {it['published']}"
             + (f" · {t('Προθεσμία')}: {it['deadline']}"
                if it['deadline'] and it['deadline'] != "—" else "")
+            + _plain_dup(it)
             + f"\n{it['adam']}\n{it['url']}")
     if items:
         lines.append(f"{t('Δείτε όλα τα αποτελέσματα')}: {search_url}")
@@ -1397,6 +1481,8 @@ def build(c, subscription, *, now=None, since=None, token=None, to=None):
         # is the body actually being sent.
         if layout == "summary":
             stats = window_stats(c, params, start, now)
+
+    annotate_duplicates(c, matched, shown=rows, subscription_id=subscription.get("id"))
 
     people = recipients_for(c, subscription, customer, to=to)
     messages = []

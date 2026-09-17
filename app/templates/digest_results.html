@@ -54,6 +54,13 @@
   {% if rows %}
     {% for r in rows %}
       {% include "_result_card.html" %}
+      {# The possible-duplicate label as it was SENT (digest_run_item.dup_*). #}
+      {% if r.dup_candidate_adam %}
+      <div class="dup-note">
+        <strong>{{ t("Πιθανή διπλοεγγραφή") }}</strong> — {{ t("ίσως ίδιο με") }}
+        <a href="/act/{{ r.dup_candidate_adam }}">«{{ r.dup_title or r.dup_candidate_adam }}»</a>
+      </div>
+      {% endif %}
     {% endfor %}
   {% else %}
     <div class="dgr-empty">{{ t("Καμία πράξη προς εμφάνιση.") }}</div>
@@ -92,6 +99,7 @@
     padding:7px 11px;display:inline-block;}
   .dgr-admin code{font-family:var(--mono);color:var(--ink-2);}
   .dgr-empty{font-size:14px;color:var(--ink-3);font-style:italic;padding:28px 0;}
+  .dup-note{margin:-6px 0 14px;padding:6px 10px;border-left:3px solid var(--warn);background:var(--paper-2);font-size:12px;color:var(--ink-2);}
   .dgr-foot{margin-top:26px;font-size:13px;color:var(--ink-3);}
 </style>
 {% endblock %}

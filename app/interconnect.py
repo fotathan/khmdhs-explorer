@@ -713,6 +713,74 @@ def make_interconnect_router(templates: Jinja2Templates, cursor) -> APIRouter:
             "gid": gid, "members": members, "lots": lots, "scopes": scopes,
             "ok": ok, "err": err, "admin_tab": "interconnect"})
 
+    # ------- Tender Service duplicates (tsg_match.py) ---------------------- #
+    def _uid(request):
+        u = getattr(request.state, "user", None)
+        return u.get("id") if u else None
+
+    @router.get("/tsg", response_class=HTMLResponse)
+    def tsg_queue(request: Request, status: str = "pending", source: str = "",
+                  tier: int = 0, alerted: int = 0, page: int = 1, ok: str = None):
+        import tsg_match
+        if status not in ("pending", "confirmed", "rejected", "superseded"):
+            status = "pending"
+        page = max(1, page)
+        per_page = 50
+        with cursor() as c:
+            rows, total = tsg_match.queue(c, status=status, source=source or None,
+                                          tier=tier or None, alerted=bool(alerted),
+                                          limit=per_page, offset=(page - 1) * per_page)
+            sources = tsg_match.queue_sources(c)
+            runs = tsg_match.recent_runs(c, limit=10)
+            c.execute("""SELECT status, count(*) AS n FROM proc.duplicate_candidate
+                         GROUP BY status""")
+            by_status = {r["status"]: r["n"] for r in c.fetchall()}
+        for r in rows:
+            sig = r.get("signals") or {}
+            r["sig"] = sig if isinstance(sig, dict) else {}
+        return templates.TemplateResponse(request, "admin_interconnect_tsg.html", {
+            "rows": rows, "total": total, "page": page, "per_page": per_page,
+            "status": status, "source": source, "tier": tier, "alerted": alerted,
+            "sources": sources, "runs": runs, "by_status": by_status, "ok": ok,
+            "admin_tab": "interconnect"})
+
+    def _back(form, default="/admin/interconnect/tsg"):
+        back = (form.get("back") or default).strip()
+        return back if back.startswith("/") and not back.startswith("//") else default
+
+    @router.post("/tsg/confirm")
+    async def tsg_confirm(request: Request):
+        import tsg_match
+        form = await request.form()
+        with cursor() as c, c.connection.transaction():
+            try:
+                tsg_match.confirm(c, int(form.get("id") or 0), _uid(request))
+            except (LookupError, ValueError):
+                raise HTTPException(404, "candidate not found")
+        back = _back(form)
+        return RedirectResponse(f"{back}{'&' if '?' in back else '?'}ok=confirmed", status_code=303)
+
+    @router.post("/tsg/reject")
+    async def tsg_reject(request: Request):
+        import tsg_match
+        form = await request.form()
+        with cursor() as c, c.connection.transaction():
+            try:
+                tsg_match.reject(c, int(form.get("id") or 0), _uid(request))
+            except (LookupError, ValueError):
+                raise HTTPException(404, "candidate not found")
+        back = _back(form)
+        return RedirectResponse(f"{back}{'&' if '?' in back else '?'}ok=rejected", status_code=303)
+
+    @router.post("/tsg/unhide")
+    async def tsg_unhide(request: Request):
+        import tsg_match
+        form = await request.form()
+        adam = (form.get("adam") or "").strip()
+        with cursor() as c, c.connection.transaction():
+            tsg_match.unhide(c, adam, _uid(request))
+        return RedirectResponse(f"/act/{adam}?hidden=1", status_code=303)
+
     @router.post("/relate")
     async def do_relate(request: Request):
         form = await request.form()

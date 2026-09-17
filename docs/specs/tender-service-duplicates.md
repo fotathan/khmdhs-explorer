@@ -1,12 +1,12 @@
 # Spec: Tender Service — duplicate handling at import
 
-**Status:** Draft, 2026-09-17. Nothing built yet.
+**Status:** Built locally, 2026-09-17; not deployed. §13 records where the build differs from this draft.
 **Repo path:** `docs/specs/tender-service-duplicates.md`
 **Depends on:** the Tender Service ingester (`tsg_ingest.py`), still local-only (`TSG_INGEST_REMOTE`).
 **Decisions taken:**
 - Fuzzy matches are **never** hidden automatically. Only an exact number hides a record.
 - Possible duplicates are **labelled in alerts**, not held back.
-- A duplicate an admin confirms is hidden like an exact match. Confirm this before building (§11).
+- A duplicate an admin confirms is hidden like an exact match (confirmed 2026-09-17).
 
 ---
 
@@ -482,3 +482,70 @@ Admin-only. Every confirm, reject and unhide is written to `proc.admin_action`.
 3. Hand-label ~100 flags. Adjust the settings.
 4. Tender Service goes to production only after this ships. That is a product
    decision (`TSG_INGEST_REMOTE`), and it is when alerts start carrying labels.
+
+---
+
+## 13. As built (2026-09-17)
+
+Where the build differs from the draft above, and what the loaded week showed.
+
+### 13.1 Differences
+
+- **Several notices inside the deadline window hide, not flag.** Guard 1
+  ("exactly one notice") is gone. ΚΗΜΔΗΣ often publishes one procedure twice
+  (a ΠΕΡΙΛΗΨΗ and the full ΔΙΑΚΗΡΥΞΗ, same ΕΣΗΔΗΣ number, same deadline): 55
+  promitheus records a week hit it. Notices outside ±3 days are dropped first,
+  and the record hides behind the closest remaining one (then the latest
+  published). A re-tender still only flags, because its deadline is elsewhere.
+  The info note `several_notices` is counted, not warned.
+- **Twins and fuzzy Tender Service candidates come only from a DIFFERENT
+  portal.** A hospital's own records share generic titles ("Παραγγελία
+  τμήματος 26/0006050 …"): with same-portal pairs allowed, attikonhospital
+  got 69 false flags.
+- **An exact match seen for the first time is never projected.** There is no
+  act row to hide. `/act/TSG:<id>` still redirects (via `tsg_record.held_adam`).
+- **The hide filter is an anti-join** (`app/act_visibility.VISIBLE_SQL`), not
+  `a.duplicate_of IS NULL`. On a sequential scan the latter unpacks every row to
+  its last column: 200 → 600 ms on a filtered count. The anti-join added
+  ≤ 10%, measured with 5,000 hidden rows. The unfiltered counter still uses
+  the reltuples estimate.
+- **Title similarity is computed in Python** (pg_trgm's trigram set over
+  folded text), so it does not depend on which schema holds the extension.
+- **Review-queue filter.** "Matches a customer's saved search" became
+  **"already sent to customers"** (an email item or a push event): cheap, and
+  it is what a customer has actually seen.
+- **Not built:**
+  - the `ingest_act_log` columns (§5.5), because no admin page launches
+    Tender Service runs;
+  - the label on the web result card and act page (§11.3, alerts only);
+  - results matching (§11.5).
+- **Two migrations, not one.** `…130323_tender_service_duplicates.sql` is
+  the core part the web app reads, independent of the Tender Service tables,
+  which production does not have. `…130324_…_tsg_record.sql` holds the
+  `tsg_record` columns. Neither uses `DO $$` blocks: the Supabase dashboard
+  editor split one and the script failed to parse (2026-09-17). The app reads
+  `tsg_record` only through `tsg_match.tsg_tables()`.
+- `db.py tsg-match [--dry-run]` re-checks without projecting.
+  `ingest.sh … tsg-match` is allowed.
+
+### 13.2 The loaded week, final rules
+
+Notices from sources other than ΚΗΜΔΗΣ, TED and Cyprus: 3,700.
+
+| Outcome | Records |
+|---|---|
+| Hidden | 946: ext_id 601 (Διαύγεια ΑΔΑ we hold), esidis 136, quoted_req 121, tsg_twin 46, quoted_adam 42 |
+| Flagged | 758: tier 1 266, tier 2 357, tier 3 135 |
+| New | 2,071 |
+
+- **promitheus:** 154 of 165 hidden. attikonhospital, gpapanikolaou, DEI and
+  the school directorates: 0 flags.
+- **isupplies:** 526 flags, 346 of them against another Tender Service copy
+  (the Διαύγεια Δ.1 twin). Those pairs have near-identical titles but no budget
+  on the Διαύγεια side, so they land in tier 2. Under the decision above they
+  stay visible and labelled. Tender Service's own grouping (§2.4) would clear
+  most of them.
+- **Stability:** a second pass straight after (`tsg-match --dry-run`) changed
+  nothing.
+- **Runtime:** a full `tsg-project --reproject` of 21,000 records takes 7–12
+  minutes locally, mostly the existing act upsert.

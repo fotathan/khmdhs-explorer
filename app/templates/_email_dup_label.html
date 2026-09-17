@@ -1,0 +1,14 @@
+{# "Possible duplicate" line under an act in an alert email (tsg_match.py).
+   `d` is digests._dup_view(): a fuzzy match is sent, never hidden, and the
+   reader is told which act it may repeat. Inline styles only — email. #}
+{% macro dup_label(d, accent, muted) -%}
+{% if d %}
+<div style="margin-top:6px;padding:5px 8px;border-left:3px solid #c98a1a;background:#fbf5e9;
+            font:400 12px/1.5 Helvetica,Arial,sans-serif;color:#5b4a2a;">
+  <strong style="font-weight:600;">{{ d.head }}</strong> — {{ d.lead }}
+  <a href="{{ d.url }}" style="color:{{ accent }};text-decoration:none;">«{{ d.title }}»</a>
+  {%- if d.meta %} <span style="color:{{ muted }};">({{ d.meta }})</span>{% endif %}
+  {%- if d.more %} <span style="color:{{ muted }};">+{{ d.more }}</span>{% endif %}
+</div>
+{% endif %}
+{%- endmacro %}

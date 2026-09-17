@@ -40,6 +40,8 @@ from __future__ import annotations
 import json
 import os
 import time
+
+from app.act_visibility import VISIBLE_SQL
 from urllib.parse import urlencode, quote
 
 # --------------------------------------------------------------------------- #
@@ -319,8 +321,8 @@ def counts(c) -> dict:
     now = time.monotonic()
     if _counts_cache["data"] is not None and now - _counts_cache["at"] < _COUNT_TTL:
         return _counts_cache["data"]
-    c.execute("""SELECT count(*) AS n FROM proc.procurement_act
-                 WHERE signed_date >= current_date - %s::int""",
+    c.execute(f"""SELECT count(*) AS n FROM proc.procurement_act a
+                  WHERE a.signed_date >= current_date - %s::int AND {VISIBLE_SQL}""",
               (act_window_days(),))
     n_acts = min(int(c.fetchone()["n"]), act_cap())
     c.execute("SELECT count(*) AS n FROM proc.authority")
@@ -353,10 +355,10 @@ def act_rows(c, page: int) -> list:
     if offset >= cap:
         return []
     limit = min(CHUNK, cap - offset)
-    c.execute("""SELECT adam, signed_date, ingested_at, last_update_date
-                 FROM proc.procurement_act
-                 WHERE signed_date >= current_date - %s::int
-                 ORDER BY signed_date DESC, adam
+    c.execute(f"""SELECT a.adam, a.signed_date, a.ingested_at, a.last_update_date
+                 FROM proc.procurement_act a
+                 WHERE a.signed_date >= current_date - %s::int AND {VISIBLE_SQL}
+                 ORDER BY a.signed_date DESC, a.adam
                  LIMIT %s OFFSET %s""",
               (act_window_days(), limit, offset))
     return c.fetchall()

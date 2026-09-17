@@ -87,6 +87,15 @@
                 · {{ t("επόμενη") }} {{ stats.next_deadline }}</span></td>
           </tr>
           {% endif %}
+          {% if stats.possible_duplicates %}
+          <tr>
+            <td style="padding:7px 0;border-bottom:1px solid {{ rule }};color:{{ muted }};">
+              {{ t("Πιθανές διπλοεγγραφές") }}
+              <span style="font-size:11px;">· {{ t("ίδιος διαγωνισμός από δεύτερη πηγή· μετρώνται και στα παραπάνω") }}</span></td>
+            <td align="right" style="padding:7px 0;border-bottom:1px solid {{ rule }};color:#8a6212;font-weight:600;">
+              {{ stats.possible_duplicates }}</td>
+          </tr>
+          {% endif %}
           {% if stats.cancelled %}
           <tr>
             <td style="padding:7px 0;border-bottom:1px solid {{ rule }};color:{{ muted }};">

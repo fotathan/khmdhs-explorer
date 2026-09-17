@@ -69,6 +69,7 @@
       {% if items %}
       <tr><td style="padding:0 28px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          {% from "_email_dup_label.html" import dup_label %}
           {% for it in items %}
           {%- set mark = urgent if it.urgent else (soon if it.soon else accent) -%}
           <tr><td style="padding:14px 0;border-top:1px solid {{ rule }};">
@@ -100,6 +101,7 @@
                 {{ t("Δημοσίευση") }}: {{ it.published }}<br>
                 <span style="color:#9a9a9a;">{{ it.adam }}</span>
               </div>
+              {{ dup_label(it.dup, accent, muted) }}
             </div>
           </td></tr>
           {% endfor %}

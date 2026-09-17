@@ -3107,6 +3107,65 @@ _COMPANY_MATCH = {
 }
 
 
+# Tender Service duplicates — alert labels, act page, admin review (tsg_match.py)
+_TSG_DUP = {
+    "Πιθανή διπλοεγγραφή": "Possible duplicate",
+    "Πιθανές διπλοεγγραφές": "Possible duplicates",
+    "ίσως ίδιο με": "may be the same as",
+    "στο ίδιο μήνυμα": "in this message",
+    "στάλθηκε": "sent",
+    "ίδιος διαγωνισμός από δεύτερη πηγή· μετρώνται και στα παραπάνω":
+        "the same tender from a second source; also counted above",
+    "Ο σύνδεσμος που ακολουθήσατε οδηγούσε σε αντίγραφο του ίδιου διαγωνισμού από άλλη πηγή· εμφανίζεται η πράξη που κρατάμε.":
+        "The link you followed pointed to a copy of this tender from another source; this is the act we keep.",
+    "Κρυφή ως διπλοεγγραφή της": "Hidden as a duplicate of",
+    "Επαναφορά": "Unhide",
+    "Διπλοεγγραφές Tender Service": "Tender Service duplicates",
+    "Διπλοεγγραφές Tender Service ›": "Tender Service duplicates ›",
+    "Πιθανές διπλοεγγραφές: εμφανίζονται στους πελάτες με σήμανση στις ειδοποιήσεις. Η επιβεβαίωση κρύβει την πράξη του Tender Service· η απόρριψη δεν την ξανασημαίνει για το ίδιο ζεύγος.":
+        "Possible duplicates: shown to customers and labelled in alerts. Confirming hides the Tender Service act; rejecting never flags the same pair again.",
+    "✓ Επιβεβαιώθηκε — η πράξη κρύφτηκε.": "✓ Confirmed — the act is hidden.",
+    "✓ Απορρίφθηκε — το ζεύγος δεν θα ξανασημανθεί.": "✓ Rejected — the pair will not be flagged again.",
+    "Επιβεβαιωμένες": "Confirmed",
+    "Απορριφθείσες": "Rejected",
+    "Παρωχημένες": "Superseded",
+    "Όλες οι πηγές": "All sources",
+    "Όλα τα επίπεδα": "All tiers",
+    "Επίπεδο": "Tier",
+    "Μόνο όσες έχουν σταλεί σε πελάτες": "Only those already sent to customers",
+    "Επίπεδο 1: τίτλος και προϋπολογισμός ή αριθμός αναφοράς (ή ακριβής αριθμός που απέτυχε σε έλεγχο) · Επίπεδο 2: μόνο τίτλος · Επίπεδο 3: μόνο προϋπολογισμός ή αριθμός αναφοράς.":
+        "Tier 1: title plus budget or reference number (or an exact number that failed a check) · Tier 2: title only · Tier 3: budget or reference number only.",
+    "ζεύγη": "pairs",
+    "ακριβής αριθμός — μακρινή προθεσμία": "exact number — distant deadline",
+    "τίτλος": "title",
+    "με ΦΠΑ": "incl. VAT",
+    "αριθμός αναφοράς": "reference number",
+    "υποψήφιες": "candidates",
+    "Χωρίς ΦΠΑ": "Excl. VAT",
+    "Με ΦΠΑ": "Incl. VAT",
+    "Ίδιος διαγωνισμός — απόκρυψη": "Same tender — hide",
+    "Διαφορετικός": "Different",
+    "Κανένα ζεύγος.": "No pairs.",
+    "Τελευταίοι έλεγχοι": "Recent checks",
+    "Προειδοποιήσεις": "Warnings",
+    "κρυφές": "hidden",
+    "σημασμένες": "flagged",
+    "Κανένας έλεγχος ακόμη.": "No checks yet.",
+    "Όταν μια πράξη ίσως είναι ο ίδιος διαγωνισμός με άλλη πράξη από δεύτερη πηγή, η ειδοποίηση τη στέλνει κανονικά, με την ένδειξη «Πιθανή διπλοεγγραφή» και σύνδεσμο προς την άλλη πράξη — στο email, στη σελίδα «τι στάλθηκε» και στις ειδοποιήσεις της εφαρμογής κινητού. Μόνο όταν ο ίδιος αριθμός (ΑΔΑΜ, ΑΔΑ ή αριθμός ΕΣΗΔΗΣ) αποδεικνύει ότι είναι ο ίδιος διαγωνισμός, ή όταν το επιβεβαιώσει διαχειριστής, το αντίγραφο κρύβεται· ένας παλιός σύνδεσμός του οδηγεί στην πράξη που κρατάμε.":
+        "When an act may be the same tender as another act from a second source, the alert still sends it, labelled «Possible duplicate» with a link to the other act — in the email, on the «what was sent» page and in the mobile app's notifications. Only when the same number (ΑΔΑΜ, ΑΔΑ or ΕΣΗΔΗΣ system number) proves it is the same tender, or an admin confirms it, is the copy hidden; an old link to it opens the act we keep.",
+    "Η σελίδα /admin/interconnect/tsg είναι η ουρά ελέγχου για πράξεις του Tender Service που ίσως επαναλαμβάνουν άλλη πράξη. Κάθε ζεύγος δείχνει και τις δύο πράξεις, τις προθεσμίες, τους προϋπολογισμούς (με το ΦΠΑ που ταίριαξε) και τι βρέθηκε κοινό.":
+        "The page /admin/interconnect/tsg is the review queue for Tender Service acts that may repeat another act. Each pair shows both acts, their deadlines, their budgets (with the VAT rate that matched) and what they have in common.",
+    "Επίπεδο 1: τίτλος μαζί με προϋπολογισμό ή αριθμό αναφοράς. Επίπεδο 2: μόνο τίτλος. Επίπεδο 3: μόνο προϋπολογισμός ή αριθμός αναφοράς. Ίδια αρχή και ίδια προθεσμία μόνα τους δεν αρκούν — τα νοσοκομεία δημοσιεύουν δεκάδες διαγωνισμούς την ημέρα με τον ίδιο γενικό τίτλο.":
+        "Tier 1: title together with budget or reference number. Tier 2: title only. Tier 3: budget or reference number only. The same authority and deadline alone are not enough — hospitals publish dozens of tenders a day under the same generic title.",
+    "«Ίδιος διαγωνισμός — απόκρυψη» κρύβει την πράξη του Tender Service (δεν τη διαγράφει)· «Διαφορετικός» σημαίνει ότι το ζεύγος δεν θα ξανασημανθεί. Καμία επανεισαγωγή δεν αναιρεί αυτές τις αποφάσεις.":
+        "«Same tender — hide» hides the Tender Service act (it is not deleted); «Different» means the pair is never flagged again. No re-import undoes either decision.",
+    "Μια κρυφή πράξη ανοίγει ως διαχειριστής με ?hidden=1 και έχει κουμπί «Επαναφορά». Το φίλτρο «Μόνο όσες έχουν σταλεί σε πελάτες» βάζει πρώτα όσες έχει ήδη δει κάποιος.":
+        "A hidden act opens for an admin with ?hidden=1 and has an «Unhide» button. The filter «Only those already sent to customers» puts first the ones someone has already seen.",
+    "Κάθε εισαγωγή γράφει στο τέλος πόσες πράξεις κρύφτηκαν (και με ποιον κανόνα), πόσες σημάνθηκαν ανά επίπεδο, και προειδοποιήσεις — π.χ. όταν ένας κανόνας που συνήθως ταιριάζει σταματήσει ξαφνικά, ή όταν η ουρά μεγαλώνει.":
+        "Every import ends by writing how many acts were hidden (and by which rule), how many were flagged per tier, and warnings — for instance when a rule that usually matches suddenly stops, or when the queue keeps growing.",
+}
+
+
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
@@ -3116,5 +3175,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMCARD, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
              _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY, _DIGESTS,
              _SELF_SERVE, _PUBLIC, _HELP_PUBLIC, _AI_POLICY, _FIT,
-             _COMPANY_MATCH, _MATCH):
+             _COMPANY_MATCH, _MATCH, _TSG_DUP):
     UI_EN.update(_grp)

@@ -37,6 +37,24 @@
   {% from "_back_to_results.html" import remember_results %}
   {{ remember_results('/act/', true) }}
 
+  {# Tender Service duplicates (tsg_match.py): the reader followed a link to a
+     copy we hide and landed here, or an admin opened the hidden copy. #}
+  {% if dup_banner and dup_banner.kind == 'same_as' %}
+  <div class="dup-banner" role="note">
+    {{ t("Ο σύνδεσμος που ακολουθήσατε οδηγούσε σε αντίγραφο του ίδιου διαγωνισμού από άλλη πηγή· εμφανίζεται η πράξη που κρατάμε.") }}
+  </div>
+  {% elif dup_banner and dup_banner.kind == 'hidden' %}
+  <div class="dup-banner dup-admin" role="note">
+    {{ t("Κρυφή ως διπλοεγγραφή της") }}
+    <a href="/act/{{ dup_banner.adam }}">{{ dup_banner.title or dup_banner.adam }}</a>
+    <span class="dup-adam">{{ dup_banner.adam }}</span>
+    <form method="post" action="/admin/interconnect/tsg/unhide">
+      <input type="hidden" name="adam" value="{{ n.adam }}">
+      <button type="submit">{{ t("Επαναφορά") }}</button>
+    </form>
+  </div>
+  {% endif %}
+
   {# ===== HERO =====
      What a GATED visitor sees is exactly what it always was: badges, title,
      authority, the amounts, publication date and deadline. Anything added to

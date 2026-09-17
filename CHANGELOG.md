@@ -8,6 +8,28 @@ Dates are the day the change landed on `main` (which auto-deploys to prod on
 Render). This project has no version tags — the git history is the source of
 truth; this is a curated digest.
 
+## 2026-09-17
+
+### Added — Tender Service duplicate handling (web side)
+- A Tender Service act that is the same tender as another act can be hidden:
+  it is kept, never deleted, so alert history, reminders and favourites
+  survive. Its old link redirects to the act we keep, with a short note.
+  Admins can open it with `?hidden=1` and restore it.
+- A possible duplicate is still sent, labelled «Πιθανή διπλοεγγραφή» in all
+  three email layouts and on the "what was sent" page. The label is stored
+  with the send.
+- New review page `/admin/interconnect/tsg` (confirm / reject / restore).
+  Decisions survive every re-import.
+- The matching rules live in `tsg_match.py`
+  (spec `docs/specs/tender-service-duplicates.md`). They start deciding
+  records when the Tender Service ingester ships; nothing is hidden before
+  then.
+- Migration `20260917130323_tender_service_duplicates.sql` (applied in
+  production before this push). It needs no Tender Service tables and has no
+  `DO $$` blocks, which the Supabase dashboard editor cannot run.
+- The search filter is an anti-join, measured at about 10% extra on filtered
+  counts; the unfiltered counter keeps its instant estimate.
+
 ## 2026-09-15
 
 ### Fixed — the search page: rows first, headline after

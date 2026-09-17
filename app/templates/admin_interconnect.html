@@ -8,6 +8,10 @@
   <div class="detail-sub">{{ t("Συσχέτιση πράξεων του ίδιου διαγωνισμού με βάση βαθμολογία εμπιστοσύνης από ρυθμιζόμενες συνθήκες.") }}</div>
 </div>
 
+<div class="detail-sub" style="margin:-6px 0 14px;">
+  <a href="/admin/interconnect/tsg">{{ t("Διπλοεγγραφές Tender Service ›") }}</a>
+</div>
+
 {% if ok == 'rules' %}<div class="ic-flash ic-ok">{{ t("✓ Αποθηκεύτηκε.") }}</div>{% endif %}
 {% if ok and ok.startswith('scan_') %}<div class="ic-flash ic-ok">{{ t("✓ Δημιουργήθηκαν ομάδες:") }} {{ ok[5:] }}</div>{% endif %}
 

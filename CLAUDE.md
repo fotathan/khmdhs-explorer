@@ -258,6 +258,42 @@ visitor getting the same teaser.
   indexed legal summary — when a threshold or percentage changes, fix it.
 - /help has a "Δημόσια σελίδα & γλωσσάρι" section; keep it in sync.
 
+## Tender Service duplicates
+tsg_match.py decides, per Tender Service record, hidden / flagged / new.
+Spec: docs/specs/tender-service-duplicates.md (measured on one week). The web
+side is live. The ingester integration (tsg_ingest.py, `db.py tsg-match`, the
+tsg_record columns in migration …130324) ships with the Tender Service ingester.
+- **Only an exact number hides.** The numbers are ext_id, esidis (promitheus
+  `eproc-N` = ΚΗΜΔΗΣ `systemicNumbers`), a quoted ΑΔΑΜ / request (via act_link) /
+  labelled ΑΔΑ, tsg_twin, and admin. The number must name a notice with a
+  deadline within ±3 days (a re-tender quotes the failed notice); several such
+  notices are one procedure published twice (ΠΕΡΙΛΗΨΗ + ΔΙΑΚΗΡΥΞΗ) and it hides
+  behind the closest. Otherwise the record is a tier 1 flag. Fuzzy matches
+  (same authority code + deadline ±1, then title / VAT-aware budget / ref no.)
+  NEVER hide: they are labelled in alerts and queued for review. Same authority +
+  deadline alone is not evidence — hospitals repeat generic titles. The user
+  decided this.
+- **Hide, never delete.** procurement_act.duplicate_of points at the act we
+  show. A delete cascades through digest_run_item, reminder ledgers,
+  favourites and notes. /act/<hidden> 302s to the target (admins: ?hidden=1).
+- The filter is `app/act_visibility.VISIBLE_SQL`, an ANTI-JOIN.
+  `a.duplicate_of IS NULL` measured ~3x slower on seq-scan counts (it unpacks
+  every row to the last column). build_where starts with it, and
+  `where == VISIBLE_SQL` still takes the reltuples fast path.
+- Twins inside Tender Service only count across DIFFERENT portals (a
+  hospital's own records share titles). The better-ranked source stays
+  (SOURCE_RANK).
+- Admin confirm/reject lives in proc.duplicate_candidate and survives every
+  re-import. Confirm copies the spent reminder marks to the kept act. Review
+  queue: /admin/interconnect/tsg.
+- Alert labels: digests.annotate_duplicates, frozen in digest_run_item.dup_*.
+- The CORE migration (…130323) must not touch tsg_* tables: prod has none. App
+  code that reads tsg_record goes through `tsg_match.tsg_tables(c)`. No
+  `DO $$` blocks in migrations: the Supabase dashboard editor splits them and the
+  script fails to parse (test-enforced for these files).
+- Tests: tests/test_duplicate_visibility.py (the web side, no Tender Service
+  tables needed).
+
 ## Tests
 pytest in tests/, runs in CI. Needs TEST_DATABASE_URL (throwaway DB) + psql.
 Schema comes from tests/proc_schema.sql — regenerate it when you add a table.

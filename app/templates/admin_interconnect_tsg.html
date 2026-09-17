@@ -1,0 +1,160 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ t("Διπλοεγγραφές Tender Service") }} · {{ t("Διαχείριση") }}{% endblock %}
+{% block admin_content %}
+{# Review queue for Tender Service POSSIBLE duplicates (tsg_match.py,
+   docs/specs/tender-service-duplicates.md). A pair here is shown to customers
+   and labelled in alerts; nothing is hidden until someone confirms it.
+   Confirm = hide the Tender Service act behind the other one.
+   Reject  = never flag this pair again. #}
+
+<div class="detail-h">
+  <div class="kicker"><a href="/admin/interconnect">{{ t("Διασύνδεση Πράξεων") }}</a></div>
+  <h1 class="detail-title">{{ t("Διπλοεγγραφές Tender Service") }}</h1>
+  <div class="detail-sub">{{ t("Πιθανές διπλοεγγραφές: εμφανίζονται στους πελάτες με σήμανση στις ειδοποιήσεις. Η επιβεβαίωση κρύβει την πράξη του Tender Service· η απόρριψη δεν την ξανασημαίνει για το ίδιο ζεύγος.") }}</div>
+</div>
+
+{% if ok == 'confirmed' %}<div class="ic-flash">{{ t("✓ Επιβεβαιώθηκε — η πράξη κρύφτηκε.") }}</div>{% endif %}
+{% if ok == 'rejected' %}<div class="ic-flash">{{ t("✓ Απορρίφθηκε — το ζεύγος δεν θα ξανασημανθεί.") }}</div>{% endif %}
+
+<form method="get" action="/admin/interconnect/tsg" class="tsg-filter">
+  <select name="status">
+    {% for s, label in [('pending', t('Προς έλεγχο')), ('confirmed', t('Επιβεβαιωμένες')), ('rejected', t('Απορριφθείσες')), ('superseded', t('Παρωχημένες'))] %}
+    <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ label }} ({{ by_status.get(s, 0) }})</option>
+    {% endfor %}
+  </select>
+  <select name="source">
+    <option value="">{{ t("Όλες οι πηγές") }}</option>
+    {% for s in sources %}<option value="{{ s }}" {% if source == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+  </select>
+  <select name="tier">
+    <option value="0">{{ t("Όλα τα επίπεδα") }}</option>
+    {% for n in [1, 2, 3] %}<option value="{{ n }}" {% if tier == n %}selected{% endif %}>{{ t("Επίπεδο") }} {{ n }}</option>{% endfor %}
+  </select>
+  <label class="tsg-check"><input type="checkbox" name="alerted" value="1" {% if alerted %}checked{% endif %}>
+    {{ t("Μόνο όσες έχουν σταλεί σε πελάτες") }}</label>
+  <button type="submit" class="ic-btn">{{ t("Φίλτρο") }}</button>
+</form>
+
+<div class="tsg-legend">
+  {{ t("Επίπεδο 1: τίτλος και προϋπολογισμός ή αριθμός αναφοράς (ή ακριβής αριθμός που απέτυχε σε έλεγχο) · Επίπεδο 2: μόνο τίτλος · Επίπεδο 3: μόνο προϋπολογισμός ή αριθμός αναφοράς.") }}
+</div>
+
+{% if rows %}
+<div class="tsg-count">{{ total }} {{ t("ζεύγη") }}</div>
+{% for r in rows %}
+<div class="tsg-pair">
+  <div class="tsg-head">
+    <span class="tsg-tier tsg-t{{ r.tier }}">{{ t("Επίπεδο") }} {{ r.tier }}</span>
+    {% if r.sig.guard == 'exact_far_deadline' %}<span class="tsg-guard">{{ t("ακριβής αριθμός — μακρινή προθεσμία") }}</span>{% endif %}
+    <span class="tsg-sig">
+      {% if r.sig.title is not none %}{{ t("τίτλος") }} {{ (r.sig.title * 100) | round | int }}%{% endif %}
+      {% if r.sig.budget is not none %} · {{ t("προϋπολογισμός") }} {% if r.sig.budget == 'gross' %}{{ t("με ΦΠΑ") }}{% else %}+{{ r.sig.budget }}%{% endif %}{% endif %}
+      {% if r.sig.ref_no %} · {{ t("αριθμός αναφοράς") }}{% endif %}
+      {% if r.sig.cpv %} · CPV{% endif %}
+      {% if r.sig.n_candidates %} · {{ r.sig.n_candidates }} {{ t("υποψήφιες") }}{% endif %}
+    </span>
+    <span class="tsg-auth">{{ r.authority_name or '' }}</span>
+  </div>
+  <div class="tsg-grid">
+    <div class="tsg-side">
+      <div class="tsg-src"><span class="src-badge src-tsg">Tender Service</span> {{ r.tsg_source }}</div>
+      <a href="/act/{{ r.adam }}?hidden=1">{{ r.tsg_title or r.adam }}</a>
+      <div class="tsg-meta">{{ t("Προθεσμία") }} {{ r.tsg_deadline.strftime('%d/%m/%Y') if r.tsg_deadline else '—' }}
+        · {{ t("Προϋπολογισμός") }} {{ '{:,.2f}'.format(r.tsg_value) if r.tsg_value is not none else '—' }}
+        · <span class="adam">{{ r.adam }}</span></div>
+    </div>
+    <div class="tsg-side">
+      <div class="tsg-src"><span class="src-badge">{{ r.other_source }}</span></div>
+      <a href="/act/{{ r.candidate_adam }}">{{ r.other_title or r.candidate_adam }}</a>
+      <div class="tsg-meta">{{ t("Προθεσμία") }} {{ r.other_deadline.strftime('%d/%m/%Y') if r.other_deadline else '—' }}
+        · {{ t("Χωρίς ΦΠΑ") }} {{ '{:,.2f}'.format(r.other_net) if r.other_net is not none else '—' }}
+        · {{ t("Με ΦΠΑ") }} {{ '{:,.2f}'.format(r.other_gross) if r.other_gross is not none else '—' }}
+        · <span class="adam">{{ r.candidate_adam }}</span></div>
+    </div>
+  </div>
+  <div class="tsg-actions">
+    <a class="ic-btn ic-btn-ghost" href="/admin/interconnect/compare?a={{ r.adam }}&b={{ r.candidate_adam }}">{{ t("Σύγκριση") }}</a>
+    {% if r.status == 'pending' %}
+    <form method="post" action="/admin/interconnect/tsg/confirm">
+      <input type="hidden" name="id" value="{{ r.id }}">
+      <input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}">
+      <button type="submit" class="ic-btn">{{ t("Ίδιος διαγωνισμός — απόκρυψη") }}</button>
+    </form>
+    <form method="post" action="/admin/interconnect/tsg/reject">
+      <input type="hidden" name="id" value="{{ r.id }}">
+      <input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}">
+      <button type="submit" class="ic-btn ic-btn-ghost">{{ t("Διαφορετικός") }}</button>
+    </form>
+    {% else %}
+    <span class="tsg-decided">{{ r.status }}{% if r.decided_by_name %} · {{ r.decided_by_name }}{% endif %}{% if r.decided_at %} · {{ r.decided_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}</span>
+    {% if r.tsg_hidden_behind %}
+    <form method="post" action="/admin/interconnect/tsg/unhide">
+      <input type="hidden" name="adam" value="{{ r.adam }}">
+      <button type="submit" class="ic-btn ic-btn-ghost">{{ t("Επαναφορά") }}</button>
+    </form>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+{% set pages = ((total + per_page - 1) // per_page) %}
+{% if pages > 1 %}
+<div class="pager">
+  {% if page > 1 %}<a href="?status={{ status }}&source={{ source | urlencode }}&tier={{ tier }}&alerted={{ alerted }}&page={{ page - 1 }}">‹</a>{% endif %}
+  <span class="cur">{{ page }} / {{ pages }}</span>
+  {% if page < pages %}<a href="?status={{ status }}&source={{ source | urlencode }}&tier={{ tier }}&alerted={{ alerted }}&page={{ page + 1 }}">›</a>{% endif %}
+</div>
+{% endif %}
+{% else %}
+<div class="ic-empty">{{ t("Κανένα ζεύγος.") }}</div>
+{% endif %}
+
+<div class="section-h" style="margin-top:28px;">{{ t("Τελευταίοι έλεγχοι") }}</div>
+{% if runs %}
+<table class="notices">
+  <thead><tr><th>#</th><th>{{ t("Αφορμή") }}</th><th>{{ t("Ώρα") }}</th><th>{{ t("Αποτέλεσμα") }}</th><th>{{ t("Προειδοποιήσεις") }}</th></tr></thead>
+  <tbody>
+  {% for run in runs %}
+  {% set o = (run.counts or {}).get('outcomes', {}) %}
+  <tr>
+    <td class="meta">{{ run.id }}</td>
+    <td>{{ run.trigger }}</td>
+    <td class="meta">{{ run.started_at.strftime('%d/%m %H:%M') }}{% if not run.finished_at %} · {{ t("σε εξέλιξη") }}{% endif %}</td>
+    <td class="meta">{{ t("νέες") }} {{ o.get('new', 0) }} · {{ t("κρυφές") }} {{ o.get('hidden', 0) }} · {{ t("σημασμένες") }} {{ o.get('flagged', 0) }}
+      {% set tr = (run.counts or {}).get('transitions', {}) %}{% if tr %}<br>{% for k, v in tr.items() %}{{ k }}={{ v }} {% endfor %}{% endif %}</td>
+    <td>{% for w in run.warnings or [] %}<div class="tsg-warn">{{ w.message }}</div>{% endfor %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<div class="ic-empty">{{ t("Κανένας έλεγχος ακόμη.") }}</div>{% endif %}
+
+<style>
+  .ic-flash{padding:9px 14px;border-radius:8px;font-size:13px;margin:14px 0;background:#eaf6ef;border:1px solid #b7e0c7;color:#1a7f47;}
+  .ic-empty{font-size:13px;color:var(--ink-3);font-style:italic;padding:8px 0;}
+  .ic-btn{background:var(--ink);color:var(--paper);border:0;padding:8px 12px;border-radius:8px;font-size:12px;cursor:pointer;text-decoration:none;display:inline-block;}
+  .ic-btn-ghost{background:none;border:1px solid var(--rule);color:var(--ink);}
+  .tsg-filter{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 10px;}
+  .tsg-filter select{padding:6px 8px;border:1px solid var(--rule);border-radius:6px;font-size:12px;background:var(--paper);}
+  .tsg-check{font-size:12px;color:var(--ink-2);display:flex;gap:5px;align-items:center;}
+  .tsg-legend{font-size:11.5px;color:var(--ink-3);margin:0 0 14px;}
+  .tsg-count{font-size:12px;color:var(--ink-3);margin-bottom:8px;}
+  .tsg-pair{border:1px solid var(--rule);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:12px;background:var(--paper);}
+  .tsg-head{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:12px;margin-bottom:8px;}
+  .tsg-tier{font-weight:700;border-radius:9px;padding:2px 8px;color:#fff;background:var(--ink-3);}
+  .tsg-t1{background:#b3261e;} .tsg-t2{background:#c98a1a;} .tsg-t3{background:#6b7280;}
+  .tsg-guard{font-size:11px;color:#b3261e;border:1px solid #f0c5c2;border-radius:6px;padding:1px 6px;}
+  .tsg-sig{color:var(--ink-2);} .tsg-auth{margin-left:auto;color:var(--ink-3);}
+  .tsg-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media (max-width:760px){.tsg-grid{grid-template-columns:1fr;}}
+  .tsg-side a{font-weight:600;font-size:13.5px;color:var(--accent);text-decoration:none;}
+  .tsg-src{font-size:11px;color:var(--ink-3);margin-bottom:2px;}
+  .tsg-src .src-badge{margin:0 4px 0 0;}
+  .tsg-meta{font-size:11.5px;color:var(--ink-3);margin-top:3px;}
+  .tsg-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;}
+  .tsg-actions form{margin:0;}
+  .tsg-decided{font-size:12px;color:var(--ink-3);}
+  .tsg-warn{font-size:11.5px;color:#b3261e;}
+</style>
+{% endblock %}
