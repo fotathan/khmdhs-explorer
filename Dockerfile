@@ -40,6 +40,9 @@ COPY --chown=appuser:appuser app/ ./app/
 # The local OCR tier lives at the repo root; the interactive full-text editor
 # (app/tables.py) imports it, so it must be in the image alongside app/.
 COPY --chown=appuser:appuser local_ocr.py ./
+# Tender Service duplicate matching: the act page, the alert labels and the
+# review page import it (tests/test_docker_image.py keeps this list honest).
+COPY --chown=appuser:appuser tsg_match.py ./
 
 # Ingestion + ops CLIs. db.py is spawned as a subprocess by the job worker
 # (worker.py — the background service that drains admin-launched jobs) and by
