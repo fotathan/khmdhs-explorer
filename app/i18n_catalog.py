@@ -3166,6 +3166,135 @@ _TSG_DUP = {
 }
 
 
+# First-login onboarding wizard (/welcome, app/onboarding.py), the registration
+# question it branches on, and its traces on the CRM.
+_ONBOARDING = {
+    "(Συνήθως λιγότερο από 90 δευτερόλεπτα.)": "(Usually less than 90 seconds.)",
+    "Άλλο ΑΦΜ": "Different VAT number",
+    "Έλεγχος και δημιουργία": "Review and create",
+    "Έχετε ήδη": "You already have",
+    "Έχετε συμμετάσχει ποτέ σε δημόσιους διαγωνισμούς;": "Have you ever taken part in public tenders?",
+    "Όλη η Ελλάδα": "All of Greece",
+    "Όχι τώρα": "Not now",
+    "Όχι — νέος στους δημόσιους διαγωνισμούς": "No — new to public tenders",
+    "Όχι, δεν είναι": "No, it isn't",
+    "ΑΦΜ επιχείρησης (προαιρετικό)": "Business VAT number (optional)",
+    "ΑΦΜ και αναθέσεις": "VAT number and awards",
+    "Αντικείμενο και κατηγορίες": "Subject and categories",
+    "Απαντήστε αν έχετε συμμετάσχει ποτέ σε δημόσιους διαγωνισμούς.": "Please say whether you have ever taken part in public tenders.",
+    "Από τις αναθέσεις σας (κωδικοί CPV)": "From your awards (CPV codes)",
+    "Ας στήσουμε το ραντάρ διαγωνισμών σας": "Let's set up your tender radar",
+    "Αυτές δεν αλλάζουν.": "Those stay as they are.",
+    "Βήμα": "Step",
+    "Βήματα": "Steps",
+    "Βρήκαμε αναθέσεις σε αυτό το ΑΦΜ. Είναι η επιχείρησή σας;": "We found awards under this VAT number. Is this your business?",
+    "Δεν βρήκαμε αναθέσεις σε αυτό το ΑΦΜ. Αυτό είναι φυσιολογικό αν έχετε συμμετάσχει σε διαγωνισμούς αλλά δεν έχετε ακόμη κερδίσει κάποιον — ή αν κερδίσατε ως μέλος ένωσης. Ας ρυθμίσουμε τις αναζητήσεις σας χειροκίνητα.":
+        "We found no awards under this VAT number. That is normal if you have bid in tenders but not won one yet — or if you won as part of a consortium. Let's set up your searches by hand.",
+    "Δεν δηλώθηκε": "Not stated",
+    "Δεν δημιουργήθηκαν αναζητήσεις: έχετε φτάσει το όριο αποθηκευμένων αναζητήσεων.": "No searches were created: you have reached the saved-search limit.",
+    "Δηλωμένο ΑΦΜ στην εγγραφή": "VAT number declared at registration",
+    "Δημιουργήθηκαν όσες αναζητήσεις χωρούσαν· οι υπόλοιπες ξεπερνούσαν το όριο αποθηκευμένων αναζητήσεων.":
+        "The searches that fitted were created; the rest would have exceeded the saved-search limit.",
+    "Δημιουργία αναζητήσεων": "Create searches",
+    "Διαγωνισμοί (προκηρύξεις)": "Tenders (notices)",
+    "Ελέγξτε το εύρος αξίας: το «από» δεν μπορεί να ξεπερνά το «έως».": "Check the value range: «from» cannot exceed «to».",
+    "Εμπειρία διαγωνισμών": "Tender experience",
+    "Επιλέξτε Ναι ή Όχι.": "Choose Yes or No.",
+    "Επιλέξτε το αντικείμενο της επιχείρησής σας. Θα βλέπετε τους διαγωνισμούς σε αυτά.": "Choose what your business does. You will see the tenders in these areas.",
+    "Επιλέξτε τουλάχιστον ένα αντικείμενο ή μία κατηγορία.": "Choose at least one subject or category.",
+    "Εύρος αξίας με ΦΠΑ (προαιρετικό)": "Value range incl. VAT (optional)",
+    "Η επιχείρησή σας": "Your business",
+    "Θέλω να βλέπω και σε ποιους ανατίθενται οι διαγωνισμοί του κλάδου μου": "Also show me who wins the tenders in my field",
+    "Θα δημιουργηθούν οι παρακάτω αποθηκευμένες αναζητήσεις. Μπορείτε να αλλάξετε τα ονόματα — και αργότερα οτιδήποτε άλλο.":
+        "The saved searches below will be created. You can change their names now — and anything else later.",
+    "Κάποιες λέξεις δεν έγιναν δεκτές.": "Some keywords were not accepted.",
+    "Καλώς ήρθατε": "Welcome",
+    "Λέξεις ή φράσεις που εμφανίζονται στους διαγωνισμούς που σας ενδιαφέρουν. Πιάνουν και διαγωνισμούς με λάθος κωδικό CPV.":
+        "Words or phrases that appear in the tenders you care about. They also catch tenders filed under the wrong CPV code.",
+    "Λέξεις-κλειδιά": "Keywords",
+    "Με το ΑΦΜ βρίσκουμε τις αναθέσεις που έχει ήδη κερδίσει η επιχείρησή σας και ρυθμίζουμε τις αναζητήσεις σας με ακρίβεια.":
+        "With your VAT number we find the contracts your business has already won and set up your searches accurately.",
+    "Μη έγκυρο ΑΦΜ — ελέγξτε τα 9 ψηφία, ή αφήστε το κενό.": "Invalid VAT number — check the 9 digits, or leave it empty.",
+    "Μη έγκυρο ΑΦΜ — ελέγξτε τα 9 ψηφία.": "Invalid VAT number — check the 9 digits.",
+    "Ναι — έχει συμμετάσχει σε διαγωνισμούς": "Yes — has taken part in tenders",
+    "Ναι, αυτή είναι η επιχείρησή μας": "Yes, this is our business",
+    "Ξεκινάμε": "Let's start",
+    "Ο ανάδοχος με αυτό το ΑΦΜ": "The contractor with this VAT number",
+    "Ο αριθμός αποτελεσμάτων δεν ήταν διαθέσιμος τώρα.": "The number of results was not available just now.",
+    "Οδηγός πρώτης ρύθμισης": "First-login setup wizard",
+    "Οδηγός ρύθμισης": "Setup wizard",
+    "Οι αναζητήσεις που έχετε ήδη δεν αλλάζουν — θα δημιουργηθούν νέες.": "Your existing searches stay as they are — new ones will be created.",
+    "Οι ειδοποιήσεις με email ενεργοποιούνται από τις Αποθηκευμένες αναζητήσεις.": "Email alerts are turned on from Saved searches.",
+    "Οι λέξεις σας — μία ανά γραμμή (προαιρετικό)": "Your keywords — one per line (optional)",
+    "Παράλειψη ρύθμισης": "Skip setup",
+    "Πείτε μας τι κάνει η επιχείρησή σας και θα φτιάξουμε αναζητήσεις που σας δείχνουν τους διαγωνισμούς που σας αφορούν.":
+        "Tell us what your business does and we will build searches that show you the tenders that concern you.",
+    "Περίπου 90 δευτερόλεπτα": "About 90 seconds",
+    "Περιοχή και μέγεθος": "Region and size",
+    "Περιφέρειες": "Regions",
+    "Πιάνουν και λάθος κωδικούς": "They catch wrong codes too",
+    "Πολλές αναζητήσεις ΑΦΜ — δοκιμάστε ξανά σε λίγα λεπτά.": "Too many VAT lookups — try again in a few minutes.",
+    "Πολύ ευρεία — προσθέστε περιοχή ή αφαιρέστε λέξεις.": "Very broad — add a region or remove keywords.",
+    "Πολύ στενή — αφαιρέστε περιοχή ή προσθέστε αντικείμενα.": "Very narrow — remove a region or add subjects.",
+    "Πού και πόσο": "Where and how much",
+    "Προσθήκη κωδικών CPV (προαιρετικό)": "Add CPV codes (optional)",
+    "Προσοχή: ένα φίλτρο αξίας κρύβει τους διαγωνισμούς που δεν δημοσιεύουν προϋπολογισμό.": "Note: a value filter hides tenders that do not publish a budget.",
+    "Προτάσεις από τους τίτλους των αναθέσεών σας": "Suggestions from the titles of your awards",
+    "Προτείνουμε 3–10. Όριο": "We suggest 3–10. Limit",
+    "Ρυθμίστε τις αναζητήσεις σας σε 2 λεπτά": "Set up your searches in 2 minutes",
+    "Ρύθμιση αναζητήσεων": "Search setup",
+    "Ρύθμιση από την αρχή": "Set up from scratch",
+    "Στο ΓΕΜΗ με αυτό το ΑΦΜ": "In the business registry (ΓΕΜΗ) with this VAT number",
+    "Συνέχεια": "Continue",
+    "Συνέχεια χωρίς ΑΦΜ": "Continue without a VAT number",
+    "Σύνδεση με αυτό το ΑΦΜ": "Link to this VAT number",
+    "Τι προσφέρετε": "What you offer",
+    "Τις τελευταίες": "In the last",
+    "Το χρησιμοποιούμε μόνο για να προτείνουμε κωδικούς και περιοχές από τις αναθέσεις που έχει ήδη κερδίσει η επιχείρηση.":
+        "We only use it to suggest codes and regions from the contracts the business has already won.",
+    "Χωρίς επιλογή = όλη η Ελλάδα.": "Nothing selected = all of Greece.",
+    "Δημιουργήθηκαν": "Created",
+    "αναζητήσεις. Θα τις βρίσκετε στις": "searches. You will find them under",
+    "απαντήστε σε λίγες ερωτήσεις και θα δημιουργήσουμε αναζητήσεις για την επιχείρησή σας.": "answer a few questions and we will create searches for your business.",
+    "δεν έχει επαληθευτεί": "not verified",
+    "ημέρες θα είχε βρει": "days it would have found",
+    "κυρίως": "mainly",
+    "ξεκίνησαν": "started",
+    "ολοκλήρωσαν": "completed",
+    "π.χ. 3314, 45233": "e.g. 3314, 45233",
+    "π.χ. γάντια νιτριλίου": "e.g. nitrile gloves",
+    "πάνω από το όριο": "over the limit",
+    "παρέλειψαν": "skipped",
+    "πείτε μας τι κάνει η επιχείρησή σας και θα σας δείχνουμε τους διαγωνισμούς που σας αφορούν.": "tell us what your business does and we will show you the tenders that concern you.",
+    "πολύ γενική — θα ταίριαζε σχεδόν σε όλα": "too generic — it would match almost everything",
+    "πολύ σύντομη": "too short",
+    "τυπικό μέγεθος": "typical size",
+    "— αν απαντήσατε Ναι": "— if you answered Yes",
+    "Νέοι διαγωνισμοί στο αντικείμενό μου": "New tenders in my field",
+    "Διαγωνισμοί με τις λέξεις-κλειδιά μου": "Tenders with my keywords",
+    "Αναθέσεις στον κλάδο μου": "Awards in my field",
+    "Το τυπικό μέγεθος των αναθέσεών σας": "The typical size of your awards",
+    "Πρώτη ρύθμιση: ο οδηγός αναζητήσεων": "First-time setup: the search wizard",
+    "Στην εγγραφή ρωτάμε αν έχετε συμμετάσχει ποτέ σε δημόσιους διαγωνισμούς. Αν απαντήσετε «Ναι», μπορείτε να δώσετε και το ΑΦΜ της επιχείρησης (προαιρετικά). Μετά την εγγραφή ανοίγει ο οδηγός":
+        "At registration we ask whether you have ever taken part in public tenders. If you answer «Yes», you can also give the business VAT number (optional). After registering, the wizard opens at",
+    ", που σε λίγα βήματα φτιάχνει αποθηκευμένες αναζητήσεις για την επιχείρησή σας.":
+        ", which builds saved searches for your business in a few steps.",
+    "με το ΑΦΜ βρίσκουμε τις αναθέσεις που έχει ήδη κερδίσει η επιχείρηση και προτείνουμε κωδικούς CPV, περιοχές και εύρος αξίας. Αν δεν βρεθούν αναθέσεις (π.χ. έχετε συμμετάσχει αλλά δεν έχετε κερδίσει ακόμη), συνεχίζετε χειροκίνητα.":
+        "with the VAT number we find the contracts the business has already won and suggest CPV codes, regions and a value range. If no awards are found (e.g. you have bid but not won yet), you continue by hand.",
+    "κωδικοί CPV ή/και κατηγορίες· χρειάζεται τουλάχιστον ένα.": "CPV codes and/or categories; at least one is needed.",
+    "προαιρετικές· πιάνουν και διαγωνισμούς με λάθος κωδικό. Πολύ γενικές λέξεις (π.χ. «προμήθεια») δεν γίνονται δεκτές.":
+        "optional; they also catch tenders filed under the wrong code. Very generic words (e.g. «supply») are not accepted.",
+    "περιφέρειες (καμία = όλη η Ελλάδα) και προαιρετικό εύρος αξίας.": "regions (none = all of Greece) and an optional value range.",
+    "βλέπετε πόσα αποτελέσματα θα είχε βρει κάθε αναζήτηση τον τελευταίο μήνα, αλλάζετε ονόματα και τις δημιουργείτε.":
+        "you see how many results each search would have found in the last month, change the names and create them.",
+    "Δημιουργούνται έως τρεις ξεχωριστές αναζητήσεις — νέοι διαγωνισμοί στο αντικείμενό σας, διαγωνισμοί με τις λέξεις-κλειδιά σας, και αναθέσεις στον κλάδο σας — ώστε οι λέξεις-κλειδιά να μη στενεύουν την αναζήτηση με κωδικούς. Είναι κανονικές αποθηκευμένες αναζητήσεις: τις αλλάζετε και ενεργοποιείτε email στις «Αποθηκευμένες αναζητήσεις». Ο οδηγός ξανατρέχει από εκεί («Ρύθμιση από την αρχή») και δεν αλλάζει ποτέ όσες υπάρχουν ήδη.":
+        "Up to three separate searches are created — new tenders in your field, tenders with your keywords, and awards in your field — so that keywords never narrow the search by codes. They are ordinary saved searches: you change them and turn on email under «Saved searches». The wizard can be run again from there («Set up from scratch») and never changes the ones you already have.",
+    "Το ΑΦΜ είναι δήλωση, όχι σύνδεση": "The VAT number is a claim, not a link",
+    "Το ΑΦΜ που δίνει ο πελάτης χρησιμοποιείται μόνο για προτάσεις. Δεν γράφεται στα στοιχεία του πελάτη και δεν τον συνδέει με ανάδοχο. Στην καρτέλα CRM εμφανίζεται ως «Δηλωμένο ΑΦΜ στην εγγραφή» στον πίνακα «Εταιρεία στο ΓΕΜΗ», και η σύνδεση γίνεται μόνο όταν την πατήσει διαχειριστής. Η απάντηση για την εμπειρία σε διαγωνισμούς φαίνεται στην καρτέλα και φιλτράρει τη λίστα πελατών.":
+        "The VAT number a customer gives is used for suggestions only. It is not written into the customer's details and does not link them to a contractor. On the CRM card it appears as «VAT number declared at registration» in the «Company in ΓΕΜΗ» panel, and the link is made only when an admin clicks it. The tender-experience answer shows on the card and filters the customer list.",
+}
+
+
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
@@ -3175,5 +3304,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMCARD, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
              _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY, _DIGESTS,
              _SELF_SERVE, _PUBLIC, _HELP_PUBLIC, _AI_POLICY, _FIT,
-             _COMPANY_MATCH, _MATCH, _TSG_DUP):
+             _COMPANY_MATCH, _MATCH, _TSG_DUP, _ONBOARDING):
     UI_EN.update(_grp)

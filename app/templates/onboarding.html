@@ -1,0 +1,332 @@
+{% extends "beta_base.html" %}
+{# onboarding.html — the first-login wizard (app/onboarding.py).
+   One template, one step at a time: `step` picks the panel. Every step is a
+   plain <form method="post"> so the wizard works with JS off; the only script
+   reveals nothing essential. Every form carries csrf_token itself rather than
+   relying on _csrf.html's submit hook, for the same reason. #}
+{% block title %}{{ t("Ρύθμιση αναζητήσεων") }} · {{ t("Εξερευνητής") }}{% endblock %}
+{% block content %}
+{% macro eur(v) %}{{ "{:,.0f}".format(v|float).replace(",", ".") }}{% endmacro %}
+{% set rail = [
+  (0, "Καλώς ήρθατε", "Περίπου 90 δευτερόλεπτα"),
+  (1, "Η επιχείρησή σας", "ΑΦΜ και αναθέσεις"),
+  (2, "Τι προσφέρετε", "Αντικείμενο και κατηγορίες"),
+  (3, "Λέξεις-κλειδιά", "Πιάνουν και λάθος κωδικούς"),
+  (4, "Περιοχή και μέγεθος", "Πού και πόσο"),
+  (5, "Επισκόπηση", "Έλεγχος και δημιουργία"),
+] %}
+<div class="ob-wrap">
+  <main class="ob-main">
+    <div class="ob-progress">{{ t("Βήμα") }} {{ step + 1 }} {{ t("από") }} {{ last_step + 1 }}</div>
+
+    {% if error %}<div class="ob-error" role="alert">{{ error | t }}</div>{% endif %}
+
+    {# ================================================================ 0 #}
+    {% if step == 0 %}
+    <h1>{{ t("Ας στήσουμε το ραντάρ διαγωνισμών σας") }}</h1>
+    <p class="ob-lead">{{ t("Πείτε μας τι κάνει η επιχείρησή σας και θα φτιάξουμε αναζητήσεις που σας δείχνουν τους διαγωνισμούς που σας αφορούν.") }}</p>
+    <p class="ob-note">{{ t("(Συνήθως λιγότερο από 90 δευτερόλεπτα.)") }}</p>
+    {% if restart %}<p class="ob-note">{{ t("Οι αναζητήσεις που έχετε ήδη δεν αλλάζουν — θα δημιουργηθούν νέες.") }}</p>{% endif %}
+    <div class="ob-actions">
+      <form method="post" action="/welcome/skip" class="ob-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="ob-link">{{ t("Παράλειψη") }}</button>
+      </form>
+      <form method="post" action="/welcome/step/0" class="ob-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="ob-btn">{{ t("Ξεκινάμε") }}</button>
+      </form>
+    </div>
+
+    {# ================================================================ 1 #}
+    {% elif step == 1 %}
+    <h1>{{ t("Η επιχείρησή σας") }}</h1>
+
+    {% if experience is none %}
+    <form method="post" action="/welcome/step/1" class="ob-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="action" value="experience">
+      <fieldset class="ob-yn">
+        <legend>{{ t("Έχετε συμμετάσχει ποτέ σε δημόσιους διαγωνισμούς;") }}</legend>
+        <label><input type="radio" name="tender_experience" value="yes" required> {{ t("Ναι") }}</label>
+        <label><input type="radio" name="tender_experience" value="no"> {{ t("Όχι") }}</label>
+      </fieldset>
+      <div class="ob-actions"><button type="submit" class="ob-btn">{{ t("Συνέχεια") }}</button></div>
+    </form>
+
+    {% elif found and found.status == 'ledger' %}
+    <p class="ob-lead">{{ t("Βρήκαμε αναθέσεις σε αυτό το ΑΦΜ. Είναι η επιχείρησή σας;") }}</p>
+    <div class="ob-card">
+      <div class="ob-card-k">{{ t("Ο ανάδοχος με αυτό το ΑΦΜ") }}</div>
+      <div class="ob-card-name">{{ found.name or declared_afm }}</div>
+      <ul class="ob-facts">
+        <li><b>{{ found.n_awards }}</b> {{ t("αναθέσεις") }}{% if found.n_buyers %} · {{ found.n_buyers }} {{ t("αναθέτουσες αρχές") }}{% endif %}</li>
+        {% if found.nuts_top %}<li>{{ t("κυρίως") }}: {% for n in found.nuts_top %}{% if not loop.first %}, {% endif %}{{ region_label.get(n, n) | t }}{% endfor %}</li>{% endif %}
+        {% if found.p10 is not none and found.p90 is not none %}
+        <li>{{ t("τυπικό μέγεθος") }}: {{ eur(found.p10) }} € – {{ eur(found.p90) }} €</li>{% endif %}
+      </ul>
+    </div>
+    <div class="ob-actions">
+      <form method="post" action="/welcome/step/1" class="ob-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" name="action" value="reject" class="ob-btn-2">{{ t("Όχι, δεν είναι") }}</button>
+      </form>
+      <form method="post" action="/welcome/step/1" class="ob-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" name="action" value="confirm" class="ob-btn">{{ t("Ναι, αυτή είναι η επιχείρησή μας") }}</button>
+      </form>
+    </div>
+
+    {% elif found and found.status == 'gemi' %}
+    <div class="ob-card">
+      <div class="ob-card-k">{{ t("Στο ΓΕΜΗ με αυτό το ΑΦΜ") }}</div>
+      <div class="ob-card-name">{{ found.name }}</div>
+      {% if found.city %}<div class="ob-note">{{ found.city }}</div>{% endif %}
+    </div>
+    <p class="ob-lead">{{ t("Δεν βρήκαμε αναθέσεις σε αυτό το ΑΦΜ. Αυτό είναι φυσιολογικό αν έχετε συμμετάσχει σε διαγωνισμούς αλλά δεν έχετε ακόμη κερδίσει κάποιον — ή αν κερδίσατε ως μέλος ένωσης. Ας ρυθμίσουμε τις αναζητήσεις σας χειροκίνητα.") }}</p>
+    <div class="ob-actions">
+      <form method="post" action="/welcome/step/1" class="ob-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" name="action" value="reject" class="ob-btn-2">{{ t("Άλλο ΑΦΜ") }}</button>
+      </form>
+      <form method="post" action="/welcome/step/1" class="ob-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" name="action" value="confirm" class="ob-btn">{{ t("Συνέχεια") }}</button>
+      </form>
+    </div>
+
+    {% elif found and found.status == 'none' %}
+    <p class="ob-lead">{{ t("Δεν βρήκαμε αναθέσεις σε αυτό το ΑΦΜ. Αυτό είναι φυσιολογικό αν έχετε συμμετάσχει σε διαγωνισμούς αλλά δεν έχετε ακόμη κερδίσει κάποιον — ή αν κερδίσατε ως μέλος ένωσης. Ας ρυθμίσουμε τις αναζητήσεις σας χειροκίνητα.") }}</p>
+    <div class="ob-actions">
+      <form method="post" action="/welcome/step/1" class="ob-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" name="action" value="reject" class="ob-btn-2">{{ t("Άλλο ΑΦΜ") }}</button>
+      </form>
+      <form method="post" action="/welcome/step/1" class="ob-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" name="action" value="continue" class="ob-btn">{{ t("Συνέχεια") }}</button>
+      </form>
+    </div>
+
+    {% else %}
+    <form method="post" action="/welcome/step/1" class="ob-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label class="ob-field">{{ t("ΑΦΜ επιχείρησης (προαιρετικό)") }}
+        <input type="text" name="afm" inputmode="numeric" autocomplete="off" maxlength="20"
+               value="{{ afm_typed or declared_afm or '' }}" placeholder="0xxxxxxxx">
+      </label>
+      <p class="ob-note">{{ t("Το χρησιμοποιούμε μόνο για να προτείνουμε κωδικούς και περιοχές από τις αναθέσεις που έχει ήδη κερδίσει η επιχείρηση.") }}</p>
+      <div class="ob-actions ob-rev">
+        <button type="submit" name="action" value="lookup" class="ob-btn">{{ t("Αναζήτηση") }}</button>
+        <button type="submit" name="action" value="continue" class="ob-link" formnovalidate>{{ t("Συνέχεια χωρίς ΑΦΜ") }}</button>
+      </div>
+    </form>
+    {% endif %}
+
+    {# ================================================================ 2 #}
+    {% elif step == 2 %}
+    <h1>{{ t("Τι προσφέρετε") }}</h1>
+    <p class="ob-lead">{{ t("Επιλέξτε το αντικείμενο της επιχείρησής σας. Θα βλέπετε τους διαγωνισμούς σε αυτά.") }}</p>
+    <form method="post" action="/welcome/step/2" class="ob-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% if cpv_chips %}
+      <div class="ob-group">{{ t("Από τις αναθέσεις σας (κωδικοί CPV)") }}</div>
+      <div class="ob-chips">
+        {% for p in cpv_chips %}
+        <label class="ob-chip"><input type="checkbox" name="cpv" value="{{ p }}" {% if p in (answers.cpv or []) %}checked{% endif %}>
+          <span><b>{{ p }}</b> {{ cpv_label.get(p) or '' }}{% if cpv_counts.get(p) %} <em>({{ cpv_counts[p] }})</em>{% endif %}</span></label>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <label class="ob-field">{{ t("Προσθήκη κωδικών CPV (προαιρετικό)") }}
+        <input type="text" name="cpv_add" placeholder="{{ t('π.χ. 3314, 45233') }}" autocomplete="off">
+      </label>
+      <details class="ob-cats" {% if not cpv_chips or answers.cat %}open{% endif %}>
+        <summary>{{ t("Κατηγορίες") }}{% if answers.cat %} · {{ answers.cat | length }}{% endif %}</summary>
+        <div class="ob-catgrid">
+          {% for o in categories %}
+          <label><input type="checkbox" name="cat" value="{{ o.value }}" {% if o.value in (answers.cat or []) %}checked{% endif %}> {{ o.label }}</label>
+          {% endfor %}
+        </div>
+      </details>
+      <div class="ob-actions ob-rev">
+        <button type="submit" name="action" value="next" class="ob-btn">{{ t("Συνέχεια") }}</button>
+        <button type="submit" name="action" value="back" class="ob-btn-2" formnovalidate>{{ t("Πίσω") }}</button>
+      </div>
+    </form>
+
+    {# ================================================================ 3 #}
+    {% elif step == 3 %}
+    <h1>{{ t("Λέξεις-κλειδιά") }}</h1>
+    <p class="ob-lead">{{ t("Λέξεις ή φράσεις που εμφανίζονται στους διαγωνισμούς που σας ενδιαφέρουν. Πιάνουν και διαγωνισμούς με λάθος κωδικό CPV.") }}</p>
+    {% if refused %}
+    <ul class="ob-refused">
+      {% for k, why in refused %}<li>«{{ k }}» — {{ why | t }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    <form method="post" action="/welcome/step/3" class="ob-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% if suggestions %}
+      <div class="ob-group">{{ t("Προτάσεις από τους τίτλους των αναθέσεών σας") }}</div>
+      <div class="ob-chips">
+        {% for s in suggestions %}
+        <label class="ob-chip ob-chip-sug"><input type="checkbox" name="kw_suggest" value="{{ s }}"> <span>{{ s }}</span></label>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <label class="ob-field">{{ t("Οι λέξεις σας — μία ανά γραμμή (προαιρετικό)") }}
+        <textarea name="keywords" rows="6" placeholder="{{ t('π.χ. γάντια νιτριλίου') }}">{{ (answers.keywords or []) | join('\n') }}</textarea>
+      </label>
+      <p class="ob-note">{{ t("Προτείνουμε 3–10. Όριο") }}: {{ max_keywords }}.</p>
+      <div class="ob-actions ob-rev">
+        <button type="submit" name="action" value="next" class="ob-btn">{{ t("Συνέχεια") }}</button>
+        <button type="submit" name="action" value="back" class="ob-btn-2" formnovalidate>{{ t("Πίσω") }}</button>
+      </div>
+    </form>
+
+    {# ================================================================ 4 #}
+    {% elif step == 4 %}
+    <h1>{{ t("Περιοχή και μέγεθος") }}</h1>
+    <form method="post" action="/welcome/step/4" class="ob-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="ob-group">{{ t("Περιφέρειες") }}</div>
+      <p class="ob-note">{{ t("Χωρίς επιλογή = όλη η Ελλάδα.") }}</p>
+      <div class="ob-catgrid">
+        {% for r in nuts_regions %}
+        <label><input type="checkbox" name="nuts" value="{{ r.code }}" {% if r.code in (answers.nuts or []) %}checked{% endif %}> {{ r.label | t }}</label>
+        {% endfor %}
+      </div>
+      <div class="ob-group">{{ t("Εύρος αξίας με ΦΠΑ (προαιρετικό)") }}</div>
+      <div class="ob-range">
+        <label class="ob-field">{{ t("από") }} €<input type="number" name="value_min" min="0" step="any" value="{{ answers.value_min if answers.value_min is not none else '' }}"></label>
+        <label class="ob-field">{{ t("έως") }} €<input type="number" name="value_max" min="0" step="any" value="{{ answers.value_max if answers.value_max is not none else '' }}"></label>
+      </div>
+      {% set lk = answers.lookup or {} %}
+      {% if lk.status == 'ledger' and lk.p10 is not none and lk.p90 is not none %}
+      <p class="ob-note">{{ t("Το τυπικό μέγεθος των αναθέσεών σας") }}: {{ eur(lk.p10) }} € – {{ eur(lk.p90) }} €.</p>
+      {% endif %}
+      <p class="ob-note">{{ t("Προσοχή: ένα φίλτρο αξίας κρύβει τους διαγωνισμούς που δεν δημοσιεύουν προϋπολογισμό.") }}</p>
+      <label class="ob-check"><input type="checkbox" name="awards" value="1" {% if answers.awards is not defined or answers.awards %}checked{% endif %}>
+        {{ t("Θέλω να βλέπω και σε ποιους ανατίθενται οι διαγωνισμοί του κλάδου μου") }}</label>
+      <div class="ob-actions ob-rev">
+        <button type="submit" name="action" value="next" class="ob-btn">{{ t("Συνέχεια") }}</button>
+        <button type="submit" name="action" value="back" class="ob-btn-2" formnovalidate>{{ t("Πίσω") }}</button>
+      </div>
+    </form>
+
+    {# ================================================================ 5 #}
+    {% elif step == 5 %}
+    <h1>{{ t("Επισκόπηση") }}</h1>
+    <p class="ob-lead">{{ t("Θα δημιουργηθούν οι παρακάτω αποθηκευμένες αναζητήσεις. Μπορείτε να αλλάξετε τα ονόματα — και αργότερα οτιδήποτε άλλο.") }}</p>
+    <form method="post" action="/welcome/step/5" class="ob-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% for p in profiles %}
+      <div class="ob-card">
+        <label class="ob-field">{{ t("Όνομα") }}
+          <input type="text" name="name_{{ p.key }}" value="{{ p.name | t }}" maxlength="120" required></label>
+        <ul class="ob-facts">
+          <li>{{ t("Είδος") }}: {% if p.key == 'awards' %}{{ t("Αναθέσεις") }}{% else %}{{ t("Διαγωνισμοί (προκηρύξεις)") }}{% endif %}</li>
+          {% if p.params.cpv %}<li>CPV: {% for c in p.params.cpv %}{% if not loop.first %}, {% endif %}{{ c }}{% if cpv_label.get(c) %} {{ cpv_label[c] }}{% endif %}{% endfor %}</li>{% endif %}
+          {% if p.params.cat %}<li>{{ t("Κατηγορίες") }}: {% for c in p.params.cat %}{% if not loop.first %}, {% endif %}{{ cat_label.get(c, c) }}{% endfor %}</li>{% endif %}
+          {% if p.key == 'keywords' %}<li>{{ t("Λέξεις-κλειδιά") }}: {{ (answers.keywords or []) | join(', ') }}</li>{% endif %}
+          <li>{{ t("Περιοχή") }}: {% if p.params.nuts %}{% for n in p.params.nuts %}{% if not loop.first %}, {% endif %}{{ region_label.get(n, n) | t }}{% endfor %}{% else %}{{ t("Όλη η Ελλάδα") }}{% endif %}</li>
+          {% if p.params.value_min or p.params.value_max %}<li>{{ t("Αξία") }}: {{ eur(p.params.value_min or 0) }} – {% if p.params.value_max %}{{ eur(p.params.value_max) }}{% else %}…{% endif %} €</li>{% endif %}
+        </ul>
+        <div class="ob-count">
+          {% if p.count is none %}{{ t("Ο αριθμός αποτελεσμάτων δεν ήταν διαθέσιμος τώρα.") }}
+          {% else %}{{ t("Τις τελευταίες") }} {{ preview_days }} {{ t("ημέρες θα είχε βρει") }} <b>{{ p.count }}</b>.
+            {% if p.count == 0 %}<span class="ob-hint">{{ t("Πολύ στενή — αφαιρέστε περιοχή ή προσθέστε αντικείμενα.") }}</span>
+            {% elif p.count > too_many %}<span class="ob-hint">{{ t("Πολύ ευρεία — προσθέστε περιοχή ή αφαιρέστε λέξεις.") }}</span>{% endif %}
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% if existing %}
+      <p class="ob-note">{{ t("Έχετε ήδη") }}: {{ existing | join(', ') }}. {{ t("Αυτές δεν αλλάζουν.") }}</p>
+      {% endif %}
+      <p class="ob-note">{{ t("Οι ειδοποιήσεις με email ενεργοποιούνται από τις Αποθηκευμένες αναζητήσεις.") }}</p>
+      <div class="ob-actions ob-rev">
+        <button type="submit" name="action" value="finish" class="ob-btn">{{ t("Δημιουργία αναζητήσεων") }}</button>
+        <button type="submit" name="action" value="back" class="ob-btn-2" formnovalidate>{{ t("Πίσω") }}</button>
+      </div>
+    </form>
+    {% endif %}
+
+    {% if step > 0 %}
+    <form method="post" action="/welcome/skip" class="ob-skip">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="ob-link">{{ t("Παράλειψη ρύθμισης") }}</button>
+    </form>
+    {% endif %}
+  </main>
+
+  <aside class="ob-rail" aria-label="{{ t('Βήματα') }}">
+    <ol>
+      {% for n, title, sub in rail %}
+      <li class="{% if n == step %}on{% elif n < step %}done{% endif %}">
+        <span class="ob-dot"></span>
+        <span><b>{{ t(title) }}</b><br><small>{{ t(sub) }}</small></span>
+      </li>
+      {% endfor %}
+    </ol>
+  </aside>
+</div>
+<style>
+  .ob-wrap{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:40px;max-width:1060px;margin:32px auto 64px;padding:0 20px;}
+  .ob-main{min-width:0;}
+  .ob-main h1{font-size:28px;line-height:1.2;margin:4px 0 12px;color:var(--ink);}
+  .ob-progress{font-size:12px;color:var(--ink-3);letter-spacing:.04em;text-transform:uppercase;}
+  .ob-lead{font-size:15px;color:var(--ink-2);line-height:1.55;margin:0 0 16px;max-width:62ch;}
+  .ob-note{font-size:13px;color:var(--ink-3);margin:6px 0 12px;line-height:1.5;}
+  .ob-error{background:#fdeceb;border:1px solid #f4c7c3;color:#b3261e;padding:9px 12px;border-radius:8px;font-size:13px;margin:10px 0 14px;}
+  .ob-refused{font-size:13px;color:#b3261e;margin:0 0 12px;padding-left:18px;}
+  .ob-form{display:flex;flex-direction:column;gap:12px;}
+  .ob-field{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--ink-2);}
+  .ob-field input,.ob-field textarea{padding:9px 11px;border:1px solid var(--rule);border-radius:8px;font-size:14px;color:var(--ink);background:var(--paper);font-family:inherit;}
+  .ob-field input:focus,.ob-field textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+  .ob-group{font-size:12px;font-weight:700;color:var(--ink-2);margin-top:8px;text-transform:uppercase;letter-spacing:.05em;}
+  .ob-chips{display:flex;flex-wrap:wrap;gap:8px;}
+  .ob-chip{display:inline-flex;align-items:flex-start;gap:6px;border:1px solid var(--rule);border-radius:999px;padding:6px 12px;font-size:13px;color:var(--ink);background:var(--paper);cursor:pointer;max-width:100%;}
+  .ob-chip:has(input:checked){border-color:var(--accent);background:var(--accent-soft);}
+  .ob-chip em{color:var(--ink-3);font-style:normal;}
+  /* Suggestions keep the spelling of the titles they came from, and most
+     titles are in capitals — so show them all in capitals, not a mix. */
+  .ob-chip-sug{border-style:dashed;text-transform:uppercase;}
+  .ob-cats summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--accent);padding:4px 0;}
+  .ob-catgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 16px;font-size:13px;color:var(--ink);margin:6px 0;}
+  .ob-catgrid label{display:flex;gap:6px;align-items:flex-start;}
+  .ob-range{display:flex;gap:12px;flex-wrap:wrap;}
+  .ob-range .ob-field{flex:1 1 160px;}
+  .ob-check{display:flex;gap:8px;align-items:flex-start;font-size:14px;color:var(--ink);margin-top:6px;}
+  .ob-yn{border:0;padding:0;margin:0 0 6px;display:flex;flex-direction:column;gap:8px;font-size:14px;color:var(--ink);}
+  .ob-yn legend{font-size:15px;font-weight:600;margin-bottom:8px;}
+  .ob-card{border:1px solid var(--rule);border-radius:12px;padding:14px 16px;background:var(--paper);margin:0 0 12px;}
+  .ob-card-k{font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;}
+  .ob-card-name{font-size:18px;font-weight:700;color:var(--ink);margin:2px 0 6px;}
+  .ob-facts{margin:8px 0 0;padding-left:18px;font-size:13px;color:var(--ink-2);line-height:1.6;}
+  .ob-count{font-size:13px;color:var(--ink-2);margin-top:8px;}
+  .ob-hint{display:block;color:#a35a00;margin-top:2px;}
+  .ob-actions{display:flex;gap:12px;justify-content:flex-end;align-items:center;flex-wrap:wrap;margin-top:18px;}
+  .ob-inline{margin:0;}
+  /* Primary button FIRST in the source, so Enter in a text box submits it
+     rather than «Πίσω»; row-reverse still draws it on the right. */
+  .ob-rev{flex-direction:row-reverse;justify-content:flex-start;}
+  .ob-btn{background:var(--accent);color:#fff;border:0;padding:11px 22px;border-radius:999px;font-weight:600;font-size:14px;cursor:pointer;}
+  .ob-btn:hover{background:var(--accent-2);}
+  .ob-btn-2{background:transparent;color:var(--accent);border:1px solid var(--accent);padding:10px 20px;border-radius:999px;font-weight:600;font-size:14px;cursor:pointer;}
+  .ob-link{background:none;border:0;color:var(--accent);font-size:13px;cursor:pointer;text-decoration:underline;padding:4px;}
+  .ob-skip{margin-top:28px;text-align:right;}
+  .ob-rail{background:linear-gradient(180deg,#1f2a5c,#2b3f94);color:#fff;border-radius:14px;padding:26px 20px;align-self:start;}
+  .ob-rail ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:22px;}
+  .ob-rail li{display:flex;gap:12px;align-items:flex-start;opacity:.55;font-size:13px;line-height:1.35;}
+  .ob-rail li.on,.ob-rail li.done{opacity:1;}
+  .ob-rail small{opacity:.85;}
+  .ob-dot{width:12px;height:12px;border-radius:50%;border:2px solid #fff;flex:0 0 12px;margin-top:3px;}
+  .ob-rail li.on .ob-dot,.ob-rail li.done .ob-dot{background:#fff;}
+  @media (max-width: 800px){
+    .ob-wrap{grid-template-columns:1fr;gap:0;margin-top:16px;padding:0 16px;}
+    .ob-rail{display:none;}
+    .ob-main h1{font-size:23px;}
+  }
+</style>
+{% endblock %}

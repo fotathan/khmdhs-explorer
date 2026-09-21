@@ -61,12 +61,14 @@ try:
     from app import crm as _crm
     from app import digests as _digests
     from app import i18n as _i18n
+    from app import onboarding as _onboarding
     from app import search_profiles as _sp
 except ImportError:                      # pragma: no cover — run with --app-dir=app
     import auth as _auth
     import crm as _crm
     import digests as _digests
     import i18n as _i18n
+    import onboarding as _onboarding
     import search_profiles as _sp
 
 PAGE = "/account/searches"
@@ -174,6 +176,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             "max_saved": MAX_SAVED_SEARCHES,
             "n_own": sum(1 for r in rows if r.get("is_own")),
             "flash": flash or None,
+            "onboarding_on": _onboarding.enabled(),
             "nav_active": "search",
         })
 

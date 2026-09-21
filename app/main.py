@@ -991,6 +991,23 @@ def _search_totals(c, where: str, args: list) -> dict:
     return totals
 
 
+def count_matching(params: dict, *, timeout_ms: int = 4000) -> int:
+    """Exact count for one filter set, under its own short statement timeout.
+
+    The onboarding overview's "would have found N last month": the same
+    build_where a saved search runs, so the number is the one the customer will
+    see. The timeout is LOCAL to the transaction — a hint must never hold a
+    pooled connection for the full app-wide statement_timeout. Raises on
+    timeout; the caller shows "not available" instead."""
+    where, args = build_where(params)
+    with cursor() as c:
+        with c.connection.transaction():
+            c.execute(f"SET LOCAL statement_timeout = {int(timeout_ms)}")
+            c.execute(f"SELECT count(*) AS n FROM proc.procurement_act a WHERE {where}",
+                      args)
+            return int(c.fetchone()["n"])
+
+
 def run_search(params: dict, limit: int, offset: int, *, with_totals: bool = True):
     where, args = build_where(params)
 
@@ -1437,6 +1454,13 @@ try:
 except ImportError:
     import login_links as _login_links
     import mailer as _mailer
+
+# First-login wizard (/welcome). Imported here because /register and / both
+# read it — the registration question and the "set up your searches" band.
+try:
+    from app import onboarding as _onboarding
+except ImportError:
+    import onboarding as _onboarding
 
 # SECRET_KEY signs the session cookies; a known/default value makes admin
 # sessions forgeable. Require it in production and fail closed rather than boot
@@ -2010,6 +2034,8 @@ async def login_mfa_submit(request: Request):
 #      GET shows an interstitial; its POST spends the token.
 # ---------------------------------------------------------------------------- #
 templates.env.globals["login_links_enabled"] = _login_links.enabled()
+# /help documents the onboarding wizard only while it is switched on.
+templates.env.globals["onboarding_enabled"] = _onboarding.enabled()
 
 
 def _login_link_ctx(*, next_url="/", sent=False, email="", error=None):
@@ -2149,7 +2175,8 @@ def register_form(request: Request):
             request, "register.html", {"closed": True}, status_code=403)
     return templates.TemplateResponse(
         request, "register.html",
-        {"error": None, "values": {}, "invite_required": _REGISTRATION_MODE == "invite"})
+        {"error": None, "values": {}, "invite_required": _REGISTRATION_MODE == "invite",
+         "ask_experience": _onboarding.enabled()})
 
 
 @app.post("/register")
@@ -2162,13 +2189,22 @@ async def register_submit(request: Request):
     email = (form.get("email") or "").strip()
     password = form.get("password") or ""
     password2 = form.get("password2") or ""
-    values = {"username": username, "email": email}
+    # Onboarding (app/onboarding.py): "have you bid before?" is required, the
+    # ΑΦΜ optional and only kept with a "yes". Format-checked here, looked up
+    # NOWHERE here — a slow registry must never stand between a person and
+    # their account; the wizard's first screen does the lookup.
+    ask_experience = _onboarding.enabled()
+    experience_raw = (form.get("tender_experience") or "").strip()
+    afm_raw = (form.get("afm") or "").strip()
+    values = {"username": username, "email": email,
+              "tender_experience": experience_raw, "afm": afm_raw[:20]}
     invite_required = _REGISTRATION_MODE == "invite"
 
     def err(msg, code=400):
         return templates.TemplateResponse(
             request, "register.html",
-            {"error": msg, "values": values, "invite_required": invite_required},
+            {"error": msg, "values": values, "invite_required": invite_required,
+             "ask_experience": ask_experience},
             status_code=code)
 
     # Invite mode: a matching, non-empty code is mandatory.
@@ -2182,6 +2218,17 @@ async def register_submit(request: Request):
         return err("Ο κωδικός πρέπει να έχει 8–200 χαρακτήρες.")
     if password != password2:
         return err("Οι κωδικοί δεν ταιριάζουν.")
+    experience, afm = None, None
+    if ask_experience:
+        if experience_raw not in ("yes", "no"):
+            return err("Απαντήστε αν έχετε συμμετάσχει ποτέ σε δημόσιους διαγωνισμούς.")
+        experience = experience_raw == "yes"
+        # An ΑΦΜ sent with "Όχι" (the field stays visible without JS) is
+        # ignored, not an error: the customer answered the question that matters.
+        if experience and afm_raw:
+            afm = _onboarding.afm_valid(afm_raw)
+            if not afm:
+                return err("Μη έγκυρο ΑΦΜ — ελέγξτε τα 9 ψηφία, ή αφήστε το κενό.")
     with cursor() as c:
         if _auth.get_by_username(c, username):
             return err("Το όνομα χρήστη χρησιμοποιείται ήδη.", 409)
@@ -2195,8 +2242,15 @@ async def register_submit(request: Request):
             return err(str(e))
         except Exception:  # unique email etc.
             return err("Το όνομα χρήστη ή το email χρησιμοποιείται ήδη.", 409)
+        if ask_experience:
+            # The answer on the profile (that column only); the ΑΦΜ as a claim
+            # on the wizard row — never customer_profile.vat_number (§5 of
+            # docs/specs/onboarding-wizard.md). No uniqueness check: "this ΑΦΜ
+            # is taken" would tell a stranger the firm has an account here.
+            _onboarding.start_at_registration(c, user["id"], experience=experience,
+                                              afm=afm)
     _auth.login_session(request, user)
-    return _Redirect("/", status_code=303)
+    return _Redirect("/welcome" if ask_experience else "/", status_code=303)
 
 _STATIC_DIR = os.path.join(APP_DIR, "static")
 if os.path.isdir(_STATIC_DIR):
@@ -2263,6 +2317,20 @@ try:
 except ImportError:
     from account_searches import make_router as _make_acct_searches_router
 app.include_router(_make_acct_searches_router(templates, cursor))
+
+# /welcome — the first-login wizard that turns a few answers into saved
+# searches (app/onboarding.py). Off with ONBOARDING_ENABLED=0/false/…: then
+# there are no routes, no registration question and no banner.
+# The switch is read per request (a 404 when off), so flipping it needs no
+# code path of its own and the tests can exercise both states.
+try:
+    from app import account_searches as _acct_searches_mod
+except ImportError:
+    import account_searches as _acct_searches_mod
+app.include_router(_onboarding.make_router(
+    templates, cursor, nuts_regions=NUTS_REGIONS,
+    count_fn=count_matching,
+    max_saved=lambda: _acct_searches_mod.MAX_SAVED_SEARCHES))
 
 # CTI telephony (WebRTC softphone + screen-pop) — mounted under /telephony. The
 # service singleton is created here (so the /ws handler can reach the screen-pop
@@ -3290,6 +3358,17 @@ def home(request: Request,
     # the results — an explainer above them is help once and an obstacle after.
     ctx["show_public_intro"] = gated and not request.url.query
     ctx["stats"] = _public_stats() if ctx["show_public_intro"] else None
+    # Onboarding: "N searches created" once, right after the wizard; otherwise
+    # the "set up your searches" band for a customer who has neither finished
+    # nor skipped it. A band, never a redirect.
+    ctx["onboarding_created"] = request.session.pop("onboarding_created", None)
+    ctx["onboarding_prompt"] = False
+    if user and not ctx["onboarding_created"]:
+        try:
+            with cursor() as c:
+                ctx["onboarding_prompt"] = _onboarding.wants_prompt(c, user)
+        except Exception:      # noqa: BLE001 — a band, not the page
+            ctx["onboarding_prompt"] = False
     return templates.TemplateResponse(request, "beta_index.html", ctx)
 
 

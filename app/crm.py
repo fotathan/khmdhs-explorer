@@ -51,6 +51,11 @@ except ImportError:                      # pragma: no cover
     import company_match as _cm
 
 try:
+    from app import onboarding as _onboarding
+except ImportError:                      # pragma: no cover
+    import onboarding as _onboarding
+
+try:
     from app import email_builder as _email
 except ImportError:                      # pragma: no cover
     import email_builder as _email
@@ -178,6 +183,15 @@ def merge_values(cust, profile):
     return values
 
 
+# ?exp= on the customer list -> the tender_experience value it keeps.
+EXPERIENCE_FILTERS = {"yes": True, "no": False, "unknown": None}
+
+
+def parse_experience(raw) -> bool | None:
+    """The CRM form's three-way select: 'yes' / 'no' / '' (not stated)."""
+    return {"yes": True, "no": False}.get((raw or "").strip())
+
+
 def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
     router = APIRouter(prefix="/admin/crm", tags=["crm"])
 
@@ -186,16 +200,25 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
         return u.get("id") if u else None
 
     @router.get("", response_class=HTMLResponse)
-    def crm_list(request: Request, segment: str = "all", q: str = ""):
+    def crm_list(request: Request, segment: str = "all", q: str = "",
+                 exp: str = ""):
         if segment not in SEGMENTS:
             segment = "all"
         q = (q or "").strip()
+        # Tender experience, as the customer declared it at registration
+        # (onboarding). "unknown" = never asked, which is NOT the same as no.
+        exp = exp if exp in EXPERIENCE_FILTERS else ""
         with cursor() as c:
             counts = _auth.customer_segment_counts(c, q=q)
             customers = _auth.list_customers(c, segment, q=q)
+            funnel = _onboarding.funnel(c)
+        if exp:
+            want = EXPERIENCE_FILTERS[exp]
+            customers = [r for r in customers if r.get("tender_experience") is want]
         return templates.TemplateResponse(request, "admin_crm.html", {
             "customers": customers, "counts": counts, "segment": segment,
-            "segments": SEGMENTS, "q": q, "admin_tab": "crm"})
+            "segments": SEGMENTS, "q": q, "exp": exp,
+            "onboarding_funnel": funnel, "admin_tab": "crm"})
 
     # ---- import contractors as prospective leads (OrgDB → CRM) --------- #
     def _op(c, oid):
@@ -417,6 +440,7 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
             # search itself is a button — it calls an external API, so it never
             # runs while a page is merely being viewed.
             company_match = _cm.current_match(c, uid)
+            declared = _onboarding.declared_afm(c, uid)
             digest = _digest_ctx(c, uid, lang)
         # Entitlement drives the banner on the alerts panel: a subscription on a
         # lapsed account is kept, but nothing is sent until they are re-granted,
@@ -446,6 +470,7 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 # or the included panel posts to /admin/crm//company-match/...
                 "cust_id": uid,
                 "company_match": company_match, "match_result": None,
+                "declared_afm": declared,
                 "match_query": ((profile or {}).get("company") or "").strip(),
                 "field_labels": _cm.FIELD_LABELS,
                 "notes": notes, "calls": calls, "tasks": tasks, "admins": admins,
@@ -520,10 +545,11 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 raise HTTPException(404, "customer not found")
             match = _cm.current_match(c, uid)
             match_query = _cm.prefill_query(c, uid)
+            declared = _onboarding.declared_afm(c, uid)
         return templates.TemplateResponse(
             request, "_crm_company_match.html",
             {"cust_id": uid, "company_match": match, "match_result": result,
-             "match_query": match_query,
+             "match_query": match_query, "declared_afm": declared,
              "match_flash": flash, "match_tone": tone,
              "match_conflict": conflict, "match_candidate": candidate,
              "field_labels": _cm.FIELD_LABELS},
@@ -606,6 +632,12 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
                     raise HTTPException(404, "customer not found")
                 _auth.upsert_profile(c, uid, values,
                                      updated_by=_admin_uid(request))
+                # Not in PROFILE_FIELDS: those are text, this is yes/no/unknown.
+                # Only written when the form carries the field, so a POST from
+                # an older card cannot blank it.
+                if "tender_experience" in form:
+                    _onboarding.set_experience(
+                        c, uid, parse_experience(form.get("tender_experience")))
                 _auth.set_email(c, uid, email)
         except HTTPException:
             raise

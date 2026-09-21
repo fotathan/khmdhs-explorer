@@ -64,6 +64,22 @@
   </div>
   {% endif %}
 
+  {% if declared_afm and not company_match %}
+  {# The ΑΦΜ the customer typed at registration / in the onboarding wizard.
+     A CLAIM (app/onboarding.py §"The ΑΦΜ is a claim"): it is shown here, and
+     linking it is still this admin's click through the normal link route,
+     which rebuilds everything from the registry and the ledger. #}
+  <div class="cmatch-declared">
+    {{ t("Δηλωμένο ΑΦΜ στην εγγραφή") }}: <strong>{{ declared_afm }}</strong>
+    <span class="cmatch-dim">({{ t("δεν έχει επαληθευτεί") }})</span>
+    <form hx-post="/admin/crm/{{ cust_id }}/company-match/link"
+          hx-target="#company-match" hx-swap="outerHTML" class="cmatch-inline">
+      <input type="hidden" name="afm" value="{{ declared_afm }}">
+      <button type="submit" class="u-mini">{{ t("Σύνδεση με αυτό το ΑΦΜ") }}</button>
+    </form>
+  </div>
+  {% endif %}
+
   <form hx-post="/admin/crm/{{ cust_id }}/company-match/search"
         hx-target="#company-match" hx-swap="outerHTML"
         hx-indicator="#cmatch-busy" hx-disabled-elt="find button"

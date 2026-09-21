@@ -23,6 +23,39 @@
       <label>{{ t("Επιβεβαίωση κωδικού") }}
         <input type="password" name="password2" autocomplete="new-password" required minlength="8">
       </label>
+      {% if ask_experience %}
+      {# Onboarding (app/onboarding.py). The question is required, the ΑΦΜ
+         optional. Without JS the ΑΦΜ box is simply always there; the script
+         only hides it until "Ναι" is picked. #}
+      <fieldset class="auth-yn">
+        <legend>{{ t("Έχετε συμμετάσχει ποτέ σε δημόσιους διαγωνισμούς;") }}</legend>
+        <span class="auth-yn-opts">
+          <label><input type="radio" name="tender_experience" value="yes" required
+                 {% if values.tender_experience == 'yes' %}checked{% endif %}> {{ t("Ναι") }}</label>
+          <label><input type="radio" name="tender_experience" value="no"
+                 {% if values.tender_experience == 'no' %}checked{% endif %}> {{ t("Όχι") }}</label>
+        </span>
+      </fieldset>
+      <label class="auth-afm" id="auth-afm">{{ t("ΑΦΜ επιχείρησης (προαιρετικό)") }}<span class="auth-nojs"> {{ t("— αν απαντήσατε Ναι") }}</span>
+        <input type="text" name="afm" value="{{ values.afm or '' }}" inputmode="numeric" autocomplete="off" maxlength="20">
+        <span class="auth-hint">{{ t("Με το ΑΦΜ βρίσκουμε τις αναθέσεις που έχει ήδη κερδίσει η επιχείρησή σας και ρυθμίζουμε τις αναζητήσεις σας με ακρίβεια.") }}</span>
+      </label>
+      <script>
+      (function () {
+        var box = document.getElementById('auth-afm');
+        if (!box) return;
+        box.querySelector('.auth-nojs').style.display = 'none';
+        function sync() {
+          var yes = document.querySelector('input[name="tender_experience"][value="yes"]');
+          box.style.display = (yes && yes.checked) ? '' : 'none';
+        }
+        document.querySelectorAll('input[name="tender_experience"]').forEach(function (r) {
+          r.addEventListener('change', sync);
+        });
+        sync();
+      })();
+      </script>
+      {% endif %}
       {% if invite_required %}
       <label>{{ t("Κωδικός πρόσκλησης") }}
         <input type="text" name="invite" autocomplete="off" required>
@@ -49,6 +82,12 @@
   .auth-btn:hover{background:var(--accent-2);}
   .auth-error{background:#fdeceb;border:1px solid #f4c7c3;color:#b3261e;padding:9px 12px;
     border-radius:8px;font-size:13px;margin-bottom:14px;}
+  .auth-yn{border:0;padding:0;margin:0;font-size:13px;color:var(--ink-2);}
+  .auth-yn legend{padding:0;margin-bottom:6px;line-height:1.4;}
+  .auth-yn-opts{display:flex;gap:18px;}
+  .auth-yn-opts label{flex-direction:row;align-items:center;gap:6px;color:var(--ink);font-size:14px;}
+  .auth-yn-opts input{padding:0;width:auto;margin:0;box-shadow:none;}
+  .auth-hint{font-size:12px;color:var(--ink-3);line-height:1.45;}
   .auth-alt{font-size:13px;color:var(--ink-2);margin:16px 0 0;text-align:center;}
   .auth-alt a{color:var(--accent);font-weight:600;}
 </style>

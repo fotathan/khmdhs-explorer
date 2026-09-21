@@ -64,6 +64,10 @@
   <div><dt>{{ t("Εταιρεία") }}</dt><dd>{{ profile.company }}</dd></div>{% endif %}
   {% if profile.vat_number %}
   <div><dt>{{ t("ΑΦΜ") }}</dt><dd>{{ profile.vat_number }}</dd></div>{% endif %}
+  <div><dt>{{ t("Εμπειρία διαγωνισμών") }}</dt><dd>
+    {% if profile.tender_experience is sameas true %}{{ t("Ναι") }}
+    {% elif profile.tender_experience is sameas false %}{{ t("Όχι") }}
+    {% else %}<span class="glance-sub">—</span>{% endif %}</dd></div>
   {% if profile.phone or profile.mobile %}
   <div><dt>{{ t("Τηλέφωνο") }}</dt><dd>{{ profile.phone or profile.mobile }}</dd></div>{% endif %}
   <div><dt>{{ t("Προϊόν") }}</dt><dd>
@@ -129,6 +133,12 @@
         {% endif %}
       {% endif %}
       <label>{{ t("Κλάδος") }}<input type="text" name="industry" value="{{ profile.industry or '' }}"></label>
+      <label>{{ t("Εμπειρία διαγωνισμών") }}
+        <select name="tender_experience">
+          <option value="" {% if profile.tender_experience is none %}selected{% endif %}>{{ t("Δεν δηλώθηκε") }}</option>
+          <option value="yes" {% if profile.tender_experience is sameas true %}selected{% endif %}>{{ t("Ναι — έχει συμμετάσχει σε διαγωνισμούς") }}</option>
+          <option value="no" {% if profile.tender_experience is sameas false %}selected{% endif %}>{{ t("Όχι — νέος στους δημόσιους διαγωνισμούς") }}</option>
+        </select></label>
 
       <div class="crm-group">{{ t("Τοποθεσία") }}</div>
       <label>{{ t("Χώρα") }}<input type="text" name="country" value="{{ profile.country or '' }}"></label>
@@ -841,7 +851,7 @@
     letter-spacing:.08em;text-transform:uppercase;cursor:pointer;margin-top:8px;}
   .crm-form{display:flex;flex-direction:column;gap:10px;max-width:520px;}
   .crm-form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);}
-  .crm-form input,.crm-form textarea{padding:8px 10px;border:1px solid var(--rule);border-radius:8px;font-size:13px;font-family:var(--sans);}
+  .crm-form input,.crm-form textarea,.crm-form select{padding:8px 10px;border:1px solid var(--rule);border-radius:8px;font-size:13px;font-family:var(--sans);}
   .crm-group{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-top:12px;}
   .crm-group:first-child{margin-top:0;}
   .crm-link{font-size:12px;margin:-4px 0 2px;}
@@ -861,6 +871,8 @@
   .cmatch-linked form{display:inline;}
   .cmatch-confirm{margin:0 0 10px;}
   .cmatch-search{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;}
+  .cmatch-declared{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;margin-top:8px;padding:8px 10px;border:1px dashed var(--rule);border-radius:8px;}
+  .cmatch-inline{margin:0;}
   .cmatch-search input{flex:1 1 220px;padding:7px 9px;border:1px solid var(--rule);
     border-radius:8px;font-size:12.5px;font-family:var(--sans);}
   .cmatch-list{display:flex;flex-direction:column;gap:6px;margin-top:12px;}

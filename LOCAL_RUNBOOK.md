@@ -102,6 +102,7 @@ No `--reload` — it double-starts the background threads.
 | Table relevance classifier | `TABLE_RELEVANCE=1` | default on |
 | Rate limiting | `RATELIMIT_ENABLED=1` | the recipe turns it **off** so you don't throttle yourself while clicking around |
 | Passwordless sign-in links | `LOGIN_LINKS_ENABLED=1` | default on; needs a working `EMAIL_BACKEND` to be useful. To switch **off**, any of `0` / `false` / `no` / `off` / `disabled`. `LOGIN_LINK_TTL_SECONDS=900` sets how long a link lives |
+| First-login wizard (`/welcome`) | `ONBOARDING_ENABLED=1` | default on; adds the "have you bid before?" question + optional ΑΦΜ to `/register`. To switch **off**, any of `0` / `false` / `no` / `off` / `disabled`. Needs migration `20260921120000_onboarding_wizard.sql`. With `GEMI_API_KEY` set, an ΑΦΜ that is not in the ledger is looked up in ΓΕΜΗ (one call, then cached) |
 
 **Off by default — the recipe turns these on**
 
@@ -295,6 +296,32 @@ name, so changing `AI_SUMMARY_MODEL` marks every stored summary stale and every
 queued job with it. The panel offers to regenerate; it does not serve the old
 payload. Budget for that before flipping it on a database with summaries in it,
 and remember the daily cap applies to the re-run.
+
+---
+
+## 7d. Trying the first-login wizard
+
+The wizard needs an account that is signed OUT of the browser you use, because
+`/register` redirects a signed-in visitor to `/`. If the browser is signed in as
+an admin, use a private window.
+
+1. `/register` → answer **Ναι** and give the ΑΦΜ of a contractor with awards in
+   the local ledger (e.g. `997803827`). An ΑΦΜ with a wrong check digit is refused
+   on the form. No lookup happens yet.
+2. You land on `/welcome`. **Ξεκινάμε** → the firm's card is already there
+   (name, number of awards, regions, typical size). **Ναι, αυτή είναι η επιχείρησή μας**.
+3. Step 2 has its CPV classes ticked; step 3 offers keywords from its award
+   titles; step 4 has its regions ticked and shows its typical size as a hint.
+4. The overview counts each search over the last 30 days (a couple of seconds on
+   the full local DB). **Δημιουργία αναζητήσεων** → the results of the first one.
+5. `/account/searches` lists them; **Ρύθμιση από την αρχή** runs it again and
+   creates new ones beside them.
+6. `/admin/crm/<uid>`: "Εμπειρία διαγωνισμών" in the strip, and under **Εταιρεία
+   στο ΓΕΜΗ** the declared ΑΦΜ with **Σύνδεση με αυτό το ΑΦΜ**. Nothing is linked
+   until you press it.
+
+Answer **Όχι** instead and the wizard skips the ΑΦΜ screen and starts at the
+categories.
 
 ---
 

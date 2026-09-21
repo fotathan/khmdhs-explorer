@@ -448,7 +448,7 @@ def list_customers(c, segment="all", q=None):
                u.created_at, u.last_login_at,
                s.product_code AS sub_product, s.expires_at AS sub_expires_at,
                {_SEG_CASE} AS status,
-               p.full_name, p.company
+               p.full_name, p.company, p.tender_experience
         FROM proc.app_user u {_CUR_SUB_JOIN}
         LEFT JOIN proc.customer_profile p ON p.user_id = u.id
         WHERE u.role = 'customer'{qsql}

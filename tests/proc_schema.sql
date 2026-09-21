@@ -1322,7 +1322,8 @@ CREATE TABLE proc.customer_profile (
     tax_number text,
     reg_number text,
     postal_code text,
-    is_recipient boolean DEFAULT false NOT NULL
+    is_recipient boolean DEFAULT false NOT NULL,
+    tender_experience boolean
 );
 
 
@@ -1331,6 +1332,23 @@ CREATE TABLE proc.customer_profile (
 --
 
 COMMENT ON TABLE proc.customer_profile IS 'Admin-editable CRM profile fields for a customer account (1:1 with proc.app_user). Missing row = empty profile.';
+
+
+--
+-- Name: onboarding; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.onboarding (
+    user_id bigint NOT NULL,
+    step smallint DEFAULT 0 NOT NULL,
+    answers jsonb DEFAULT '{}'::jsonb NOT NULL,
+    declared_afm text,
+    ledger_found boolean,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    completed_at timestamp with time zone,
+    skipped_at timestamp with time zone,
+    created_profile_ids bigint[] DEFAULT '{}'::bigint[] NOT NULL
+);
 
 
 --
@@ -3872,6 +3890,14 @@ ALTER TABLE ONLY proc.customer_company_match
 
 
 --
+-- Name: onboarding onboarding_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.onboarding
+    ADD CONSTRAINT onboarding_pkey PRIMARY KEY (user_id);
+
+
+--
 -- Name: customer_contact customer_contact_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
 --
 
@@ -4874,6 +4900,13 @@ CREATE INDEX ix_customer_company_match_afm ON proc.customer_company_match USING 
 
 
 --
+-- Name: ix_onboarding_declared_afm; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_onboarding_declared_afm ON proc.onboarding USING btree (declared_afm) WHERE (declared_afm IS NOT NULL);
+
+
+--
 -- Name: ix_customer_contact_user; Type: INDEX; Schema: proc; Owner: -
 --
 
@@ -5772,6 +5805,14 @@ ALTER TABLE ONLY proc.customer_company_match
 
 ALTER TABLE ONLY proc.customer_company_match
     ADD CONSTRAINT customer_company_match_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.app_user(id) ON DELETE CASCADE;
+
+
+--
+-- Name: onboarding onboarding_user_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.onboarding
+    ADD CONSTRAINT onboarding_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.app_user(id) ON DELETE CASCADE;
 
 
 --
