@@ -98,6 +98,26 @@ app/login_links.py owns it; the routes live next to /login in main.py.
   disable it. Don't narrow that back to == "0" — a dashboard-typed "false"
   silently leaving the feature on is how it went out live once already.
 
+## First-login wizard (/welcome)
+app/onboarding.py, spec docs/specs/onboarding-wizard.md. /register asks "have
+you bid before?" (+ optional ΑΦΜ on yes); the wizard turns the answers into up
+to three ORDINARY saved searches (subject / keywords / awards).
+- **The ΑΦΜ is a claim.** It lives only in proc.onboarding.declared_afm — never
+  customer_profile.vat_number/tax_number/operator_id, never a company_profile.
+  The CRM card offers it as a one-click link through company_match's link
+  route; nothing links on its own. Test-enforced.
+- Sign-up never looks anything up (a slow registry must not block an account)
+  and never says an ΑΦΜ is taken.
+- Suggestions come from fit.ledger_summary — READ-ONLY, sharing
+  fit._AWARD_AGG_SQL with seed_from_ledger; a test pins that they agree.
+- Keywords are their own search, in `q` (title + text), quoted and joined with
+  "or". Never AND them onto the CPV search: build_where would then need both.
+- The ledger value band is shown as a HINT, never pre-filled as a filter.
+- customer_profile.tender_experience: NULL = never asked, not "no".
+  company_match must never write it.
+- ONBOARDING_ENABLED fails towards off (same words as LOGIN_LINKS_ENABLED),
+  checked per request.
+
 ## CRM customer card
 /admin/crm/<uid> is tabbed (Details / Alerts / Activity / Compose email) with an
 always-visible "at a glance" strip above. The tabs are progressive enhancement:

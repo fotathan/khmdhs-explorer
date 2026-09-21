@@ -8,6 +8,31 @@ Dates are the day the change landed on `main` (which auto-deploys to prod on
 Render). This project has no version tags — the git history is the source of
 truth; this is a curated digest.
 
+## Unreleased
+
+### Added — First-login wizard: from a few answers to saved searches
+- `/register` asks «Έχετε συμμετάσχει ποτέ σε δημόσιους διαγωνισμούς;» (required)
+  and, on «Ναι», an optional business ΑΦΜ. The ΑΦΜ is format- and check-digit-
+  checked; nothing is looked up during sign-up.
+- New customers land on `/welcome`: the business (ΑΦΜ → what the firm has won in
+  the award ledger), what it offers (CPV classes / categories), keywords
+  (suggested from its award titles), regions and size, and an overview that
+  counts each search over the last 30 days. It creates up to three ordinary saved
+  searches: new tenders in the field, tenders with the keywords, awards in the
+  field. Skippable, resumable, re-runnable from `/account/searches`.
+- The typed ΑΦΜ is a claim: kept in `proc.onboarding.declared_afm`, never written
+  to the customer's identifiers. The CRM card shows it with a one-click link
+  through the existing ΓΕΜΗ match route.
+- CRM: «Εμπειρία διαγωνισμών» on the card (editable) and as a filter on
+  `/admin/crm`, plus a started / completed / skipped line.
+- A "set up your searches" band on `/` for customers who have neither finished
+  nor skipped it.
+- Switch: `ONBOARDING_ENABLED` (default on; `0/false/no/off/disabled` = off).
+- Migration `20260921120000_onboarding_wizard.sql` (`customer_profile.
+  tender_experience`, `proc.onboarding`) — run on local AND Supabase before the
+  code is pushed.
+- Spec: `docs/specs/onboarding-wizard.md`. Tests: `tests/test_onboarding.py`.
+
 ## 2026-09-17
 
 ### Added — Tender Service duplicate handling (web side)

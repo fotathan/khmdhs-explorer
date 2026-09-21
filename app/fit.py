@@ -280,6 +280,119 @@ def operator_ids_for(c, user_id: int) -> list[int]:
     return sorted(set(ids))
 
 
+# How many awards, from how many buyers, and the value band. Shared by
+# seed_from_ledger (which stores it) and ledger_summary (which only reads it),
+# so the onboarding wizard's "34 contracts, typically 8k–120k" can never
+# disagree with the profile an admin later derives from the same ΑΦΜ.
+_AWARD_AGG_SQL = """
+    SELECT count(*) AS n_awards,
+           count(DISTINCT a.authority_id) AS n_buyers,
+           percentile_disc(0.10) WITHIN GROUP (ORDER BY v.val) AS p10,
+           percentile_disc(0.50) WITHIN GROUP (ORDER BY v.val) AS p50,
+           percentile_disc(0.90) WITHIN GROUP (ORDER BY v.val) AS p90
+      FROM proc.act_operator ao
+      JOIN proc.procurement_act a ON a.adam = ao.adam
+      CROSS JOIN LATERAL (SELECT coalesce(
+                 ao.awarded_value_with_vat,
+                 proc.resolved_value(a.adam, a.total_cost_with_vat)) AS val) v
+     WHERE ao.operator_id = ANY(%s)
+       AND a.type = ANY(%s)
+       AND NOT coalesce(a.cancelled, false)
+"""
+
+
+def operator_ids_for_afm(c, afm: str | None) -> list[int]:
+    """Ledger identities behind a bare ΑΦΜ — no customer involved.
+
+    The ledger stores Greek VATs zero-padded, some with an EL prefix, so both
+    spellings are tried (the same variants crm._vat_candidates covers)."""
+    core = (afm or "").strip().upper().replace(" ", "")
+    if core.startswith("EL"):
+        core = core[2:]
+    if not core.isdigit():
+        return []
+    core = core.zfill(9)
+    c.execute("""SELECT operator_id FROM proc.economic_operator
+                  WHERE vat_number = ANY(%s)""", ([core, "EL" + core],))
+    return sorted({int(r["operator_id"]) for r in c.fetchall()})
+
+
+def ledger_summary(c, op_ids: list[int], *, n_titles: int = 300) -> dict:
+    """What these ledger identities have won — READ-ONLY.
+
+    The onboarding wizard's suggestions come from here. It writes nothing:
+    the ΑΦΜ behind op_ids is only something a customer typed, and a profile
+    (company_profile*) is derived only once an admin has linked the ΑΦΜ
+    (seed_from_ledger). Same filters as the seed — awards only, cancelled
+    acts excluded — so the two agree (test_onboarding checks it).
+
+    Returns n_awards / n_buyers / p10 / p50 / p90 / banded, plus:
+      cpv4    — [{prefix, n_acts}] at 4-digit depth, busiest first
+      nuts    — [{prefix, n_acts}] at 4-char NUTS depth, busiest first
+      titles  — the most recent award titles (keyword suggestions)
+      name    — the contractor's name as the ledger has it
+    """
+    if not op_ids:
+        return {"n_awards": 0, "cpv4": [], "nuts": [], "titles": [], "name": None}
+    types = list(_AWARD_TYPES)
+    c.execute(_AWARD_AGG_SQL, (op_ids, types))
+    agg = dict(c.fetchone() or {})
+    n_awards = int(agg.get("n_awards") or 0)
+
+    c.execute("""
+        SELECT substr(oc.cpv_code, 1, 4) AS prefix, count(DISTINCT a.adam) AS n_acts
+          FROM proc.act_operator ao
+          JOIN proc.procurement_act a ON a.adam = ao.adam
+          JOIN proc.act_object_detail od ON od.adam = a.adam
+          JOIN proc.object_detail_cpv oc ON oc.object_detail_id = od.id
+         WHERE ao.operator_id = ANY(%s) AND a.type = ANY(%s)
+           AND NOT coalesce(a.cancelled, false)
+           AND oc.cpv_code IS NOT NULL AND oc.cpv_code <> ''
+         GROUP BY 1
+         ORDER BY 2 DESC, 1
+    """, (op_ids, types))
+    cpv4 = [{"prefix": r["prefix"], "n_acts": int(r["n_acts"])} for r in c.fetchall()]
+
+    c.execute("""
+        SELECT substr(a.nuts_code, 1, 4) AS prefix, count(DISTINCT a.adam) AS n_acts
+          FROM proc.act_operator ao
+          JOIN proc.procurement_act a ON a.adam = ao.adam
+         WHERE ao.operator_id = ANY(%s) AND a.type = ANY(%s)
+           AND NOT coalesce(a.cancelled, false)
+           AND a.nuts_code IS NOT NULL AND a.nuts_code <> ''
+         GROUP BY 1
+         ORDER BY 2 DESC, 1
+    """, (op_ids, types))
+    nuts = [{"prefix": r["prefix"], "n_acts": int(r["n_acts"])} for r in c.fetchall()]
+
+    c.execute("""
+        SELECT a.title
+          FROM proc.act_operator ao
+          JOIN proc.procurement_act a ON a.adam = ao.adam
+         WHERE ao.operator_id = ANY(%s) AND a.type = ANY(%s)
+           AND NOT coalesce(a.cancelled, false)
+           AND a.title IS NOT NULL
+         ORDER BY a.submission_date DESC NULLS LAST
+         LIMIT %s
+    """, (op_ids, types, n_titles))
+    titles = [r["title"] for r in c.fetchall()]
+
+    c.execute("""SELECT name FROM proc.economic_operator
+                  WHERE operator_id = ANY(%s) AND name IS NOT NULL
+                  ORDER BY operator_id LIMIT 1""", (op_ids,))
+    row = c.fetchone()
+
+    banded = n_awards >= MIN_AWARDS_FOR_BAND
+    return {"n_awards": n_awards,
+            "n_buyers": int(agg.get("n_buyers") or 0),
+            "p10": agg.get("p10") if banded else None,
+            "p50": agg.get("p50") if banded else None,
+            "p90": agg.get("p90") if banded else None,
+            "banded": banded,
+            "cpv4": cpv4, "nuts": nuts, "titles": titles,
+            "name": row["name"] if row else None}
+
+
 def seed_from_ledger(c, user_id: int, *, by: int | None = None) -> dict:
     """(Re)build the derived half of a profile from what the firm has won.
 
@@ -295,21 +408,7 @@ def seed_from_ledger(c, user_id: int, *, by: int | None = None) -> dict:
         return {"ok": False,
                 "reason": "δεν υπάρχει ΑΦΜ ή συνδεδεμένος ανάδοχος για αυτόν τον πελάτη"}
 
-    c.execute(f"""
-        SELECT count(*) AS n_awards,
-               count(DISTINCT a.authority_id) AS n_buyers,
-               percentile_disc(0.10) WITHIN GROUP (ORDER BY v.val) AS p10,
-               percentile_disc(0.50) WITHIN GROUP (ORDER BY v.val) AS p50,
-               percentile_disc(0.90) WITHIN GROUP (ORDER BY v.val) AS p90
-          FROM proc.act_operator ao
-          JOIN proc.procurement_act a ON a.adam = ao.adam
-          CROSS JOIN LATERAL (SELECT coalesce(
-                     ao.awarded_value_with_vat,
-                     proc.resolved_value(a.adam, a.total_cost_with_vat)) AS val) v
-         WHERE ao.operator_id = ANY(%s)
-           AND a.type = ANY(%s)
-           AND NOT coalesce(a.cancelled, false)
-    """, (op_ids, list(_AWARD_TYPES)))
+    c.execute(_AWARD_AGG_SQL, (op_ids, list(_AWARD_TYPES)))
     agg = c.fetchone() or {}
     n_awards = int(agg.get("n_awards") or 0)
     if not n_awards:

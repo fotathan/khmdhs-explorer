@@ -2,6 +2,37 @@
 {% block title %}{{ t("KHMDHS · Εξερευνητής") }}{% endblock %}
 {% block content %}
 {% if show_public_intro %}{% include "_public_intro.html" %}{% endif %}
+{% if onboarding_created %}
+<div class="ob-band ob-band-ok" role="status">
+  {{ t("Δημιουργήθηκαν") }} {{ onboarding_created }} {{ t("αναζητήσεις. Θα τις βρίσκετε στις") }}
+  <a href="/account/searches">{{ t("Αποθηκευμένες αναζητήσεις") }}</a>.
+</div>
+{% elif onboarding_prompt %}
+{# app/onboarding.py wants_prompt: a customer who has neither finished nor
+   skipped the wizard and keeps no saved searches. A band, never a redirect. #}
+<div class="ob-band">
+  <span><b>{{ t("Ρυθμίστε τις αναζητήσεις σας σε 2 λεπτά") }}</b> — {{ t("πείτε μας τι κάνει η επιχείρησή σας και θα σας δείχνουμε τους διαγωνισμούς που σας αφορούν.") }}</span>
+  <span class="ob-band-acts">
+    <a href="/welcome" class="ob-band-go">{{ t("Ξεκινάμε") }}</a>
+    <form method="post" action="/welcome/skip">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="ob-band-x">{{ t("Όχι τώρα") }}</button>
+    </form>
+  </span>
+</div>
+{% endif %}
+{% if onboarding_created or onboarding_prompt %}
+<style>
+  .ob-band{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between;
+    border:1px solid var(--accent);background:var(--accent-soft);color:var(--ink);
+    border-radius:12px;padding:12px 16px;margin:14px 0;font-size:14px;line-height:1.45;}
+  .ob-band a{color:var(--accent);font-weight:600;}
+  .ob-band-acts{display:flex;gap:10px;align-items:center;}
+  .ob-band-acts form{margin:0;}
+  .ob-band-go{background:var(--accent);color:#fff !important;padding:7px 16px;border-radius:999px;text-decoration:none;}
+  .ob-band-x{background:none;border:0;color:var(--ink-2);font-size:13px;cursor:pointer;text-decoration:underline;}
+</style>
+{% endif %}
 {% if search_profiles or can_manage_profiles or can_save_search or can_export %}
 <div class="profiles-bar">
   {% if search_profiles %}

@@ -28,10 +28,26 @@
 
 <div class="crm-segments">
   {% for s in segments %}
-  <a href="/admin/crm?segment={{ s }}{% if q %}&q={{ q|urlencode }}{% endif %}" class="crm-seg {% if segment==s %}on{% endif %}">
+  <a href="/admin/crm?segment={{ s }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if exp %}&exp={{ exp }}{% endif %}" class="crm-seg {% if segment==s %}on{% endif %}">
     {{ SEG_LABELS.get(s, s) | t }}<span class="crm-seg-n">{{ counts.get(s, 0) }}</span>
   </a>
   {% endfor %}
+</div>
+
+{# Tender experience, as declared at registration (app/onboarding.py). The
+   counts above are per subscription segment; this narrows within one. #}
+<div class="crm-exp">
+  <span class="crm-exp-k">{{ t("Εμπειρία διαγωνισμών") }}:</span>
+  {% for val, label in [("", "Όλοι"), ("yes", "Ναι"), ("no", "Όχι"), ("unknown", "Δεν δηλώθηκε")] %}
+  <a href="/admin/crm?segment={{ segment }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if val %}&exp={{ val }}{% endif %}"
+     class="crm-exp-o {% if exp == val %}on{% endif %}">{{ t(label) }}</a>
+  {% endfor %}
+  {% if onboarding_funnel and onboarding_funnel.started %}
+  <span class="crm-exp-f" title="{{ t('Οδηγός πρώτης ρύθμισης') }}">
+    {{ t("Οδηγός ρύθμισης") }}: {{ onboarding_funnel.started }} {{ t("ξεκίνησαν") }},
+    {{ onboarding_funnel.completed }} {{ t("ολοκλήρωσαν") }}, {{ onboarding_funnel.skipped }} {{ t("παρέλειψαν") }}
+  </span>
+  {% endif %}
 </div>
 
 <div class="detail-grid">
@@ -77,7 +93,12 @@
 </div>
 
 <style>
-  .crm-segments{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 22px;}
+  .crm-segments{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px;}
+  .crm-exp{display:flex;gap:6px 10px;flex-wrap:wrap;align-items:center;font-size:12px;margin:0 0 22px;color:var(--ink-2);}
+  .crm-exp-k{font-weight:600;}
+  .crm-exp-o{color:var(--accent);text-decoration:none;padding:2px 8px;border-radius:999px;border:1px solid transparent;}
+  .crm-exp-o.on{border-color:var(--accent);background:var(--accent-soft);}
+  .crm-exp-f{margin-left:auto;color:var(--ink-3);}
   .crm-seg{display:inline-flex;align-items:center;gap:7px;text-decoration:none;
     font-size:12.5px;font-weight:600;color:var(--ink-2);border:1px solid var(--rule);
     border-radius:20px;padding:6px 13px;}
