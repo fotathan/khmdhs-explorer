@@ -2229,26 +2229,37 @@ async def register_submit(request: Request):
             afm = _onboarding.afm_valid(afm_raw)
             if not afm:
                 return err("Μη έγκυρο ΑΦΜ — ελέγξτε τα 9 ψηφία, ή αφήστε το κενό.")
+    # ONE transaction for everything sign-up writes. The pool is autocommit, so
+    # without it a failure after create_user (it happened: RLS on
+    # proc.onboarding in prod) left a real account behind — with a password and
+    # a test grant — and the retry was then told the name was taken.
+    failure = None
     with cursor() as c:
         if _auth.get_by_username(c, username):
             return err("Το όνομα χρήστη χρησιμοποιείται ήδη.", 409)
-        try:
-            user = dict(_auth.create_user(c, username, password,
-                                          role="customer", email=email or None))
-            # Self-service signup gets the test product (7-day default);
-            # granted_by NULL marks it as self-granted, not admin-issued.
-            _auth.grant_product(c, user["id"], "test", granted_by=None)
-        except ValueError as e:
-            return err(str(e))
-        except Exception:  # unique email etc.
-            return err("Το όνομα χρήστη ή το email χρησιμοποιείται ήδη.", 409)
-        if ask_experience:
-            # The answer on the profile (that column only); the ΑΦΜ as a claim
-            # on the wizard row — never customer_profile.vat_number (§5 of
-            # docs/specs/onboarding-wizard.md). No uniqueness check: "this ΑΦΜ
-            # is taken" would tell a stranger the firm has an account here.
-            _onboarding.start_at_registration(c, user["id"], experience=experience,
-                                              afm=afm)
+        with c.connection.transaction():
+            try:
+                user = dict(_auth.create_user(c, username, password,
+                                              role="customer", email=email or None))
+                # Self-service signup gets the test product (7-day default);
+                # granted_by NULL marks it as self-granted, not admin-issued.
+                _auth.grant_product(c, user["id"], "test", granted_by=None)
+            except ValueError as e:
+                failure = (str(e), 400)
+                raise psycopg.Rollback()
+            except psycopg.IntegrityError:  # unique username/email (a race)
+                failure = ("Το όνομα χρήστη ή το email χρησιμοποιείται ήδη.", 409)
+                raise psycopg.Rollback()
+            if ask_experience:
+                # The answer on the profile (that column only); the ΑΦΜ as a
+                # claim on the wizard row — never customer_profile.vat_number
+                # (§5 of docs/specs/onboarding-wizard.md). No uniqueness check:
+                # "this ΑΦΜ is taken" would tell a stranger the firm has an
+                # account here. Anything raised here rolls the account back too.
+                _onboarding.start_at_registration(c, user["id"],
+                                                  experience=experience, afm=afm)
+    if failure:
+        return err(*failure)
     _auth.login_session(request, user)
     return _Redirect("/welcome" if ask_experience else "/", status_code=303)
 
