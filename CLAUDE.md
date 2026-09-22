@@ -108,6 +108,11 @@ to three ORDINARY saved searches (subject / keywords / awards).
   route; nothing links on its own. Test-enforced.
 - Sign-up never looks anything up (a slow registry must not block an account)
   and never says an ΑΦΜ is taken.
+- Sign-up is ONE transaction (user + test grant + profile + wizard row). The
+  pool is autocommit: without it a failed wizard INSERT (prod RLS on
+  proc.onboarding, 2026-09-22) left a live half-made account. Test-enforced.
+  Never tick Supabase's "Run and enable RLS" for a proc table — no policies =
+  every app INSERT refused.
 - Suggestions come from fit.ledger_summary — READ-ONLY, sharing
   fit._AWARD_AGG_SQL with seed_from_ledger; a test pins that they agree.
 - Keywords are their own search, in `q` (title + text), quoted and joined with

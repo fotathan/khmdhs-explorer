@@ -319,6 +319,47 @@ def test_registration_writes_the_answer_and_nothing_else_on_the_profile(client, 
     assert ob.declared_afm(world, uid) == FIRM_AFM
 
 
+def test_a_failure_after_the_account_is_made_leaves_no_half_account(
+        client, world, monkeypatch):
+    """Prod, 2026-09-22: RLS on proc.onboarding made the wizard-row INSERT fail
+    AFTER create_user. On the autocommit pool that left a live account (password
+    + test grant + profile) and the retry said "name taken". Sign-up is one
+    transaction now: a failure anywhere writes nothing, and a retry works."""
+    import psycopg
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    def rls(*a, **k):
+        raise psycopg.errors.InsufficientPrivilege(
+            'new row violates row-level security policy for table "onboarding"')
+    real = ob.start_at_registration
+    monkeypatch.setattr(ob, "start_at_registration", rls)
+    raw = TestClient(app, base_url="https://testserver",
+                     raise_server_exceptions=False)
+    r = _register(raw, "ob_halfmade", afm=FIRM_AFM)
+    assert r.status_code == 500
+    world.execute("SELECT id FROM proc.app_user WHERE username = 'ob_halfmade'")
+    assert world.fetchone() is None
+    world.execute("""SELECT count(*) AS n FROM proc.customer_profile p
+                     JOIN proc.app_user u ON u.id = p.user_id
+                     WHERE u.email = 'ob_halfmade@example.com'""")
+    assert world.fetchone()["n"] == 0
+
+    monkeypatch.setattr(ob, "start_at_registration", real)
+    r = _register(client, "ob_halfmade", afm=FIRM_AFM)
+    assert r.status_code == 303 and r.headers["location"] == "/welcome"
+    assert ob.declared_afm(world, _uid(world, "ob_halfmade")) == FIRM_AFM
+
+
+def test_a_taken_email_is_a_409_and_writes_nothing(client, world):
+    assert _register(client, "ob_mail1").status_code == 303
+    client.cookies.clear()
+    r = _register(client, "ob_mail2", email="ob_mail1@example.com")
+    assert r.status_code == 409
+    world.execute("SELECT 1 FROM proc.app_user WHERE username = 'ob_mail2'")
+    assert world.fetchone() is None
+
+
 def test_a_declared_afm_already_used_by_another_account_is_not_revealed(client, world):
     """"This ΑΦΜ is taken" would tell a stranger the firm has an account here."""
     a = _register(client, "ob_dup1", afm=FIRM_AFM)
