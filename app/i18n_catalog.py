@@ -3225,6 +3225,10 @@ _ONBOARDING = {
     "Οδηγός ρύθμισης": "Setup wizard",
     "Οι αναζητήσεις που έχετε ήδη δεν αλλάζουν — θα δημιουργηθούν νέες.": "Your existing searches stay as they are — new ones will be created.",
     "Οι ειδοποιήσεις με email ενεργοποιούνται από τις Αποθηκευμένες αναζητήσεις.": "Email alerts are turned on from Saved searches.",
+    "Μετά τη δημιουργία ανοίγει η πρώτη αναζήτηση. Όλες αποθηκεύονται μαζί στις Αποθηκευμένες αναζητήσεις.":
+        "The first search opens once they are created. All of them are saved together in Saved searches.",
+    "Βλέπετε την πρώτη — οι υπόλοιπες σας περιμένουν στις": "You are looking at the first — the others are waiting in",
+    "αναζητήσεις": "searches",
     "Οι λέξεις σας — μία ανά γραμμή (προαιρετικό)": "Your keywords — one per line (optional)",
     "Παράλειψη ρύθμισης": "Skip setup",
     "Πείτε μας τι κάνει η επιχείρησή σας και θα φτιάξουμε αναζητήσεις που σας δείχνουν τους διαγωνισμούς που σας αφορούν.":

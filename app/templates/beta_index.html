@@ -4,8 +4,13 @@
 {% if show_public_intro %}{% include "_public_intro.html" %}{% endif %}
 {% if onboarding_created %}
 <div class="ob-band ob-band-ok" role="status">
-  {{ t("Δημιουργήθηκαν") }} {{ onboarding_created }} {{ t("αναζητήσεις. Θα τις βρίσκετε στις") }}
-  <a href="/account/searches">{{ t("Αποθηκευμένες αναζητήσεις") }}</a>.
+  <span>
+    {{ t("Δημιουργήθηκαν") }} {{ onboarding_created | length }} {{ t("αναζητήσεις") }}{% if onboarding_created[0].id %}:
+    {% for s in onboarding_created %}{% if not loop.first %} · {% endif %}<a href="/search-profiles/{{ s.id }}/apply">{{ s.name }}</a>{% endfor %}.
+    {{ t("Βλέπετε την πρώτη — οι υπόλοιπες σας περιμένουν στις") }}
+    {% else %}. {{ t("Θα τις βρίσκετε στις") }}{% endif %}
+    <a href="/account/searches">{{ t("Αποθηκευμένες αναζητήσεις") }}</a>.
+  </span>
 </div>
 {% elif onboarding_prompt %}
 {# app/onboarding.py wants_prompt: a customer who has neither finished nor

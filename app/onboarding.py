@@ -930,9 +930,13 @@ def make_router(templates: Jinja2Templates, cursor, *, nuts_regions: list[dict],
             return RedirectResponse("/account/searches?" + urlencode({"flash": msg}),
                                     status_code=303)
         # Straight to the results of the main search — that is the point. The
-        # count rides in the session, not the URL, so it is said once and does
+        # others (the keyword search, the awards one) are saved but never
+        # opened, so the band NAMES them and links to each: landing on the
+        # notices alone read as "the awards search I asked for is missing".
+        # It rides in the session, not the URL, so it is said once and does
         # not follow the customer through paging and re-searching.
-        request.session["onboarding_created"] = len(ids)
+        request.session["onboarding_created"] = [
+            {"id": pid, "name": name} for pid, name in out["created"]]
         return RedirectResponse(f"/search-profiles/{ids[0]}/apply", status_code=303)
 
     # ---- skip ------------------------------------------------------------- #

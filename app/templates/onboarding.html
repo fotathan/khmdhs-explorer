@@ -244,6 +244,7 @@
       {% if existing %}
       <p class="ob-note">{{ t("Έχετε ήδη") }}: {{ existing | join(', ') }}. {{ t("Αυτές δεν αλλάζουν.") }}</p>
       {% endif %}
+      <p class="ob-note">{{ t("Μετά τη δημιουργία ανοίγει η πρώτη αναζήτηση. Όλες αποθηκεύονται μαζί στις Αποθηκευμένες αναζητήσεις.") }}</p>
       <p class="ob-note">{{ t("Οι ειδοποιήσεις με email ενεργοποιούνται από τις Αποθηκευμένες αναζητήσεις.") }}</p>
       <div class="ob-actions ob-rev">
         <button type="submit" name="action" value="finish" class="ob-btn">{{ t("Δημιουργία αναζητήσεων") }}</button>

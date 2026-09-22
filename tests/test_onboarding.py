@@ -464,9 +464,16 @@ def test_the_full_run_creates_the_searches_and_respects_the_claim_rule(client, w
     assert st["completed_at"] is not None
     assert sorted(st["created_profile_ids"]) == [r_["id"] for r_ in rows]
 
-    # The home page says so once, then stops.
+    # The home page says so once, then stops. It NAMES every search it made and
+    # links to each: the run opens the notices, so the keyword and awards ones
+    # are otherwise invisible and read as missing.
     home = client.get(f"/search-profiles/{rows[0]['id']}/apply").text
     assert "Δημιουργήθηκαν" in home
+    for r_ in rows:
+        assert r_["name"] in home
+        assert f'/search-profiles/{r_["id"]}/apply' in home
+    assert "Αναθέσεις στον κλάδο μου" in home            # the awards one by name
+    assert "/account/searches" in home
     assert "Δημιουργήθηκαν" not in client.get("/").text
 
 
