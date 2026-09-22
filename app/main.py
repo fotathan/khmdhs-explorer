@@ -3372,7 +3372,12 @@ def home(request: Request,
     # Onboarding: "N searches created" once, right after the wizard; otherwise
     # the "set up your searches" band for a customer who has neither finished
     # nor skipped it. A band, never a redirect.
-    ctx["onboarding_created"] = request.session.pop("onboarding_created", None)
+    # A list of {id, name}; an int is a session left over from before the names
+    # were carried, and still says how many were created.
+    _created = request.session.pop("onboarding_created", None)
+    if isinstance(_created, int):
+        _created = [{"id": None, "name": None} for _ in range(_created)]
+    ctx["onboarding_created"] = _created or None
     ctx["onboarding_prompt"] = False
     if user and not ctx["onboarding_created"]:
         try:
