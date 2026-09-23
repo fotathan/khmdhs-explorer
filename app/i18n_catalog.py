@@ -797,6 +797,34 @@ _FORMLABELS = {
         "Favourites with an open deadline:",
     "Κανένα από τα αγαπημένα σας δεν έχει προθεσμία που δεν έχει λήξει. Πατήστε το αστέρι σε μια πράξη για να μπει στο ημερολόγιο.":
         "None of your favourites has an open deadline. Press the star on an act to put it in the calendar.",
+    "Μπορείτε να προσθέσετε και αποθηκευμένες αναζητήσεις: οι προθεσμίες που βρίσκουν μπαίνουν στο ίδιο ημερολόγιο.":
+        "You can add saved searches too: the deadlines they find go into the same calendar.",
+    "Αποθηκευμένες αναζητήσεις στο ημερολόγιο (προθεσμίες που δεν έχουν λήξει):":
+        "Saved searches in the calendar (open deadlines):",
+    "Το ημερολόγιο χωράει έως {n} προθεσμίες. Τα αγαπημένα μπαίνουν πάντα· από τις αναζητήσεις μπαίνουν όσες χωρούν, οι πιο κοντινές πρώτες. Για να μη χάνονται προθεσμίες, στενέψτε ή αφαιρέστε μια αναζήτηση.":
+        "The calendar holds up to {n} deadlines. Favourites always go in; from your searches, as many as fit, soonest first. So that no deadlines go missing, narrow or remove a search.",
+    "Καμία αποθηκευμένη αναζήτηση στο ημερολόγιο.":
+        "No saved searches in the calendar.",
+    "Επιλογή αναζητήσεων για το ημερολόγιο":
+        "Choose searches for the calendar",
+    "στο ημερολόγιο":
+        "in calendar",
+    "Αφαίρεση από το ημερολόγιο":
+        "Remove from calendar",
+    "Προσθήκη στο ημερολόγιο":
+        "Add to calendar",
+    "Στο ημερολόγιό σας":
+        "In your calendar",
+    "«Προσθήκη στο ημερολόγιο» βάζει τις προθεσμίες που βρίσκει μια αναζήτηση στο ημερολόγιο Google, Outlook ή Apple, μαζί με τα αγαπημένα σας. Οι ακυρωμένες πράξεις δεν μπαίνουν.":
+        "“Add to calendar” puts the deadlines a search finds into your Google, Outlook or Apple calendar, alongside your favourites. Cancelled acts are left out.",
+    "Δεν έχετε ακόμη σύνδεσμο ημερολογίου — δημιουργήστε τον μία φορά:":
+        "You do not have a calendar link yet — create it once:",
+    "Η αναζήτηση προστέθηκε στο ημερολόγιο.":
+        "The search was added to your calendar.",
+    "Η αναζήτηση αφαιρέθηκε από το ημερολόγιο.":
+        "The search was removed from your calendar.",
+    "Μπορείτε να βάλετε στο ίδιο ημερολόγιο και αποθηκευμένες αναζητήσεις: στις «Αναζητήσεις & ειδοποιήσεις», «Προσθήκη στο ημερολόγιο» σε όποια θέλετε. Μπαίνουν οι προθεσμίες που δεν έχουν λήξει (όχι οι ακυρωμένες), και κάθε εγγραφή γράφει ποια αναζήτηση τη βρήκε. Το ημερολόγιο χωράει έως 500 προθεσμίες: τα αγαπημένα μπαίνουν πάντα και από τις αναζητήσεις όσες χωρούν, οι πιο κοντινές πρώτες — η σελίδα του ημερολογίου σάς λέει αν μια αναζήτηση είναι πολύ ευρεία.":
+        "You can put saved searches in the same calendar too: in “Searches & alerts”, press “Add to calendar” on any of them. Their open deadlines go in (never cancelled ones), and each entry says which search found it. The calendar holds up to 500 deadlines: favourites always go in, and from your searches as many as fit, soonest first — the calendar page tells you if a search is too broad.",
     "Υπενθυμίσεις (ημέρες πριν τη λήξη):":
         "Reminders (days before closing):",
     "Ίδιες με την υπενθύμιση προθεσμιών μέσω email· αλλάζουν στις":

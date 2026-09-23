@@ -1,9 +1,10 @@
 # Spec: Calendar feed (.ics) — tender deadlines in the customer's own calendar
 
-**Status:** 2026-09-23. **Slices 1-4 built** and tested against a real DB —
-`app/ics.py`, `/act/<adam>/calendar.ics`, favourites on the web, and the
-subscribed feed (`app/calendar_feed.py`, migration `20260923075702_calendar_feed`,
-applied LOCALLY only). Slices 5-6 not started.
+**Status:** 2026-09-23. **Slices 1-5 built** and tested against a real DB —
+`app/ics.py`, `/act/<adam>/calendar.ics`, favourites on the web, the
+subscribed feed (`app/calendar_feed.py`, migration `20260923075702_calendar_feed`),
+and saved searches in the feed (migration `20260923163148_calendar_search`,
+applied LOCALLY only). Slice 6 not started (needs the working-day spec).
 **Repo path:** `docs/specs/calendar-feed.md`
 **Companion spec:** `docs/specs/working-day-deadlines.md` (phase 5 consumes it;
 phases 1–4 do not depend on it).
@@ -113,6 +114,37 @@ for a fraction of the build, and it keeps working when our tab is closed.
   `account.html`, so slice 3's `/account/favorites` rendered unstyled. They are
   now one partial, `_acct_styles.html`, included by account, favourites and
   calendar (`account_mfa.html` keeps its own older copy).
+
+**Built differently from this draft (slice 5):**
+- **Table `proc.calendar_search`** (user_id, search_profile_id) — a row means
+  "ticked"; unticking deletes it. Not a column on `search_profile` (a portal
+  profile is shared, one customer's tick must not reach everyone) nor on
+  `digest_subscription` (the calendar must not require the email). Both FKs
+  cascade.
+- **A button, not a checkbox**, next to "Άνοιγμα αναζήτησης" on
+  `/account/searches` (`POST /account/searches/<id>/calendar`, `on=1` to add).
+  Access is `_owned(..., mode='apply')` — the alert's rule: a published portal
+  search can be ticked, an unpublished or someone else's is a 404. A ticked
+  portal search stays listed on the page even without an alert, or there
+  would be no button left to untick it. The feed re-checks
+  `can_apply_profile` on every poll, so an unpublished portal search drops out.
+- **Cap order.** Favourites always go in. Search matches fill what is left of
+  `CALENDAR_MAX_EVENTS`: upcoming deadlines soonest first ACROSS all ticked
+  searches (not N per search — a broad one must not starve a narrow one),
+  then the recent past. An act two searches match is one event; one that is
+  also a favourite is left to the favourite.
+- **Recent past = closed since the tick**, within `CALENDAR_PAST_DAYS`.
+  Measured on the local corpus: "Καθαριότητα" matches 79 upcoming and 288
+  deadlines closed in the last 30 days. Without the "since the tick" bound,
+  ticking it would dump a month of closed tenders into the calendar.
+- **Cancelled acts are never brought in by a search** (§2, and the deadline
+  digest agrees). A cancelled FAVOURITE is still stated `STATUS:CANCELLED`.
+- Each search-sourced event's DESCRIPTION ends "Αποθηκευμένη αναζήτηση: <names>",
+  so the customer can see why it is there and which button to press.
+- `/account/calendar` lists the ticked searches with their upcoming count and
+  warns when favourites + searches overflow the cap.
+- Measured per poll on the 2.7M-act local DB: 10–150 ms per ticked search
+  (two queries each, upcoming and past); one cold count 2.3 s (page only).
 
 ---
 

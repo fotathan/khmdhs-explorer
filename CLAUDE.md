@@ -361,6 +361,11 @@ the customer's own calendar; /account/calendar makes the link.
   token, a turned-off feed or a deactivated account is a 404.
 - DTSTAMP is derived from the data, never the clock, or no poll is ever a 304.
 - /calendar is in BOTH seo._NOINDEX_PREFIXES and seo._DISALLOW_PATHS.
+- Saved searches join the feed only when ticked on /account/searches
+  (proc.calendar_search, slice 5). Favourites always fit first; searches fill
+  the rest of CALENDAR_MAX_EVENTS, upcoming soonest first. A search never
+  brings in a cancelled act, and its past reaches back only to the tick —
+  never a backfill of closed tenders.
 - calendar_feed.act_event is the ONE definition of an act as an event, used by
   the feed and by /act/<adam>/calendar.ics. SEQUENCE comes from
   last_update_date — without it a moved deadline does not move in the client.
