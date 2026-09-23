@@ -540,6 +540,10 @@ class DiavgeiaRepository:
         db = self.db
 
         # 1. header row
+        #    ingested_at is the digest window, so a re-projection keeps it unless
+        #    the act is new or a projected column actually changed (a now() here
+        #    re-entered every Diavgeia act into the next email). raw_json is not
+        #    compared: it carries volatile API fields.
         db.execute(f"""
             INSERT INTO proc.procurement_act
               (adam, type, data_source, origin, external_id, title, signed_date,
@@ -564,7 +568,29 @@ class DiavgeiaRepository:
                type_of_document=EXCLUDED.type_of_document,
                subtype_of_document=EXCLUDED.subtype_of_document,
                authority_id=EXCLUDED.authority_id, raw_json=EXCLUDED.raw_json,
-               ingested_at=now()
+               ingested_at=CASE
+                 WHEN ROW(proc.procurement_act.type, proc.procurement_act.data_source,
+                          proc.procurement_act.external_id, proc.procurement_act.title,
+                          proc.procurement_act.signed_date,
+                          proc.procurement_act.submission_date,
+                          proc.procurement_act.total_cost_with_vat,
+                          proc.procurement_act.total_cost_without_vat,
+                          proc.procurement_act.budget, proc.procurement_act.source_url,
+                          proc.procurement_act.source_status,
+                          proc.procurement_act.protocol_number,
+                          proc.procurement_act.type_of_document,
+                          proc.procurement_act.subtype_of_document,
+                          proc.procurement_act.authority_id)
+                      IS DISTINCT FROM
+                      ROW(EXCLUDED.type, EXCLUDED.data_source, EXCLUDED.external_id,
+                          EXCLUDED.title, EXCLUDED.signed_date, EXCLUDED.submission_date,
+                          EXCLUDED.total_cost_with_vat, EXCLUDED.total_cost_without_vat,
+                          EXCLUDED.budget, EXCLUDED.source_url, EXCLUDED.source_status,
+                          EXCLUDED.protocol_number, EXCLUDED.type_of_document,
+                          EXCLUDED.subtype_of_document, EXCLUDED.authority_id)
+                 THEN now()
+                 ELSE proc.procurement_act.ingested_at
+               END
             WHERE proc.procurement_act.origin <> 'authored'
         """)
         db.commit()
