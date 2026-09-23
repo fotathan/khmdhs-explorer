@@ -159,10 +159,14 @@ def test_snapshot_cursor_has_no_duplicates_and_excludes_new_ingestion(
     assert len(first_body["items"]) == 2
     assert first_body["next_cursor"]
 
+    # The snapshot is the APP's clock and ingested_at the DATABASE's; in Docker
+    # the database runs ~0.5ms behind, so a plain now() here could land before
+    # the snapshot and the "later" act would count. A few seconds ahead is still
+    # "after the first page" and cannot race.
     db.cursor().execute("""INSERT INTO proc.procurement_act
         (adam,type,title,origin,data_source,submission_date,ingested_at)
         VALUES (%s,'notice','mobilesliceword inserted later','import','khmdhs',
-                now() + interval '1 day', now())""", (PREFIX + "NEW",))
+                now() + interval '1 day', now() + interval '5 seconds')""", (PREFIX + "NEW",))
 
     second_payload = {**payload, "cursor": first_body["next_cursor"]}
     second = client.post("/api/v1/acts/search", headers=_bearer(entitled_token),
