@@ -6650,6 +6650,26 @@ CREATE TABLE proc.user_favorite_act (
 CREATE INDEX ix_user_favorite_act_recent
   ON proc.user_favorite_act (user_id,created_at DESC,adam DESC);
 
+-- Bid pipeline on favourites. Mirrors
+-- migrations/20260923180000_favorite_bid_stage.sql.
+ALTER TABLE proc.user_favorite_act
+  ADD COLUMN bid_stage text,
+  ADD COLUMN bid_note text,
+  ADD COLUMN bid_stage_at timestamptz,
+  ADD COLUMN bid_stage_source text,
+  ADD COLUMN bid_outcome_adam text
+    REFERENCES proc.procurement_act(adam) ON DELETE SET NULL,
+  ADD CONSTRAINT user_favorite_act_bid_stage_ck CHECK (
+    bid_stage IS NULL
+    OR bid_stage IN ('bidding','submitted','won','lost','no_bid')),
+  ADD CONSTRAINT user_favorite_act_bid_source_ck CHECK (
+    bid_stage_source IS NULL OR bid_stage_source IN ('user','ledger')),
+  ADD CONSTRAINT user_favorite_act_bid_note_ck CHECK (
+    bid_note IS NULL OR length(bid_note) <= 300);
+CREATE INDEX ix_user_favorite_act_outcome
+  ON proc.user_favorite_act (bid_outcome_adam)
+  WHERE bid_outcome_adam IS NOT NULL;
+
 --
 -- PostgreSQL database dump complete
 --

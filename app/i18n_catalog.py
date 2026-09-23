@@ -851,6 +851,35 @@ _FORMLABELS = {
         "Remove from favourites",
     "Έχετε φτάσει το όριο αγαπημένων.":
         "You have reached the favourites limit.",
+    # Bid pipeline on favourites (app/bid_pipeline.py, _bid_stage.html).
+    "Ετοιμάζουμε προσφορά": "Preparing a bid",
+    "Υποβλήθηκε προσφορά": "Bid submitted",
+    "Κερδήθηκε": "Won",
+    "Δεν κερδήθηκε": "Not won",
+    "Δεν συμμετέχουμε": "Not bidding",
+    "Χωρίς στάδιο": "No stage",
+    "Στάδιο": "Stage",
+    "Ορίστηκε": "Set on",
+    "Σημείωση (π.χ. γιατί δεν συμμετέχουμε)": "Note (e.g. why we are not bidding)",
+    "επιβεβαιώθηκε από την ανάθεση": "confirmed from the award",
+    "Η ανάθεση σας αναφέρει ως ανάδοχο.": "The award names you as the contractor.",
+    "Η ανάθεση δημοσιεύθηκε:": "The award has been published:",
+    "Άνοιγμα ανάθεσης": "Open the award",
+    "Σημείωση ως «Κερδήθηκε»": "Mark as “Won”",
+    "Σημείωση ως «Δεν κερδήθηκε»": "Mark as “Not won”",
+    "Σε διαγωνισμό με τμήματα, ελέγξτε το τμήμα για το οποίο υποβάλατε προσφορά.":
+        "In a tender with lots, check the lot you bid for.",
+    "Δεν βρέθηκε κάτι να επιβεβαιωθεί.": "There was nothing to confirm.",
+    "σε προετοιμασία": "in preparation",
+    "υποβλήθηκαν": "submitted",
+    "κερδήθηκαν": "won",
+    "δεν κερδήθηκαν": "not won",
+    "Ποσοστό επιτυχίας": "Win rate",
+    "Κανένα αγαπημένο σε αυτό το στάδιο.": "No favourites at this stage.",
+    "Κάτω από κάθε αγαπημένο υπάρχει το «Στάδιο»: Ετοιμάζουμε προσφορά, Υποβλήθηκε προσφορά, Κερδήθηκε, Δεν κερδήθηκε ή Δεν συμμετέχουμε, με μια σύντομη σημείωση. Αποθηκεύεται μόλις το αλλάξετε. Πάνω από τη λίστα φαίνεται πόσες προσφορές υποβάλατε, πόσες κερδίσατε και το ποσοστό επιτυχίας, και μπορείτε να φιλτράρετε τη λίστα ανά στάδιο. Μια πράξη με «Δεν συμμετέχουμε» βγαίνει από το ημερολόγιο προθεσμιών. Αν αφαιρέσετε το αστέρι, χάνεται και το στάδιο.":
+        "Under each favourite there is a “Stage”: Preparing a bid, Bid submitted, Won, Not won or Not bidding, with a short note. It saves as soon as you change it. Above the list you see how many bids you submitted, how many you won and your win rate, and you can filter the list by stage. An act marked “Not bidding” leaves the deadline calendar. If you remove the star, the stage goes with it.",
+    "Όταν ένα αγαπημένο είναι «Ετοιμάζουμε προσφορά» ή «Υποβλήθηκε προσφορά» και δημοσιευθεί η ανάθεσή του, η σελίδα δείχνει ποιος πήρε τη σύμβαση. Αν ο ΑΦΜ της εταιρείας σας είναι συνδεδεμένος με τον λογαριασμό σας και βρίσκεται στους αναδόχους, το λέει και προτείνει «Κερδήθηκε». Τίποτα δεν αλλάζει χωρίς να το πατήσετε εσείς: σε διαγωνισμό με τμήματα η ανάθεση μπορεί να αφορά άλλο τμήμα από αυτό που διεκδικήσατε.":
+        "When a favourite is at “Preparing a bid” or “Bid submitted” and its award is published, the page shows who got the contract. If your company’s VAT number is linked to your account and is among the contractors, it says so and suggests “Won”. Nothing changes until you press it yourself: in a tender with lots, the award may concern a different lot from the one you bid for.",
     "Άνοιγμα αγαπημένων":
         "Open favourites",
     "Οι πράξεις που έχετε σημειώσει με το αστέρι, σε ένα σημείο.":

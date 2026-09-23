@@ -372,6 +372,22 @@ the customer's own calendar; /account/calendar makes the link.
 - app/ics.py folds at 75 OCTETS (Greek is 2 bytes/char) and escapes `\ ; ,`.
   Its tests are written in Greek on purpose; ASCII tests pass broken code.
 
+## Bid pipeline on favourites (docs/specs/bid-pipeline.md)
+app/bid_pipeline.py; stage columns on proc.user_favorite_act; UI on
+/account/favorites (_bid_stage.html). Stages: bidding / submitted / won / lost /
+no_bid; NULL = bookmark. Removing the star forgets the stage.
+- **The ledger suggests, it never writes.** detect_outcomes is read-only;
+  confirm_from_ledger RE-DETECTS and takes nothing from the form. Only it sets
+  bid_stage_source='ledger' + bid_outcome_adam; a manual stage change drops
+  both. That split is the win/loss data fit.py will be calibrated on — keep it.
+- "Awarded to others" is confirmable as a loss ONLY when the customer's ΑΦΜ is
+  linked (fit.operator_ids_for — never onboarding's declared_afm). Lots, joint
+  ventures and a winners-only ledger are why nothing is automatic.
+- Detection is for entitled users only (winner names are act data).
+- no_bid leaves the calendar feed on BOTH paths (favourites and ticked
+  searches — calendar_feed.declined_adams).
+- Isolation: bid_pipeline must not read act_ai_summary (test-enforced).
+
 ## Tests
 pytest in tests/, runs in CI. Needs TEST_DATABASE_URL (throwaway DB) + psql.
 Schema comes from tests/proc_schema.sql — regenerate it when you add a table.
