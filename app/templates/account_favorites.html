@@ -6,19 +6,56 @@
   <h1>{{ t("Τα αγαπημένα μου") }}</h1>
   <p class="acct-muted">{{ t("Οι πράξεις που έχετε σημειώσει. Ένα αγαπημένο δεν στέλνει από μόνο του ειδοποιήσεις — οι ειδοποιήσεις ορίζονται στις αποθηκευμένες αναζητήσεις.") }}</p>
 
-  {% if not rows %}
+  {% if not total %}
     <div class="acct-card">
       <p>{{ t("Δεν έχετε αποθηκεύσει καμία πράξη ακόμη. Πατήστε το αστέρι σε μια πράξη ή σε ένα αποτέλεσμα αναζήτησης.") }}</p>
     </div>
   {% else %}
-    <p class="acct-muted">{{ rows | length }} {{ t("αποθηκευμένες") }}</p>
+    {# The pipeline headline. The win rate is over DECIDED tenders only
+       (bid_pipeline.summary) and is absent until one is decided. #}
+    {% if pipeline.submitted or counts.get('bidding') %}
+    <div class="pipe-sum">
+      {% if counts.get('bidding') %}<span><b>{{ counts.get('bidding') }}</b> {{ t("σε προετοιμασία") }}</span>{% endif %}
+      <span><b>{{ pipeline.submitted }}</b> {{ t("υποβλήθηκαν") }}</span>
+      <span><b>{{ pipeline.won }}</b> {{ t("κερδήθηκαν") }}</span>
+      <span><b>{{ pipeline.lost }}</b> {{ t("δεν κερδήθηκαν") }}</span>
+      {% if pipeline.win_rate is not none %}
+      <span class="rate">{{ t("Ποσοστό επιτυχίας") }} <b>{{ pipeline.win_rate }}%</b></span>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {# Stage filter. Plain links (?stage=), so a filtered list is bookmarkable
+       and works without script. Counts are over the whole list. #}
+    <nav class="stage-tabs" aria-label="{{ t('Στάδιο') }}">
+      <a href="/account/favorites"{% if not stage %} aria-current="page"{% endif %}>{{ t("Όλα") }} <span>{{ total }}</span></a>
+      {% for code, label in stages %}
+        {% if counts.get(code) %}
+        <a href="/account/favorites?stage={{ code }}"{% if stage == code %} aria-current="page"{% endif %}>{{ label | t }} <span>{{ counts.get(code) }}</span></a>
+        {% endif %}
+      {% endfor %}
+      {% if counts.get(none) and counts.get(none) != total %}
+        <a href="/account/favorites?stage=none"{% if stage == 'none' %} aria-current="page"{% endif %}>{{ no_stage_label | t }} <span>{{ counts.get(none) }}</span></a>
+      {% endif %}
+    </nav>
+
+    {% if not rows %}
+      <div class="acct-card"><p>{{ t("Κανένα αγαπημένο σε αυτό το στάδιο.") }}</p></div>
+    {% else %}
     {# The shared result card, so a favourite reads exactly like the same act
-       does in search. `favorites` is passed so each card's star is already on. #}
+       does in search. `favorites` is passed so each card's star is already on.
+       The stage panel sits under its card and swaps itself (_bid_stage.html). #}
     <div class="results">
       {% for r in rows %}
-        {% include "_result_card.html" %}
+        <div class="fav-item">
+          {% include "_result_card.html" %}
+          {% with fav = r, detection = detections.get(r.adam) %}
+            {% include "_bid_stage.html" %}
+          {% endwith %}
+        </div>
       {% endfor %}
     </div>
+    {% endif %}
   {% endif %}
 </div>
 {% include "_acct_styles.html" %}
@@ -26,5 +63,42 @@
   /* The list holds full result cards, which need more room than the
      600px account column. */
   .acct-wrap.acct-wide{max-width:980px;}
+
+  .pipe-sum{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:14px;margin:4px 0 12px;
+    padding:10px 14px;border:1px solid var(--rule,#e6e8ec);border-radius:10px;
+    background:var(--paper,#fff);}
+  .pipe-sum .rate{margin-left:auto;}
+  .stage-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;}
+  .stage-tabs a{font-size:13px;padding:5px 10px;border-radius:999px;text-decoration:none;
+    border:1px solid var(--rule,#e6e8ec);color:var(--ink,#1c2230);}
+  .stage-tabs a span{color:var(--ink-2,#5b626d);margin-left:2px;}
+  .stage-tabs a[aria-current="page"]{background:var(--ink,#1c2230);color:var(--paper,#fff);
+    border-color:var(--ink,#1c2230);}
+  .stage-tabs a[aria-current="page"] span{color:inherit;opacity:.8;}
+
+  .fav-item{margin-bottom:12px;}
+  .fav-item > .card{margin-bottom:0;border-bottom-left-radius:0;border-bottom-right-radius:0;}
+  .bid-stage{border:1px solid var(--rule,#e6e8ec);border-top:0;border-radius:0 0 12px 12px;
+    padding:8px 14px;font-size:13px;background:var(--paper-2,#f7f8fa);
+    border-left:3px solid var(--rule,#e6e8ec);}
+  .bid-stage.st-bidding{border-left-color:#c98a1b;}
+  .bid-stage.st-submitted{border-left-color:#2f6fd0;}
+  .bid-stage.st-won{border-left-color:#1f8a4c;}
+  .bid-stage.st-lost{border-left-color:#b23b3b;}
+  .bid-stage.st-no_bid{border-left-color:#8a8f98;}
+  .bid-form{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;}
+  .bid-lbl{color:var(--ink-2,#5b626d);}
+  .bid-form select,.bid-form input{font:inherit;padding:4px 6px;border-radius:6px;
+    border:1px solid var(--rule,#d5d9e0);background:var(--paper,#fff);color:inherit;}
+  .bid-form input{flex:1 1 220px;min-width:0;}
+  .bid-save,.bid-confirm{font:inherit;padding:4px 10px;border-radius:6px;cursor:pointer;
+    border:1px solid var(--rule,#d5d9e0);background:var(--paper,#fff);color:inherit;}
+  .bid-meta{margin-top:4px;color:var(--ink-2,#5b626d);}
+  .bid-detect{margin-top:6px;padding:6px 10px;border-radius:8px;line-height:1.5;}
+  .bid-detect.won{background:rgba(31,138,76,.10);}
+  .bid-detect.other{background:rgba(120,126,138,.12);}
+  .bid-detect .bid-confirm{margin-left:6px;}
+  .bid-hint{font-size:12px;color:var(--ink-2,#5b626d);margin-top:2px;}
+  .bid-err{margin-top:4px;color:#b23b3b;}
 </style>
 {% endblock %}

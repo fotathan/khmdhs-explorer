@@ -386,9 +386,12 @@ def feed_rows(c, user) -> list:
     deadlines in whatever room CALENDAR_MAX_EVENTS leaves. Sorted by
     deadline, so the body is the same bytes for the same data."""
     favs = [dict(r) for r in favourite_rows(c, user["id"])]
+    # A favourite marked "no bid" (bid_pipeline) leaves the calendar, and a
+    # ticked search must not bring it straight back.
     extra = search_rows(c, opted_in_searches(c, user),
                         budget=CALENDAR_MAX_EVENTS - len(favs),
-                        exclude={r["adam"] for r in favs})
+                        exclude={r["adam"] for r in favs}
+                                | declined_adams(c, user["id"]))
     return sorted(favs + extra,
                   key=lambda r: (r["final_submission_date"], r["adam"]))
 
@@ -406,6 +409,7 @@ _FEED_SQL = """
     JOIN proc.procurement_act a ON a.adam = f.adam
     LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
     WHERE f.user_id = %s
+      AND f.bid_stage IS DISTINCT FROM 'no_bid'
       AND a.final_submission_date IS NOT NULL
       AND a.final_submission_date >= now() - make_interval(days => %s)
     ORDER BY a.final_submission_date, a.adam
@@ -431,9 +435,16 @@ def fetch_act(c, adam: str):
     return c.fetchone()
 
 
+def declined_adams(c, user_id: int) -> set:
+    """Favourites the customer marked 'no_bid'. Out of the feed on every path."""
+    c.execute("""SELECT adam FROM proc.user_favorite_act
+                  WHERE user_id = %s AND bid_stage = 'no_bid'""", (user_id,))
+    return {r["adam"] for r in c.fetchall()}
+
+
 def favourite_rows(c, user_id: int):
-    """Favourited acts with a deadline, from CALENDAR_PAST_DAYS ago onwards.
-    Cancelled ones are INCLUDED — act_event marks them STATUS:CANCELLED, which
+    """Favourited acts with a deadline, from CALENDAR_PAST_DAYS ago onwards,
+    except those marked 'no_bid'. Cancelled ones are INCLUDED — act_event marks them STATUS:CANCELLED, which
     is how a client learns to strike out an event it has already imported."""
     c.execute(_FEED_SQL, (user_id, CALENDAR_PAST_DAYS, CALENDAR_MAX_EVENTS))
     return c.fetchall()
@@ -553,7 +564,8 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             c.execute("""SELECT count(*) AS n
                          FROM proc.user_favorite_act f
                          JOIN proc.procurement_act a ON a.adam = f.adam
-                         WHERE f.user_id=%s AND a.final_submission_date >= now()""",
+                         WHERE f.user_id=%s AND a.final_submission_date >= now()
+                           AND f.bid_stage IS DISTINCT FROM 'no_bid'""",
                       (user["id"],))
             upcoming = int(c.fetchone()["n"])
             searches = [{"id": s["id"], "name": s["name"],
