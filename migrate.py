@@ -148,6 +148,18 @@ def cmd_up(args) -> None:
         _ensure_table(c)
         applied = _applied(c)
     pending = [f for f in files if f not in applied]
+    if args.only:
+        # Apply a chosen subset, in manifest order. For a database that must NOT
+        # take everything pending — production has no Tender Service tables, so
+        # its migrations stay pending there on purpose.
+        wanted = {w if w.startswith("migrations/") else f"migrations/{w}" for w in args.only}
+        unknown = sorted(w for w in wanted if w not in files)
+        if unknown:
+            sys.exit("--only names files not in the manifest:\n  " + "\n  ".join(unknown))
+        done = sorted(w for w in wanted if w in applied)
+        if done:
+            print("already applied, skipped: " + ", ".join(done))
+        pending = [f for f in pending if f in wanted]
     if not pending:
         print("nothing to apply — up to date")
         return
@@ -201,6 +213,8 @@ def main() -> None:
     sub.add_parser("baseline", help="record all manifest entries as applied (runs NO SQL)")
     sp = sub.add_parser("up", help="apply pending migrations (psql -f) and record them")
     sp.add_argument("--dry-run", action="store_true")
+    sp.add_argument("--only", nargs="+", metavar="FILE",
+                    help="apply only these manifest entries (in manifest order)")
     sp = sub.add_parser("new", help="scaffold a new migration + append to the manifest")
     sp.add_argument("name")
     args = ap.parse_args()
