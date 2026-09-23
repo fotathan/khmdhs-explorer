@@ -3071,14 +3071,20 @@ async def account_password(request: Request):
 
     def _render(error=None, ok=None):
         sub = None
+        mfa_enabled = False
         try:
             with cursor() as c:
                 sub = _auth.current_subscription(c, u["id"])
+                mrow = _auth.get_mfa(c, u["id"])
+                mfa_enabled = bool(mrow and mrow["mfa_enabled"])
         except Exception:      # noqa: BLE001
             sub = None
+        # mfa_enabled too, or the 2FA card below says "turn it on" to someone
+        # who already has it, right after they changed their password.
         return templates.TemplateResponse(
             request, "account.html",
-            {"acct": u, "subscription": sub, "pw_error": error, "pw_ok": ok},
+            {"acct": u, "subscription": sub, "mfa_enabled": mfa_enabled,
+             "pw_error": error, "pw_ok": ok},
             status_code=400 if error else 200)
 
     with cursor() as c:

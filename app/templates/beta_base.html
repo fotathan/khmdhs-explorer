@@ -580,10 +580,7 @@
         {% include "_topnav.html" %}
         {% include "_lang_select.html" %}
         {% if is_authenticated %}
-          <a href="/account" class="acct-user" title="{{ t('Ο λογαριασμός μου') }}">{{ user.username }}</a>
-          <form method="post" action="/logout" class="logout-form">
-            <button type="submit" class="acct-link">{{ t("Αποσύνδεση") }}</button>
-          </form>
+          {% include "_acct_menu.html" %}
         {% else %}
           <a href="/login" class="acct-link">{{ t("Σύνδεση") }}</a>
           <a href="/register" class="acct-link acct-cta">{{ t("Εγγραφή") }}</a>

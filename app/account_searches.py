@@ -177,7 +177,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             "n_own": sum(1 for r in rows if r.get("is_own")),
             "flash": flash or None,
             "onboarding_on": _onboarding.enabled(),
-            "nav_active": "search",
+            "nav_active": "account",
         })
 
     # ---- create ------------------------------------------------------------ #

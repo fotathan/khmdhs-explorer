@@ -1,8 +1,9 @@
 {% extends "beta_base.html" %}
-{% block title %}{{ t("Ο λογαριασμός μου") }} · {{ t("Εξερευνητής") }}{% endblock %}
+{% block title %}{{ t("Ρυθμίσεις λογαριασμού") }} · {{ t("Εξερευνητής") }}{% endblock %}
 {% block content %}
 <div class="acct-wrap">
-  <h1>{{ t("Ο λογαριασμός μου") }}</h1>
+  {% include "_acct_nav.html" %}
+  <h1>{{ t("Ρυθμίσεις λογαριασμού") }}</h1>
   {% if error %}<div class="acct-error">{{ error | t }}</div>{% endif %}
 
   <div class="acct-card">
@@ -15,12 +16,6 @@
       <dt>{{ t("Συνδρομή") }}</dt><dd>{{ subscription.product_name or subscription.product_code }} · {{ t("λήγει") }} {{ subscription.expires_at.strftime('%Y-%m-%d') }}</dd>
       {% endif %}
     </dl>
-  </div>
-
-  <div class="acct-card">
-    <h2>{{ t("Αποθηκευμένες αναζητήσεις & ειδοποιήσεις") }}</h2>
-    <p class="acct-muted">{{ t("Δείτε τις αποθηκευμένες αναζητήσεις σας και ορίστε για ποιες θέλετε να λαμβάνετε email με τα νέα αποτελέσματα.") }}</p>
-    <a class="acct-btn" href="/account/searches">{{ t("Διαχείριση αναζητήσεων & ειδοποιήσεων") }}</a>
   </div>
 
   <div class="acct-card">
@@ -71,7 +66,9 @@
   {% endif %}
 </div>
 <style>
-  .acct-wrap{max-width:600px;margin:38px auto 64px;padding:0 22px;}
+  /* 760px = the searches page (.ss-wrap), so the tab strip sits in the same
+     place on every account page. */
+  .acct-wrap{max-width:760px;margin:38px auto 64px;padding:0 22px;}
   .acct-wrap h1{font-size:26px;letter-spacing:-.02em;margin:0 0 18px;}
   .acct-card{background:var(--paper,#fff);border:1px solid var(--rule,#e6e8ec);border-radius:12px;
     padding:20px 22px;margin-bottom:16px;box-shadow:var(--shadow-sm,0 1px 3px rgba(20,24,31,.06));}

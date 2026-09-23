@@ -10,6 +10,18 @@ truth; this is a curated digest.
 
 ## Unreleased
 
+### Changed — «Ο λογαριασμός μου» is a menu, not a page of links
+- The username in the masthead opens a dropdown: Αναζητήσεις & ειδοποιήσεις,
+  Ρυθμίσεις λογαριασμού, and sign-out (which moved into it). Both mastheads; on
+  a phone it opens inline in the nav.
+- Every `/account` page carries the same tab strip instead of a "back" link.
+  One list feeds both (`_acct_links.html`); favourites and the deadline
+  calendar are added there when their pages ship.
+- `/account` is now «Ρυθμίσεις λογαριασμού» only: details, password, 2FA, data
+  export, deletion. URLs are unchanged.
+- Fixed: after a password change the settings page offered «Ενεργοποίηση 2FA»
+  to someone who already had it on.
+
 ### Added — First-login wizard: from a few answers to saved searches
 - `/register` asks «Έχετε συμμετάσχει ποτέ σε δημόσιους διαγωνισμούς;» (required)
   and, on «Ναι», an optional business ΑΦΜ. The ΑΦΜ is format- and check-digit-

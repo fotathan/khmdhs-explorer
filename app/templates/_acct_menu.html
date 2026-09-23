@@ -1,0 +1,63 @@
+{# _acct_menu.html — the signed-in user's menu in the masthead.
+   The username opens a dropdown of the customer's own pages (_acct_links.html)
+   plus sign-out. Included by BOTH mastheads (beta_base.html and base.html).
+
+   A <details> element, so it opens and closes with no JavaScript at all; the
+   script only adds "click outside / Esc closes it". On a phone the list opens
+   inline inside the already-open nav instead of floating. #}
+<details class="am">
+  <summary class="acct-user am-sum" title="{{ t('Ο λογαριασμός μου') }}">
+    <span class="am-name">{{ user.username }}</span>
+    <svg class="am-caret" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </summary>
+  <div class="am-pop">
+    <div class="am-head">{{ t("Ο λογαριασμός μου") }}</div>
+    {% include "_acct_links.html" %}
+    <form method="post" action="/logout" class="am-logout">
+      <button type="submit">{{ t("Αποσύνδεση") }}</button>
+    </form>
+  </div>
+</details>
+<script>
+  (function(){
+    var menus=document.querySelectorAll('details.am');
+    if(!menus.length) return;
+    document.addEventListener('click', function(e){
+      menus.forEach(function(d){ if(d.open && !d.contains(e.target)) d.open=false; });
+    });
+    document.addEventListener('keydown', function(e){
+      if(e.key!=='Escape') return;
+      menus.forEach(function(d){
+        if(d.open){ d.open=false; var s=d.querySelector('summary'); if(s) s.focus(); }
+      });
+    });
+  })();
+</script>
+<style>
+  .am{position:relative;display:inline-block;}
+  .am-sum{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+    border-radius:8px;user-select:none;}
+  .am-sum::-webkit-details-marker{display:none;}
+  .am-sum:hover{background:var(--paper-2,#f4f5f7);}
+  .am[open] .am-caret{transform:rotate(180deg);}
+  .am-caret{transition:transform .12s;color:var(--ink-3,#9aa0aa);}
+  .am-pop{position:absolute;right:0;top:calc(100% + 6px);z-index:60;min-width:240px;
+    background:var(--paper,#fff);border:1px solid var(--rule,#e6e8ec);border-radius:12px;
+    box-shadow:0 10px 30px rgba(20,24,31,.14);padding:6px;display:flex;flex-direction:column;}
+  .am-head{font-family:var(--mono,monospace);font-size:10px;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--ink-3,#9aa0aa);padding:8px 12px 6px;}
+  .am .am-pop a,.am .am-logout button{display:block;width:100%;box-sizing:border-box;text-align:left;
+    padding:9px 12px;border-radius:8px;font-size:13.5px;color:var(--ink,#14181f);text-decoration:none;
+    background:none;border:0;font-family:inherit;cursor:pointer;}
+  .am .am-pop a:hover,.am .am-logout button:hover{background:var(--paper-2,#f4f5f7);}
+  .am .am-pop a.on{background:var(--accent-soft,#fbe9ed);color:var(--accent-2,#8a0c28);font-weight:600;}
+  .am-logout{margin:4px 0 0;padding-top:4px;border-top:1px solid var(--rule,#e6e8ec);}
+  .am .am-logout button{color:var(--ink-2,#5b626d);}
+  @media(max-width:760px){
+    .am{display:block;}
+    .am-sum{display:flex;padding:11px 12px;}
+    .am-pop{position:static;box-shadow:none;border:0;border-left:2px solid var(--rule,#e6e8ec);
+      border-radius:0;margin:0 0 4px 12px;padding:0 0 0 6px;min-width:0;}
+    .am .am-pop a,.am .am-logout button{font-size:15px;padding:11px 12px;}
+  }
+</style>
