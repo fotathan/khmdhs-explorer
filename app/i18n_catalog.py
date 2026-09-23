@@ -32,6 +32,8 @@ _NAV = {
     "Διαχείριση": "Administration",
     "KHMDHS · Εξερευνητής": "KHMDHS · Explorer",
     "Γλώσσα": "Language",
+    # Account menu + /account tab strip (_acct_links.html)
+    "Αναζητήσεις & ειδοποιήσεις": "Searches & alerts",
 }
 
 # Admin navigation tabs (_admin_tabs.html)
@@ -165,6 +167,10 @@ _ACT = {
     "προϋπολογισμός": "budget",
     "δημοσίευση": "publication",
     "λήξη υποβολής": "submission deadline",
+    "Προθεσμία στο ημερολόγιο": "Deadline to calendar",
+    "Προσθήκη της προθεσμίας στο ημερολόγιό σας":
+        "Add this deadline to your calendar",
+    "ΚΗΜΔΗΣ — Προθεσμίες": "KIMDIS — Deadlines",
     "Στοιχεία πράξης": "Act details",
     "Υπογραφή": "Signed",
     "Αρ. σύμβασης": "Contract no.",
@@ -731,6 +737,116 @@ _FORMLABELS = {
     "Κωδικός κατηγορίας": "Category code",
     "Κωδικός τύπου": "Type code",
     "Λήξη υποβολής": "Submission deadline",
+    "Ημερολόγιο προθεσμιών (συνδρομή)":
+        "Deadline calendar (subscription)",
+    "Αντί να κατεβάζετε αρχεία, μπορείτε να συνδέσετε μία φορά το ημερολόγιό σας: «Ο λογαριασμός μου → Ημερολόγιο προθεσμιών → Δημιουργία συνδέσμου», και επικολλάτε τον σύνδεσμο στο Google Calendar, στο Outlook ή στο Apple Calendar. Από εκεί και πέρα κάθε αγαπημένο με προθεσμία εμφανίζεται μόνο του, με υπενθυμίσεις, και μετακινείται αν αλλάξει η προθεσμία.":
+        "Instead of downloading files, you can connect your calendar once: “My account → Deadline calendar → Create link”, then paste the link into Google Calendar, Outlook or Apple Calendar. From then on every favourite with a deadline appears by itself, with reminders, and moves if the deadline changes.",
+    "Ο σύνδεσμος εμφανίζεται μία φορά και λειτουργεί χωρίς σύνδεση — γι' αυτό κρατήστε τον ιδιωτικό. Αν τον χάσετε ή τον μοιραστήκατε κατά λάθος, «Νέος σύνδεσμος» ακυρώνει τον παλιό. Κάθε εφαρμογή ημερολογίου ελέγχει με τον δικό της ρυθμό· το Google μπορεί να αργήσει αρκετές ώρες. Όσο η συνδρομή σας δεν είναι ενεργή, το ημερολόγιο δείχνει μια σημείωση αντί για τις προθεσμίες.":
+        "The link is shown once and works without signing in — so keep it private. If you lose it or shared it by mistake, “New link” cancels the old one. Each calendar app checks at its own pace; Google can take several hours. While your subscription is inactive, the calendar shows a notice instead of your deadlines.",
+    "Ημερολόγιο προθεσμιών":
+        "Deadline calendar",
+    "Κάθε πράξη που έχετε στα αγαπημένα εμφανίζεται στο δικό σας ημερολόγιο (Google, Outlook, Apple) την ημέρα που λήγει η υποβολή, με υπενθυμίσεις. Αν η αναθέτουσα αρχή μεταθέσει την προθεσμία, το ημερολόγιό σας ενημερώνεται μόνο του.":
+        "Every act in your favourites appears in your own calendar (Google, Outlook, Apple) on the day submission closes, with reminders. If the authority moves the deadline, your calendar updates itself.",
+    "Η συνδρομή σας δεν είναι ενεργή. Μέχρι να ανανεωθεί, το ημερολόγιο δείχνει μόνο μια σχετική σημείωση αντί για τις προθεσμίες — και τις ξαναδείχνει μόνο του μετά την ανανέωση.":
+        "Your subscription is not active. Until it is renewed, the calendar shows a short notice instead of your deadlines — and shows them again by itself once you renew.",
+    "Ο σύνδεσμος του ημερολογίου σας":
+        "Your calendar link",
+    "Αντιγράψτε τον τώρα: για λόγους ασφαλείας δεν θα ξαναεμφανιστεί. Αν τον χάσετε, δημιουργήστε νέο.":
+        "Copy it now: for security it will not be shown again. If you lose it, create a new one.",
+    "Αντιγράφηκε ✓":
+        "Copied ✓",
+    "Αντιγραφή":
+        "Copy",
+    "Άνοιγμα στην εφαρμογή ημερολογίου":
+        "Open in calendar app",
+    "Πώς το προσθέτετε":
+        "How to add it",
+    "Άλλα ημερολόγια → + → Από URL → επικόλληση του συνδέσμου.":
+        "Other calendars → + → From URL → paste the link.",
+    "Προσθήκη ημερολογίου → Εγγραφή από το web → επικόλληση του συνδέσμου.":
+        "Add calendar → Subscribe from web → paste the link.",
+    "Αρχείο → Νέα συνδρομή ημερολογίου → επικόλληση του συνδέσμου.":
+        "File → New Calendar Subscription → paste the link.",
+    "Κρατήστε τον σύνδεσμο ιδιωτικό: όποιος τον έχει βλέπει τις προθεσμίες των αγαπημένων σας.":
+        "Keep the link private: anyone who has it can see the deadlines of your favourites.",
+    "Ενεργό από":
+        "Active since",
+    "Τελευταίος έλεγχος":
+        "Last checked",
+    "φορές συνολικά":
+        "times in total",
+    "Κανένας ακόμη — το ημερολόγιό σας δεν τον έχει ελέγξει":
+        "Not yet — your calendar has not checked it",
+    "Κάθε εφαρμογή ημερολογίου ελέγχει με τον δικό της ρυθμό — το Google μπορεί να αργήσει αρκετές ώρες. Η γλώσσα ορίζεται όταν δημιουργείτε τον σύνδεσμο.":
+        "Each calendar app checks at its own pace — Google can take several hours. The language is set when you create the link.",
+    "Ο σημερινός σύνδεσμος θα σταματήσει να λειτουργεί και θα χρειαστεί να προσθέσετε τον νέο στο ημερολόγιό σας. Συνέχεια;":
+        "The current link will stop working and you will need to add the new one to your calendar. Continue?",
+    "Νέος σύνδεσμος":
+        "New link",
+    "Ο σύνδεσμος θα σταματήσει να λειτουργεί. Συνέχεια;":
+        "The link will stop working. Continue?",
+    "Απενεργοποίηση":
+        "Turn off",
+    "Δεν έχετε ακόμη σύνδεσμο ημερολογίου.":
+        "You do not have a calendar link yet.",
+    "Δημιουργία συνδέσμου":
+        "Create link",
+    "Τι περιέχει":
+        "What it contains",
+    "Αγαπημένα με προθεσμία που δεν έχει λήξει:":
+        "Favourites with an open deadline:",
+    "Κανένα από τα αγαπημένα σας δεν έχει προθεσμία που δεν έχει λήξει. Πατήστε το αστέρι σε μια πράξη για να μπει στο ημερολόγιο.":
+        "None of your favourites has an open deadline. Press the star on an act to put it in the calendar.",
+    "Υπενθυμίσεις (ημέρες πριν τη λήξη):":
+        "Reminders (days before closing):",
+    "Ίδιες με την υπενθύμιση προθεσμιών μέσω email· αλλάζουν στις":
+        "The same as the email deadline reminder; change them in your",
+    "αποθηκευμένες αναζητήσεις":
+        "saved searches",
+    "Οι προθεσμίες των αγαπημένων σας, μέσα στο δικό σας ημερολόγιο (Google, Outlook, Apple), με υπενθυμίσεις.":
+        "Your favourites' deadlines, inside your own calendar (Google, Outlook, Apple), with reminders.",
+    "Ρύθμιση ημερολογίου":
+        "Set up calendar",
+    "Η συνδρομή σας έχει λήξει — οι προθεσμίες θα επανεμφανιστούν με την ανανέωση.":
+        "Your subscription has lapsed — deadlines will reappear when you renew.",
+    "Οι προθεσμίες των αγαπημένων σας επιστρέφουν σε αυτό το ημερολόγιο μόλις ανανεωθεί η συνδρομή, χωρίς καμία ενέργεια από εσάς.":
+        "Your favourites' deadlines return to this calendar as soon as the subscription is renewed, with nothing for you to do.",
+    "Τα αγαπημένα μου":
+        "My favourites",
+    "Αγαπημένο":
+        "Favourite",
+    "Στα αγαπημένα":
+        "In favourites",
+    "Αποθήκευση στα αγαπημένα":
+        "Save to favourites",
+    "Αφαίρεση από τα αγαπημένα":
+        "Remove from favourites",
+    "Έχετε φτάσει το όριο αγαπημένων.":
+        "You have reached the favourites limit.",
+    "Άνοιγμα αγαπημένων":
+        "Open favourites",
+    "Οι πράξεις που έχετε σημειώσει με το αστέρι, σε ένα σημείο.":
+        "The acts you have starred, in one place.",
+    "Οι πράξεις που έχετε σημειώσει. Ένα αγαπημένο δεν στέλνει από μόνο του ειδοποιήσεις — οι ειδοποιήσεις ορίζονται στις αποθηκευμένες αναζητήσεις.":
+        "The acts you have marked. A favourite sends no alerts on its own — alerts are set on saved searches.",
+    "Δεν έχετε αποθηκεύσει καμία πράξη ακόμη. Πατήστε το αστέρι σε μια πράξη ή σε ένα αποτέλεσμα αναζήτησης.":
+        "You have not saved any acts yet. Press the star on an act or on a search result.",
+    "αποθηκευμένες":
+        "saved",
+    "Αγαπημένα":
+        "Favourites",
+    "Το αστέρι (☆) σε μια πράξη ή σε ένα αποτέλεσμα αναζήτησης την κρατά στα αγαπημένα σας· ξαναπατήστε το για να την αφαιρέσετε. Όλες μαζί βρίσκονται στο «Ο λογαριασμός μου → Τα αγαπημένα μου».":
+        "The star (☆) on an act or a search result keeps it in your favourites; press it again to remove it. They are all together under “My account → My favourites”.",
+    "Ένα αγαπημένο είναι σελιδοδείκτης, όχι ειδοποίηση: δεν στέλνει email από μόνο του. Για ειδοποιήσεις, αποθηκεύστε μια αναζήτηση. Τα αγαπημένα είναι κοινά σε ιστότοπο και εφαρμογή κινητού.":
+        "A favourite is a bookmark, not an alert: it sends no email on its own. For alerts, save a search. Favourites are shared between the website and the mobile app.",
+    "Προθεσμία στο ημερολόγιό σας (.ics)":
+        "Deadline in your own calendar (.ics)",
+    "Σε κάθε πράξη με προθεσμία υποβολής, το κουμπί «Προθεσμία στο ημερολόγιο» κατεβάζει ένα αρχείο ημερολογίου (.ics). Ανοίξτε το και η προθεσμία μπαίνει στο δικό σας ημερολόγιο — Google, Outlook, Apple — μαζί με τον τίτλο, την αναθέτουσα αρχή και την αξία.":
+        "On any act with a submission deadline, the “Deadline to calendar” button downloads a calendar file (.ics). Open it and the deadline goes into your own calendar — Google, Outlook, Apple — along with the title, the contracting authority and the value.",
+    "Το αρχείο φέρνει μαζί του και υπενθυμίσεις, στα ίδια σημεία με την υπενθύμιση προθεσμιών μέσω email (7 ημέρες πριν και την προηγούμενη ημέρα). Τις εμφανίζει το δικό σας ημερολόγιο, στη συσκευή σας. Μια ακυρωμένη διαδικασία κατεβαίνει σημειωμένη ως ακυρωμένη και χωρίς υπενθυμίσεις.":
+        "The file carries reminders too, on the same marks as the email deadline reminder (7 days before, and the day before). Your own calendar shows them, on your device. A cancelled procedure downloads marked as cancelled and with no reminders.",
+    "Είναι ένα στιγμιότυπο, όχι συνδρομή: αν η αναθέτουσα αρχή μεταθέσει την προθεσμία, κατεβάστε το ξανά — το ημερολόγιό σας θα ενημερώσει την ίδια εγγραφή αντί να προσθέσει δεύτερη.":
+        "It is a snapshot, not a subscription: if the authority moves the deadline, download it again — your calendar will update the same entry rather than add a second one.",
     "Νόμισμα": "Currency",
     "Οικονομικά": "Financials",
     "Προσφορές & παράταση": "Bids & extension",
@@ -1692,6 +1808,10 @@ _HELP = {
     "στο": "at",
     "και": "and",
     "Το όνομα και η κατάσταση πρόσβασής σας εμφανίζονται πάνω δεξιά μόλις συνδεθείτε.": "Your name and access status appear at the top-right once you sign in.",
+    "Πατώντας το όνομά σας πάνω δεξιά ανοίγει το μενού του λογαριασμού σας, με μια σελίδα για το καθένα: «Αναζητήσεις & ειδοποιήσεις» (εκεί ζουν τα δικά σας email αποτελεσμάτων), «Αγαπημένα», «Ημερολόγιο προθεσμιών» και «Ρυθμίσεις λογαριασμού», καθώς και την αποσύνδεση. Οι ίδιες σελίδες εμφανίζονται ως καρτέλες στην κορυφή κάθε σελίδας του λογαριασμού.":
+        "Clicking your name at the top-right opens your account menu, with one page for each: “Searches & alerts” (where your own result emails live), “Favourites”, “Deadline calendar” and “Account settings”, plus sign-out. The same pages appear as tabs at the top of every account page.",
+    "Στις «Ρυθμίσεις λογαριασμού»": "In “Account settings”",
+    "Στο κάτω μέρος των «Ρυθμίσεων λογαριασμού»": "At the bottom of “Account settings”",
     "Ο κανόνας προεπισκόπησης": "The preview rule",
     "Οι επισκέπτες μπορούν να εκτελέσουν κάθε αναζήτηση και να ρυθμίσουν κάθε φίλτρο — απλώς δεν μπορούν να προχωρήσουν πέρα από την πρώτη οθόνη αποτελεσμάτων, και η λεπτομέρεια πράξης κρύβει τα βαθύτερα πεδία. Είναι προεπισκόπηση, όχι τοίχος. Μια ενεργή συνδρομή (ή λογαριασμός διαχειριστή) αφαιρεί το όριο παντού.": "Visitors can run any search and set any filter — they just can't go past the first screen of results, and act detail hides the deeper fields. It's a preview, not a wall. An active subscription (or an admin account) removes the limit everywhere.",
     "Περιοχή διαχείρισης": "The admin area",

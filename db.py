@@ -681,6 +681,8 @@ def cmd_catchup(args):
             for act_type in types:
                 wm = _watermark(db, act_type)
                 print(f"  {act_type:9s} {wm if wm else '—'}")
+        if any_run:
+            _tsg_recheck(db, "khmdhs-catchup")
 
     print(f"\ncatch-up complete. windows={totals['windows']} "
           f"done={totals['done']} skipped={totals['skipped']} "
@@ -949,6 +951,7 @@ def cmd_diavgeia_catchup(args):
             for name in names:
                 wm = di.watermark(db, di.NAME_TO_UID[name])
                 print(f"  {name:9s} {wm if wm else '—'}")
+            _tsg_recheck(db, "diavgeia-catchup")
 
     print(f"\ndiavgeia catch-up complete. windows={totals['windows']} "
           f"done={totals['done']} skipped={totals['skipped']} "
@@ -1076,6 +1079,110 @@ def cmd_ted_fulltext_backfill(args):
             raise
         finally:
             _finalize_job(db, final_status)   # no-op unless launched via admin
+
+
+# --------------------------------------------------------------------------- #
+# Tender Service (fourth source) — tsg_ingest.py. Not in production yet.
+# --------------------------------------------------------------------------- #
+def _tsg_setup(need_key: bool = True):
+    import tsg_ingest as tg
+    if not tg.database_allowed(os.environ.get("DATABASE_URL")):
+        sys.exit("Refusing: DATABASE_URL is not a database on this machine. Tender Service acts "
+                 "enter customers' digest windows; set TSG_INGEST_REMOTE=1 only once that is decided.")
+    key = tg.load_key() if need_key else None
+    if need_key and not key:
+        sys.exit("No TSG_API_KEY in the environment or ~/.khmdhs.env.")
+    return tg, key
+
+
+def cmd_tsg_backfill(args):
+    """Walk Tender Service by publication day (4 slices per day: TENDER/RESULT ×
+    ACTIVE/EXPIRED) → proc.tsg_record, windowed in proc.tsg_ingest_window, then
+    project what we do not already hold. Stops cleanly at --max-requests or at
+    the key's daily cap; re-run with --resume to continue."""
+    tg, key = _tsg_setup()
+    start = dt.date.fromisoformat(args.start)
+    end = dt.date.fromisoformat(args.end) if args.end else dt.date.today()
+    print(f"\n=== Tender Service backfill: {start} .. {end}"
+          f"{' (resume)' if args.resume else ''}, budget {args.max_requests} requests ===")
+    with Database() as db:
+        final_status = "done"
+        try:
+            client = tg.TsgClient(key, max_requests=args.max_requests)
+            s = tg.backfill(db, client, start, end, resume=args.resume,
+                            project=not args.skip_project)
+        except BaseException:
+            final_status = "error"
+            raise
+        finally:
+            _finalize_job(db, final_status)   # no-op unless launched via admin
+    print("\nTender Service backfill finished.\n" + tg.format_summary(s))
+    return s
+
+
+def cmd_tsg_catchup(args):
+    """Walk records whose lastUpdated day falls since the watermark (re-walking
+    --overlap-days completed days), then project. No history: from yesterday."""
+    tg, key = _tsg_setup()
+    start = dt.date.fromisoformat(args.start) if args.start else None
+    with Database() as db:
+        final_status = "done"
+        try:
+            client = tg.TsgClient(key, max_requests=args.max_requests)
+            s = tg.catchup(db, client, start=start, overlap_days=args.overlap_days,
+                           project=not args.skip_project)
+            wm = tg.watermark(db)
+        except BaseException:
+            final_status = "error"
+            raise
+        finally:
+            _finalize_job(db, final_status)   # no-op unless launched via admin
+    print(f"\nTender Service catch-up {s['from']} .. {s['to']} finished.\n"
+          + tg.format_summary(s) + f"\nwatermark: {wm or '—'}")
+    return s
+
+
+def cmd_tsg_project(args):
+    """Project stored Tender Service records into procurement_act (no API calls)."""
+    tg, _ = _tsg_setup(need_key=False)
+    with Database() as db:
+        out = tg.project_all(db, limit=args.limit, reproject=args.reproject)
+    import tsg_match as tm
+    proj = {k: v for k, v in out.items() if k != "matching"}
+    print("Tender Service projection: " + (", ".join(f"{k}={v}" for k, v in sorted(proj.items())) or "nothing to do"))
+    print(tm.format_counts(out["matching"]))
+    return out
+
+
+def _tsg_recheck(db, trigger: str):
+    """After ΚΗΜΔΗΣ / Διαύγεια catch-up: a twin of a Tender Service notice may
+    have just arrived. No-op where Tender Service is not in use. A failure here
+    is reported, never allowed to fail the catch-up that already succeeded."""
+    import tsg_match as tm
+    try:
+        if not tm.enabled(db):
+            return None
+        print("\n=== Tender Service: re-checking duplicates ===")
+        out = tm.recheck(db, trigger)
+        print(tm.format_counts(out))
+        return out
+    except Exception as e:  # noqa: BLE001
+        db.rollback()
+        print(f"  Tender Service re-check FAILED: {type(e).__name__}: {e}")
+        return None
+
+
+def cmd_tsg_match(args):
+    """Re-run duplicate matching over the Tender Service notices whose answer can
+    still change (no API calls). --dry-run rolls everything back."""
+    tg, _ = _tsg_setup(need_key=False)
+    import tsg_match as tm
+    with Database() as db:
+        out = tm.recheck(db, "manual", dry_run=args.dry_run)
+    print(f"Tender Service matching{' (dry run, nothing written)' if args.dry_run else ''}: "
+          f"{out['rechecked']} records re-checked")
+    print(tm.format_counts(out))
+    return out
 
 
 def cmd_create_user(args):
@@ -1387,6 +1494,43 @@ def main():
     p_tp = sub.add_parser("ted-project",
                           help="project TED notices into procurement_act (idempotent)")
     p_tp.set_defaults(func=cmd_ted_project)
+
+    tsg_budget = int(os.environ.get("TSG_MAX_REQUESTS", "2000"))
+    p_gbf = sub.add_parser("tsg-backfill",
+                           help="harvest Tender Service records by publication day "
+                                "(local database only unless TSG_INGEST_REMOTE=1)")
+    p_gbf.add_argument("--start", required=True, help="YYYY-MM-DD (publication date)")
+    p_gbf.add_argument("--end", help="YYYY-MM-DD (default: today)")
+    p_gbf.add_argument("--resume", action="store_true", help="skip days already marked 'done'")
+    p_gbf.add_argument("--max-requests", type=int, default=tsg_budget,
+                       help=f"stop after this many API requests (default: {tsg_budget}; "
+                            "TSG_MAX_REQUESTS)")
+    p_gbf.add_argument("--skip-project", action="store_true",
+                       help="store only; don't project into procurement_act (defer to tsg-project)")
+    p_gbf.set_defaults(func=cmd_tsg_backfill)
+
+    p_gcu = sub.add_parser("tsg-catchup",
+                           help="Tender Service records updated since the watermark")
+    p_gcu.add_argument("--overlap-days", type=int, default=1,
+                       help="re-walk this many completed days (default: 1)")
+    p_gcu.add_argument("--start", help="YYYY-MM-DD lastUpdated day; overrides the watermark")
+    p_gcu.add_argument("--max-requests", type=int, default=tsg_budget)
+    p_gcu.add_argument("--skip-project", action="store_true")
+    p_gcu.set_defaults(func=cmd_tsg_catchup)
+
+    p_gp2 = sub.add_parser("tsg-project",
+                           help="project stored Tender Service records into procurement_act")
+    p_gp2.add_argument("--limit", type=int, default=None, help="max records per run")
+    p_gp2.add_argument("--reproject", action="store_true",
+                       help="revisit every stored record, not only changed ones "
+                            "(after a mapping or scope rule change)")
+    p_gp2.set_defaults(func=cmd_tsg_project)
+
+    p_gm = sub.add_parser("tsg-match",
+                          help="re-check Tender Service duplicates (no API calls)")
+    p_gm.add_argument("--dry-run", action="store_true",
+                      help="compute and print, then roll back")
+    p_gm.set_defaults(func=cmd_tsg_match)
 
     p_et = sub.add_parser("extract-tables",
                           help="report-only table extraction over a job's acts")

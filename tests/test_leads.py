@@ -9,12 +9,19 @@ from tests.helpers import connect, get_csrf, login, make_user
 @pytest.fixture()
 def leads_clean(_clean):
     """_clean truncates app_user (cascades customer_profile/contact); also clear
-    the operators + freemail table we create per test, and (re)seed freemail."""
+    the operators + act we create per test, and (re)seed freemail. Before AND
+    after: _clean never truncates the corpus, so a setup-only delete leaves the
+    file's last rows to every later test."""
+    def forget():
+        with connect() as c:
+            c.execute("DELETE FROM proc.procurement_act WHERE adam = 'LEADACT1'")
+            c.execute("DELETE FROM proc.economic_operator WHERE vat_number LIKE 'LT%'")
+    forget()
     with connect() as c:
-        c.execute("DELETE FROM proc.economic_operator WHERE vat_number LIKE 'LT%'")
         c.execute("INSERT INTO proc.crm_freemail_domain(domain) VALUES ('gmail.com') "
                   "ON CONFLICT DO NOTHING")
     yield
+    forget()
 
 
 def _op(cur, vat, name, **extra):

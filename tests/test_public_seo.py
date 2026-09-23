@@ -323,6 +323,13 @@ def test_stats_are_hidden_rather_than_shown_as_zero(client, monkeypatch):
     "0 πράξεις" under a headline claiming a unified corpus reads as a broken
     page, so the strip is dropped instead."""
     from app import main as m
+    # reltuples is autovacuum's last estimate, taken whenever it last looked —
+    # possibly mid-way through another test that had rows in these tables.
+    # Measure now, so this sees the real (empty) corpus: it then fails every
+    # time a test leaks acts/authorities/operators, not only when autovacuum
+    # happened to catch the leak.
+    with connect() as c:
+        c.execute("ANALYZE proc.procurement_act, proc.authority, proc.economic_operator")
     m._stats_cache.update(at=0.0, data=None)
     assert m._public_stats() is None          # the test DB has no acts
     html = client.get("/").text

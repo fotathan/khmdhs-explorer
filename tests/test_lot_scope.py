@@ -14,10 +14,13 @@ from tests.helpers import connect, get_csrf, login, make_user
 @pytest.fixture()
 def lots_clean(_clean):
     """Also clear the lot/scope/group graph between tests (schema-only snapshot,
-    so procurement_act/ted_notice start empty)."""
+    so procurement_act/ted_notice start empty) — before AND after, so this
+    file's acts never reach the next file (_clean does not truncate them)."""
     with connect() as c:
         c.execute("TRUNCATE proc.act_group, proc.procurement_act, proc.ted_notice CASCADE")
     yield
+    with connect() as c:
+        c.execute("TRUNCATE proc.act_group, proc.procurement_act, proc.ted_notice CASCADE")
 
 
 def _acts(cur, *adams):

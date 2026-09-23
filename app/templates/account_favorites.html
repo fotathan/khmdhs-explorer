@@ -1,0 +1,30 @@
+{% extends "beta_base.html" %}
+{% block title %}{{ t("Τα αγαπημένα μου") }} · {{ t("Εξερευνητής") }}{% endblock %}
+{% block content %}
+<div class="acct-wrap acct-wide">
+  {% include "_acct_nav.html" %}
+  <h1>{{ t("Τα αγαπημένα μου") }}</h1>
+  <p class="acct-muted">{{ t("Οι πράξεις που έχετε σημειώσει. Ένα αγαπημένο δεν στέλνει από μόνο του ειδοποιήσεις — οι ειδοποιήσεις ορίζονται στις αποθηκευμένες αναζητήσεις.") }}</p>
+
+  {% if not rows %}
+    <div class="acct-card">
+      <p>{{ t("Δεν έχετε αποθηκεύσει καμία πράξη ακόμη. Πατήστε το αστέρι σε μια πράξη ή σε ένα αποτέλεσμα αναζήτησης.") }}</p>
+    </div>
+  {% else %}
+    <p class="acct-muted">{{ rows | length }} {{ t("αποθηκευμένες") }}</p>
+    {# The shared result card, so a favourite reads exactly like the same act
+       does in search. `favorites` is passed so each card's star is already on. #}
+    <div class="results">
+      {% for r in rows %}
+        {% include "_result_card.html" %}
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% include "_acct_styles.html" %}
+<style>
+  /* The list holds full result cards, which need more room than the
+     600px account column. */
+  .acct-wrap.acct-wide{max-width:980px;}
+</style>
+{% endblock %}

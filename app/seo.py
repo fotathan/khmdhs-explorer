@@ -119,6 +119,9 @@ _NOINDEX_PREFIXES = (
     "/register", "/set-lang", "/tables", "/help", "/explore", "/analytics",
     "/telephony", "/healthz", "/version", "/static", "/privacy", "/terms",
     "/notice/",
+    # A capability URL: the token in the path is the credential of a customer's
+    # calendar feed. It must never reach an index or a crawler.
+    "/calendar",
 )
 
 # The only query parameters that can make an indexable landing page, and the
@@ -220,7 +223,7 @@ _BLOCKED_PARAMS = ("q", "fulltext", "tables_q", "page", "sort", "per_page",
 
 _DISALLOW_PATHS = ("/admin", "/account", "/api/", "/export/", "/digests/",
                    "/login", "/logout", "/register", "/set-lang", "/tables",
-                   "/help", "/explore", "/analytics", "/notice/")
+                   "/help", "/explore", "/analytics", "/notice/", "/calendar/")
 
 
 def robots_txt(request) -> str:

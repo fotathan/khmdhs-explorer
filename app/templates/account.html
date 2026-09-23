@@ -1,8 +1,9 @@
 {% extends "beta_base.html" %}
-{% block title %}{{ t("Ο λογαριασμός μου") }} · {{ t("Εξερευνητής") }}{% endblock %}
+{% block title %}{{ t("Ρυθμίσεις λογαριασμού") }} · {{ t("Εξερευνητής") }}{% endblock %}
 {% block content %}
 <div class="acct-wrap">
-  <h1>{{ t("Ο λογαριασμός μου") }}</h1>
+  {% include "_acct_nav.html" %}
+  <h1>{{ t("Ρυθμίσεις λογαριασμού") }}</h1>
   {% if error %}<div class="acct-error">{{ error | t }}</div>{% endif %}
 
   <div class="acct-card">
@@ -15,12 +16,6 @@
       <dt>{{ t("Συνδρομή") }}</dt><dd>{{ subscription.product_name or subscription.product_code }} · {{ t("λήγει") }} {{ subscription.expires_at.strftime('%Y-%m-%d') }}</dd>
       {% endif %}
     </dl>
-  </div>
-
-  <div class="acct-card">
-    <h2>{{ t("Αποθηκευμένες αναζητήσεις & ειδοποιήσεις") }}</h2>
-    <p class="acct-muted">{{ t("Δείτε τις αποθηκευμένες αναζητήσεις σας και ορίστε για ποιες θέλετε να λαμβάνετε email με τα νέα αποτελέσματα.") }}</p>
-    <a class="acct-btn" href="/account/searches">{{ t("Διαχείριση αναζητήσεων & ειδοποιήσεων") }}</a>
   </div>
 
   <div class="acct-card">
@@ -70,33 +65,5 @@
   </div>
   {% endif %}
 </div>
-<style>
-  .acct-wrap{max-width:600px;margin:38px auto 64px;padding:0 22px;}
-  .acct-wrap h1{font-size:26px;letter-spacing:-.02em;margin:0 0 18px;}
-  .acct-card{background:var(--paper,#fff);border:1px solid var(--rule,#e6e8ec);border-radius:12px;
-    padding:20px 22px;margin-bottom:16px;box-shadow:var(--shadow-sm,0 1px 3px rgba(20,24,31,.06));}
-  .acct-card h2{font-size:16px;margin:0 0 6px;}
-  .acct-danger h2{color:var(--accent,#b41034);}
-  .acct-dl{display:grid;grid-template-columns:auto 1fr;gap:8px 18px;margin:0;font-size:14px;}
-  .acct-dl dt{color:var(--ink-3,#9aa0aa);font-family:var(--mono,monospace);font-size:11px;
-    text-transform:uppercase;letter-spacing:.04em;padding-top:2px;}
-  .acct-dl dd{margin:0;color:var(--ink,#14181f);}
-  .acct-muted{font-size:13px;color:var(--ink-2,#5b626d);line-height:1.55;margin:0 0 12px;}
-  .acct-check{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink-2,#5b626d);margin-bottom:12px;}
-  .acct-btn{background:var(--accent,#b41034);color:#fff;border:0;padding:10px 16px;border-radius:9px;
-    font-weight:600;font-size:14px;cursor:pointer;font-family:inherit;}
-  .acct-btn:hover{background:var(--accent-2,#8a0c28);}
-  .acct-btn-danger{background:#b3261e;}
-  .acct-btn-danger:hover{background:#8f1e17;}
-  .acct-error{background:#fdeceb;border:1px solid #f4c7c3;color:#b3261e;padding:10px 14px;
-    border-radius:9px;font-size:13.5px;margin-bottom:16px;}
-  .acct-ok{background:#e9f7ee;border:1px solid #b7e2c6;color:#1a7a3d;padding:10px 14px;
-    border-radius:9px;font-size:13.5px;margin-bottom:16px;}
-  .acct-field{display:block;font-size:12px;color:var(--ink-2,#5b626d);margin-bottom:12px;
-    font-family:var(--mono,monospace);text-transform:uppercase;letter-spacing:.04em;}
-  .acct-input{display:block;width:100%;margin-top:5px;padding:9px 11px;border:1px solid var(--rule,#e6e8ec);
-    border-radius:8px;font-size:14px;font-family:inherit;text-transform:none;letter-spacing:normal;
-    color:var(--ink,#14181f);background:var(--paper,#fff);box-sizing:border-box;}
-  .acct-input:focus{outline:none;border-color:var(--accent,#b41034);}
-</style>
+{% include "_acct_styles.html" %}
 {% endblock %}

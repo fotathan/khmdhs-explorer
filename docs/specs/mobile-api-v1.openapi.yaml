@@ -1,0 +1,1493 @@
+openapi: 3.1.0
+info:
+  title: KHMDHS Mobile API
+  version: 0.7.0-stage3-g
+  description: >-
+    Approved contract for the customer-facing mobile MVP. Stage 3 / Slices A-F
+    implements login, MFA verification, refresh, logout, current-user,
+    localized lookups, canonical act search, customer-safe act and entity
+    detail, ownership-safe saved-search management, notification preferences,
+    encrypted device registration, per-search push settings and the customer
+    notification inbox, server-side notification evaluation and opt-in provider
+    delivery, account-backed act favorites, plus the native authentication and
+    navigation shell. Production
+    provider delivery remains disabled pending a separate rollout approval.
+    Monetary amounts are decimal strings and database bigint identifiers are
+    serialized as strings.
+servers:
+  - url: https://api.example.invalid/api/v1
+    description: Placeholder until the owned production domain is approved
+tags:
+  - name: Auth
+  - name: Account
+  - name: Search
+  - name: Favorites
+  - name: Saved searches
+  - name: Devices
+  - name: Notifications
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: mobileLogin
+      summary: Complete the password step
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login completed
+          headers:
+            Cache-Control:
+              schema: {type: string, const: no-store}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '202':
+          description: A second factor is required
+          headers:
+            Cache-Control:
+              schema: {type: string, const: no-store}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaChallengeResponse'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+  /auth/mfa/verify:
+    post:
+      tags: [Auth]
+      operationId: verifyMobileMfa
+      summary: Consume a native MFA challenge
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaVerifyRequest'
+      responses:
+        '200':
+          description: Authentication completed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TokenResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '410': {$ref: '#/components/responses/Gone'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshMobileSession
+      summary: Rotate a refresh token and issue a new token pair
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Token rotated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TokenResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logoutMobileSession
+      summary: Revoke the current mobile session
+      responses:
+        '204': {description: Session revoked}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /auth/magic-link/request:
+    post:
+      tags: [Auth]
+      operationId: requestMobileMagicLink
+      summary: Request an enumeration-safe passwordless link
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MagicLinkRequest'
+      responses:
+        '202':
+          description: Same response for every syntactically valid address
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accepted]
+                properties:
+                  accepted: {type: boolean, const: true}
+        '422': {$ref: '#/components/responses/ValidationError'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+  /auth/magic-link/exchange:
+    post:
+      tags: [Auth]
+      operationId: exchangeMobileMagicLink
+      summary: Explicitly consume a one-time passwordless link
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MagicLinkExchangeRequest'
+      responses:
+        '200':
+          description: Authentication completed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TokenResponse'}
+        '202':
+          description: Password step completed; MFA remains required
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MfaChallengeResponse'}
+        '410': {$ref: '#/components/responses/Gone'}
+  /auth/register:
+    post:
+      tags: [Auth]
+      operationId: registerMobileCustomer
+      summary: Create a customer account under the server registration policy
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RegisterRequest'}
+      responses:
+        '201':
+          description: Account and mobile session created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TokenResponse'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+  /me:
+    get:
+      tags: [Account]
+      operationId: getCurrentMobileUser
+      summary: Return identity, entitlement and security state
+      responses:
+        '200':
+          description: Current customer
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MeResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /lookups:
+    get:
+      tags: [Search]
+      operationId: getMobileLookups
+      summary: Return localized filter vocabularies
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          description: Lookup values
+          headers:
+            ETag:
+              schema: {type: string}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LookupResponse'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /acts/search:
+    post:
+      tags: [Search]
+      operationId: searchMobileActs
+      summary: Search acts using the canonical server filter semantics
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ActSearchRequest'}
+      responses:
+        '200':
+          description: Snapshot-bound result page
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ActSearchResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+  /acts/{adam}:
+    get:
+      tags: [Search]
+      operationId: getMobileAct
+      summary: Return a customer-safe mobile act detail
+      parameters:
+        - $ref: '#/components/parameters/Adam'
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: context
+          in: query
+          required: false
+          description: Opaque search/notification context used for match explanation
+          schema: {type: string, maxLength: 1024}
+      responses:
+        '200':
+          description: Act detail
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ActDetail'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /favorites:
+    get:
+      tags: [Favorites]
+      operationId: listMobileFavorites
+      summary: List the current customer's favorited acts, newest first
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: cursor
+          in: query
+          required: false
+          schema: {type: [string, 'null'], maxLength: 2048}
+        - name: limit
+          in: query
+          required: false
+          schema: {type: integer, minimum: 1, maximum: 50, default: 20}
+      responses:
+        '200':
+          description: Snapshot-bound favorite page
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FavoritePage'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /favorites/{adam}:
+    put:
+      tags: [Favorites]
+      operationId: putMobileFavorite
+      summary: Idempotently add an act to the current customer's favorites
+      parameters:
+        - $ref: '#/components/parameters/Adam'
+      responses:
+        '200':
+          description: Favorite state
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FavoriteState'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    delete:
+      tags: [Favorites]
+      operationId: deleteMobileFavorite
+      summary: Idempotently remove an act from the current customer's favorites
+      parameters:
+        - $ref: '#/components/parameters/Adam'
+      responses:
+        '204': {description: Favorite removed or already absent}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /authority-options:
+    get:
+      tags: [Search]
+      operationId: searchMobileAuthorityOptions
+      summary: Search the full authority directory for mobile filter choices
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: {type: string, minLength: 2, maxLength: 120}
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          description: Matching canonical authority options
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 20
+                items: {$ref: '#/components/schemas/LookupItem'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /authorities/{orgId}:
+    get:
+      tags: [Search]
+      operationId: getMobileAuthority
+      summary: Return mobile authority identity, headline totals and recent acts
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 128}
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          description: Authority summary
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EntitySummary'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /contractors/{vat}:
+    get:
+      tags: [Search]
+      operationId: getMobileContractor
+      summary: Return mobile contractor identity, headline totals, buyers and recent acts
+      parameters:
+        - name: vat
+          in: path
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 32}
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          description: Contractor summary
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EntitySummary'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /saved-searches:
+    get:
+      tags: [Saved searches]
+      operationId: listMobileSavedSearches
+      summary: List owned and available published searches
+      responses:
+        '200':
+          description: Available saved searches
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, owned_count, owned_limit]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/SavedSearch'}
+                  owned_count: {type: integer, minimum: 0}
+                  owned_limit: {type: integer, const: 25}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+    post:
+      tags: [Saved searches]
+      operationId: createMobileSavedSearch
+      summary: Save a non-empty filter set
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SavedSearchCreate'}
+      responses:
+        '201':
+          description: Saved search created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SavedSearch'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /saved-searches/{savedSearchId}:
+    patch:
+      tags: [Saved searches]
+      operationId: renameMobileSavedSearch
+      summary: Rename an owned search
+      parameters:
+        - $ref: '#/components/parameters/SavedSearchId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string, minLength: 1, maxLength: 120}
+      responses:
+        '200':
+          description: Saved search renamed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SavedSearch'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+    delete:
+      tags: [Saved searches]
+      operationId: deleteMobileSavedSearch
+      summary: Delete an owned search and its alert settings
+      parameters:
+        - $ref: '#/components/parameters/SavedSearchId'
+      responses:
+        '204': {description: Deleted}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /saved-searches/{savedSearchId}/email-alert:
+    get:
+      tags: [Saved searches]
+      operationId: getMobileEmailAlert
+      parameters:
+        - $ref: '#/components/parameters/SavedSearchId'
+      responses:
+        '200':
+          description: Existing email alert or disabled defaults
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EmailAlert'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Saved searches]
+      operationId: putMobileEmailAlert
+      parameters:
+        - $ref: '#/components/parameters/SavedSearchId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/EmailAlertInput'}
+      responses:
+        '200':
+          description: Email settings saved
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EmailAlert'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+    delete:
+      tags: [Saved searches]
+      operationId: deleteMobileEmailAlert
+      parameters:
+        - $ref: '#/components/parameters/SavedSearchId'
+      responses:
+        '204': {description: Email alert removed}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /saved-searches/{savedSearchId}/email-alert/runs/{runId}:
+    get:
+      tags: [Saved searches]
+      operationId: getMobileEmailAlertRun
+      summary: Return the recorded acts and frozen criteria for one owned email run
+      parameters:
+        - $ref: '#/components/parameters/SavedSearchId'
+        - name: runId
+          in: path
+          required: true
+          schema: {$ref: '#/components/schemas/Identifier'}
+        - name: cursor
+          in: query
+          required: false
+          schema: {type: [string, 'null'], maxLength: 2048}
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          description: Owner-scoped historical email results
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EmailAlertRunPage'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /saved-searches/{savedSearchId}/push-alert:
+    get:
+      tags: [Notifications]
+      operationId: getMobilePushAlert
+      parameters:
+        - $ref: '#/components/parameters/SavedSearchId'
+      responses:
+        '200':
+          description: Existing push alert or disabled defaults
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PushAlert'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Notifications]
+      operationId: putMobilePushAlert
+      parameters:
+        - $ref: '#/components/parameters/SavedSearchId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PushAlertInput'}
+      responses:
+        '200':
+          description: Push settings saved
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PushAlert'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+    delete:
+      tags: [Notifications]
+      operationId: deleteMobilePushAlert
+      parameters:
+        - $ref: '#/components/parameters/SavedSearchId'
+      responses:
+        '204': {description: Push alert removed}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /notification-settings:
+    get:
+      tags: [Notifications]
+      operationId: getMobileNotificationSettings
+      responses:
+        '200':
+          description: Global notification settings
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NotificationSettings'}
+    put:
+      tags: [Notifications]
+      operationId: putMobileNotificationSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/NotificationSettingsInput'}
+      responses:
+        '200':
+          description: Global notification settings saved
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NotificationSettings'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /devices:
+    get:
+      tags: [Devices]
+      operationId: listMobileDevices
+      responses:
+        '200':
+          description: Current user's devices
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/Device'}
+    post:
+      tags: [Devices]
+      operationId: registerMobileDevice
+      summary: Idempotently register the current installation and push token
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeviceRegistration'}
+      responses:
+        '200':
+          description: Installation updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Device'}
+        '201':
+          description: Installation created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Device'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /devices/{deviceId}:
+    delete:
+      tags: [Devices]
+      operationId: revokeMobileDevice
+      summary: Revoke an owned device, its sessions and push token
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '204': {description: Device revoked}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /notifications:
+    get:
+      tags: [Notifications]
+      operationId: listMobileNotifications
+      parameters:
+        - name: state
+          in: query
+          schema: {type: string, enum: [all, unread], default: all}
+        - name: cursor
+          in: query
+          schema: {type: string, maxLength: 2048}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 50, default: 20}
+      responses:
+        '200':
+          description: Notification inbox page
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NotificationPage'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /notifications/read-all:
+    post:
+      tags: [Notifications]
+      operationId: markAllMobileNotificationsRead
+      responses:
+        '200':
+          description: Number updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [updated]
+                properties:
+                  updated: {type: integer, minimum: 0}
+  /notifications/{notificationId}:
+    patch:
+      tags: [Notifications]
+      operationId: updateMobileNotification
+      parameters:
+        - $ref: '#/components/parameters/NotificationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [read]
+              properties:
+                read: {type: boolean}
+      responses:
+        '200':
+          description: Notification updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NotificationItem'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    delete:
+      tags: [Notifications]
+      operationId: deleteMobileNotification
+      parameters:
+        - $ref: '#/components/parameters/NotificationId'
+      responses:
+        '204': {description: Inbox item deleted}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /account/password:
+    post:
+      tags: [Account]
+      operationId: changeMobilePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PasswordChangeRequest'}
+      responses:
+        '204': {description: Password changed; other sessions revoked}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /account/mfa:
+    get:
+      tags: [Account]
+      operationId: getMobileMfaStatus
+      summary: Return current 2FA state
+      responses:
+        '200':
+          description: Current 2FA state
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MfaStatus'}
+    delete:
+      tags: [Account]
+      operationId: disableMobileMfa
+      summary: Disable 2FA after re-authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MfaDisableRequest'}
+      responses:
+        '204': {description: 2FA disabled and other sessions revoked}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /account/mfa/enrollment:
+    post:
+      tags: [Account]
+      operationId: startMobileMfaEnrollment
+      summary: Start a short-lived 2FA enrollment after password verification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password]
+              properties:
+                current_password: {type: string, minLength: 1, maxLength: 1024}
+      responses:
+        '200':
+          description: Enrollment secret to confirm
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MfaEnrollment'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /account/mfa/enrollment/confirm:
+    post:
+      tags: [Account]
+      operationId: confirmMobileMfaEnrollment
+      summary: Confirm TOTP enrollment and return recovery codes once
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enrollment_id, code]
+              properties:
+                enrollment_id: {type: string, minLength: 16, maxLength: 512}
+                code: {type: string, minLength: 6, maxLength: 12}
+      responses:
+        '200':
+          description: 2FA enabled; recovery codes are shown only in this response
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enabled, recovery_codes]
+                properties:
+                  enabled: {type: boolean, const: true}
+                  recovery_codes:
+                    type: array
+                    minItems: 1
+                    items: {type: string}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '410': {$ref: '#/components/responses/Gone'}
+  /account/export:
+    post:
+      tags: [Account]
+      operationId: requestMobileAccountExport
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Export request accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [request_id, status]
+                properties:
+                  request_id: {$ref: '#/components/schemas/Identifier'}
+                  status: {type: string, const: pending}
+  /account:
+    delete:
+      tags: [Account]
+      operationId: deleteMobileAccount
+      summary: Permanently delete a customer account after re-authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AccountDeleteRequest'}
+      responses:
+        '204': {description: Account deleted and sessions revoked}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+  parameters:
+    AcceptLanguage:
+      name: Accept-Language
+      in: header
+      required: false
+      schema: {type: string, enum: [el, en], default: el}
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, minLength: 16, maxLength: 128}
+    Adam:
+      name: adam
+      in: path
+      required: true
+      schema: {type: string, minLength: 3, maxLength: 64}
+    SavedSearchId:
+      name: savedSearchId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Identifier'}
+    DeviceId:
+      name: deviceId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Identifier'}
+    NotificationId:
+      name: notificationId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Identifier'}
+  responses:
+    Unauthorized:
+      description: Missing, invalid, expired or revoked authentication
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Forbidden:
+      description: Authenticated but not allowed or not currently entitled
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    NotFound:
+      description: Missing or inaccessible resource
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Gone:
+      description: One-time or expiring resource is no longer usable
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Conflict:
+      description: Request conflicts with current state
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    ValidationError:
+      description: One or more fields are invalid
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    RateLimited:
+      description: Request limit exceeded
+      headers:
+        Retry-After:
+          schema: {type: integer, minimum: 1}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+  schemas:
+    Identifier:
+      type: string
+      pattern: '^[0-9]+$'
+      examples: ['123']
+    Timestamp:
+      type: string
+      format: date-time
+      examples: ['2026-09-14T10:00:00Z']
+    ErrorField:
+      type: object
+      required: [field, code]
+      properties:
+        field: {type: string}
+        code: {type: string}
+    Error:
+      type: object
+      required: [code, message, request_id]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        fields:
+          type: array
+          items: {$ref: '#/components/schemas/ErrorField'}
+        request_id: {type: string}
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error: {$ref: '#/components/schemas/Error'}
+    DeviceMetadata:
+      type: object
+      additionalProperties: false
+      required: [installation_id, platform, app_version]
+      properties:
+        installation_id: {type: string, format: uuid}
+        platform: {type: string, enum: [ios, android]}
+        app_version: {type: string, minLength: 1, maxLength: 32}
+        os_version: {type: string, maxLength: 32}
+        locale: {type: string, enum: [el, en], default: el}
+        timezone: {type: string, default: Europe/Athens, maxLength: 64}
+        display_name: {type: string, maxLength: 80}
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password, device]
+      properties:
+        username: {type: string, minLength: 1, maxLength: 254}
+        password: {type: string, minLength: 1, maxLength: 1024}
+        device: {$ref: '#/components/schemas/DeviceMetadata'}
+    TokenResponse:
+      type: object
+      required: [token_type, access_token, access_expires_in, refresh_token, refresh_expires_at, user]
+      properties:
+        token_type: {type: string, const: Bearer}
+        access_token: {type: string}
+        access_expires_in: {type: integer, const: 900}
+        refresh_token: {type: string}
+        refresh_expires_at: {$ref: '#/components/schemas/Timestamp'}
+        user: {$ref: '#/components/schemas/MeResponse'}
+    MfaChallengeResponse:
+      type: object
+      required: [status, challenge_id, expires_in, methods]
+      properties:
+        status: {type: string, const: mfa_required}
+        challenge_id: {type: string}
+        expires_in: {type: integer, const: 300}
+        methods:
+          type: array
+          items: {type: string, enum: [totp, recovery_code]}
+    MfaVerifyRequest:
+      type: object
+      additionalProperties: false
+      required: [challenge_id, code]
+      properties:
+        challenge_id: {type: string, minLength: 16, maxLength: 512}
+        code: {type: string, minLength: 6, maxLength: 64}
+    RefreshRequest:
+      type: object
+      additionalProperties: false
+      required: [refresh_token, installation_id]
+      properties:
+        refresh_token: {type: string}
+        installation_id: {type: string, format: uuid}
+    MagicLinkRequest:
+      type: object
+      required: [email, installation_id]
+      properties:
+        email: {type: string, format: email, maxLength: 254}
+        installation_id: {type: string, format: uuid}
+        locale: {type: string, enum: [el, en], default: el}
+    MagicLinkExchangeRequest:
+      type: object
+      required: [token, device]
+      properties:
+        token: {type: string, minLength: 16, maxLength: 2048}
+        device: {$ref: '#/components/schemas/DeviceMetadata'}
+    RegisterRequest:
+      type: object
+      required: [username, email, password, device]
+      properties:
+        username: {type: string, minLength: 1, maxLength: 120}
+        email: {type: string, format: email, maxLength: 254}
+        password: {type: string, minLength: 8, maxLength: 200}
+        device: {$ref: '#/components/schemas/DeviceMetadata'}
+    MeResponse:
+      type: object
+      required: [id, username, role, language, entitlement, security]
+      properties:
+        id: {$ref: '#/components/schemas/Identifier'}
+        username: {type: string}
+        email: {type: [string, 'null'], format: email}
+        role: {type: string, enum: [customer, admin]}
+        language: {type: string, enum: [el, en]}
+        entitlement:
+          type: object
+          required: [has_access, status]
+          properties:
+            has_access: {type: boolean}
+            status: {type: string}
+            product_code: {type: [string, 'null']}
+            expires_at:
+              oneOf:
+                - {$ref: '#/components/schemas/Timestamp'}
+                - {type: 'null'}
+        security:
+          type: object
+          required: [mfa_enabled, password_change_required]
+          properties:
+            mfa_enabled: {type: boolean}
+            password_change_required: {type: boolean}
+    LookupItem:
+      type: object
+      required: [code, label]
+      properties:
+        code: {type: string}
+        label: {type: string}
+        parent_code: {type: [string, 'null']}
+    CategoryLookup:
+      type: object
+      required: [kind, id, label]
+      properties:
+        kind: {type: string, enum: [category, subcategory]}
+        id: {$ref: '#/components/schemas/Identifier'}
+        label: {type: string}
+        parent_id:
+          oneOf:
+            - {$ref: '#/components/schemas/Identifier'}
+            - {type: 'null'}
+    LookupResponse:
+      type: object
+      required: [version, language, act_types, sources, authorities, contract_types, procedure_types, nuts_regions, categories]
+      properties:
+        version: {type: string}
+        language: {type: string, enum: [el, en]}
+        act_types: {type: array, items: {$ref: '#/components/schemas/LookupItem'}}
+        sources: {type: array, items: {$ref: '#/components/schemas/LookupItem'}}
+        authorities: {type: array, items: {$ref: '#/components/schemas/LookupItem'}}
+        contract_types: {type: array, items: {$ref: '#/components/schemas/LookupItem'}}
+        procedure_types: {type: array, items: {$ref: '#/components/schemas/LookupItem'}}
+        nuts_regions: {type: array, items: {$ref: '#/components/schemas/LookupItem'}}
+        categories: {type: array, items: {$ref: '#/components/schemas/CategoryLookup'}}
+    CategorySelection:
+      type: object
+      required: [kind, id]
+      properties:
+        kind: {type: string, enum: [category, subcategory]}
+        id: {$ref: '#/components/schemas/Identifier'}
+    ActSearchFilters:
+      type: object
+      additionalProperties: false
+      properties:
+        q: {type: [string, 'null'], maxLength: 300}
+        fulltext: {type: [string, 'null'], maxLength: 300}
+        tables_q: {type: [string, 'null'], maxLength: 300}
+        types: {type: array, maxItems: 20, uniqueItems: true, items: {type: string}}
+        authority_ids: {type: array, maxItems: 20, uniqueItems: true, items: {type: string}}
+        sources: {type: array, maxItems: 20, uniqueItems: true, items: {type: string}}
+        cpv_prefixes: {type: array, maxItems: 20, uniqueItems: true, items: {type: string, pattern: '^[0-9]{1,8}$'}}
+        categories: {type: array, maxItems: 20, uniqueItems: true, items: {$ref: '#/components/schemas/CategorySelection'}}
+        contract_types: {type: array, maxItems: 20, uniqueItems: true, items: {type: string}}
+        procedure_types: {type: array, maxItems: 20, uniqueItems: true, items: {type: string}}
+        nuts: {type: array, maxItems: 20, uniqueItems: true, items: {type: string}}
+        publication_from: {type: [string, 'null'], format: date}
+        publication_to: {type: [string, 'null'], format: date}
+        deadline_from: {type: [string, 'null'], format: date}
+        deadline_to: {type: [string, 'null'], format: date}
+        value_min: {type: [string, 'null'], maxLength: 32, pattern: '^\d+(\.\d{1,2})?$'}
+        value_max: {type: [string, 'null'], maxLength: 32, pattern: '^\d+(\.\d{1,2})?$'}
+        status: {type: [string, 'null'], enum: [active, cancelled, modified, null]}
+    ActSearchRequest:
+      type: object
+      additionalProperties: false
+      required: [filters]
+      properties:
+        filters: {$ref: '#/components/schemas/ActSearchFilters'}
+        sort:
+          type: string
+          enum: [submission_date, deadline, value_asc, value_desc, relevance]
+          default: submission_date
+        cursor: {type: [string, 'null'], maxLength: 2048}
+        limit: {type: integer, minimum: 1, maximum: 50, default: 20}
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount: {type: string, pattern: '^-?\d+(\.\d+)?$'}
+        currency: {type: string, const: EUR}
+    MatchReason:
+      type: object
+      required: [kind, label]
+      properties:
+        kind: {type: string, enum: [text, cpv, category, authority, geography, deadline, value]}
+        label: {type: string}
+    ActSearchItem:
+      type: object
+      required: [adam, type, title, source, cancelled, modified, favorited]
+      properties:
+        adam: {type: string}
+        type: {$ref: '#/components/schemas/LookupItem'}
+        title: {type: string}
+        source: {$ref: '#/components/schemas/LookupItem'}
+        authority:
+          oneOf:
+            - {$ref: '#/components/schemas/EntityRef'}
+            - {type: 'null'}
+        signed_date: {type: [string, 'null'], format: date}
+        publication_date: {type: [string, 'null'], format: date}
+        deadline_at:
+          oneOf:
+            - {$ref: '#/components/schemas/Timestamp'}
+            - {type: 'null'}
+        value:
+          oneOf:
+            - {$ref: '#/components/schemas/Money'}
+            - {type: 'null'}
+        value_corrected: {type: boolean, default: false}
+        cancelled: {type: boolean}
+        modified: {type: boolean}
+        contract_type:
+          oneOf:
+            - {$ref: '#/components/schemas/LookupItem'}
+            - {type: 'null'}
+        procedure_type:
+          oneOf:
+            - {$ref: '#/components/schemas/LookupItem'}
+            - {type: 'null'}
+        nuts_region:
+          oneOf:
+            - {$ref: '#/components/schemas/LookupItem'}
+            - {type: 'null'}
+        snippet: {type: [string, 'null']}
+        match_reasons:
+          type: array
+          maxItems: 5
+          items: {$ref: '#/components/schemas/MatchReason'}
+        context: {type: [string, 'null']}
+        favorited: {type: boolean, default: false}
+    ActSearchResponse:
+      type: object
+      required: [items, next_cursor, snapshot_at, totals]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/ActSearchItem'}}
+        next_cursor: {type: [string, 'null']}
+        snapshot_at: {$ref: '#/components/schemas/Timestamp'}
+        totals:
+          type: object
+          required: [count, value]
+          properties:
+            count: {type: integer, minimum: 0}
+            value: {$ref: '#/components/schemas/Money'}
+    EntityRef:
+      type: object
+      required: [id, name]
+      properties:
+        id: {type: string}
+        name: {type: string}
+    EntitySummary:
+      type: object
+      required: [kind, id, name, headline, recent_acts]
+      properties:
+        kind: {type: string, enum: [authority, contractor]}
+        id: {type: string}
+        name: {type: string}
+        canonical_name: {type: [string, 'null']}
+        merged: {type: boolean, default: false}
+        contact:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              properties:
+                email: {type: [string, 'null']}
+                phone: {type: [string, 'null']}
+                website: {type: [string, 'null'], format: uri}
+                address: {type: [string, 'null']}
+            - {type: 'null'}
+        headline:
+          type: object
+          required: [act_count, contract_value]
+          properties:
+            act_count: {type: integer, minimum: 0}
+            contract_value:
+              oneOf:
+                - {$ref: '#/components/schemas/Money'}
+                - {type: 'null'}
+        top_categories:
+          type: array
+          items: {$ref: '#/components/schemas/LookupItem'}
+        top_buyers:
+          type: array
+          description: Contractor summaries only
+          items: {$ref: '#/components/schemas/EntityRef'}
+        recent_acts:
+          type: array
+          maxItems: 20
+          items: {$ref: '#/components/schemas/ActSearchItem'}
+    Link:
+      type: object
+      required: [label, url]
+      properties:
+        label: {type: string}
+        url: {type: string, format: uri, pattern: '^https://'}
+    DetailSection:
+      type: object
+      required: [kind, title, data]
+      properties:
+        kind: {type: string}
+        title: {type: string}
+        source_class: {type: string, enum: [source, calculated, ai]}
+        data: {type: object, additionalProperties: true}
+    ActDetail:
+      type: object
+      required: [adam, type, title, source, cancelled, modified, sections, links, favorited]
+      properties:
+        adam: {type: string}
+        type: {$ref: '#/components/schemas/LookupItem'}
+        title: {type: string}
+        source: {$ref: '#/components/schemas/LookupItem'}
+        authority:
+          oneOf:
+            - {$ref: '#/components/schemas/EntityRef'}
+            - {type: 'null'}
+        publication_date: {type: [string, 'null'], format: date}
+        deadline_at:
+          oneOf:
+            - {$ref: '#/components/schemas/Timestamp'}
+            - {type: 'null'}
+        value:
+          oneOf:
+            - {$ref: '#/components/schemas/Money'}
+            - {type: 'null'}
+        cancelled: {type: boolean}
+        modified: {type: boolean}
+        match_reasons: {type: array, items: {$ref: '#/components/schemas/MatchReason'}}
+        sections: {type: array, items: {$ref: '#/components/schemas/DetailSection'}}
+        links: {type: array, items: {$ref: '#/components/schemas/Link'}}
+        updated_at:
+          oneOf:
+            - {$ref: '#/components/schemas/Timestamp'}
+            - {type: 'null'}
+        favorited: {type: boolean, default: false}
+    FavoriteState:
+      type: object
+      required: [adam, favorited]
+      properties:
+        adam: {type: string}
+        favorited: {type: boolean}
+        favorited_at:
+          oneOf:
+            - {$ref: '#/components/schemas/Timestamp'}
+            - {type: 'null'}
+    FavoriteItem:
+      type: object
+      required: [act, favorited_at]
+      properties:
+        act: {$ref: '#/components/schemas/ActSearchItem'}
+        favorited_at: {$ref: '#/components/schemas/Timestamp'}
+    FavoritePage:
+      type: object
+      required: [items, next_cursor, total]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/FavoriteItem'}}
+        next_cursor: {type: [string, 'null']}
+        total: {type: integer, minimum: 0}
+    SavedSearch:
+      type: object
+      required: [id, name, scope, owned, editable, filters, created_at, updated_at]
+      properties:
+        id: {$ref: '#/components/schemas/Identifier'}
+        name: {type: string}
+        scope: {type: string, enum: [customer, portal]}
+        owned: {type: boolean}
+        editable: {type: boolean}
+        filters: {$ref: '#/components/schemas/ActSearchFilters'}
+        email_alert_enabled: {type: boolean, default: false}
+        push_alert_enabled: {type: boolean, default: false}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        updated_at: {$ref: '#/components/schemas/Timestamp'}
+    SavedSearchCreate:
+      type: object
+      additionalProperties: false
+      required: [name, filters]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 120}
+        filters: {$ref: '#/components/schemas/ActSearchFilters'}
+    EmailAlertInput:
+      type: object
+      required: [active, layout, language, max_results, lead_days]
+      properties:
+        active: {type: boolean}
+        layout: {type: string, enum: [list, summary, deadline]}
+        schedule_id: {type: [string, 'null'], pattern: '^[0-9]+$'}
+        language: {type: string, enum: [el, en]}
+        max_results: {type: integer, minimum: 1, maximum: 200}
+        lead_days: {type: array, minItems: 1, maxItems: 6, uniqueItems: true, items: {type: integer, minimum: 0, maximum: 90}}
+        send_empty: {type: boolean, default: false}
+    EmailAlert:
+      allOf:
+        - {$ref: '#/components/schemas/EmailAlertInput'}
+        - type: object
+          required: [saved_search_id, exists, additional_recipients, recent_runs, schedule_options]
+          properties:
+            saved_search_id: {$ref: '#/components/schemas/Identifier'}
+            exists: {type: boolean}
+            schedule_label: {type: [string, 'null']}
+            next_run_at:
+              oneOf:
+                - {$ref: '#/components/schemas/Timestamp'}
+                - {type: 'null'}
+            last_sent_at:
+              oneOf:
+                - {$ref: '#/components/schemas/Timestamp'}
+                - {type: 'null'}
+            additional_recipients:
+              type: array
+              items: {type: string, format: email}
+              default: []
+            recent_runs:
+              type: array
+              maxItems: 3
+              items: {$ref: '#/components/schemas/EmailAlertRun'}
+              default: []
+            schedule_options:
+              type: array
+              items: {$ref: '#/components/schemas/EmailSchedule'}
+            delivery_suspended_reason:
+              type: [string, 'null']
+              enum: [null, not_entitled, no_email, no_schedule]
+    EmailAlertRun:
+      type: object
+      required: [id, status, result_count, started_at]
+      properties:
+        id: {$ref: '#/components/schemas/Identifier'}
+        status: {type: string, enum: [sent, empty, error, skipped]}
+        result_count: {type: integer, minimum: 0}
+        started_at: {$ref: '#/components/schemas/Timestamp'}
+    EmailAlertRunItem:
+      type: object
+      required: [act, included_in_email]
+      properties:
+        act: {$ref: '#/components/schemas/ActSearchItem'}
+        included_in_email: {type: boolean}
+    EmailAlertRunPage:
+      type: object
+      required: [run, saved_search_id, saved_search_name, filters, items, total, next_cursor]
+      properties:
+        run: {$ref: '#/components/schemas/EmailAlertRun'}
+        saved_search_id: {$ref: '#/components/schemas/Identifier'}
+        saved_search_name: {type: string}
+        filters: {$ref: '#/components/schemas/ActSearchFilters'}
+        items:
+          type: array
+          maxItems: 20
+          items: {$ref: '#/components/schemas/EmailAlertRunItem'}
+        total: {type: integer, minimum: 0}
+        next_cursor: {type: [string, 'null']}
+    EmailSchedule:
+      type: object
+      required: [id, label, is_default]
+      properties:
+        id: {$ref: '#/components/schemas/Identifier'}
+        label: {type: string}
+        is_default: {type: boolean}
+    PushAlertInput:
+      type: object
+      required: [active, delivery_mode, new_matches, deadlines, lead_days]
+      properties:
+        active: {type: boolean, default: false}
+        delivery_mode: {type: string, enum: [immediate, daily], default: daily}
+        new_matches: {type: boolean, default: true}
+        deadlines: {type: boolean, default: true}
+        lead_days: {type: array, minItems: 1, maxItems: 6, uniqueItems: true, items: {type: integer, minimum: 0, maximum: 90}, default: [7, 1]}
+    PushAlert:
+      allOf:
+        - {$ref: '#/components/schemas/PushAlertInput'}
+        - type: object
+          required: [id, saved_search_id]
+          properties:
+            id:
+              oneOf:
+                - {$ref: '#/components/schemas/Identifier'}
+                - {type: 'null'}
+            saved_search_id: {$ref: '#/components/schemas/Identifier'}
+            delivery_suspended_reason: {type: [string, 'null'], enum: [null, globally_paused, not_entitled, no_active_device]}
+            updated_at: {$ref: '#/components/schemas/Timestamp'}
+    NotificationSettingsInput:
+      type: object
+      required: [paused, timezone, quiet_start, quiet_end, summary_time, daily_cap, language]
+      properties:
+        paused: {type: boolean, default: false}
+        timezone: {type: string, default: Europe/Athens, maxLength: 64}
+        quiet_start: {type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$', default: '22:00'}
+        quiet_end: {type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$', default: '08:00'}
+        summary_time: {type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$', default: '08:30'}
+        daily_cap: {type: integer, minimum: 1, maximum: 10, default: 6}
+        language: {type: string, enum: [el, en], default: el}
+    NotificationSettings:
+      allOf:
+        - {$ref: '#/components/schemas/NotificationSettingsInput'}
+        - type: object
+          required: [updated_at]
+          properties:
+            updated_at: {$ref: '#/components/schemas/Timestamp'}
+    DeviceRegistration:
+      allOf:
+        - {$ref: '#/components/schemas/DeviceMetadata'}
+        - type: object
+          required: [permission_status]
+          properties:
+            permission_status: {type: string, enum: [unknown, granted, denied, provisional]}
+            push_provider: {type: string, enum: [expo], default: expo}
+            push_token: {type: [string, 'null'], maxLength: 4096}
+    Device:
+      type: object
+      required: [id, installation_id, platform, display_name, permission_status, enabled, current, last_seen_at]
+      properties:
+        id: {$ref: '#/components/schemas/Identifier'}
+        installation_id: {type: string, format: uuid}
+        platform: {type: string, enum: [ios, android]}
+        display_name: {type: string}
+        app_version: {type: [string, 'null']}
+        os_version: {type: [string, 'null']}
+        permission_status: {type: string, enum: [unknown, granted, denied, provisional]}
+        enabled: {type: boolean}
+        current: {type: boolean}
+        last_seen_at: {$ref: '#/components/schemas/Timestamp'}
+        revoked_at:
+          oneOf:
+            - {$ref: '#/components/schemas/Timestamp'}
+            - {type: 'null'}
+    NotificationItem:
+      type: object
+      required: [id, type, title, body, created_at, read, target]
+      properties:
+        id: {$ref: '#/components/schemas/Identifier'}
+        type: {type: string, enum: [new_match, deadline, daily_summary]}
+        title: {type: string}
+        body: {type: string}
+        saved_search_names: {type: array, items: {type: string}}
+        possible_duplicate_of:
+          type: [string, 'null']
+          description: >-
+            ΑΔΑΜ of the act this one may repeat. Set on a Tender Service act
+            that is a possible (not confirmed) duplicate; the app should say so.
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        read: {type: boolean}
+        read_at:
+          oneOf:
+            - {$ref: '#/components/schemas/Timestamp'}
+            - {type: 'null'}
+        expires_at: {$ref: '#/components/schemas/Timestamp'}
+        target:
+          type: object
+          required: [kind, id]
+          properties:
+            kind: {type: string, enum: [act, search_summary]}
+            id: {type: string}
+            context: {type: [string, 'null']}
+    NotificationPage:
+      type: object
+      required: [items, next_cursor, unread_count]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/NotificationItem'}}
+        next_cursor: {type: [string, 'null']}
+        unread_count: {type: integer, minimum: 0}
+    PasswordChangeRequest:
+      type: object
+      required: [current_password, new_password]
+      properties:
+        current_password: {type: string, minLength: 1, maxLength: 1024}
+        new_password: {type: string, minLength: 8, maxLength: 200}
+    MfaStatus:
+      type: object
+      required: [enabled, recovery_codes_remaining]
+      properties:
+        enabled: {type: boolean}
+        recovery_codes_remaining: {type: integer, minimum: 0}
+    MfaEnrollment:
+      type: object
+      required: [enrollment_id, secret, otpauth_uri, expires_in]
+      properties:
+        enrollment_id: {type: string}
+        secret: {type: string}
+        otpauth_uri: {type: string, pattern: '^otpauth://totp/'}
+        expires_in: {type: integer, const: 300}
+    MfaDisableRequest:
+      type: object
+      required: [current_password, code]
+      properties:
+        current_password: {type: string, minLength: 1, maxLength: 1024}
+        code: {type: string, minLength: 6, maxLength: 64}
+    AccountDeleteRequest:
+      type: object
+      required: [password, confirmation]
+      properties:
+        password: {type: string, minLength: 1, maxLength: 1024}
+        confirmation: {type: string, enum: [DELETE]}
+security:
+  - bearerAuth: []

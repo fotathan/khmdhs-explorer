@@ -63,7 +63,7 @@
   <div class="act-hero">
     <div class="badges">
       <span class="card-type t-{{ atype }}">{{ type_label_el }}</span>
-      {% if n.data_source == 'diavgeia' %}<span class="src-badge src-diavgeia">{{ t("Διαύγεια") }}</span>{% elif n.data_source == 'ted' %}<span class="src-badge src-ted">TED</span>{% else %}<span class="src-badge src-khmdhs">ΚΗΜΔΗΣ</span>{% endif %}
+      {% if n.data_source == 'diavgeia' %}<span class="src-badge src-diavgeia">{{ t("Διαύγεια") }}</span>{% elif n.data_source == 'ted' %}<span class="src-badge src-ted">TED</span>{% elif n.data_source == 'tsg' %}<span class="src-badge src-tsg">Tender Service</span>{% else %}<span class="src-badge src-khmdhs">ΚΗΜΔΗΣ</span>{% endif %}
       {% if n.cancelled %}<span class="pill cancel">{{ t("ακυρωμένη") }}</span>{% endif %}
       {% if n.is_modified %}<span class="pill amend">{{ t("ορθή επανάληψη") }}</span>{% endif %}
       {% if excluded_reason == 'over_threshold' %}
@@ -126,6 +126,15 @@
       {% if attachments|length > 1 %}
       <a class="act-btn" href="/act/{{ n.adam }}/attachments.zip"><span aria-hidden="true">⭳</span> {{ t("Λήψη όλων (zip)") }}</a>
       {% endif %}
+      {% if user %}
+      {% with adam = n.adam, favorited = is_favorite, compact = false %}
+        {% include "_favorite_toggle.html" %}
+      {% endwith %}
+      {% endif %}
+      {% if n.final_submission_date %}
+      <a class="act-btn" href="/act/{{ n.adam }}/calendar.ics"
+         title="{{ t('Προσθήκη της προθεσμίας στο ημερολόγιό σας') }}"><span aria-hidden="true">⭳</span> {{ t('Προθεσμία στο ημερολόγιο') }}</a>
+      {% endif %}
       <button type="button" class="act-btn" data-act-print hidden><span aria-hidden="true">⎙</span> {{ t("Εκτύπωση") }}</button>
     </div>
     {% endif %}
@@ -183,7 +192,7 @@
       <div class="panel">
         <h3 class="panel-h">{{ t("Στοιχεία πράξης") }}</h3>
         <dl class="facts">
-          <dt>{{ "ΑΔΑ" if n.data_source == 'diavgeia' else ("TED" if n.data_source == 'ted' else "ΑΔΑΜ") }}</dt><dd><code>{{ n.adam }}</code></dd>
+          <dt>{{ "ΑΔΑ" if n.data_source == 'diavgeia' else ("TED" if n.data_source == 'ted' else ("Tender Service" if n.data_source == 'tsg' else "ΑΔΑΜ")) }}</dt><dd><code>{{ n.adam }}</code></dd>
           <dt>{{ t("Τύπος") }}</dt><dd>{{ type_label_el }}</dd>
           {% if n.signed_date %}<dt>{{ t("Υπογραφή") }}</dt><dd>{{ n.signed_date.strftime('%d/%m/%Y') }}</dd>{% endif %}
 
@@ -326,7 +335,7 @@
         <div class="sidecard-h">{{ t("Προέλευση δεδομένων") }}</div>
         <dl class="prov">
           <dt>{{ t("Πηγή") }}</dt>
-          <dd>{% if n.data_source=='ted' %}TED{% elif n.data_source=='diavgeia' %}{{ t("Διαύγεια") }}{% else %}{{ t("ΚΗΜΔΗΣ") }}{% endif %}</dd>
+          <dd>{% if n.data_source=='ted' %}TED{% elif n.data_source=='diavgeia' %}{{ t("Διαύγεια") }}{% elif n.data_source=='tsg' %}Tender Service{% else %}{{ t("ΚΗΜΔΗΣ") }}{% endif %}</dd>
           {% if n.last_update_date %}<dt>{{ t("Επικαιροποίηση πηγής") }}</dt><dd>{{ n.last_update_date.strftime('%Y-%m-%d') }}</dd>{% endif %}
           {% if n.ingested_at %}<dt>{{ t("Εισαγωγή") }}</dt><dd>{{ n.ingested_at.strftime('%Y-%m-%d') }}</dd>{% endif %}
           {% if n.last_edited_at %}<dt>{{ t("Επιμέλεια") }}</dt><dd>{{ n.last_edited_by or t("διαχειριστής") }} · {{ n.last_edited_at.strftime('%Y-%m-%d') }}</dd>{% endif %}

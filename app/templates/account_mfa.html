@@ -2,8 +2,8 @@
 {% block title %}{{ t("Έλεγχος ταυτότητας δύο παραγόντων") }} · {{ t("Εξερευνητής") }}{% endblock %}
 {% block content %}
 <div class="acct-wrap">
+  {% include "_acct_nav.html" %}
   <h1>{{ t("Έλεγχος ταυτότητας δύο παραγόντων (2FA)") }}</h1>
-  <p class="acct-muted"><a href="/account">← {{ t("Ο λογαριασμός μου") }}</a></p>
   {% if error %}<div class="acct-error">{{ error | t }}</div>{% endif %}
 
   {% if just_enabled %}
@@ -54,7 +54,7 @@
   {% endif %}
 </div>
 <style>
-  .acct-wrap{max-width:600px;margin:38px auto 64px;padding:0 22px;}
+  .acct-wrap{max-width:760px;margin:38px auto 64px;padding:0 22px;}
   .acct-wrap h1{font-size:24px;letter-spacing:-.02em;margin:0 0 6px;}
   .acct-card{background:var(--paper,#fff);border:1px solid var(--rule,#e6e8ec);border-radius:12px;
     padding:20px 22px;margin-bottom:16px;box-shadow:var(--shadow-sm,0 1px 3px rgba(20,24,31,.06));}

@@ -1,0 +1,13 @@
+{# _acct_links.html — the customer's own pages, as ONE list of links.
+   Included by the masthead's account menu (_acct_menu.html) and by the tab
+   strip at the top of every /account page (_acct_nav.html), so the two can
+   never disagree about what "my account" contains. Add a page here, not in
+   either of those.
+
+   /account itself is the settings page (password, 2FA, data, deletion);
+   /account/mfa and the password POST re-render belong to it. #}
+{% set _ap = request.url.path %}
+<a href="/account/searches" class="{{ 'on' if _ap.startswith('/account/searches') else '' }}">{{ t("Αναζητήσεις & ειδοποιήσεις") }}</a>
+<a href="/account/favorites" class="{{ 'on' if _ap.startswith('/account/favorites') else '' }}">{{ t("Αγαπημένα") }}</a>
+<a href="/account/calendar" class="{{ 'on' if _ap.startswith('/account/calendar') else '' }}">{{ t("Ημερολόγιο προθεσμιών") }}</a>
+<a href="/account" class="{{ 'on' if _ap in ('/account', '/account/password') or _ap.startswith('/account/mfa') else '' }}">{{ t("Ρυθμίσεις λογαριασμού") }}</a>
