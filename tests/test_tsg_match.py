@@ -50,7 +50,7 @@ def _subscription(c):
 
 
 @pytest.fixture()
-def mdb(tdb):
+def mdb(tdb):  # noqa: F811 — the fixture imported above, used as one
     tdb.execute("INSERT INTO proc.authority (org_id, name) VALUES (%s, 'ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΔΟΚΙΜΗΣ') "
                 "ON CONFLICT DO NOTHING", (AUTH,))
     tdb.commit()
@@ -389,6 +389,6 @@ def test_the_tsg_record_migration_is_paste_safe():
     assert "$$" not in code and "DO " not in code.upper()
 
 
-def test_the_tsg_record_migration_can_run_twice(_tsg_schema):
+def test_the_tsg_record_migration_can_run_twice(_tsg_schema):  # noqa: F811 — fixture
     from tests.test_duplicate_visibility import _run_twice
     _run_twice(TSG_MIGRATION)
