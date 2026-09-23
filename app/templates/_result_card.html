@@ -16,8 +16,18 @@
   <div class="card">
     <div class="card-top">
       <div style="min-width:0;">
+        {# The favourite star. Guarded on `favorites` being DEFINED, not on it
+           being non-empty: a caller that knows nothing about favourites (the
+           digest results page, an email) passes nothing and gets the card
+           exactly as before. Keeps this partial free of gating, as its header
+           promises. #}
+        {% if favorites is defined and favorites is not none %}
+        {% with adam = r.adam, favorited = r.adam in favorites, compact = true %}
+          {% include "_favorite_toggle.html" %}
+        {% endwith %}
+        {% endif %}
         <span class="card-type t-{{ r.type }}">{{ r.type | type_label }}</span>
-        {% if r.data_source == 'diavgeia' %}<span class="src-badge src-diavgeia">{{ t("Διαύγεια") }}</span>{% elif r.data_source == 'ted' %}<span class="src-badge src-ted">TED</span>{% else %}<span class="src-badge src-khmdhs">ΚΗΜΔΗΣ</span>{% endif %}
+        {% if r.data_source == 'diavgeia' %}<span class="src-badge src-diavgeia">{{ t("Διαύγεια") }}</span>{% elif r.data_source == 'ted' %}<span class="src-badge src-ted">TED</span>{% elif r.data_source == 'tsg' %}<span class="src-badge src-tsg">Tender Service</span>{% else %}<span class="src-badge src-khmdhs">ΚΗΜΔΗΣ</span>{% endif %}
         <h3 class="card-title"><a href="/act/{{ r.adam }}{{ match_href }}">{{ r.title or '—' }}</a></h3>
         <div class="card-meta">
           {% if r.authority_id %}
@@ -36,7 +46,7 @@
           <span class="dt deadline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lbl">{{ t("λήξη") }}</span> <b>{{ r.final_submission_date.strftime('%d/%m/%Y') }}</b></span>
           {% endif %}
 
-          <span class="m adam">{{ "ΑΔΑ" if r.data_source == 'diavgeia' else ("TED" if r.data_source == 'ted' else "ΑΔΑΜ") }} {{ r.adam }}</span>
+          <span class="m adam">{{ "ΑΔΑ" if r.data_source == 'diavgeia' else ("TED" if r.data_source == 'ted' else ("Tender Service" if r.data_source == 'tsg' else "ΑΔΑΜ")) }} {{ r.adam }}</span>
 
           {% if r.cancelled %}<span class="pill cancel">{{ t("ακυρωμένη") }}</span>{% endif %}
           {% if r.is_modified %}<span class="pill amend">{{ t("ορθή επ.") }}</span>{% endif %}

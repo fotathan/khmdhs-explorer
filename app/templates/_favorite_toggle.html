@@ -1,0 +1,23 @@
+{# _favorite_toggle.html — one favourite star, which SWAPS ITSELF.
+
+   The same fragment is the answer to both the add and the remove, so the
+   button's next state is whatever the server just wrote — there is no
+   client-side state to drift. Inputs: `adam`, `favorited`, and `compact` for
+   the icon-only version used on a result card.
+
+   CSRF needs nothing here: _csrf.html attaches X-CSRF-Token to every HTMX
+   request, including DELETE. #}
+<button type="button"
+        class="fav-btn{% if favorited %} on{% endif %}{% if compact %} compact{% endif %}{% if error %} err{% endif %}"
+        {% if favorited %}
+        hx-delete="/account/favorites/{{ adam }}{% if compact %}?compact=true{% endif %}"
+        {% else %}
+        hx-post="/account/favorites/{{ adam }}{% if compact %}?compact=true{% endif %}"
+        {% endif %}
+        hx-target="this" hx-swap="outerHTML"
+        aria-pressed="{{ 'true' if favorited else 'false' }}"
+        title="{{ error | t if error else (t('Αφαίρεση από τα αγαπημένα') if favorited else t('Αποθήκευση στα αγαπημένα')) }}">
+  <span aria-hidden="true">{{ '★' if favorited else '☆' }}</span>
+  {% if not compact %}<span>{{ t("Στα αγαπημένα") if favorited else t("Αγαπημένο") }}</span>{% endif %}
+  <span class="sr-only">{{ t("Αφαίρεση από τα αγαπημένα") if favorited else t("Αποθήκευση στα αγαπημένα") }}</span>
+</button>

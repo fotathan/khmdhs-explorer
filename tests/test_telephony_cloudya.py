@@ -5,6 +5,8 @@ Two layers:
   * endpoint  — the token gate + lookup/pop over the TestClient (needs a test DB,
     skips otherwise like the rest of the DB suite).
 """
+import pytest
+
 from app import telephony_cloudya as tc
 
 
@@ -164,15 +166,25 @@ def test_customer_page_no_tel_link_when_all_backends_off(client, monkeypatch):
     assert 'href="tel:2105550000"' not in html
 
 
-def test_contractor_page_renders_tel_link_in_cloudya_mode(client, monkeypatch):
-    from app.main import templates
+@pytest.fixture()
+def beta_operator(_clean):
+    """A contractor with a phone. _clean never truncates proc.economic_operator,
+    so it is deleted afterwards or later tests count it."""
     from tests.helpers import connect
+    vat = "EL999888777"
+    with connect() as c:
+        c.execute("INSERT INTO proc.economic_operator (vat_number, name, country, contact_phone) "
+                  "VALUES (%s,%s,%s,%s)", (vat, "Beta AE", "GR", "2310123456"))
+    yield vat
+    with connect() as c:
+        c.execute("DELETE FROM proc.economic_operator WHERE vat_number = %s", (vat,))
+
+
+def test_contractor_page_renders_tel_link_in_cloudya_mode(client, monkeypatch, beta_operator):
+    from app.main import templates
     # The contractor page is where lookup_caller's economic_operator match lands.
     monkeypatch.setitem(templates.env.globals, "cloudya_enabled", True)
     monkeypatch.setitem(templates.env.globals, "telephony_enabled", False)
     _login_admin(client)
-    with connect() as c:
-        c.execute("INSERT INTO proc.economic_operator (vat_number, name, country, contact_phone) "
-                  "VALUES (%s,%s,%s,%s)", ("EL999888777", "Beta AE", "GR", "2310123456"))
-    html = client.get("/contractor/EL999888777").text
+    html = client.get(f"/contractor/{beta_operator}").text
     assert 'href="tel:2310123456"' in html

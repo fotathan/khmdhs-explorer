@@ -298,14 +298,29 @@ def _stub_registry(monkeypatch, record):
     monkeypatch.setattr(GC, "enrich_one", fake)
 
 
+def _forget_match_rows():
+    """The operators this file seeds (ΑΦΜ 'CM…' and '9990…') and what points at
+    them. customer_company_match has no ON DELETE on operator_id, so it goes
+    first; _clean has not truncated app_user yet at teardown time."""
+    ours = ("SELECT operator_id FROM proc.economic_operator "
+            "WHERE vat_number LIKE 'CM%' OR vat_number LIKE '9990%'")
+    with connect() as c:
+        c.execute(f"DELETE FROM proc.customer_company_match WHERE operator_id IN ({ours})")
+        c.execute("DELETE FROM proc.economic_operator "
+                  "WHERE vat_number LIKE 'CM%' OR vat_number LIKE '9990%'")
+        c.execute("DELETE FROM proc.gemi_enrichment WHERE afm LIKE '9990%'")
+
+
 @pytest.fixture()
 def match_clean(_clean):
+    # Before AND after: _clean never truncates proc.economic_operator, so a
+    # setup-only delete leaves the file's last rows to every later test.
+    _forget_match_rows()
     with connect() as c:
-        c.execute("DELETE FROM proc.economic_operator WHERE vat_number LIKE 'CM%'")
-        c.execute("DELETE FROM proc.gemi_enrichment WHERE afm LIKE '9990%'")
         c.execute("INSERT INTO proc.crm_freemail_domain(domain) VALUES ('gmail.com') "
                   "ON CONFLICT DO NOTHING")
     yield
+    _forget_match_rows()
 
 
 # --------------------------------------------------------------------------- #

@@ -6368,11 +6368,293 @@ ALTER TABLE ONLY proc.user_subscription
 
 
 --
+-- Native mobile API authentication foundation. This block mirrors
+-- migrations/20260914120000_mobile_api_auth_foundation.sql and is kept here so
+-- DB-backed tests continue to build a complete throwaway schema.
+
+CREATE TABLE proc.mobile_device (
+    id bigserial PRIMARY KEY,
+    user_id bigint NOT NULL REFERENCES proc.app_user(id) ON DELETE CASCADE,
+    installation_id uuid NOT NULL,
+    platform text NOT NULL CHECK (platform IN ('ios', 'android')),
+    display_name text,
+    app_version text NOT NULL,
+    os_version text,
+    locale text NOT NULL DEFAULT 'el' CHECK (locale IN ('el', 'en')),
+    timezone text NOT NULL DEFAULT 'Europe/Athens',
+    enabled boolean NOT NULL DEFAULT true,
+    last_seen_at timestamptz NOT NULL DEFAULT now(),
+    revoked_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT mobile_device_installation_uk UNIQUE (user_id, installation_id),
+    CONSTRAINT mobile_device_display_name_ck CHECK (display_name IS NULL OR length(display_name) <= 80),
+    CONSTRAINT mobile_device_app_version_ck CHECK (length(app_version) BETWEEN 1 AND 32),
+    CONSTRAINT mobile_device_os_version_ck CHECK (os_version IS NULL OR length(os_version) <= 32),
+    CONSTRAINT mobile_device_timezone_ck CHECK (length(timezone) BETWEEN 1 AND 64)
+);
+CREATE INDEX ix_mobile_device_user_active ON proc.mobile_device (user_id, last_seen_at DESC)
+    WHERE enabled AND revoked_at IS NULL;
+
+CREATE TABLE proc.mobile_session (
+    id uuid PRIMARY KEY,
+    user_id bigint NOT NULL REFERENCES proc.app_user(id) ON DELETE CASCADE,
+    device_id bigint NOT NULL REFERENCES proc.mobile_device(id) ON DELETE CASCADE,
+    session_version integer NOT NULL,
+    absolute_expires_at timestamptz NOT NULL,
+    last_used_at timestamptz NOT NULL DEFAULT now(),
+    revoked_at timestamptz,
+    revoke_reason text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT mobile_session_expiry_ck CHECK (absolute_expires_at > created_at),
+    CONSTRAINT mobile_session_revoke_reason_ck CHECK (
+        revoke_reason IS NULL OR revoke_reason IN
+        ('logout', 'device_revoked', 'refresh_reuse', 'session_version',
+         'expired', 'account_inactive', 'administrative'))
+);
+CREATE INDEX ix_mobile_session_user_active ON proc.mobile_session (user_id, last_used_at DESC)
+    WHERE revoked_at IS NULL;
+CREATE INDEX ix_mobile_session_device_active ON proc.mobile_session (device_id, last_used_at DESC)
+    WHERE revoked_at IS NULL;
+
+CREATE TABLE proc.mobile_refresh_token (
+    id bigserial PRIMARY KEY,
+    session_id uuid NOT NULL REFERENCES proc.mobile_session(id) ON DELETE CASCADE,
+    token_hash bytea NOT NULL UNIQUE,
+    token_hash_version smallint NOT NULL DEFAULT 1,
+    expires_at timestamptz NOT NULL,
+    used_at timestamptz,
+    replaced_by_id bigint REFERENCES proc.mobile_refresh_token(id) ON DELETE SET NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT mobile_refresh_hash_version_ck CHECK (token_hash_version > 0),
+    CONSTRAINT mobile_refresh_expiry_ck CHECK (expires_at > created_at)
+);
+CREATE INDEX ix_mobile_refresh_session_created ON proc.mobile_refresh_token (session_id, created_at DESC);
+CREATE INDEX ix_mobile_refresh_cleanup ON proc.mobile_refresh_token (expires_at, used_at);
+
+CREATE TABLE proc.mobile_access_token (
+    id bigserial PRIMARY KEY,
+    session_id uuid NOT NULL REFERENCES proc.mobile_session(id) ON DELETE CASCADE,
+    token_hash bytea NOT NULL UNIQUE,
+    token_hash_version smallint NOT NULL DEFAULT 1,
+    expires_at timestamptz NOT NULL,
+    revoked_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT mobile_access_hash_version_ck CHECK (token_hash_version > 0),
+    CONSTRAINT mobile_access_expiry_ck CHECK (expires_at > created_at)
+);
+CREATE INDEX ix_mobile_access_session_active ON proc.mobile_access_token (session_id, expires_at DESC)
+    WHERE revoked_at IS NULL;
+CREATE INDEX ix_mobile_access_cleanup ON proc.mobile_access_token (expires_at);
+
+CREATE TABLE proc.mobile_auth_challenge (
+    id bigserial PRIMARY KEY,
+    user_id bigint NOT NULL REFERENCES proc.app_user(id) ON DELETE CASCADE,
+    challenge_hash bytea NOT NULL UNIQUE,
+    token_hash_version smallint NOT NULL DEFAULT 1,
+    purpose text NOT NULL DEFAULT 'login_mfa' CHECK (purpose IN ('login_mfa')),
+    device jsonb NOT NULL,
+    attempts smallint NOT NULL DEFAULT 0,
+    max_attempts smallint NOT NULL DEFAULT 5,
+    expires_at timestamptz NOT NULL,
+    consumed_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT mobile_challenge_hash_version_ck CHECK (token_hash_version > 0),
+    CONSTRAINT mobile_challenge_attempts_ck CHECK (
+        attempts >= 0 AND max_attempts BETWEEN 1 AND 10 AND attempts <= max_attempts),
+    CONSTRAINT mobile_challenge_expiry_ck CHECK (expires_at > created_at),
+    CONSTRAINT mobile_challenge_device_ck CHECK (jsonb_typeof(device) = 'object')
+);
+CREATE INDEX ix_mobile_challenge_cleanup ON proc.mobile_auth_challenge (expires_at, consumed_at);
+
+CREATE TABLE proc.mobile_mfa_enrollment (
+    id bigserial PRIMARY KEY,
+    user_id bigint NOT NULL REFERENCES proc.app_user(id) ON DELETE CASCADE,
+    enrollment_hash bytea NOT NULL UNIQUE,
+    token_hash_version smallint NOT NULL DEFAULT 1,
+    secret text NOT NULL,
+    attempts smallint NOT NULL DEFAULT 0,
+    max_attempts smallint NOT NULL DEFAULT 5,
+    expires_at timestamptz NOT NULL,
+    consumed_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT mobile_mfa_enrollment_hash_version_ck CHECK (token_hash_version > 0),
+    CONSTRAINT mobile_mfa_enrollment_attempts_ck CHECK (
+        attempts >= 0 AND max_attempts BETWEEN 1 AND 10 AND attempts <= max_attempts),
+    CONSTRAINT mobile_mfa_enrollment_expiry_ck CHECK (expires_at > created_at)
+);
+CREATE INDEX ix_mobile_mfa_enrollment_cleanup
+    ON proc.mobile_mfa_enrollment (expires_at, consumed_at);
+CREATE INDEX ix_mobile_mfa_enrollment_user_active
+    ON proc.mobile_mfa_enrollment (user_id, created_at DESC)
+    WHERE consumed_at IS NULL;
+
+CREATE TABLE proc.api_idempotency_key (
+    id bigserial PRIMARY KEY,
+    user_id bigint NOT NULL REFERENCES proc.app_user(id) ON DELETE CASCADE,
+    method text NOT NULL,
+    path text NOT NULL,
+    key_hash bytea NOT NULL,
+    request_fingerprint bytea NOT NULL,
+    response_status smallint,
+    response_body jsonb,
+    expires_at timestamptz NOT NULL DEFAULT (now() + interval '24 hours'),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT api_idempotency_method_ck CHECK (method IN ('POST', 'PUT', 'PATCH', 'DELETE')),
+    CONSTRAINT api_idempotency_path_ck CHECK (length(path) BETWEEN 1 AND 512),
+    CONSTRAINT api_idempotency_status_ck CHECK (response_status IS NULL OR response_status BETWEEN 200 AND 599),
+    CONSTRAINT api_idempotency_key_uk UNIQUE (user_id, method, path, key_hash)
+);
+CREATE INDEX ix_api_idempotency_cleanup ON proc.api_idempotency_key (expires_at);
+
+-- Native mobile notification foundation. This block mirrors
+-- migrations/20260914150000_mobile_notification_foundation.sql.
+
+ALTER TABLE proc.mobile_device
+  ADD COLUMN permission_status text NOT NULL DEFAULT 'unknown',
+  ADD COLUMN push_provider text NOT NULL DEFAULT 'expo',
+  ADD COLUMN push_token_ciphertext bytea,
+  ADD COLUMN push_token_hash bytea,
+  ADD COLUMN push_token_key_version smallint,
+  ADD CONSTRAINT mobile_device_permission_status_ck
+    CHECK (permission_status IN ('unknown','granted','denied','provisional')),
+  ADD CONSTRAINT mobile_device_push_provider_ck CHECK (push_provider IN ('expo')),
+  ADD CONSTRAINT mobile_device_push_token_ck CHECK (
+    (push_token_ciphertext IS NULL AND push_token_hash IS NULL AND push_token_key_version IS NULL)
+    OR (push_token_ciphertext IS NOT NULL AND push_token_hash IS NOT NULL AND push_token_key_version > 0));
+CREATE UNIQUE INDEX ux_mobile_device_push_token_hash
+  ON proc.mobile_device (push_token_hash) WHERE push_token_hash IS NOT NULL;
+
+CREATE TABLE proc.mobile_notification_preference (
+  user_id bigint PRIMARY KEY REFERENCES proc.app_user(id) ON DELETE CASCADE,
+  paused boolean NOT NULL DEFAULT false,
+  timezone text NOT NULL DEFAULT 'Europe/Athens',
+  quiet_start time NOT NULL DEFAULT '22:00',
+  quiet_end time NOT NULL DEFAULT '08:00',
+  summary_time time NOT NULL DEFAULT '08:30',
+  daily_cap smallint NOT NULL DEFAULT 6,
+  lang text NOT NULL DEFAULT 'el',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT mobile_notification_preference_timezone_ck CHECK (length(timezone) BETWEEN 1 AND 64),
+  CONSTRAINT mobile_notification_preference_daily_cap_ck CHECK (daily_cap BETWEEN 1 AND 10),
+  CONSTRAINT mobile_notification_preference_lang_ck CHECK (lang IN ('el','en'))
+);
+
+CREATE TABLE proc.push_subscription (
+  id bigserial PRIMARY KEY,
+  user_id bigint NOT NULL REFERENCES proc.app_user(id) ON DELETE CASCADE,
+  search_profile_id bigint NOT NULL REFERENCES proc.search_profile(id) ON DELETE CASCADE,
+  is_active boolean NOT NULL DEFAULT false,
+  delivery_mode text NOT NULL DEFAULT 'daily',
+  new_matches boolean NOT NULL DEFAULT true,
+  deadlines boolean NOT NULL DEFAULT true,
+  lead_days smallint[] NOT NULL DEFAULT ARRAY[7,1]::smallint[],
+  last_cursor timestamptz,
+  last_evaluated_at timestamptz,
+  reactivated_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT push_subscription_user_profile_uk UNIQUE (user_id,search_profile_id),
+  CONSTRAINT push_subscription_delivery_mode_ck CHECK (delivery_mode IN ('immediate','daily')),
+  CONSTRAINT push_subscription_lead_days_ck CHECK (
+    cardinality(lead_days) BETWEEN 1 AND 6 AND array_position(lead_days,NULL) IS NULL
+    AND 0 <= ALL(lead_days) AND 90 >= ALL(lead_days))
+);
+CREATE INDEX ix_push_subscription_due ON proc.push_subscription (delivery_mode,last_cursor,id) WHERE is_active;
+CREATE INDEX ix_push_subscription_user ON proc.push_subscription (user_id,updated_at DESC);
+
+CREATE TABLE proc.notification_event (
+  id bigserial PRIMARY KEY,
+  user_id bigint NOT NULL REFERENCES proc.app_user(id) ON DELETE CASCADE,
+  push_subscription_id bigint REFERENCES proc.push_subscription(id) ON DELETE SET NULL,
+  event_type text NOT NULL,
+  dedupe_key bytea NOT NULL UNIQUE,
+  target_kind text NOT NULL,
+  target_id text NOT NULL,
+  adam text,
+  title text NOT NULL,
+  body text NOT NULL,
+  context jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  read_at timestamptz,
+  deleted_at timestamptz,
+  expires_at timestamptz NOT NULL DEFAULT (now()+interval '90 days'),
+  CONSTRAINT notification_event_type_ck CHECK (event_type IN ('new_match','deadline','daily_summary')),
+  CONSTRAINT notification_event_target_kind_ck CHECK (target_kind IN ('act','search_summary')),
+  CONSTRAINT notification_event_target_id_ck CHECK (length(target_id) BETWEEN 1 AND 256),
+  CONSTRAINT notification_event_adam_ck CHECK (adam IS NULL OR length(adam) BETWEEN 1 AND 128),
+  CONSTRAINT notification_event_title_ck CHECK (length(title) BETWEEN 1 AND 180),
+  CONSTRAINT notification_event_body_ck CHECK (length(body) BETWEEN 1 AND 500),
+  CONSTRAINT notification_event_context_ck CHECK (jsonb_typeof(context)='object'),
+  CONSTRAINT notification_event_expiry_ck CHECK (expires_at>created_at)
+);
+CREATE INDEX ix_notification_event_inbox ON proc.notification_event (user_id,created_at DESC,id DESC) WHERE deleted_at IS NULL;
+CREATE INDEX ix_notification_event_unread ON proc.notification_event (user_id,created_at DESC,id DESC) WHERE deleted_at IS NULL AND read_at IS NULL;
+CREATE INDEX ix_notification_event_cleanup ON proc.notification_event (expires_at,deleted_at);
+
+CREATE TABLE proc.notification_delivery (
+  id bigserial PRIMARY KEY,
+  event_id bigint NOT NULL REFERENCES proc.notification_event(id) ON DELETE CASCADE,
+  device_id bigint NOT NULL REFERENCES proc.mobile_device(id) ON DELETE CASCADE,
+  state text NOT NULL DEFAULT 'queued',
+  provider text NOT NULL DEFAULT 'expo',
+  provider_ticket_id text,
+  provider_receipt_id text,
+  attempt_count smallint NOT NULL DEFAULT 0,
+  next_attempt_at timestamptz NOT NULL DEFAULT now(),
+  error_code text,
+  claimed_at timestamptz,
+  claimed_by text,
+  lease_expires_at timestamptz,
+  submitted_at timestamptz,
+  receipt_checked_at timestamptz,
+  terminal_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT notification_delivery_event_device_uk UNIQUE (event_id,device_id),
+  CONSTRAINT notification_delivery_state_ck CHECK (state IN ('queued','submitting','accepted','retry','rejected','expired')),
+  CONSTRAINT notification_delivery_provider_ck CHECK (provider IN ('expo')),
+  CONSTRAINT notification_delivery_attempt_ck CHECK (attempt_count BETWEEN 0 AND 20),
+  CONSTRAINT notification_delivery_error_code_ck CHECK (error_code IS NULL OR length(error_code) <= 64),
+  CONSTRAINT notification_delivery_ticket_ck CHECK (provider_ticket_id IS NULL OR length(provider_ticket_id) <= 256),
+  CONSTRAINT notification_delivery_receipt_ck CHECK (provider_receipt_id IS NULL OR length(provider_receipt_id) <= 256)
+);
+CREATE INDEX ix_notification_delivery_work ON proc.notification_delivery (next_attempt_at,id) WHERE state IN ('queued','retry');
+CREATE INDEX ix_notification_delivery_cleanup ON proc.notification_delivery (terminal_at) WHERE terminal_at IS NOT NULL;
+CREATE INDEX ix_notification_delivery_receipt ON proc.notification_delivery (next_attempt_at,id) WHERE state='accepted' AND terminal_at IS NULL;
+CREATE UNIQUE INDEX ux_notification_delivery_ticket ON proc.notification_delivery (provider_ticket_id) WHERE provider_ticket_id IS NOT NULL;
+
+CREATE TABLE proc.push_deadline_notice (
+  id bigserial PRIMARY KEY,
+  push_subscription_id bigint NOT NULL REFERENCES proc.push_subscription(id) ON DELETE CASCADE,
+  adam text NOT NULL,
+  lead_days smallint NOT NULL,
+  deadline_at timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT push_deadline_notice_uk UNIQUE (push_subscription_id,adam,lead_days,deadline_at),
+  CONSTRAINT push_deadline_notice_lead_days_ck CHECK (lead_days BETWEEN 0 AND 90),
+  CONSTRAINT push_deadline_notice_adam_ck CHECK (length(adam) BETWEEN 1 AND 128)
+);
+
+-- Account-level favorites. This block mirrors
+-- migrations/20260915170000_user_act_favorites.sql.
+
+CREATE TABLE proc.user_favorite_act (
+  user_id bigint NOT NULL REFERENCES proc.app_user(id) ON DELETE CASCADE,
+  adam text NOT NULL REFERENCES proc.procurement_act(adam) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT user_favorite_act_pk PRIMARY KEY (user_id,adam)
+);
+CREATE INDEX ix_user_favorite_act_recent
+  ON proc.user_favorite_act (user_id,created_at DESC,adam DESC);
+
+--
 -- PostgreSQL database dump complete
 --
 
 \unrestrict L7evn2cdWWY5jGRFkNbkFZt51RrWxcYquncC6hWhnLD5QoXImaAtH7h7UsRgRTy
-
 
 --
 -- mv_cpv_contract_wins — migrations/20260915200000_cpv_contract_wins_rollup.sql.
@@ -6444,3 +6726,21 @@ CREATE INDEX ix_duplicate_candidate_queue ON proc.duplicate_candidate (status, t
 ALTER TABLE proc.digest_run_item
     ADD COLUMN dup_candidate_adam text,
     ADD COLUMN dup_tier smallint;
+
+--
+-- calendar_feed — migrations/20260923075702_calendar_feed.sql.
+-- Appended by hand, like the blocks above: one live .ics feed URL per user
+-- (docs/specs/calendar-feed.md, slice 4).
+--
+
+CREATE TABLE proc.calendar_feed (
+    user_id     bigint PRIMARY KEY
+                REFERENCES proc.app_user(id) ON DELETE CASCADE,
+    token_hash  text NOT NULL,
+    lang        text NOT NULL DEFAULT 'el',
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    last_fetch  timestamptz,
+    fetch_count bigint NOT NULL DEFAULT 0,
+    CONSTRAINT calendar_feed_token_hash_uk UNIQUE (token_hash),
+    CONSTRAINT calendar_feed_lang_ck CHECK (lang IN ('el', 'en'))
+);

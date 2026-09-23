@@ -745,6 +745,12 @@ def project_all(db) -> int:
     db.commit()
 
     # 2. Header rows.
+    #    ingested_at is the digest window ("when did this become visible to us"),
+    #    so a re-projection must NOT move it unless the act is new or its
+    #    projected content actually changed — this runs over EVERY ted_notice
+    #    after every catch-up, and now() here re-mailed every TED act. raw_json
+    #    is deliberately not compared (it carries volatile API fields); full_text
+    #    only counts when the source supplies one, matching the COALESCE below.
     db.execute(f"""
         INSERT INTO proc.procurement_act
           (adam, type, data_source, origin, external_id, title, submission_date,
@@ -770,7 +776,23 @@ def project_all(db) -> int:
            full_text=COALESCE(EXCLUDED.full_text, proc.procurement_act.full_text),
            full_text_source=COALESCE(EXCLUDED.full_text_source, proc.procurement_act.full_text_source),
            full_text_extracted_at=COALESCE(EXCLUDED.full_text_extracted_at, proc.procurement_act.full_text_extracted_at),
-           raw_json=EXCLUDED.raw_json, ingested_at=now()
+           raw_json=EXCLUDED.raw_json,
+           ingested_at=CASE
+             WHEN ROW(proc.procurement_act.type, proc.procurement_act.data_source,
+                      proc.procurement_act.title, proc.procurement_act.submission_date,
+                      proc.procurement_act.signed_date, proc.procurement_act.budget,
+                      proc.procurement_act.total_cost_without_vat,
+                      proc.procurement_act.source_url, proc.procurement_act.authority_id)
+                  IS DISTINCT FROM
+                  ROW(EXCLUDED.type, EXCLUDED.data_source, EXCLUDED.title,
+                      EXCLUDED.submission_date, EXCLUDED.signed_date, EXCLUDED.budget,
+                      EXCLUDED.total_cost_without_vat, EXCLUDED.source_url,
+                      EXCLUDED.authority_id)
+               OR (EXCLUDED.full_text IS NOT NULL
+                   AND EXCLUDED.full_text IS DISTINCT FROM proc.procurement_act.full_text)
+             THEN now()
+             ELSE proc.procurement_act.ingested_at
+           END
         WHERE proc.procurement_act.origin <> 'authored'
     """)
     db.commit()

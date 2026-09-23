@@ -72,8 +72,10 @@ templates = Jinja2Templates(directory=os.path.join(APP_DIR, "templates"))
 # only UI chrome and fixed enum labels. See app/i18n.py.
 try:
     from app import i18n as _i18n
+    from app import account_favorites as _acct_favorites
 except ImportError:  # flat layout (run with --app-dir=app)
     import i18n as _i18n
+    import account_favorites as _acct_favorites
 
 try:
     from app import obs as _obs
@@ -647,8 +649,8 @@ def _as_list(v) -> list[str]:
 
 
 # Hidden Tender Service duplicates (app/act_visibility.py). build_where always
-# starts with it, so search, exports and email alerts all skip them.
-# `where == VISIBLE_SQL` still means "unfiltered" (_search_totals).
+# starts with it, so search, exports, email alerts, push and the mobile API all
+# skip them. `where == VISIBLE_SQL` still means "unfiltered" (_search_totals).
 from app.act_visibility import VISIBLE_SQL  # noqa: E402
 
 
@@ -1008,8 +1010,13 @@ def count_matching(params: dict, *, timeout_ms: int = 4000) -> int:
             return int(c.fetchone()["n"])
 
 
-def run_search(params: dict, limit: int, offset: int, *, with_totals: bool = True):
+def run_search(params: dict, limit: int, offset: int, *, snapshot_at=None, with_totals: bool = True):
     where, args = build_where(params)
+    # Native cursor pages bind their result set to the first page's ingestion
+    # snapshot. Browser callers omit this and retain their current live view.
+    if snapshot_at is not None:
+        where = f"({where}) AND (a.ingested_at IS NULL OR a.ingested_at <= %s)"
+        args = [*args, snapshot_at]
 
     # Relevance sort and snippet highlighting only apply to STEMMED full-text
     # (websearch_to_tsquery over the tsvector). Prefix mode (trailing *) uses
@@ -1031,6 +1038,9 @@ def run_search(params: dict, limit: int, offset: int, *, with_totals: bool = Tru
         rank_args.append(fulltext)
     else:
         order_by = SORT_COLS.get(sort_key, SORT_COLS[DEFAULT_SORT])
+    # A stable tie-breaker is required for cursor/offset pagination. It also
+    # makes browser paging deterministic when many acts share the same date.
+    order_by += ", a.adam ASC"
 
     if stemmed_ft:
         # PERF: compute the highlighted snippet ONLY for the final page of rows.
@@ -1254,10 +1264,11 @@ def lookups() -> dict:
 #   * The form-field path reuses FastAPI's cached request.form(), so it does not
 #     consume the body from the route (and only parses when the header is absent
 #     and the body is actually a form — never for JSON or to buffer uploads
-#     needlessly).
+#     needlessly). The bearer-only /api/v1 surface is also exempt because it
+#     cannot access browser cookies and authenticates unsafe calls explicitly.
 # ---------------------------------------------------------------------------- #
 _CSRF_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
-_CSRF_EXEMPT = ("/login", "/register")
+_CSRF_EXEMPT = ("/login", "/register", "/api/v1")
 
 
 async def csrf_protect(request: Request = None) -> None:
@@ -1395,6 +1406,25 @@ app = FastAPI(
     lifespan=_lifespan,
 )
 
+# The mobile API has its own stable JSON error envelope. Registering these
+# handlers here preserves FastAPI's normal validation responses everywhere
+# outside /api/v1, so browser/form behavior does not change.
+try:
+    from app.api_v1.errors import (
+        ApiError as _MobileApiError,
+        api_error_handler as _mobile_api_error_handler,
+        validation_error_handler as _mobile_validation_error_handler,
+    )
+except ImportError:  # pragma: no cover — flat layout fallback
+    from api_v1.errors import (  # type: ignore
+        ApiError as _MobileApiError,
+        api_error_handler as _mobile_api_error_handler,
+        validation_error_handler as _mobile_validation_error_handler,
+    )
+from fastapi.exceptions import RequestValidationError as _RequestValidationError
+app.add_exception_handler(_MobileApiError, _mobile_api_error_handler)
+app.add_exception_handler(_RequestValidationError, _mobile_validation_error_handler)
+
 
 @app.get("/set-lang")
 def set_lang(lang: str = "el", next: str = "/"):
@@ -1514,6 +1544,10 @@ templates.context_processors.append(_auth_context)
 # The three ingest sources, and their display labels (also used by the CSV
 # export further down). Hoisted here so the facet registry can name them.
 _SOURCE_LABELS = {"khmdhs": "ΚΗΜΔΗΣ", "diavgeia": "Διαύγεια", "ted": "TED"}
+# Labels for sources that are SHOWN but are not public facets. Tender Service
+# (tsg) is a local preview for now: adding it to _SOURCE_LABELS would put
+# /?source=tsg in the sitemap and make an empty facet indexable in production.
+_SOURCE_DISPLAY = {**_SOURCE_LABELS, "tsg": "Tender Service"}
 
 _seo.set_facet_values({
     "type": TYPE_FILTER_ORDER,
@@ -1677,6 +1711,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # a Supabase lookup per stylesheet. See app/static_assets.py.
         if _static.is_static_path(request.url.path):
             return await call_next(request)
+        # Native API routes authenticate exclusively with their bearer token.
+        # Never resolve or mint a browser cookie here: accepting both would make
+        # the API's CSRF/security boundary ambiguous.
+        if request.url.path.startswith("/api/v1"):
+            request.state.user = None
+            return await call_next(request)
         # Ensure a CSRF token exists in the (signed) session; templates read it
         # and every unsafe request must echo it back (see csrf_protect).
         if not request.session.get("csrf"):
@@ -1732,7 +1772,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
 
 class _SessionExceptStatic(SessionMiddleware):
-    """SessionMiddleware, minus /static.
+    """SessionMiddleware, minus /static and the bearer-only mobile API.
 
     Its send-wrapper is what writes `Set-Cookie` (when the session was modified)
     and `Vary: Cookie` (when it was merely read). AuthMiddleware no longer
@@ -1743,7 +1783,9 @@ class _SessionExceptStatic(SessionMiddleware):
     """
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] == "http" and _static.is_static_path(scope.get("path", "")):
+        path = scope.get("path", "")
+        if (scope["type"] == "http" and
+                (_static.is_static_path(path) or path.startswith("/api/v1"))):
             scope["session"] = {}
             await self.app(scope, receive, send)
             return
@@ -1820,6 +1862,13 @@ async def _security_headers(request: Request, call_next):
     if _IS_PROD:
         h.setdefault("Strict-Transport-Security",
                      "max-age=63072000; includeSubDomains")
+    # Customer API payloads must not be retained by shared/browser caches.
+    # Lookups are the one exception: they contain public vocabulary only and
+    # have their own ETag response policy in the route.
+    if (request.url.path.startswith("/api/v1")
+            and request.url.path != "/api/v1/lookups"):
+        h.setdefault("Cache-Control", "no-store")
+        h.setdefault("Pragma", "no-cache")
     return response
 
 
@@ -2166,6 +2215,17 @@ def logout(request: Request):
     return _Redirect("/", status_code=303)
 
 
+# Native mobile API. It is mounted in every environment but returns a JSON 404
+# until MOBILE_API_ENABLED=1. Browser cookies are deliberately unavailable on
+# this path; app.api_v1 authenticates every protected call with a native bearer
+# token and reuses the existing account/throttle/MFA helpers underneath.
+try:
+    from app.api_v1.router import make_router as _make_mobile_api_router
+except ImportError:  # pragma: no cover — flat layout fallback
+    from api_v1.router import make_router as _make_mobile_api_router  # type: ignore
+app.include_router(_make_mobile_api_router(cursor, _client_ip, _rate_limit))
+
+
 @app.get("/register", response_class=HTMLResponse)
 def register_form(request: Request):
     if getattr(request.state, "user", None):
@@ -2328,6 +2388,28 @@ try:
 except ImportError:
     from account_searches import make_router as _make_acct_searches_router
 app.include_router(_make_acct_searches_router(templates, cursor))
+
+# /account/favorites — the customer's own bookmarked acts. The table and every
+# query over it shipped with the mobile API; nothing on the WEB could write a
+# row, so a browser customer could not favourite anything at all. It keeps its
+# OWN copy of the favourite rules and must not import app/mobile_favorites.py:
+# that pulls in the uncommitted mobile API, and this module loads at startup.
+# Prerequisite for the subscribed calendar feed (docs/specs/calendar-feed.md §2).
+try:
+    from app.account_favorites import make_router as _make_acct_fav_router
+except ImportError:
+    from account_favorites import make_router as _make_acct_fav_router
+app.include_router(_make_acct_fav_router(templates, cursor))
+
+# /calendar/<token>.ics — the subscribed deadline feed a customer's own calendar
+# (Google, Outlook, Apple) polls — and /account/calendar, where they make the
+# link. The token in the URL is the credential: calendar servers send no cookies.
+# docs/specs/calendar-feed.md, slice 4.
+try:
+    from app.calendar_feed import make_router as _make_calendar_router
+except ImportError:
+    from calendar_feed import make_router as _make_calendar_router
+app.include_router(_make_calendar_router(templates, cursor))
 
 # /welcome — the first-login wizard that turns a few answers into saved
 # searches (app/onboarding.py). Off with ONBOARDING_ENABLED=0/false/…: then
@@ -3327,8 +3409,25 @@ def home(request: Request,
             _obs.log_event(logging.WARNING, "match_chips_failed", exc_info=True)
             match_chips = {}
 
+    # Which of THIS page's acts the viewer has favourited. One extra query keyed
+    # by the ids we already have, exactly like the match chips above — never one
+    # per row. Absent (not empty) for a signed-out viewer, which is what keeps
+    # the star out of _result_card.html for them.
+    favorites = None
+    _fav_user = getattr(request.state, "user", None)
+    if _fav_user and rows:
+        try:
+            with cursor() as c:
+                favorites = _acct_favorites.favorite_adams(
+                    c, _fav_user["id"], [r["adam"] for r in rows])
+        except Exception:      # noqa: BLE001 — a star must never break a search
+            _obs.log_event(logging.WARNING, "favorites_lookup_failed",
+                           exc_info=True)
+            favorites = None
+
     ctx = {
         "rows": rows,
+        "favorites": favorites,
         # Filled in after the rows by /search/totals (see _search_totals.html).
         "total_count": None, "total_value": None,
         "page": page, "per_page": per_page, "total_pages": total_pages,
@@ -3461,7 +3560,7 @@ def export_acts(request: Request, fmt: str = Query("csv")):
         (_tr("Είδος σύμβασης"),  lambda r: _codelbl(r["contract_type_code"], "contract_type")),
         (_tr("Διαδικασία"),      lambda r: _codelbl(r["procedure_type_code"], "procedure_type")),
         ("NUTS",                 lambda r: r["nuts_code"]),
-        (_tr("Πηγή"),            lambda r: _SOURCE_LABELS.get(r["data_source"], r["data_source"])),
+        (_tr("Πηγή"),            lambda r: _SOURCE_DISPLAY.get(r["data_source"], r["data_source"])),
         (_tr("Ακυρωμένη"),       lambda r: yes if r["cancelled"] else no),
         (_tr("Τροποποιημένη"),   lambda r: yes if r["is_modified"] else no),
         (_tr("Διορθωμένη αξία"), lambda r: yes if r["is_corrected"] else no),
@@ -3490,16 +3589,8 @@ def _params_from(request: Request) -> dict:
     (?type=notice&type=contract) and are read as lists via getlist(). The rest
     stay single-valued strings. build_where handles both shapes.
     """
-    single = ("q", "fulltext", "tables_q",
-              "date_from", "date_to", "deadline_from", "deadline_to",
-              "value_min", "value_max", "status", "sort")
-    multi = ("type", "authority", "contract_type", "procedure_type", "nuts",
-             "cpv", "cat", "source")
-    out = {k: request.query_params.get(k, "") for k in single}
-    for k in multi:
-        # keep only non-empty values; preserves order, drops blanks
-        out[k] = [v for v in request.query_params.getlist(k) if v.strip()]
-    return out
+    from app.mobile_search import web_filters
+    return web_filters(request.query_params)
 
 
 @app.get("/explore", response_class=HTMLResponse)
@@ -3745,52 +3836,10 @@ def act_detail(adam: str, request: Request):
     The template branches on `n.type` to show type-specific fields (contract
     dates and bids for contracts, payment commitment for payments, etc.)."""
     lang = _i18n.lang_from_request(request)
+    from app import act_service as _act_service
     is_admin = ((getattr(request.state, "user", None) or {}).get("role") == "admin")
     with cursor() as c:
-        c.execute(f"""
-            SELECT {SELECT_COLS},
-                   a.type AS act_type, a.duplicate_of,
-                   a.budget, a.total_cost_without_vat,
-                   a.criteria_code, a.legal_context_code, a.notice_type_code,
-                   a.conducting_proceedings_code, a.digital_platform_code,
-                   a.contracting_authority_activity_code, a.award_procedure_code,
-                   a.contract_duration, a.contract_duration_unit,
-                   a.offers_valid_time, a.offers_valid_time_unit,
-                   a.framework_agreement_adam, a.bidding_website,
-                   a.amended_adam, a.cancellation_reason, a.cancellation_date,
-                   -- contract-specific
-                   a.contract_number, a.contract_signed_date,
-                   a.start_date, a.end_date, a.no_end_date,
-                   a.assign_criteria_code, a.assign_criteria_label,
-                   a.bids_submitted, a.max_bids_submitted,
-                   -- payment-specific
-                   a.is_credit, a.payment_commitment_code, a.contract_value,
-                   a.raw_json,
-                   a.full_text, a.full_text_html,
-                   a.full_text_extracted_at, a.full_text_source,
-                   -- provenance (shown in the "data provenance" sidecard)
-                   a.ingested_at, a.last_update_date,
-                   a.last_edited_at, a.last_edited_by, a.source_url,
-                   -- extended multi-source fields (authored / non-KHMDHS acts)
-                   a.divided_into_lots, a.is_framework_agreement,
-                   a.type_of_bid_required, a.alternative_offers_allowed,
-                   a.number_of_offers, a.prolongation_option, a.prolongation_in_months,
-                   a.vat_rate, a.vat_included, a.value_eur, a.value_usd,
-                   a.estimated_price_min, a.estimated_price_max,
-                   a.yearly_budget, a.bid_bond_amount, a.price_weighting,
-                   a.eligibility_criteria, a.eligibility_category,
-                   a.journal_number, a.eprocurement_portal,
-                   a.contact_email, a.contact_phone, a.contact_fax,
-                   a.street_address, a.contact_url,
-                   a.source_url, a.source_status,
-                   a.type_of_document, a.subtype_of_document,
-                   nuts.label AS nuts_label
-            FROM proc.procurement_act a
-            LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
-            LEFT JOIN proc.nuts_code nuts ON nuts.nuts_code = a.nuts_code
-            WHERE a.adam = %s
-        """, (adam,))
-        notice = c.fetchone()
+        notice = _act_service.fetch_core(c, adam, lang)
         dup = _duplicate_redirect(c, adam, notice, request, is_admin)
         if dup is not None:
             return dup
@@ -4064,9 +4113,22 @@ def act_detail(adam: str, request: Request):
         except Exception:      # noqa: BLE001 — anchors are a nicety, never a 500
             ft_paragraphs = []
 
+    # The favourite star's starting state. Only this (ungated) branch renders
+    # the button, so the teaser path above never pays for the lookup.
+    is_favorite = False
+    _fav_user = getattr(request.state, "user", None)
+    if _fav_user:
+        try:
+            with cursor() as c:
+                is_favorite = adam in _acct_favorites.favorite_adams(
+                    c, _fav_user["id"], [adam])
+        except Exception:      # noqa: BLE001 — a star is a nicety, never a 500
+            is_favorite = False
+
     return templates.TemplateResponse(
         request, "beta_act.html",
         {"n": notice, "gated": False, "match": match,
+         "is_favorite": is_favorite,
          "ft_paragraphs": ft_paragraphs,
          "act_authorities": act_authorities, "act_contractors": act_contractors,
          "interconnect_group": interconnect_group,
@@ -4162,6 +4224,86 @@ _TOPCPV_RANKING = """
               AND codes.country      IS NOT DISTINCT FROM agg.country
     ORDER BY agg.n_won DESC, agg.total_value DESC NULLS LAST
 """
+
+
+# ---------------------------------------------------------------------------- #
+# /act/<adam>/calendar.ics — one submission deadline, as a calendar file.
+#
+# Slice 2 of docs/specs/calendar-feed.md. The cheapest useful half of that spec:
+# no table, no capability token, no subscription — the act page grows a download
+# button and the deadline lands in whatever calendar the customer already uses.
+# app/ics.py does the RFC 5545 work; this route only decides who may ask and
+# what goes in the one event.
+#
+# A THIRD segment on purpose. `/act/<adam>.ics` would collide with the
+# `/act/{adam}` page route (whichever is registered first wins, and the loser
+# renders an HTML 404 stub for an ADAM ending in ".ics"). Three segments is also
+# how every other act sub-resource is spelled here — /ai, /occurrences,
+# /attachments.zip — and seo.py already treats a third segment as a
+# sub-resource that is never indexable.
+#
+# Signed-in only, exactly like /export/acts: the anti-scrape gate, not a data
+# gate. Nothing in the file is hidden from a gated visitor — the title,
+# authority, value and deadline are all in the act-page hero that anonymous
+# callers already get. The BUTTON sits in the `not gated` actions block with
+# the other act actions, so a lapsed customer does not see it; the URL still
+# works if they kept it, which is the same bargain /export/acts strikes.
+# ---------------------------------------------------------------------------- #
+@app.get("/act/{adam}/calendar.ics")
+def act_calendar_ics(adam: str, request: Request):
+    """Download this act's submission deadline as a one-event .ics."""
+    from urllib.parse import quote as _q
+
+    user = getattr(request.state, "user", None)
+    if not user:
+        return _Redirect(url=f"/login?next=/act/{_q(adam, safe='')}",
+                         status_code=303)
+
+    lang = _i18n.lang_from_request(request)
+    # calendar_feed.fetch_act, NOT act_service.fetch_core: act_service belongs
+    # to the uncommitted mobile API, and this route must deploy without it.
+    from app import calendar_feed as _calfeed
+    from app import digests as _digests
+    from app import ics as _ics
+    is_admin = (user.get("role") == "admin")
+
+    with cursor() as c:
+        notice = _calfeed.fetch_act(c, adam)
+        # A hidden Tender Service duplicate answers for the act we actually
+        # show, so a stale link in an old email still produces the right
+        # calendar entry rather than a 404.
+        dup = _duplicate_redirect(c, adam, notice, request, is_admin)
+        if dup is not None:
+            return dup
+        if not notice:
+            raise HTTPException(404, f"act {adam} not found in database")
+
+    deadline = notice.get("final_submission_date")
+    if not deadline:
+        # Nothing to put in a calendar. Not an error the customer caused — the
+        # button is only rendered when this column is present.
+        raise HTTPException(404, "act has no submission deadline")
+
+    # The event itself comes from calendar_feed.act_event — the ONE definition
+    # of "an act as a calendar event", shared with the subscribed feed, so the
+    # download and the feed can never describe the same deadline differently.
+    # Reminders use the digest default here: this is a one-off file, and the
+    # customer's own marks belong to the feed they configure.
+    event = _calfeed.act_event(
+        notice, lang=lang, base_url=_seo.base_url(request),
+        lead_days=_digests.DEFAULT_LEAD_DAYS)
+    body = _ics.render([event], name=_i18n.translate("ΚΗΜΔΗΣ — Προθεσμίες", lang))
+    # ASCII by construction, so the header needs no RFC 5987 escape hatch.
+    filename = re.sub(r"[^A-Za-z0-9._-]", "_", adam) + ".ics"
+    return _Response(
+        content=body.encode("utf-8"),
+        media_type="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                 # Belt and braces: the link is only rendered for signed-in
+                 # users and an anonymous fetch redirects, but a calendar file
+                 # has no <meta robots> to fall back on.
+                 "X-Robots-Tag": "noindex",
+                 "Cache-Control": "private, max-age=300"})
 
 
 @app.get("/act/{adam}/top-contractors", response_class=HTMLResponse)

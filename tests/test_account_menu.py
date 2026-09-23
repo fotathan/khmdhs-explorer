@@ -14,8 +14,7 @@ import pytest
 
 from tests.helpers import get_csrf, grant, login, make_user
 
-# Favourites and the deadline calendar join when their pages ship.
-PAGES = ("/account/searches", "/account")
+PAGES = ("/account/searches", "/account/favorites", "/account/calendar", "/account")
 
 
 @pytest.fixture()
@@ -84,9 +83,11 @@ def test_anonymous_visitors_get_no_menu(client, db):
 def test_account_is_the_settings_page_not_a_hub(client, member):
     html = client.get("/account").text
     assert 'action="/account/password"' in html
-    # The link card moved into the menu; it must not come back as a button
-    # on the settings page.
-    assert "Διαχείριση αναζητήσεων & ειδοποιήσεων" not in html
+    # The three link cards moved into the menu; they must not come back as
+    # buttons on the settings page.
+    for gone in ("Διαχείριση αναζητήσεων & ειδοποιήσεων", "Άνοιγμα αγαπημένων",
+                 "Ρύθμιση ημερολογίου"):
+        assert gone not in html
 
 
 def test_password_change_keeps_the_2fa_state(client, member, db, monkeypatch):
@@ -105,5 +106,6 @@ def test_password_change_keeps_the_2fa_state(client, member, db, monkeypatch):
 def test_english_labels(client, member):
     client.get("/set-lang?lang=en")
     tabs = _tabs(client.get("/account").text)
-    for label in ("Searches &amp; alerts", "Account settings"):
+    for label in ("Searches &amp; alerts", "Favourites", "Deadline calendar",
+                  "Account settings"):
         assert label in tabs

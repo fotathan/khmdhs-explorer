@@ -1,0 +1,106 @@
+{% extends "beta_base.html" %}
+{% block title %}{{ t("Ημερολόγιο προθεσμιών") }} · {{ t("Εξερευνητής") }}{% endblock %}
+{% block content %}
+<div class="acct-wrap">
+  {% include "_acct_nav.html" %}
+  <h1>{{ t("Ημερολόγιο προθεσμιών") }}</h1>
+  <p class="acct-muted">{{ t("Κάθε πράξη που έχετε στα αγαπημένα εμφανίζεται στο δικό σας ημερολόγιο (Google, Outlook, Apple) την ημέρα που λήγει η υποβολή, με υπενθυμίσεις. Αν η αναθέτουσα αρχή μεταθέσει την προθεσμία, το ημερολόγιό σας ενημερώνεται μόνο του.") }}</p>
+
+  {% if not has_access %}
+  <div class="acct-error">{{ t("Η συνδρομή σας δεν είναι ενεργή. Μέχρι να ανανεωθεί, το ημερολόγιο δείχνει μόνο μια σχετική σημείωση αντί για τις προθεσμίες — και τις ξαναδείχνει μόνο του μετά την ανανέωση.") }}</div>
+  {% endif %}
+
+  {% if new_url %}
+  {# The ONLY time this URL is ever shown: we keep a hash of it, not the URL. #}
+  <div class="acct-card">
+    <h2>{{ t("Ο σύνδεσμος του ημερολογίου σας") }}</h2>
+    <div class="acct-ok">{{ t("Αντιγράψτε τον τώρα: για λόγους ασφαλείας δεν θα ξαναεμφανιστεί. Αν τον χάσετε, δημιουργήστε νέο.") }}</div>
+    <input class="acct-input cal-url" id="cal-url" type="text" readonly value="{{ new_url }}"
+           aria-label="{{ t('Ο σύνδεσμος του ημερολογίου σας') }}">
+    <p class="cal-actions">
+      <button type="button" class="acct-btn" data-copy="cal-url"
+              data-done="{{ t('Αντιγράφηκε ✓') }}">{{ t("Αντιγραφή") }}</button>
+      <a class="acct-btn cal-secondary" href="{{ webcal }}">{{ t("Άνοιγμα στην εφαρμογή ημερολογίου") }}</a>
+    </p>
+    <h2 class="cal-h">{{ t("Πώς το προσθέτετε") }}</h2>
+    <ul class="acct-muted cal-howto">
+      <li><strong>Google Calendar</strong> — {{ t("Άλλα ημερολόγια → + → Από URL → επικόλληση του συνδέσμου.") }}</li>
+      <li><strong>Outlook</strong> — {{ t("Προσθήκη ημερολογίου → Εγγραφή από το web → επικόλληση του συνδέσμου.") }}</li>
+      <li><strong>Apple Calendar</strong> — {{ t("Αρχείο → Νέα συνδρομή ημερολογίου → επικόλληση του συνδέσμου.") }}</li>
+    </ul>
+    <p class="acct-muted">{{ t("Κρατήστε τον σύνδεσμο ιδιωτικό: όποιος τον έχει βλέπει τις προθεσμίες των αγαπημένων σας.") }}</p>
+  </div>
+  {% endif %}
+
+  <div class="acct-card">
+    <h2>{{ t("Κατάσταση") }}</h2>
+    {% if feed %}
+      <dl class="acct-dl">
+        <dt>{{ t("Ενεργό από") }}</dt><dd>{{ feed.created_at.strftime('%d/%m/%Y %H:%M') }}</dd>
+        <dt>{{ t("Τελευταίος έλεγχος") }}</dt>
+        <dd>{% if feed.last_fetch %}{{ feed.last_fetch.strftime('%d/%m/%Y %H:%M') }} · {{ feed.fetch_count }} {{ t("φορές συνολικά") }}{% else %}{{ t("Κανένας ακόμη — το ημερολόγιό σας δεν τον έχει ελέγξει") }}{% endif %}</dd>
+        <dt>{{ t("Γλώσσα") }}</dt><dd>{{ "English" if feed.lang == 'en' else "Ελληνικά" }}</dd>
+      </dl>
+      <p class="acct-muted cal-note">{{ t("Κάθε εφαρμογή ημερολογίου ελέγχει με τον δικό της ρυθμό — το Google μπορεί να αργήσει αρκετές ώρες. Η γλώσσα ορίζεται όταν δημιουργείτε τον σύνδεσμο.") }}</p>
+      <form method="post" action="/account/calendar/new" class="cal-form"
+            onsubmit="return confirm('{{ t('Ο σημερινός σύνδεσμος θα σταματήσει να λειτουργεί και θα χρειαστεί να προσθέσετε τον νέο στο ημερολόγιό σας. Συνέχεια;') }}');">
+        <button class="acct-btn cal-secondary" type="submit">{{ t("Νέος σύνδεσμος") }}</button>
+      </form>
+      <form method="post" action="/account/calendar/off" class="cal-form"
+            onsubmit="return confirm('{{ t('Ο σύνδεσμος θα σταματήσει να λειτουργεί. Συνέχεια;') }}');">
+        <button class="acct-btn acct-btn-danger" type="submit">{{ t("Απενεργοποίηση") }}</button>
+      </form>
+    {% else %}
+      <p class="acct-muted">{{ t("Δεν έχετε ακόμη σύνδεσμο ημερολογίου.") }}</p>
+      <form method="post" action="/account/calendar/new">
+        <button class="acct-btn" type="submit">{{ t("Δημιουργία συνδέσμου") }}</button>
+      </form>
+    {% endif %}
+  </div>
+
+  <div class="acct-card">
+    <h2>{{ t("Τι περιέχει") }}</h2>
+    <p class="acct-muted">
+      {% if upcoming %}{{ t("Αγαπημένα με προθεσμία που δεν έχει λήξει:") }} <strong>{{ upcoming }}</strong>.
+      {% else %}{{ t("Κανένα από τα αγαπημένα σας δεν έχει προθεσμία που δεν έχει λήξει. Πατήστε το αστέρι σε μια πράξη για να μπει στο ημερολόγιο.") }}{% endif %}
+      <a href="/account/favorites">{{ t("Τα αγαπημένα μου") }}</a>
+    </p>
+    <p class="acct-muted">
+      {{ t("Υπενθυμίσεις (ημέρες πριν τη λήξη):") }} <strong>{{ marks | join(", ") }}</strong>.
+      {{ t("Ίδιες με την υπενθύμιση προθεσμιών μέσω email· αλλάζουν στις") }} <a href="/account/searches">{{ t("αποθηκευμένες αναζητήσεις") }}</a>.
+    </p>
+  </div>
+</div>
+
+{% include "_acct_styles.html" %}
+<style>
+  .cal-url{font-family:var(--mono,monospace);font-size:12.5px;margin-bottom:12px;}
+  .cal-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px;}
+  .cal-secondary{background:var(--paper,#fff);color:var(--ink,#14181f);border:1px solid var(--rule,#e6e8ec);text-decoration:none;}
+  .cal-secondary:hover{background:var(--accent-soft,#fbeef1);}
+  .cal-h{margin-top:4px;}
+  .cal-howto{padding-left:18px;}
+  .cal-howto li{margin-bottom:4px;}
+  .cal-note{margin-top:12px;}
+  .cal-form{display:inline-block;margin:0 6px 0 0;}
+</style>
+<script>
+/* Copy the feed URL. Clipboard API where allowed, the old select+copy path
+   otherwise (plain http on localhost, older Safari). */
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('[data-copy]');
+  if (!b) return;
+  var i = document.getElementById(b.getAttribute('data-copy'));
+  if (!i) return;
+  i.select();
+  var done = function () { b.textContent = b.getAttribute('data-done'); };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(i.value).then(done, function () {
+      document.execCommand('copy'); done();
+    });
+  } else {
+    document.execCommand('copy'); done();
+  }
+});
+</script>
+{% endblock %}

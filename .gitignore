@@ -27,7 +27,9 @@ telephony/asterisk/pjsip_trunk.conf
 # Data dumps (don't commit large CSVs/DB dumps unless you mean to)
 *.dump
 *.sql.gz
-backups/          # pg_dump output from backup.sh (contains personal data)
+# pg_dump output from backup.sh (contains personal data). The comment must sit
+# on its own line: git reads a trailing "# ..." as part of the pattern.
+backups/
 
 # Local-only attachment binaries (see app/attachments.py)
 attachment_store/
@@ -45,3 +47,7 @@ tmp/
 # A/B harness results (ai_summary_ab.py) — experiment artefacts, and they
 # carry quoted document text plus what each run cost.
 runs/
+
+# The native app is its own git repository (Expo/React Native), not part of
+# the web app's deploy.
+KHMDHS-Mobile/

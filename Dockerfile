@@ -43,6 +43,10 @@ COPY --chown=appuser:appuser local_ocr.py ./
 # Tender Service duplicate matching: the act page, the alert labels and the
 # review page import it (tests/test_docker_image.py keeps this list honest).
 COPY --chown=appuser:appuser tsg_match.py ./
+# tsg_match imports these inside the functions the catch-up reaches. They are
+# libraries here, not a switch: tsg_ingest refuses a remote database unless
+# TSG_INGEST_REMOTE is on, so shipping them runs no Tender Service import.
+COPY --chown=appuser:appuser tsg_ingest.py tsg_probe.py ./
 
 # Ingestion + ops CLIs. db.py is spawned as a subprocess by the job worker
 # (worker.py — the background service that drains admin-launched jobs) and by

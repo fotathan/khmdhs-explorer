@@ -21,20 +21,36 @@ def _root_modules() -> set[str]:
     return {p.stem for p in ROOT.glob("*.py")}
 
 
+def _root_imports(path: pathlib.Path, roots: set[str]) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names = [a.name.split(".")[0] for a in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            names = [node.module.split(".")[0]]
+        else:
+            continue
+        found.update(n for n in names if n in roots)
+    return found
+
+
 def _imported_by_app() -> set[str]:
+    """Root modules app/ imports — and, transitively, what THEY import. The
+    first miss was one step removed: tsg_match imports tsg_ingest (which imports
+    tsg_probe) inside functions the production catch-up reaches."""
     roots = _root_modules()
     found: set[str] = set()
     for path in (ROOT / "app").rglob("*.py"):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                names = [a.name.split(".")[0] for a in node.names]
-            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-                names = [node.module.split(".")[0]]
-            else:
-                continue
-            found.update(n for n in names if n in roots)
-    return found - FALLBACKS
+        found |= _root_imports(path, roots)
+    found -= FALLBACKS
+    todo = list(found)
+    while todo:
+        mod = todo.pop()
+        for dep in _root_imports(ROOT / f"{mod}.py", roots) - FALLBACKS - found:
+            found.add(dep)
+            todo.append(dep)
+    return found
 
 
 def _copied() -> set[str]:
@@ -53,3 +69,7 @@ def test_every_root_module_the_app_imports_is_in_the_image():
 
 def test_the_check_sees_the_known_imports():
     assert {"tsg_match", "local_ocr", "khmdhs_ingest"} <= _imported_by_app()
+
+
+def test_the_check_follows_imports_through_root_modules():
+    assert {"tsg_ingest", "tsg_probe"} <= _imported_by_app()

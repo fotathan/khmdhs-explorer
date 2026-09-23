@@ -9,6 +9,10 @@ Domain expert, not a developer. Write all code yourself. Give numbered steps. Co
 - DB host: 127.0.0.1 (never localhost). Local port 5433.
 - uvicorn: no --reload
 - Migrations: run on BOTH local and Supabase before any dependent code push
+- Prod takes migrations with `migrate.py up --only <file>…`, never a bare `up`:
+  the Tender Service files (…090000, …090100, …120000, …130324) stay PENDING on
+  prod on purpose until that source goes live. `status` showing exactly those
+  four pending on prod is the healthy state.
 - CREATE INDEX CONCURRENTLY needs direct port 5432 (not the pooler)
 - After any CSS edit: grep for </style> to verify
 
@@ -283,6 +287,29 @@ visitor getting the same teaser.
   indexed legal summary — when a threshold or percentage changes, fix it.
 - /help has a "Δημόσια σελίδα & γλωσσάρι" section; keep it in sync.
 
+## Tender Service ingester (fourth source, NOT in production)
+tsg_ingest.py; db.py tsg-backfill / tsg-catchup / tsg-project. tsg_probe.py
+measures the key, tsg_preview_import.py loads a probe sample and shares the
+ingester's mapping.
+- proc.tsg_record keeps EVERY record walked; procurement_act gets only what we
+  do not hold. held_keys come from externalId/sourceUrl (ΑΔΑΜ, ΑΔΑ, TED) —
+  never referenceNumber, which on a notice is its REQUEST. reconcile_held
+  withdraws a projection once our own ingester brings the act.
+- One day per slice: a query stops at offset 10,000, and `_to` is EXCLUSIVE.
+  Only status 'done' is skipped by --resume or moves the watermark; a walk
+  short of its total is 'incomplete', never done (offset paging over a live set).
+- The daily cap shows ONLY as customer_api_limit_reached in a 400 body —
+  Rate-Limit-Remaining still says hundreds left. It raises QuotaExhausted.
+- One contractor tax number per notice: a joint award links no operator.
+  Winner upserts never rename an existing economic_operator.
+- Cyprus is out of scope: a record whose NUTS codes are ALL non-EL is stored but
+  never projected (tsg_record.skip_reason). A scope or mapping rule change only
+  reaches already-stored records through `tsg-project --reproject`.
+- A refresh never moves ingested_at (digest windows). Refused on a non-local DB
+  unless TSG_INGEST_REMOTE is on (fails towards off); not in cron_catchup.
+- /analytics is an ALLOWLIST (khmdhs, manual, NULL) in is_analytics_eligible and
+  mv_analytics_cpv. Don't turn it back into a list of excluded sources.
+
 ## Tender Service duplicates
 tsg_match.py decides, per Tender Service record, hidden / flagged / new.
 Spec: docs/specs/tender-service-duplicates.md (measured on one week). The web
@@ -319,10 +346,37 @@ tsg_record columns in migration …130324) ships with the Tender Service ingeste
 - Tests: tests/test_duplicate_visibility.py (the web side, no Tender Service
   tables needed).
 
+## Calendar feed & favourites (docs/specs/calendar-feed.md)
+Favourites on the web (/account/favorites, app/account_favorites.py) share the
+TABLE with the mobile API, not the code: account_favorites must NOT import
+app/mobile_favorites.py (main.py loads it at startup; the mobile modules are
+not deployed). The two copies of the rules must agree — a test cross-checks
+them when the mobile module is present, and another forbids the import.
+/calendar/<token>.ics (app/calendar_feed.py) puts favourited deadlines into
+the customer's own calendar; /account/calendar makes the link.
+- **The URL is the credential** (calendar servers send no cookies). Only its
+  sha256 is stored; the raw URL is shown ONCE. Never store or re-display it.
+- A customer without access gets **200 + one all-day notice, never 403/404** —
+  Google permanently disables a subscription that answers 403. Only an unknown
+  token, a turned-off feed or a deactivated account is a 404.
+- DTSTAMP is derived from the data, never the clock, or no poll is ever a 304.
+- /calendar is in BOTH seo._NOINDEX_PREFIXES and seo._DISALLOW_PATHS.
+- calendar_feed.act_event is the ONE definition of an act as an event, used by
+  the feed and by /act/<adam>/calendar.ics. SEQUENCE comes from
+  last_update_date — without it a moved deadline does not move in the client.
+- app/ics.py folds at 75 OCTETS (Greek is 2 bytes/char) and escapes `\ ; ,`.
+  Its tests are written in Greek on purpose; ASCII tests pass broken code.
+
 ## Tests
 pytest in tests/, runs in CI. Needs TEST_DATABASE_URL (throwaway DB) + psql.
 Schema comes from tests/proc_schema.sql — regenerate it when you add a table.
 Ship tests with every feature.
+- conftest `_clean` truncates the USER side only. procurement_act, authority
+  and economic_operator are never truncated: a test that inserts one owns a
+  yield-teardown fixture that deletes it (see `acts` in
+  test_duplicate_visibility.py). A setup-only delete still leaks the file's
+  last rows. A leak breaks search counts and the public stats strip, in other
+  files, depending on order; test_public_seo's stats test now catches it.
 
 ## Local dev
 LOCAL_RUNBOOK.md — how to run with every feature switched on, and what each

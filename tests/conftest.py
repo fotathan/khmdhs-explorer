@@ -33,6 +33,12 @@ os.environ.setdefault("ATTACHMENTS_ENABLED", "0")
 os.environ.setdefault("TABLES_ENABLED", "0")
 os.environ.setdefault("REGISTRATION_MODE", "open")
 os.environ.setdefault("RUN_INLINE_WORKER", "0")      # no background worker in tests
+os.environ.setdefault("MOBILE_API_ENABLED", "1")
+os.environ.setdefault("MOBILE_TOKEN_HASH_KEY", "test-mobile-token-hash-key-not-for-production")
+os.environ.setdefault(
+    "MOBILE_PUSH_TOKEN_KEY",
+    "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+)
 
 
 def _build_schema():

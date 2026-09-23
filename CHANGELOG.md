@@ -10,15 +10,29 @@ truth; this is a curated digest.
 
 ## Unreleased
 
+### Fixed — a catch-up no longer re-mails every Diavgeia and TED act
+- Re-projecting Diavgeia and TED after each catch-up stamped `ingested_at=now()`
+  on every row it touched, so every act re-entered the next result email. It now
+  moves only for a new act or a real change to a shown field.
+  Tests: `tests/test_projection_ingested_at.py`.
+
+### Fixed — deploy plumbing
+- The production image now ships `tsg_ingest.py` and `tsg_probe.py`, which
+  `tsg_match` imports during a catch-up; `tests/test_docker_image.py` follows
+  imports through root modules so a second-hand import cannot be missed again.
+- `migrate.py up --only <file>…` applies a chosen subset (production keeps the
+  Tender Service migrations pending).
+- `.gitignore`: the `backups/` rule never matched (a trailing comment is part of
+  the pattern in git), and `KHMDHS-Mobile/` is its own repository.
+
 ### Changed — «Ο λογαριασμός μου» is a menu, not a page of links
 - The username in the masthead opens a dropdown: Αναζητήσεις & ειδοποιήσεις,
-  Ρυθμίσεις λογαριασμού, and sign-out (which moved into it). Both mastheads; on
-  a phone it opens inline in the nav.
-- Every `/account` page carries the same tab strip instead of a "back" link.
-  One list feeds both (`_acct_links.html`); favourites and the deadline
-  calendar are added there when their pages ship.
+  Αγαπημένα, Ημερολόγιο προθεσμιών, Ρυθμίσεις λογαριασμού, and sign-out (which
+  moved into it). Both mastheads; on a phone it opens inline in the nav.
+- Every `/account` page carries the same tab strip instead of a "← back" link.
+  One list feeds both (`_acct_links.html`).
 - `/account` is now «Ρυθμίσεις λογαριασμού» only: details, password, 2FA, data
-  export, deletion. URLs are unchanged.
+  export, deletion. The three link cards are gone. URLs are unchanged.
 - Fixed: after a password change the settings page offered «Ενεργοποίηση 2FA»
   to someone who already had it on.
 
@@ -45,6 +59,14 @@ truth; this is a curated digest.
   code is pushed.
 - Spec: `docs/specs/onboarding-wizard.md`. Tests: `tests/test_onboarding.py`.
 
+### Added — Tender Service duplicate handling, ingester side (with the Tender Service ingester)
+- Every Tender Service import, and every ΚΗΜΔΗΣ / Διαύγεια catch-up, decides
+  each record (hidden / flagged / new); `db.py tsg-match [--dry-run]` re-checks
+  by hand; every pass writes counts and warnings to `proc.tsg_match_run`.
+- Migration `20260917130324_tender_service_duplicates_tsg_record.sql` (needs the
+  Tender Service tables).
+- Push notifications and the mobile API carry the possible-duplicate label.
+
 ## 2026-09-17
 
 ### Added — Tender Service duplicate handling (web side)
@@ -68,6 +90,43 @@ truth; this is a curated digest.
   counts; the unfiltered counter keeps its instant estimate.
 
 ## 2026-09-15
+
+### Added — native act sharing and lifecycle navigation
+- The mobile act page can open the system share sheet with a concise act
+  summary, ΑΔΑΜ, deadline and safe official-document URL.
+- Official documents can also be opened or shared independently.
+- Related lifecycle records are no longer inert flattened fields: previous and
+  following acts are grouped, date-formatted and open as native act pages.
+
+### Added — native result-email history
+- A customer can open a recent email delivery from a saved search and browse
+  the exact acts recorded for that run, with pagination, favorites, match
+  reasons and links to native act and authority details.
+- The view uses the criteria frozen when the email was sent, so later saved-
+  search edits cannot rewrite history. It marks which results appeared in the
+  email and which were additional recorded matches.
+- Historical runs are available only through the owning customer's bearer
+  session; unknown and other-customer run IDs both return `404`.
+
+### Added — mobile authority/contractor context and precision filters
+- Mobile search can now add authority, CPV, category, document-text and
+  table-text criteria. Authority lookup searches the full merge-aware directory
+  instead of being limited to the portal's initial popular-authority list.
+- Saved profiles retain every supported filter when they are reopened and
+  rerun, including cancelled/modified status criteria.
+- Authority and contractor names now open native profiles with contact actions,
+  headline activity/value, leading categories, top buyers where relevant and
+  recent acts with favorite controls.
+
+### Added — saved-search email settings in the mobile app
+- Saved searches now expose separate email and push actions, so result-email
+  settings are discoverable without opening an undifferentiated alert screen.
+- Mobile customers can configure the same email subscription used by the web
+  app: active state, layout, portal-default or explicit schedule, language,
+  result cap, empty-result delivery, and deadline reminder days.
+- The email screen also shows the next and last send, the three most recent run
+  outcomes, and admin-managed additional recipients, and can remove only the
+  email alert while keeping the saved search and any push settings.
 
 ### Fixed — the search page: rows first, headline after
 - The count and value over the whole matching set ("βρέθηκαν N πράξεις ·
@@ -173,6 +232,33 @@ truth; this is a curated digest.
   removed; paragraphs, headings, lists, Quill-shaped tables kept) and the plain
   full_text is derived from it. `app/static/css/rich_text.css` styles the act
   page and the editors the same way.
+
+### Added — Tender Service ingester (not in production)
+- `tsg_ingest.py` + `db.py tsg-backfill | tsg-catchup | tsg-project`. Every
+  record walked is kept in `proc.tsg_record`; only those we do not already hold
+  (by ΑΔΑΜ, ΑΔΑ or TED number) are projected as `TSG:<internalID>`, and a
+  projection is withdrawn when our own ingester later brings the same act.
+- Windows are one day per slice (`proc.tsg_ingest_window`) because a query
+  stops at offset 10,000; a short walk is `incomplete`, an oversized day
+  `over_cap`, today `partial` — none of them count as done. Each run has a
+  request budget and stops cleanly at the key's daily cap.
+- Award winners link to `economic_operator` only for a single winner with an
+  ΑΦΜ; an existing operator's name is never overwritten.
+- Refused on a non-local database unless `TSG_INGEST_REMOTE=1`, and not in the
+  cron: new acts would enter customers' digest windows.
+- /analytics now counts an allowlist of sources (KHMDHS, manual) instead of
+  excluding Diavgeia and TED by name, so a new source is out until let in.
+- Cyprus notices (the Greek key's profile returns them) are stored but never
+  shown; `tsg-project --reproject` applies a rule change to stored records.
+- The preview importer now uses the ingester's mapping.
+
+### Added — Tender Service probe and local preview (not in production)
+- `tsg_probe.py` measures what the Greek Tender Service Data Export key returns
+  (read-only, request-capped, results under runs/). `tsg_preview_import.py`
+  loads a probe sample into a LOCAL database only (`data_source='tsg'`,
+  `TSG:<internalID>`), skipping records already held by ΑΔΑΜ/ΑΔΑ; `--delete`
+  removes it. A "Tender Service" source badge; deliberately not a public
+  facet or sitemap entry yet.
 
 ## 2026-09-14
 

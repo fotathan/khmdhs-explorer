@@ -4,6 +4,8 @@ import datetime as dt
 import io
 import zipfile
 
+import pytest
+
 from tests.helpers import login, make_user
 
 
@@ -40,14 +42,27 @@ def test_rows_to_xlsx_strips_tzinfo():
 # --------------------------------------------------------------------------- #
 # route
 # --------------------------------------------------------------------------- #
-def _seed_acts(db, n, prefix="EXP"):
+@pytest.fixture()
+def seed_acts(db):
+    """seed_acts(n, prefix, families=None) inserts n notices; every act it made
+    is deleted afterwards. _clean never truncates proc.procurement_act, so a
+    leftover act would change the counts later tests assert."""
     cur = db.cursor()
-    for i in range(n):
-        cur.execute("""INSERT INTO proc.procurement_act
-                         (adam, type, title, submission_date, origin, data_source)
-                       VALUES (%s, 'notice', %s, now(), 'import', 'khmdhs')
-                       ON CONFLICT (adam) DO NOTHING""",
-                    (f"{prefix}-{i:05d}", f"Δοκιμή {i}"))
+    made: list[str] = []
+
+    def seed(n, prefix="EXP", families=None):
+        for i in range(n):
+            adam = f"{prefix}-{i:05d}"
+            cur.execute("""INSERT INTO proc.procurement_act
+                             (adam, type, title, submission_date, origin, data_source,
+                              procedure_family)
+                           VALUES (%s, 'notice', %s, now(), 'import', 'khmdhs', %s)
+                           ON CONFLICT (adam) DO NOTHING""",
+                        (adam, f"Δοκιμή {i}", families[i] if families else None))
+            made.append(adam)
+
+    yield seed
+    cur.execute("DELETE FROM proc.procurement_act WHERE adam = ANY(%s)", (made,))
 
 
 def test_anonymous_export_redirects_to_login(client):
@@ -56,8 +71,8 @@ def test_anonymous_export_redirects_to_login(client):
     assert r.headers["location"].endswith("/login")
 
 
-def test_csv_export_download(client, db):
-    _seed_acts(db, 3)
+def test_csv_export_download(client, seed_acts):
+    seed_acts(3)
     make_user("exp_csv", "goodpassword1", role="customer")
     login(client, "exp_csv", "goodpassword1")
     r = client.get("/export/acts?type=notice&fmt=csv", follow_redirects=False)
@@ -70,8 +85,8 @@ def test_csv_export_download(client, db):
     assert "EXP-00000" in body
 
 
-def test_xlsx_export_download(client, db):
-    _seed_acts(db, 2, prefix="XL")
+def test_xlsx_export_download(client, seed_acts):
+    seed_acts(2, prefix="XL")
     make_user("exp_xlsx", "goodpassword1", role="customer")
     login(client, "exp_xlsx", "goodpassword1")
     r = client.get("/export/acts?type=notice&fmt=xlsx", follow_redirects=False)
@@ -114,20 +129,13 @@ def test_export_menu_uses_the_live_filters_not_the_rendered_href(client):
     assert "fetch(a.href" not in html
 
 
-def test_export_applies_the_same_filters_as_the_search(client, db):
+def test_export_applies_the_same_filters_as_the_search(client, seed_acts):
     """The reported case: Notice + Κλειστή διαδικασία must export only those
     acts, not every notice. The filter value is the procedure FAMILY label
     (build_where matches a.procedure_family), not a numeric code."""
     import csv
     closed, open_ = "Κλειστή διαδικασία", "Ανοιχτή διαδικασία"
-    cur = db.cursor()
-    for i, family in enumerate([closed, closed, open_, open_, open_]):
-        cur.execute("""INSERT INTO proc.procurement_act
-                         (adam, type, title, submission_date, origin, data_source,
-                          procedure_family)
-                       VALUES (%s, 'notice', %s, now(), 'import', 'khmdhs', %s)
-                       ON CONFLICT (adam) DO NOTHING""",
-                    (f"PROC-{i:05d}", f"Διαδικασία {i}", family))
+    seed_acts(5, prefix="PROC", families=[closed, closed, open_, open_, open_])
     make_user("exp_proc", "goodpassword1", role="customer")
     login(client, "exp_proc", "goodpassword1")
     r = client.get("/export/acts", params={"type": "notice", "procedure_type": closed,
@@ -139,11 +147,11 @@ def test_export_applies_the_same_filters_as_the_search(client, db):
     assert adams == ["PROC-00000", "PROC-00001"]
 
 
-def test_row_cap_enforced(client, db, monkeypatch):
+def test_row_cap_enforced(client, seed_acts, monkeypatch):
     import csv
     import app.main as m
     monkeypatch.setattr(m, "_EXPORT_CAP_CUSTOMER", 2)   # tiny cap for the test
-    _seed_acts(db, 5, prefix="CAP")
+    seed_acts(5, prefix="CAP")
     make_user("exp_cap", "goodpassword1", role="customer")
     login(client, "exp_cap", "goodpassword1")
     r = client.get("/export/acts?type=notice&fmt=csv", follow_redirects=False)

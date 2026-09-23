@@ -45,6 +45,9 @@ ANTHROPIC_API_KEY=...      # OCR of scanned PDFs + call summaries
 DEEPSEEK_API_KEY=...       # the AI summary (AI_SUMMARY_MODEL is deepseek-flash)
 GEMI_API_KEY=...           # ΓΕΜΗ business-registry lookups
 SECRET_KEY=...             # signs login cookies — see below
+MOBILE_TOKEN_HASH_KEY=...  # keyed hash for native access/refresh tokens
+MOBILE_PUSH_TOKEN_KEY=...  # URL-safe base64 of 32 random bytes; encrypts push tokens
+EXPO_ACCESS_TOKEN=...      # optional; only for an Expo project using push security
 TELEPHONY_ENABLED=1        # softphone + caller ID
 AMI_HOST=... AMI_PORT=... AMI_USER=... AMI_PASSWORD=...
 SIP_WS_URL=... SIP_DOMAIN=...
@@ -77,6 +80,9 @@ ENABLE_DOCS=1 \
 RATELIMIT_ENABLED=0 \
 DIGEST_SCHEDULER=1 \
 AI_SUMMARY_ENABLED=1 \
+MOBILE_API_ENABLED=1 \
+MOBILE_TOKEN_HASH_KEY="$MOBILE_TOKEN_HASH_KEY" \
+MOBILE_PUSH_TOKEN_KEY="$MOBILE_PUSH_TOKEN_KEY" \
 EMAIL_BACKEND=file EMAIL_FILE_DIR=./outbox \
 EMAIL_FROM="KHMDHS Explorer <noreply@khmdhs.local>" \
 TRANSCRIBE_BACKEND=openai \
@@ -87,6 +93,24 @@ TRANSCRIBE_LANGUAGE=el \
 ```
 
 No `--reload` — it double-starts the background threads.
+
+### 3a. Run the mobile notification worker safely
+
+Use a second terminal. This evaluates active push subscriptions, creates inbox
+events and queues device deliveries once, but cannot contact Expo:
+
+```bash
+set -a; . ~/.khmdhs.env; set +a
+DATABASE_URL="postgresql://postgres:pw@127.0.0.1:5433/procurement" \
+MOBILE_PUSH_TOKEN_KEY="$MOBILE_PUSH_TOKEN_KEY" \
+PUSH_WORKER_ONCE=1 PUSH_DELIVERY_ENABLED=0 \
+  ./khmdhs-env/bin/python notification_worker.py
+```
+
+Omit `PUSH_WORKER_ONCE=1` for the continuous 60-second local loop. Keep
+`PUSH_DELIVERY_ENABLED=0` until an Expo project, physical-device test plan and
+the production always-on worker have been approved. Merely registering a token
+or running the evaluator does not send anything externally.
 
 ---
 
@@ -116,6 +140,8 @@ No `--reload` — it double-starts the background threads.
 | Call transcription | `TRANSCRIBE_BASE_URL` | the `khmdhs-whisper` container |
 | Search-engine indexing (`robots.txt`, sitemaps, canonical) | `SEO_INDEX=1` | nothing — it only changes what a crawler is told. **On by default in production only**; locally it is off, so `/robots.txt` answers `Disallow: /` and every `/sitemap*.xml` 404s. The recipe turns it on so you can see the real markup and read the sitemaps; localhost is not crawlable either way. Off again with `0`/`false`/`no`/`off` — or a typo, since it fails towards noindex. `SEO_ACT_WINDOW_DAYS=365` and `SEO_ACT_MAX=50000` bound how much of the corpus the sitemaps advertise |
 | AI summary panel on notices | `AI_SUMMARY_ENABLED=1` | `DEEPSEEK_API_KEY` to generate (or `ANTHROPIC_API_KEY` if you point `AI_SUMMARY_MODEL` at a `claude-*` model); a worker to run the job (`RUN_INLINE_WORKER=1`, on by default locally). Only `1`/`true`/`yes`/`on`/`y`/`t`/`enabled` turn it on — anything else, including a typo, leaves it **off**, because it spends money |
+| Native mobile API (`/api/v1`) | `MOBILE_API_ENABLED=1` | `MOBILE_TOKEN_HASH_KEY`; `MOBILE_PUSH_TOKEN_KEY` is additionally required before registering a push token. Implemented routes cover native authentication, `/me`, localized lookups, customer search, safe act/entity detail, saved searches, devices, push preferences and the notification inbox |
+| Mobile notification evaluation | standalone `notification_worker.py` | Creates inbox events and queues eligible device deliveries. Real Expo calls remain separately gated by `PUSH_DELIVERY_ENABLED=1`, which defaults off |
 
 **Key-gated — on as soon as the key is present**
 
@@ -156,6 +182,16 @@ server.
 
 Deliverability (SPF/DKIM/DMARC, bounces, unsubscribe) is **not implemented** —
 that work must land before any of this points at real customers.
+
+Native authentication records have a separate idempotent daily cleanup command:
+
+```bash
+python3 cleanup_mobile_auth.py
+```
+
+It reports aggregate counts only and retains terminal authentication/delivery
+records for 30 days and revoked devices/inbox events for 90 days (with a
+seven-day recovery buffer after an inbox item is soft-expired or deleted).
 
 ---
 
