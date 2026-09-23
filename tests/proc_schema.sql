@@ -6744,3 +6744,21 @@ CREATE TABLE proc.calendar_feed (
     CONSTRAINT calendar_feed_token_hash_uk UNIQUE (token_hash),
     CONSTRAINT calendar_feed_lang_ck CHECK (lang IN ('el', 'en'))
 );
+
+--
+-- calendar_search — migrations/20260923163148_calendar_search.sql.
+-- Appended by hand, like the blocks above: saved searches a customer has put
+-- in their calendar feed (docs/specs/calendar-feed.md, slice 5).
+--
+
+CREATE TABLE proc.calendar_search (
+    user_id           bigint NOT NULL
+                      REFERENCES proc.app_user(id) ON DELETE CASCADE,
+    search_profile_id bigint NOT NULL
+                      REFERENCES proc.search_profile(id) ON DELETE CASCADE,
+    created_at        timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, search_profile_id)
+);
+
+CREATE INDEX ix_calendar_search_profile
+    ON proc.calendar_search (search_profile_id);

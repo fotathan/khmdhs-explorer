@@ -17,6 +17,9 @@ What a customer may do here
   * turn an email alert on or off for any saved search they may use, and choose
     its format, cadence, language, how many results it lists, and — for the
     deadline format — how many days ahead it reminds.
+  * put a saved search in their calendar feed (/account/calendar), so the
+    deadlines it matches appear next to their favourites. Same access rule as
+    the alert: any search they may APPLY.
 
 What deliberately stays with an admin
 -------------------------------------
@@ -58,6 +61,7 @@ from fastapi.templating import Jinja2Templates
 
 try:
     from app import auth as _auth
+    from app import calendar_feed as _cal
     from app import crm as _crm
     from app import digests as _digests
     from app import i18n as _i18n
@@ -65,6 +69,7 @@ try:
     from app import search_profiles as _sp
 except ImportError:                      # pragma: no cover — run with --app-dir=app
     import auth as _auth
+    import calendar_feed as _cal
     import crm as _crm
     import digests as _digests
     import i18n as _i18n
@@ -146,8 +151,21 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
 
             subs = {s["search_profile_id"]: dict(s)
                     for s in _digests.list_subscriptions(c, user_id=user["id"])}
+            profiles = [dict(p) for p in _auth.customer_search_profiles(c, user["id"])]
+            in_calendar = _cal.search_ids(c, user["id"])
+            # A portal search that is in the calendar but no longer has an
+            # alert (the alert was removed) would otherwise vanish from this
+            # page while still feeding the calendar — with no box to untick.
+            listed = {p["id"] for p in profiles}
+            for pid in sorted(in_calendar - listed):
+                extra = _auth.get_search_profile(c, pid)
+                if extra and _auth.can_apply_profile(user, extra):
+                    extra = dict(extra)
+                    extra["is_own"] = extra["owner_user_id"] == user["id"]
+                    profiles.append(extra)
+            has_feed = _cal.get_feed(c, user["id"]) is not None
             rows = []
-            for profile in _auth.customer_search_profiles(c, user["id"]):
+            for profile in profiles:
                 row = dict(profile)
                 params = _auth.effective_params(c, profile)
                 row["filters"] = _crm.describe_params(params, lang)
@@ -165,6 +183,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                     sub["runs"] = _digests.list_runs(c, subscription_id=sub["id"],
                                                      limit=RUNS_SHOWN)
                 row["sub"] = sub
+                row["in_calendar"] = profile["id"] in in_calendar
                 rows.append(row)
         return templates.TemplateResponse(request, "account_searches.html", {
             "rows": rows, "schedules": schedules, "default_schedule": default,
@@ -177,6 +196,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             "n_own": sum(1 for r in rows if r.get("is_own")),
             "flash": flash or None,
             "onboarding_on": _onboarding.enabled(),
+            "has_feed": has_feed,
             "nav_active": "account",
         })
 
@@ -287,6 +307,23 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 raise HTTPException(400, str(exc)) from exc
         return RedirectResponse(url=_flash_url("Οι ρυθμίσεις ειδοποίησης αποθηκεύτηκαν."),
                                 status_code=303)
+
+    # ---- the calendar ------------------------------------------------------ #
+    @router.post("/{pid}/calendar")
+    async def calendar(pid: int, request: Request, on: str = Form("")):
+        """Put this saved search in the calendar feed, or take it out.
+
+        mode='apply', like the alert: seeing a shared search's deadlines in
+        your own calendar is not editing it. Works whether or not the feed
+        link exists yet — the choice is kept and applies once it does."""
+        user = _signed_in(request)
+        with cursor() as c:
+            _owned(c, user, pid, mode="apply")
+            _cal.set_search(c, user["id"], pid, bool(on))
+        return RedirectResponse(
+            url=_flash_url("Η αναζήτηση προστέθηκε στο ημερολόγιο." if on
+                           else "Η αναζήτηση αφαιρέθηκε από το ημερολόγιο."),
+            status_code=303)
 
     @router.post("/{pid}/alert/delete")
     async def delete_alert(pid: int, request: Request):

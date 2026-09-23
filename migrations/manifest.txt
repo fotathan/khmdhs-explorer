@@ -103,3 +103,4 @@ migrations/20260917130323_tender_service_duplicates.sql
 migrations/20260917130324_tender_service_duplicates_tsg_record.sql
 migrations/20260921120000_onboarding_wizard.sql
 migrations/20260923075702_calendar_feed.sql
+migrations/20260923163148_calendar_search.sql
