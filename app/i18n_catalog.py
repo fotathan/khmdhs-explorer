@@ -32,6 +32,8 @@ _NAV = {
     "Διαχείριση": "Administration",
     "KHMDHS · Εξερευνητής": "KHMDHS · Explorer",
     "Γλώσσα": "Language",
+    # Account menu + /account tab strip (_acct_links.html)
+    "Αναζητήσεις & ειδοποιήσεις": "Searches & alerts",
 }
 
 # Admin navigation tabs (_admin_tabs.html)
@@ -1692,6 +1694,10 @@ _HELP = {
     "στο": "at",
     "και": "and",
     "Το όνομα και η κατάσταση πρόσβασής σας εμφανίζονται πάνω δεξιά μόλις συνδεθείτε.": "Your name and access status appear at the top-right once you sign in.",
+    "Πατώντας το όνομά σας πάνω δεξιά ανοίγει το μενού του λογαριασμού σας: «Αναζητήσεις & ειδοποιήσεις» (εκεί ζουν τα δικά σας email αποτελεσμάτων), «Ρυθμίσεις λογαριασμού» και η αποσύνδεση. Οι ίδιες σελίδες εμφανίζονται ως καρτέλες στην κορυφή κάθε σελίδας του λογαριασμού.":
+        "Clicking your name at the top-right opens your account menu: “Searches & alerts” (where your own result emails live), “Account settings” and sign-out. The same pages appear as tabs at the top of every account page.",
+    "Στις «Ρυθμίσεις λογαριασμού»": "In “Account settings”",
+    "Στο κάτω μέρος των «Ρυθμίσεων λογαριασμού»": "At the bottom of “Account settings”",
     "Ο κανόνας προεπισκόπησης": "The preview rule",
     "Οι επισκέπτες μπορούν να εκτελέσουν κάθε αναζήτηση και να ρυθμίσουν κάθε φίλτρο — απλώς δεν μπορούν να προχωρήσουν πέρα από την πρώτη οθόνη αποτελεσμάτων, και η λεπτομέρεια πράξης κρύβει τα βαθύτερα πεδία. Είναι προεπισκόπηση, όχι τοίχος. Μια ενεργή συνδρομή (ή λογαριασμός διαχειριστή) αφαιρεί το όριο παντού.": "Visitors can run any search and set any filter — they just can't go past the first screen of results, and act detail hides the deeper fields. It's a preview, not a wall. An active subscription (or an admin account) removes the limit everywhere.",
     "Περιοχή διαχείρισης": "The admin area",
