@@ -59,8 +59,10 @@ The deadline set is the record's final_submission_date plus every timeline
 item. A timeline item gets a DATE only when its value (or failing that, its
 quote) names exactly one: several different dates are ambiguous and the item
 is listed undated with its text, never guessed at. Everything is compared on
-Europe/Athens local dates (working-day-deadlines spec §5), and "days left" is
-in CALENDAR days — working days wait for app/workdays.py.
+Europe/Athens local dates (working-day-deadlines spec §5). Each dated
+deadline carries both calendar days left and WORKING days left
+(app/workdays.py: weekends and Greek public holidays out, Μεγάλη Παρασκευή a
+working day, 26 December not — the owner's decision, 2026-09-24).
 
 Who
 ---
@@ -82,9 +84,11 @@ from fastapi.templating import Jinja2Templates
 try:
     from app import ai_summary as _ai
     from app import textmatch as _tm
+    from app import workdays as _wd
 except ImportError:                      # pragma: no cover — run with --app-dir=app
     import ai_summary as _ai
     import textmatch as _tm
+    import workdays as _wd
 
 ATHENS = ZoneInfo("Europe/Athens")
 
@@ -177,6 +181,31 @@ def athens_today() -> dt.date:
     return dt.datetime.now(ATHENS).date()
 
 
+# The holiday overrides (proc.public_holiday) are re-read at most this often
+# per process. Greece moves a holiday weeks ahead, so minutes are plenty, and
+# every worker converges without anyone having to "bump" a cache.
+HOLIDAY_REFRESH_SECONDS = 600
+_holidays_read_at: float | None = None
+
+
+def refresh_holidays(c, *, force: bool = False) -> None:
+    """Load proc.public_holiday into app/workdays.py when stale. A failure
+    keeps the previous map (the computed set if there never was one): a
+    holiday table hiccup must not take the checklist down."""
+    import time
+    global _holidays_read_at
+    now = time.monotonic()
+    if (not force and _holidays_read_at is not None
+            and now - _holidays_read_at < HOLIDAY_REFRESH_SECONDS):
+        return
+    try:
+        c.execute("SELECT day, is_holiday, name FROM proc.public_holiday")
+        _wd.set_overrides(c.fetchall())
+    except Exception:      # noqa: BLE001 — fall back to what we had
+        return
+    _holidays_read_at = now
+
+
 # --------------------------------------------------------------------------- #
 # Building the checklist — pure, no database
 # --------------------------------------------------------------------------- #
@@ -225,6 +254,9 @@ def build(payload: dict, act: dict, *, today: dt.date | None = None) -> dict:
                           "confidence": item.get("confidence")})
     for d in deadlines:
         d["days_left"] = (d["date"] - today).days if d["date"] else None
+        d["workdays_left"] = (_wd.working_days_between(today, d["date"])
+                              if d["date"] else None)
+        d["holiday"] = _wd.holiday_name(d["date"]) if d["date"] else None
         d["is_past"] = d["date"] is not None and d["date"] < today
     # Dated first, soonest first; undated after, in the summary's own order.
     deadlines.sort(key=lambda d: (d["date"] is None, d["date"] or dt.date.max,
@@ -304,6 +336,7 @@ def progress_for(c, user_id, adams, *, today: dt.date | None = None) -> dict:
     c.execute("SELECT adam FROM proc.act_ai_summary WHERE adam = ANY(%s)",
               (adams,))
     have = [a for a in adams if a in {r["adam"] for r in c.fetchall()}]
+    refresh_holidays(c)
     if not have:
         return {}
     c.execute("""SELECT adam, item_key FROM proc.act_checklist_tick
@@ -459,6 +492,7 @@ def view(c, user_id, adam: str, *, error: str = "") -> dict | None:
     if got is None:
         return None
     act, payload = got
+    refresh_holidays(c)
     cl = build(payload, act)
     own = own_items(c, user_id, adam)
     if not cl["deadlines"] and not cl["groups"] and not own:

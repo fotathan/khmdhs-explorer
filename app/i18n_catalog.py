@@ -3569,7 +3569,9 @@ _CHECKLIST = {
     "ασαφές στο κείμενο": "unclear in the text",
     "στο κείμενο": "in the text",
     "σήμερα": "today",
-    "Οι ημέρες είναι ημερολογιακές, όχι εργάσιμες.": "Days are calendar days, not working days.",
+    "Οι εργάσιμες δεν μετρούν Σαββατοκύριακα και επίσημες αργίες, ούτε τη σημερινή ημέρα.":
+        "Working days leave out weekends, public holidays and today.",
+    "αργία": "public holiday",
     "Προϋποθέσεις συμμετοχής": "Conditions for taking part",
     "Εγγυήσεις και οικονομικοί όροι": "Guarantees and financial terms",
     "Υποχρεωτικές τεχνικές απαιτήσεις": "Mandatory technical requirements",
@@ -3582,8 +3584,8 @@ _CHECKLIST = {
         "Your ticks are your own — nobody else sees them.",
     # /help — the checklist section (beta_help.html, under the AI summary)
     "Λίστα ελέγχου και προθεσμίες": "Checklist and deadlines",
-    "Όταν μια προκήρυξη έχει σύνοψη, δίπλα της εμφανίζεται η καρτέλα «Λίστα ελέγχου». Πάνω είναι οι προθεσμίες σε χρονολογική σειρά: η καταληκτική ημερομηνία από την επίσημη εγγραφή και όσες ημερομηνίες βρήκε η σύνοψη (ερωτήματα, επιτόπια επίσκεψη, αποσφράγιση), με τις ημέρες που απομένουν. Μια ημερομηνία παίρνει θέση στη σειρά μόνο όταν το στοιχείο αναφέρει μία συγκεκριμένη ημερομηνία· αν αναφέρει περισσότερες, εμφανίζεται στο τέλος με το κείμενό του, χωρίς να μαντέψουμε ποια ισχύει. Οι ημέρες είναι ημερολογιακές — οι αργίες δεν αφαιρούνται ακόμη.":
-        "When a notice has a summary, a «Checklist» tab appears next to it. At the top are the deadlines in date order: the closing date from the official record and every date the summary found (questions, site visit, opening of offers), with the days remaining. A date is placed in the order only when the item names one specific date; if it names several, it is listed at the end with its text, without guessing which one applies. Days are calendar days — public holidays are not deducted yet.",
+    "Όταν μια προκήρυξη έχει σύνοψη, δίπλα της εμφανίζεται η καρτέλα «Λίστα ελέγχου». Πάνω είναι οι προθεσμίες σε χρονολογική σειρά: η καταληκτική ημερομηνία από την επίσημη εγγραφή και όσες ημερομηνίες βρήκε η σύνοψη (ερωτήματα, επιτόπια επίσκεψη, αποσφράγιση), με τις ημέρες που απομένουν. Μια ημερομηνία παίρνει θέση στη σειρά μόνο όταν το στοιχείο αναφέρει μία συγκεκριμένη ημερομηνία· αν αναφέρει περισσότερες, εμφανίζεται στο τέλος με το κείμενό του, χωρίς να μαντέψουμε ποια ισχύει. Δίπλα στις ημέρες φαίνονται και οι εργάσιμες, χωρίς Σαββατοκύριακα και επίσημες αργίες (η Μεγάλη Παρασκευή μετράει ως εργάσιμη, η 26η Δεκεμβρίου όχι)· μια προθεσμία που πέφτει σε αργία σημειώνεται.":
+        "When a notice has a summary, a «Checklist» tab appears next to it. At the top are the deadlines in date order: the closing date from the official record and every date the summary found (questions, site visit, opening of offers), with the days remaining. A date is placed in the order only when the item names one specific date; if it names several, it is listed at the end with its text, without guessing which one applies. Working days are shown next to the days, leaving out weekends and public holidays (Good Friday counts as a working day, 26 December does not); a deadline that falls on a public holiday is marked.",
     "Κάτω είναι όσα πρέπει να ετοιμάσετε, σε τέσσερις ομάδες: προϋποθέσεις συμμετοχής, εγγυήσεις (μόνο οι υποχρεωτικές — η τράπεζα θέλει χρόνο), υποχρεωτικές τεχνικές απαιτήσεις και τρόπος υποβολής. Κάθε γραμμή κρατά το απόσπασμα της προκήρυξης και τον σύνδεσμο στην παράγραφο. Τσεκάρετε ό,τι έχετε τακτοποιήσει· τα σημάδια είναι δικά σας, δεν τα βλέπει άλλος πελάτης.":
         "Below is what you need to prepare, in four groups: conditions for taking part, guarantees (only the mandatory ones — the bank needs time), mandatory technical requirements and how to submit. Each line keeps the notice's own words and the link to the paragraph. Tick off what you have sorted out; the ticks are yours and no other customer sees them.",
     # slice 2 — dated milestones in the calendar

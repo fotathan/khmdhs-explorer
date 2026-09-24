@@ -64,14 +64,19 @@
           {% if d.days_left is not none %}
             {% if d.days_left < 0 %}{{ t("έληξε") }}
             {% elif d.days_left == 0 %}{{ t("σήμερα") }}
-            {% elif lang == 'en' %}{{ d.days_left }} day{{ '' if d.days_left == 1 else 's' }}
-            {% else %}{{ d.days_left }} {{ "ημέρα" if d.days_left == 1 else "ημέρες" }}{% endif %}
+            {% else %}
+              {% if lang == 'en' %}{{ d.days_left }} day{{ '' if d.days_left == 1 else 's' }}
+              {% else %}{{ d.days_left }} {{ "ημέρα" if d.days_left == 1 else "ημέρες" }}{% endif %}
+              <span class="cl-wd">{% if lang == 'en' %}{{ d.workdays_left }} working
+              {% else %}{{ d.workdays_left }} {{ "εργάσιμη" if d.workdays_left == 1 else "εργάσιμες" }}{% endif %}</span>
+            {% endif %}
           {% endif %}
+          {% if d.holiday %}<span class="cl-hol" title="{{ d.holiday }}">{{ t("αργία") }}</span>{% endif %}
         </div>
       </li>
       {% endfor %}
     </ol>
-    <p class="cl-foot">{{ t("Οι ημέρες είναι ημερολογιακές, όχι εργάσιμες.") }}
+    <p class="cl-foot">{{ t("Οι εργάσιμες δεν μετρούν Σαββατοκύριακα και επίσημες αργίες, ούτε τη σημερινή ημέρα.") }}
       {{ t("Όσες έχουν συγκεκριμένη ημερομηνία μπαίνουν και στο ημερολόγιό σας: στο αρχείο «Προθεσμία στο ημερολόγιο» και, αν η πράξη είναι στα αγαπημένα, στο") }}
       <a href="/account/calendar">{{ t("συνδεδεμένο ημερολόγιο") }}</a>.</p>
   </section>

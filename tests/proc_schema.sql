@@ -6828,3 +6828,17 @@ CREATE INDEX ix_act_checklist_own_item_user_adam
 
 CREATE INDEX ix_act_checklist_own_item_adam
     ON proc.act_checklist_own_item (adam);
+
+--
+-- public_holiday — migrations/20260924140000_public_holiday.sql.
+-- Appended by hand, like the blocks above: overrides for app/workdays.py
+-- (docs/specs/working-day-deadlines.md §3c).
+--
+
+CREATE TABLE proc.public_holiday (
+    day         date    PRIMARY KEY,
+    name        text    NOT NULL,
+    is_holiday  boolean NOT NULL DEFAULT true,
+    note        text,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
