@@ -116,7 +116,7 @@
           <div class="ai-value">{{ item.value }}</div>
           {# Evaluation layer: the customer's own certificates, joined at
              render time (eligibility_eval.py) — never in the shared summary. #}
-          {% if item.certs %}{% with notes = item.certs %}{% include "_cert_notes.html" %}{% endwith %}{% endif %}
+          {% if item.certs %}{% with notes = item.certs, cert_links = true %}{% include "_cert_notes.html" %}{% endwith %}{% endif %}
           <details class="cl-quote">
             <summary>{{ t("τι λέει η προκήρυξη") }}</summary>
             <blockquote class="ai-quote">«{{ item.quote }}»</blockquote>

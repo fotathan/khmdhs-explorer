@@ -1,7 +1,8 @@
 {# _cert_notes.html — the customer's certificates under one checklist item.
 
    Input: `notes` = item.certs from eligibility_eval.annotate(), via
-   tender_checklist.view(). Included by _panel_checklist.html and
+   tender_checklist.view(); `cert_links` (panel only, not on paper) links an
+   undeclared scheme to /account/certificates. Included by _panel_checklist.html and
    checklist_print.html. docs/specs/evaluation-layer.md.
 
    Evidence, never a verdict: it says what the PROFILE shows and leaves the
@@ -15,6 +16,7 @@
     {% if n.status == 'undeclared' %}
       <span class="ic" aria-hidden="true">·</span>
       {{ n.name }}{% if n.holder == 'manufacturer' %} ({{ t("κατασκευαστή") }}){% endif %}: {{ t("δεν έχει δηλωθεί στο προφίλ σας.") }}
+      {% if cert_links %}<a class="cl-cert-add" href="/account/certificates">{{ t("Προσθήκη") }} ›</a>{% endif %}
     {% elif n.status == 'ok' %}
       <span class="ic" aria-hidden="true">✓</span>
       {{ who }}: <b>{{ name }}</b>, {{ t("ισχύει έως") }} {{ n.cert.valid_until.strftime('%d/%m/%Y') }}.

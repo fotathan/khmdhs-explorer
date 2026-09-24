@@ -3668,6 +3668,47 @@ _CERTS = {
     "Έκδοση": "Edition",
     "Κατασκευαστής (όνομα)": "Manufacturer (name)",
     "Αποθήκευση πιστοποιητικού": "Save certificate",
+    'Ο πελάτης διαχειρίζεται και ο ίδιος τα πιστοποιητικά του στο «Πιστοποιητικά» του λογαριασμού του (προσθήκη, ανανέωση με νέα ημερομηνία, διαγραφή)· στην καρτέλα CRM φαίνεται ποιος καταχώρισε το καθένα. Στην ίδια σελίδα ενεργοποιεί, αν θέλει, υπενθύμιση με email 60 και 14 ημέρες πριν λήξει ένα πιστοποιητικό — είναι απενεργοποιημένη αν δεν τη ζητήσει. Κάθε υπενθύμιση στέλνεται μία φορά· με νέα ημερομηνία λήξης ξαναοπλίζεται. Τα email φεύγουν από τον ίδιο μηχανισμό με τις ειδοποιήσεις αναζητήσεων, και το κείμενό τους αλλάζει στο πρότυπο email «cert_expiry».':
+        'Customers also manage their own certificates under «Certificates» in their account (add, renew with a new date, delete); the CRM card shows who entered each one. On the same page they can turn on an email reminder 60 and 14 days before a certificate expires — it is off unless they ask for it. Each reminder is sent once; a new expiry date re-arms it. The emails go out through the same mechanism as the search alerts, and their wording is edited in the «cert_expiry» email template.',
+    'αύριο': 'tomorrow',
+    'σε %d ημέρες': 'in %d days',
+    'Τα πιστοποιητικά μου': 'My certificates',
+    'Λαμβάνετε αυτό το μήνυμα επειδή ζητήσατε υπενθυμίσεις λήξης πιστοποιητικών. Τις απενεργοποιείτε στη σελίδα των πιστοποιητικών σας.':
+        'You are receiving this because you asked for certificate expiry reminders. You can turn them off on your certificates page.',
+    'Πιστοποιητικό σας λήγει σύντομα': 'A certificate of yours expires soon',
+    'Ένα ή περισσότερα πιστοποιητικά στο προφίλ σας λήγουν σύντομα.': 'One or more certificates in your profile expire soon.',
+    'Λήξη πιστοποιητικών': 'Certificate expiry',
+    'Τα πιστοποιητικά της εταιρείας σας — και, αν θέλετε, των κατασκευαστών που αντιπροσωπεύετε. Σε κάθε λίστα ελέγχου διαγωνισμού εμφανίζονται κάτω από τα στοιχεία που τα ζητούν, με την ισχύ τους σε σχέση με την καταληκτική ημερομηνία. Είναι ένδειξη: δεν τσεκάρεται τίποτα αυτόματα.':
+        "Your company's certificates — and, if you like, those of the manufacturers you represent. On every tender checklist they appear under the items that ask for them, with their validity against the closing date. It is a pointer: nothing is ticked automatically.",
+    'Το πιστοποιητικό αποθηκεύτηκε.': 'Certificate saved.',
+    'Το πιστοποιητικό διαγράφηκε.': 'Certificate deleted.',
+    'Οι υπενθυμίσεις ενεργοποιήθηκαν.': 'Reminders turned on.',
+    'Οι υπενθυμίσεις απενεργοποιήθηκαν.': 'Reminders turned off.',
+    'Άγνωστο πρότυπο.': 'Unknown standard.',
+    'Άγνωστος κάτοχος.': 'Unknown holder.',
+    'Συμπληρώστε το όνομα του κατασκευαστή.': "Enter the manufacturer's name.",
+    'Η έκδοση είναι έτος, π.χ. 2015.': 'The edition is a year, e.g. 2015.',
+    'Μη έγκυρη ημερομηνία λήξης.': 'Invalid expiry date.',
+    'Το κείμενο είναι πολύ μεγάλο.': 'The text is too long.',
+    'Η συνδρομή σας δεν είναι ενεργή. Τα πιστοποιητικά σας φυλάσσονται και εμφανίζονται ξανά μετά την ανανέωση.':
+        'Your subscription is not active. Your certificates are kept and appear again once it is renewed.',
+    'Τα πιστοποιητικά σας': 'Your certificates',
+    'λήγει σύντομα': 'expires soon',
+    'Δεν έχετε δηλώσει πιστοποιητικά ακόμη.': 'You have not declared any certificates yet.',
+    'Προσθήκη ή ανανέωση': 'Add or renew',
+    'Για ανανέωση, αποθηκεύστε ξανά το ίδιο πρότυπο με τη νέα ημερομηνία λήξης.':
+        'To renew, save the same standard again with the new expiry date.',
+    'Υπενθύμιση λήξης με email': 'Expiry reminder by email',
+    'Σας στέλνουμε email 60 και 14 ημέρες πριν λήξει ένα πιστοποιητικό με δηλωμένη ημερομηνία λήξης, στη διεύθυνση του λογαριασμού σας.':
+        'We email you 60 and 14 days before a certificate with a declared expiry date lapses, at your account address.',
+    'Ο λογαριασμός σας δεν έχει διεύθυνση email.': 'Your account has no email address.',
+    'Ανενεργές': 'Off',
+    'Απενεργοποίηση υπενθυμίσεων': 'Turn reminders off',
+    'Ενεργοποίηση υπενθυμίσεων': 'Turn reminders on',
+    'ο πελάτης': 'the customer',
+    'Καταχώριση': 'Entered by',
+    'Ο πελάτης τα βλέπει και τα διορθώνει και ο ίδιος στο «Πιστοποιητικά» του λογαριασμού του, όπου ενεργοποιεί και την υπενθύμιση λήξης με email.':
+        'The customer also sees and corrects them under «Certificates» in their account, where they can turn on the expiry reminder email.',
     "Πιστοποιητικά στη λίστα": "Certificates on the list",
     "Αν στην καρτέλα του πελάτη στο CRM (Ταίριασμα → Πιστοποιητικά) έχουν δηλωθεί τα πιστοποιητικά της εταιρείας του — ή των κατασκευαστών που αντιπροσωπεύει — η λίστα τα δείχνει κάτω από κάθε στοιχείο που ζητά ISO 9001, 13485, 14001, 45001 κ.λπ.: «✓ Στο προφίλ σας: ISO 9001:2015, ισχύει έως …», ή «⚠ λήγει … — πριν την υποβολή» όταν λήγει πριν την καταληκτική ημερομηνία. Ό,τι ζητείται και δεν έχει δηλωθεί εμφανίζεται ουδέτερα («δεν έχει δηλωθεί στο προφίλ σας»). Είναι ένδειξη, όχι κρίση: δεν τσεκάρεται τίποτα αυτόματα. Η προειδοποίηση λήξης φαίνεται και στα αγαπημένα, και οι ενδείξεις περνούν στην εκτύπωση και στο Excel.":
         "If the customer's CRM card (Fit → Certificates) declares their company's certificates — or those of the manufacturers they represent — the list shows them under every item that asks for ISO 9001, 13485, 14001, 45001 and so on: «✓ In your profile: ISO 9001:2015, valid until …», or «⚠ expires … — before the closing date» when it lapses before the deadline. Anything asked for that has not been declared is shown neutrally («not declared in your profile»). It is a pointer, not a verdict: nothing is ticked automatically. The expiry warning also shows on favourites, and the notes carry over to the print-out and the Excel file.",

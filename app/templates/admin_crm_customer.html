@@ -361,11 +361,12 @@
   <div class="cert-box" id="certs">
     <h3>{{ t("Πιστοποιητικά") }}</h3>
     <p class="fit-note">{{ t("Όσα δηλωθούν εδώ εμφανίζονται στη λίστα ελέγχου του πελάτη, κάτω από τα στοιχεία που τα ζητούν, με την ισχύ τους σε σχέση με την καταληκτική ημερομηνία. Δεν τσεκάρεται τίποτα αυτόματα.") }}</p>
+    <p class="fit-note">{{ t("Ο πελάτης τα βλέπει και τα διορθώνει και ο ίδιος στο «Πιστοποιητικά» του λογαριασμού του, όπου ενεργοποιεί και την υπενθύμιση λήξης με email.") }}</p>
     {% if certs %}
     <table class="crm-tbl cert-tbl">
       <thead><tr>
         <th>{{ t("Πρότυπο") }}</th><th>{{ t("Κάτοχος") }}</th><th>{{ t("Αριθμός") }}</th>
-        <th>{{ t("Φορέας πιστοποίησης") }}</th><th>{{ t("Ισχύει έως") }}</th><th></th>
+        <th>{{ t("Φορέας πιστοποίησης") }}</th><th>{{ t("Ισχύει έως") }}</th><th>{{ t("Καταχώριση") }}</th><th></th>
       </tr></thead>
       <tbody>
         {% for cert in certs %}
@@ -375,6 +376,7 @@
           <td>{{ cert.number or "—" }}</td>
           <td>{{ cert.issuer or "—" }}</td>
           <td class="nowrap">{{ cert.valid_until.strftime("%d/%m/%Y") if cert.valid_until else "—" }}</td>
+          <td class="muted">{{ t("ο πελάτης") if cert.source == 'customer' else t("διαχειριστής") }}</td>
           <td>
             <form method="post" action="/admin/crm/{{ cust.id }}/certificates/{{ cert.id }}/delete"
                   onsubmit="return confirm('{{ t("Διαγραφή αυτού του πιστοποιητικού;") }}')">

@@ -2020,4 +2020,18 @@ def run_loop(stop_event, cursor_factory, poll_seconds=60.0):
                       f"errors={out['errors']}", flush=True)
         except Exception:                # noqa: BLE001 — a tick must never kill the thread
             traceback.print_exc()
+        # Certificate expiry reminders ride the same runner (never a second
+        # one): app/cert_reminders.py, opt-in, each mark once per valid_until.
+        try:
+            try:
+                from app import cert_reminders as _certs
+            except ImportError:          # pragma: no cover — run with --app-dir=app
+                import cert_reminders as _certs
+            with cursor_factory() as c:
+                cr = _certs.run_due(c)
+            if cr["sent"] or cr["errors"]:
+                print(f"[cert_reminders] sent={cr['sent']} errors={cr['errors']}",
+                      flush=True)
+        except Exception:                # noqa: BLE001
+            traceback.print_exc()
         stop_event.wait(poll_seconds)

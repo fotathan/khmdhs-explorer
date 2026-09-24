@@ -449,6 +449,14 @@ CRM card (Ταίριασμα tab → Πιστοποιητικά). Customer self-
   act_ai_summary; ai_summary.py never reads certificates (test-enforced).
 - Not gated on company_profile.is_active: that needs CPV history, and a firm
   with no ledger could never see its certificates.
+- Customers keep their own list on /account/certificates
+  (app/account_certificates.py, source='customer'); every write is scoped to
+  (user, id). The CRM table says who entered each row.
+- Expiry reminders (app/cert_reminders.py): OPT-IN (proc.certificate_alert,
+  no row = off), 60/14 days before valid_until, each mark once per
+  valid_until (proc.certificate_expiry_notice, written only after a send).
+  Account address only. Wording: email_template 'cert_expiry'. Runs inside
+  the digest runner (run_loop / cron_digests.py) — never a runner of its own.
 
 ## Working days (app/workdays.py, docs/specs/working-day-deadlines.md)
 - **Μεγάλη Παρασκευή is a WORKING day; 26 December is NOT** — the owner's

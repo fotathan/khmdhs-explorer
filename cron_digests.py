@@ -73,16 +73,23 @@ def main() -> None:
             _close_app_pool()
             return
         out = _digests.run_due(c, force=force, limit=limit)
+        # Certificate expiry reminders (app/cert_reminders.py) share this
+        # runner — never a second one.
+        from app import cert_reminders as _certs
+        certs = _certs.run_due(c)
 
     print(f"cron_digests: checked {out['checked']} · sent {out['sent']} · "
           f"empty {out['empty']} · errors {out['errors']} · "
           f"skipped {out['skipped']} in {time.time() - t0:.1f}s", flush=True)
+    print(f"cron_digests: certificate reminders — checked {certs['checked']} · "
+          f"sent {certs['sent']} · errors {certs['errors']} · "
+          f"skipped {certs['skipped']}", flush=True)
     for r in out["results"]:
         if r["status"] == "error":
             print(f"  ERROR {r.get('username')}/{r.get('profile')}: "
                   f"{r.get('error')}", flush=True)
     _close_app_pool()
-    if out["errors"]:
+    if out["errors"] or certs["errors"]:
         raise SystemExit(1)
 
 

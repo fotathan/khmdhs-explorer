@@ -2421,6 +2421,15 @@ except ImportError:
     from calendar_feed import make_router as _make_calendar_router
 app.include_router(_make_calendar_router(templates, cursor))
 
+# /account/certificates — the customer's own certificates (shown on every
+# tender checklist) and the opt-in expiry reminder. docs/specs/evaluation-
+# layer.md §10. The reminders are sent by the digest runner.
+try:
+    from app.account_certificates import make_router as _make_acct_certs_router
+except ImportError:
+    from account_certificates import make_router as _make_acct_certs_router
+app.include_router(_make_acct_certs_router(templates, cursor))
+
 # /welcome — the first-login wizard that turns a few answers into saved
 # searches (app/onboarding.py). Off with ONBOARDING_ENABLED=0/false/…: then
 # there are no routes, no registration question and no banner.
