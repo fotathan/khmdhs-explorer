@@ -18,8 +18,8 @@
     {{ t("Επόμενη προθεσμία:") }} {{ cp.next.label }},
     <b>{{ cp.next.date.strftime('%d/%m') }}{% if cp.next.time %} {{ cp.next.time }}{% endif %}</b>
     {% if cp.next.days_left == 0 %}({{ t("σήμερα") }})
-    {% elif lang == 'en' %}(in {{ cp.next.days_left }} day{{ '' if cp.next.days_left == 1 else 's' }})
-    {% else %}(σε {{ cp.next.days_left }} {{ "ημέρα" if cp.next.days_left == 1 else "ημέρες" }}){% endif %}
+    {% elif lang == 'en' %}(in {{ cp.next.days_left }} day{{ '' if cp.next.days_left == 1 else 's' }}, {{ cp.next.workdays_left }} working)
+    {% else %}(σε {{ cp.next.days_left }} {{ "ημέρα" if cp.next.days_left == 1 else "ημέρες" }}, {{ cp.next.workdays_left }} {{ "εργάσιμη" if cp.next.workdays_left == 1 else "εργάσιμες" }}){% endif %}
   </span>
   {% endif %}
   <span class="fav-cl-go" aria-hidden="true">›</span>

@@ -1,6 +1,8 @@
 # Spec: Working-day deadlines (Greek holidays) → the legal calendar of a notice
 
-**Status:** Draft, 2026-09-23. Nothing built.
+**Status:** Draft, 2026-09-23. Slices 1–2 (arithmetic + overrides) built
+2026-09-24 (branch `feat/working-days`), with working days shown in the
+tender checklist. Slice 3 (legal periods) still needs §4 filled in.
 **Repo path:** `docs/specs/working-day-deadlines.md`
 **Companion spec:** `docs/specs/calendar-feed.md` (consumes this module).
 **Prompted by:** anunturi.sisap.ro (Romanian, Arxia). They sell exactly this as
@@ -113,19 +115,20 @@ Movable, as offsets from Orthodox Easter Sunday:
 | Offset | Name | 2026 | 2027 |
 |---|---|---|---|
 | −48 | Καθαρά Δευτέρα | 23 Feb | 15 Mar |
-| −2 | Μεγάλη Παρασκευή | 10 Apr | 30 Apr |
+| ~~−2~~ | ~~Μεγάλη Παρασκευή~~ — **working day** (decided 2026-09-24) | ~~10 Apr~~ | ~~30 Apr~~ |
 | +1 | Δευτέρα του Πάσχα | 13 Apr | 3 May |
 | +50 | Αγίου Πνεύματος | 1 Jun | 21 Jun |
 
 Easter Sunday itself is always a Sunday and needs no entry.
 
-> **Confirm before building — yours, not mine.**
-> Μεγάλη Παρασκευή is listed above as a non-working day. Whether it counts as
-> an αργία *for the purpose of computing a procurement deadline* is a legal
-> question, not an arithmetic one, and the answer changes results in the single
-> busiest week of the Greek calendar. Same question for 26 December. Decide
-> both before this ships; the module structure makes either answer a one-line
-> change, but the answer must be deliberate.
+> **Decided by the owner, 2026-09-24:**
+> - **Μεγάλη Παρασκευή is a WORKING day** for deadline counting. It is not
+>   in the holiday set (the table above lists it only to record the decision).
+> - **26 December (Σύναξη Θεοτόκου) is NOT a working day.** It stays.
+>
+> Either can be overridden for a single year from `proc.public_holiday`
+> (§3c) without a deploy; changing the rule itself is a one-line change in
+> `app/workdays.py` and must be as deliberate as this was.
 
 ### 3c. Overrides — `proc.public_holiday`
 
@@ -267,8 +270,8 @@ Pure-Python, no database except the override table.
 1. **Easter**, pinned to the eight-year table in §3a.
 2. **Movable feasts** derived from it, pinned for 2026 and 2027 (§3b table).
 3. **Easter week arithmetic** — the cluster case. Ten working days back from a
-   date just after Πάσχα must skip Μεγάλη Παρασκευή, Easter Monday and two
-   weekends. Assert the exact date, computed by hand in the test, not by
+   date just after Πάσχα must skip Easter Monday and two weekends — and must
+   COUNT Μεγάλη Παρασκευή, a working day by the owner's decision. Assert the exact date, computed by hand in the test, not by
    re-running the implementation.
 4. **Direction symmetry** — `add_working_days(add_working_days(d, -n), n)`
    returns to a working day on or after `d` for a range of `d` and `n`.
@@ -329,3 +332,27 @@ Each slice ships on its own.
 
 Slices 1–2 have no user-visible surface and cannot regress anything. Slice 3 is
 the first one that needs your legal confirmations from §4.
+
+---
+
+## 10. What was built (2026-09-24)
+
+Slices 1 and 2, plus the first consumer:
+
+- `app/workdays.py` — Easter, the holiday set (Μεγάλη Παρασκευή a working
+  day, 26 December not), `is_working_day`, `add_working_days`,
+  `working_days_between` (days after `a` up to and including `b`, so
+  "working days left" never counts today), `holiday_name`. Refuses datetimes.
+  Overrides are handed in with `set_overrides()`; the module has no database.
+- `proc.public_holiday` (migration `20260924140000_public_holiday.sql`),
+  seeded empty. `tender_checklist.refresh_holidays()` loads it into workdays
+  at most every 10 minutes per process; a failed read keeps the last map.
+  **No admin screen yet** — rows are added with SQL (e.g. a moved 1 May:
+  one row `is_holiday=false` for the 1st, one `true` for the new day).
+- The tender checklist shows working days next to calendar days for every
+  dated deadline, and marks one that falls on a holiday; the favourites line
+  shows both too.
+
+Still open: slice 3 (`app/deadlines.py`, the statutory periods) needs the
+periods in §4 confirmed; slice 5 (digest `lead_days` in working days) is its
+own decision. Tests: `tests/test_workdays.py`.

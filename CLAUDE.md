@@ -408,7 +408,7 @@ app/tender_checklist.py; tab «Λίστα ελέγχου» on the act page, afte
 - Tasks: eligibility + submission (all), pricing + requirements (mandatory
   only). award/attention never; timeline = the deadline set.
 - A timeline item is dated only when it names exactly ONE date. Athens local
-  dates; "days left" are calendar days until app/workdays.py exists.
+  dates; each dated deadline shows calendar AND working days left.
 - Ticks: proc.act_checklist_tick, per user. Key = sha256(section|folded label|
   folded quote)[:20]; the POST accepts only a key in the current checklist.
   Orphaned ticks (re-worded after regeneration) are kept and counted.
@@ -425,6 +425,15 @@ app/tender_checklist.py; tab «Λίστα ελέγχου» on the act page, afte
 - Own items (proc.act_checklist_own_item): per user AND act on every query,
   ≤200 chars, ≤50 per act; counted in both progress numbers. Their routes
   are registered BEFORE /checklist/{key}.
+
+## Working days (app/workdays.py, docs/specs/working-day-deadlines.md)
+- **Μεγάλη Παρασκευή is a WORKING day; 26 December is NOT** — the owner's
+  decision, 2026-09-24. Changing either is a code change, never a guess.
+- Pure arithmetic, no DB, no legal periods. Takes dates, REFUSES datetimes:
+  convert to Europe/Athens and take .date() first.
+- working_days_between(a, b) counts days AFTER a up to and including b.
+- Overrides: proc.public_holiday (true adds, false removes a computed day),
+  loaded by tender_checklist.refresh_holidays() every ≤10 min. No admin UI yet.
 
 ## Attachments (app/attachments.py)
 Files an admin attaches to an act — mainly the ΕΣΗΔΗΣ διακήρυξη of a big
