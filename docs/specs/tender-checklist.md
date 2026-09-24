@@ -4,7 +4,8 @@
 calendar) shipped 2026-09-24 (PR #58). Slice 3 (progress on favourites)
 shipped 2026-09-24 (PR #59). Slice 4 (the customer's own items)
 shipped 2026-09-24 (PR #60). Working days added 2026-09-24 (PR #61).
-Slice 5 (print + Excel) built 2026-09-24 (branch `feat/checklist-print`).
+Slice 5 (print + Excel) shipped 2026-09-24 (PR #62). Slice 6 (evaluation
+layer) is specced, not built: `docs/specs/evaluation-layer.md`.
 **Roadmap:** Tier 2, "per-tender checklist + deadline set, generated from the
 extraction" — after fit scoring and attachments-to-prod, which is what makes
 the extraction worth building on.
@@ -110,9 +111,10 @@ Routes: `GET /act/<adam>/checklist`, `POST /act/<adam>/checklist/<key>`
    working-day-deadlines.md §10.
 4. ~~The customer's own items~~ — built, see §9.
 5. ~~Printable / exportable list~~ — built, see §10.
-6. **Evaluation layer** (ai-summary §14): pre-tick eligibility items the
-   company profile provably satisfies. Needs declared certificates on the
-   profile first, and must stay out of the shared payload.
+6. **Evaluation layer** (ai-summary §14): the customer's declared
+   certificates against eligibility items. Specced in
+   `docs/specs/evaluation-layer.md` (DRAFT, awaiting the owner's decisions);
+   it suggests and never pre-ticks.
 
 ---
 
