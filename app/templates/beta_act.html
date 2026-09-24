@@ -137,6 +137,12 @@
       {% endif %}
       <button type="button" class="act-btn" data-act-print hidden><span aria-hidden="true">⎙</span> {{ t("Εκτύπωση") }}</button>
     </div>
+    {# Fit with the customer's own firm (app/account_fit.py). Loaded after the
+       page; the endpoint answers empty unless an admin switched their
+       profile on, so for everyone else this div simply disappears. #}
+    {% if user and atype == 'notice' %}
+    <div hx-get="/act/{{ n.adam }}/fit" hx-trigger="load" hx-swap="outerHTML"></div>
+    {% endif %}
     {% endif %}
   </div>
 
@@ -153,6 +159,8 @@
   {% set _ = sections.append(('overview', t("Επισκόπηση"), none)) %}
   {% set has_ai = ai_summary_enabled and atype == 'notice' %}
   {% if has_ai %}{% set _ = sections.append(('ai', t("Σύνοψη διαγωνισμού"), none)) %}{% endif %}
+  {% set has_checklist = has_ai and has_access %}
+  {% if has_checklist %}{% set _ = sections.append(('checklist', t("Λίστα ελέγχου"), none)) %}{% endif %}
   {% set _ = sections.append(('items', t("Είδη & CPV"), (line_items|length) or none)) %}
   {% if n.full_text %}{% set _ = sections.append(('fulltext', t("Πλήρες κείμενο"), none)) %}{% endif %}
   {% set _ = sections.append(('market', t("Ανταγωνισμός"), none)) %}
@@ -384,6 +392,19 @@
   <section class="apanel" id="tab-ai" data-tab="ai" role="tabpanel" aria-labelledby="atab-ai" data-autohide>
     {{ section_toggle(t("Σύνοψη διαγωνισμού"), none) }}
     <div class="apanel-body"><div id="ai-summary-mount" hx-get="/act/{{ n.adam }}/ai"
+           hx-trigger="load" hx-swap="outerHTML"></div></div>
+  </section>
+  {% endif %}
+
+  {# ---------- Checklist (derived from the summary) ----------
+     What to gather and when, built from the CURRENT AI summary plus the
+     record's closing date, with the reader's own ticks. The route answers ""
+     when there is no current summary, and the tab removes itself.
+     app/tender_checklist.py, docs/specs/tender-checklist.md. #}
+  {% if has_checklist %}
+  <section class="apanel" id="tab-checklist" data-tab="checklist" role="tabpanel" aria-labelledby="atab-checklist" data-autohide>
+    {{ section_toggle(t("Λίστα ελέγχου"), none) }}
+    <div class="apanel-body"><div id="checklist-mount" hx-get="/act/{{ n.adam }}/checklist"
            hx-trigger="load" hx-swap="outerHTML"></div></div>
   </section>
   {% endif %}

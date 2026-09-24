@@ -1,0 +1,68 @@
+{# _bid_stage.html — the bid stage of ONE favourite, which SWAPS ITSELF.
+
+   Rendered under each card on /account/favorites and returned by both
+   POST /account/favorites/<adam>/stage and …/stage/confirm, so what the panel
+   shows is always what the server just wrote. Inputs:
+     fav        row with adam, bid_stage, bid_note, bid_stage_at,
+                bid_stage_source, bid_outcome_adam
+     detection  bid_pipeline.detect_outcomes() entry, or None
+     stages     bid_pipeline.STAGES; no_stage_label
+     error      optional message
+
+   The ledger box is a SUGGESTION. Its button posts nothing but the act: the
+   server re-detects before it writes anything (bid_pipeline.confirm_from_ledger).
+   The form saves on any change (the select at once, the note when it loses
+   focus) and on Enter; a repeat save of the same values changes nothing.
+   CSRF: _csrf.html attaches X-CSRF-Token to every HTMX request. #}
+<div class="bid-stage{% if fav.bid_stage %} st-{{ fav.bid_stage }}{% endif %}" id="bid-stage-{{ fav.adam }}">
+  <form class="bid-form"
+        hx-post="/account/favorites/{{ fav.adam }}/stage"
+        hx-target="#bid-stage-{{ fav.adam }}" hx-swap="outerHTML"
+        hx-trigger="change, submit">
+    <label class="bid-lbl" for="bid-sel-{{ fav.adam }}">{{ t("Στάδιο") }}</label>
+    <select name="stage" id="bid-sel-{{ fav.adam }}">
+      <option value=""{% if not fav.bid_stage %} selected{% endif %}>{{ no_stage_label | t }}</option>
+      {% for code, label in stages %}
+      <option value="{{ code }}"{% if fav.bid_stage == code %} selected{% endif %}>{{ label | t }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" name="note" maxlength="300" value="{{ fav.bid_note or '' }}"
+           placeholder="{{ t('Σημείωση (π.χ. γιατί δεν συμμετέχουμε)') }}"
+           aria-label="{{ t('Σημείωση') }}">
+    <button type="submit" class="bid-save">{{ t("Αποθήκευση") }}</button>
+  </form>
+
+  {% if fav.bid_stage and fav.bid_stage_at %}
+  <div class="bid-meta">
+    {{ t("Ορίστηκε") }} {{ fav.bid_stage_at.strftime('%d/%m/%Y') }}
+    {% if fav.bid_stage_source == 'ledger' and fav.bid_outcome_adam %}
+      · {{ t("επιβεβαιώθηκε από την ανάθεση") }}
+      <a href="/act/{{ fav.bid_outcome_adam }}">{{ fav.bid_outcome_adam }}</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if detection %}
+  <div class="bid-detect {{ 'won' if detection.kind == 'won' else 'other' }}">
+    {% if detection.kind == 'won' %}
+      <b>{{ t("Η ανάθεση σας αναφέρει ως ανάδοχο.") }}</b>
+    {% else %}
+      <b>{{ t("Η ανάθεση δημοσιεύθηκε:") }}</b>
+      {{ detection.winners[:3] | join(", ") }}{% if detection.winners | length > 3 %} +{{ detection.winners | length - 3 }}{% endif %}
+    {% endif %}
+    · <a href="/act/{{ detection.award_adam }}">{{ t("Άνοιγμα ανάθεσης") }}</a>
+    {% if detection.can_confirm %}
+      <button type="button" class="bid-confirm"
+              hx-post="/account/favorites/{{ fav.adam }}/stage/confirm"
+              hx-target="#bid-stage-{{ fav.adam }}" hx-swap="outerHTML">
+        {{ t("Σημείωση ως «Κερδήθηκε»") if detection.kind == 'won' else t("Σημείωση ως «Δεν κερδήθηκε»") }}
+      </button>
+    {% endif %}
+    {% if detection.kind != 'won' %}
+      <div class="bid-hint">{{ t("Σε διαγωνισμό με τμήματα, ελέγξτε το τμήμα για το οποίο υποβάλατε προσφορά.") }}</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if error %}<div class="bid-err">{{ error | t }}</div>{% endif %}
+</div>

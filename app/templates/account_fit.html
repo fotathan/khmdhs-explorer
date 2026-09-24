@@ -1,0 +1,75 @@
+{% extends "beta_base.html" %}
+{% block title %}{{ t("Ταιριάζουν σε εσάς") }} · {{ t("Εξερευνητής") }}{% endblock %}
+{% block content %}
+{% from "_fit_parts.html" import score_badge, parts, styles with context %}
+<div class="acct-wrap acct-wide">
+  {% include "_acct_nav.html" %}
+  <h1>{{ t("Ταιριάζουν σε εσάς") }}</h1>
+
+  {% if profile %}
+    {# What the ranking rests on, in numbers the customer can check. #}
+    <p class="acct-muted">
+      {{ t("Οι ανοικτοί διαγωνισμοί που ταιριάζουν περισσότερο με την εταιρεία σας, με βάση") }}
+      {# n_awards counts award acts (decision AND contract), hence
+         "αναθέσεις", never "συμβάσεις": the same word the CRM card uses. #}
+      <strong>{{ "{:,}".format(prow.n_awards).replace(",", ".") }}</strong> {{ t("αναθέσεις στην εταιρεία σας από") }}
+      <strong>{{ "{:,}".format(prow.n_buyers).replace(",", ".") }}</strong> {{ t("αναθέτουσες") }}{% if prow.derived_at %}
+      ({{ t("Ενημερώθηκε") | lower }} {{ prow.derived_at.strftime('%d/%m/%Y') }}){% endif %}.
+      {{ t("Κάθε βαθμός αναλύεται σε αντικείμενο, μέγεθος, περιοχή και αναθέτουσα. Είναι υπολογισμός πάνω στα δημόσια δεδομένα αναθέσεων, όχι τεχνητή νοημοσύνη, και δεν στέλνει τα στοιχεία σας πουθενά.") }}
+    </p>
+
+    {% if rows %}
+    <p class="acct-muted">{{ t("Εμφανίζονται οι") }} {{ rows | length }} {{ t("καλύτεροι από") }} {{ "{:,}".format(n_candidates).replace(",", ".") }} {{ t("ανοικτούς διαγωνισμούς στους τομείς σας.") }}</p>
+    <div class="fitc-list">
+      {% for r in rows %}
+      <article class="fitc-row">
+        <div class="fitc-side">{{ score_badge(r, band) }}</div>
+        <div class="fitc-main">
+          <div class="fitc-top">
+            {% with adam = r.adam, favorited = r.adam in favorites, compact = true %}
+              {% include "_favorite_toggle.html" %}
+            {% endwith %}
+            <a class="fitc-title" href="/act/{{ r.adam }}">{{ r.title or r.adam }}</a>
+          </div>
+          <div class="fitc-meta">
+            <span>{{ r.authority_name or "—" }}</span>
+            {% if r.resolved_value %}<span>{{ "{:,.0f}".format(r.resolved_value|float).replace(",", ".") }} €</span>{% endif %}
+            {% if r.final_submission_date %}<span>{{ t("λήξη") }} <b>{{ r.final_submission_date.strftime('%d/%m/%Y') }}</b></span>{% endif %}
+          </div>
+          {{ parts(r, customer_why) }}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="acct-card"><p>{{ t("Δεν υπάρχουν αυτή τη στιγμή ανοικτοί διαγωνισμοί στους τομείς σας.") }}</p></div>
+    {% endif %}
+
+  {% elif not entitled %}
+    <div class="acct-card"><p>{{ t("Το ταίριασμα διαγωνισμών είναι διαθέσιμο με ενεργή συνδρομή.") }}</p></div>
+  {% else %}
+    {# No profile, or one an admin has not switched on yet. Same words for
+       both: the customer can do nothing about either except ask us. #}
+    <div class="acct-card">
+      <p>{{ t("Εδώ θα βλέπετε τους ανοικτούς διαγωνισμούς που ταιριάζουν περισσότερο με την εταιρεία σας, βαθμολογημένους με βάση τις συμβάσεις που έχετε ήδη κερδίσει: αντικείμενο, μέγεθος, περιοχή και αναθέτουσα.") }}</p>
+      <p class="acct-muted">{{ t("Η υπηρεσία δεν έχει ενεργοποιηθεί ακόμη για τον λογαριασμό σας. Επικοινωνήστε μαζί μας και θα τη ρυθμίσουμε από το ΑΦΜ της εταιρείας σας — δεν χρειάζεται να συμπληρώσετε φόρμα.") }}</p>
+    </div>
+  {% endif %}
+</div>
+{% include "_acct_styles.html" %}
+{{ styles() }}
+<style>
+  .acct-wrap.acct-wide{max-width:980px;}
+  .fitc-list{display:grid;gap:10px;}
+  .fitc-row{display:grid;grid-template-columns:48px 1fr;gap:12px;padding:12px 14px;
+    border:1px solid var(--rule,#e6e8ec);border-radius:12px;background:var(--paper,#fff);}
+  .fitc-top{display:flex;align-items:flex-start;gap:6px;}
+  .fitc-title{font-weight:600;color:var(--ink,#1c2230);text-decoration:none;line-height:1.35;}
+  .fitc-title:hover{text-decoration:underline;}
+  .fitc-meta{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--ink-2,#5b626d);margin:3px 0 2px;}
+  @media (max-width:560px){
+    .fitc-row{grid-template-columns:1fr;}
+    .fitc-parts li{grid-template-columns:80px 44px 1fr;}
+  }
+</style>
+{% endblock %}

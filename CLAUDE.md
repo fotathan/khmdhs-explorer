@@ -205,6 +205,19 @@ on the CRM card's Ταίριασμα tab. Deterministic arithmetic, NO model.
   Test with real-format codes, not bare 8 digits.
 - Components are always shown, never just the total. `why` is a fixed Greek
   phrase (a translation key) and the variable part rides in `detail`.
+- **Customers see it** (app/account_fit.py): /account/fit ranks their open
+  tenders, and /act/<adam>/fit is an HTMX panel on each notice (act_detail is
+  untouched). Only for an ENTITLED customer whose company_profile.is_active an
+  admin switched on (CRM Ταίριασμα tab → "Εμφάνιση στον πελάτη"); nothing turns
+  it on automatically. The panel answers EMPTY, never 403, for everyone else.
+- Customers read fit.py's `why` phrases through account_fit.CUSTOMER_WHY (second
+  person). A new phrase in fit.py needs a customer version — a test runs every
+  scorer branch and fails otherwise.
+- open_tenders scores EVERY open candidate (CANDIDATE_CAP 5000). It used to take
+  the 200 closing soonest before scoring, i.e. ~12% of a real profile's
+  candidates. It also excludes hidden duplicates (VISIBLE_SQL).
+- n_awards counts award ACTS (decision + contract), so customer copy says
+  "αναθέσεις", never "συμβάσεις".
 
 ## Two providers for the AI summary
 **DeepSeek is production; Anthropic is the second option.** AI_SUMMARY_MODEL
@@ -361,11 +374,107 @@ the customer's own calendar; /account/calendar makes the link.
   token, a turned-off feed or a deactivated account is a 404.
 - DTSTAMP is derived from the data, never the clock, or no poll is ever a 304.
 - /calendar is in BOTH seo._NOINDEX_PREFIXES and seo._DISALLOW_PATHS.
+- Saved searches join the feed only when ticked on /account/searches
+  (proc.calendar_search, slice 5). Favourites always fit first; searches fill
+  the rest of CALENDAR_MAX_EVENTS, upcoming soonest first. A search never
+  brings in a cancelled act, and its past reaches back only to the tick —
+  never a backfill of closed tenders.
 - calendar_feed.act_event is the ONE definition of an act as an event, used by
   the feed and by /act/<adam>/calendar.ics. SEQUENCE comes from
   last_update_date — without it a moved deadline does not move in the client.
 - app/ics.py folds at 75 OCTETS (Greek is 2 bytes/char) and escapes `\ ; ,`.
   Its tests are written in Greek on purpose; ASCII tests pass broken code.
+
+## Bid pipeline on favourites (docs/specs/bid-pipeline.md)
+app/bid_pipeline.py; stage columns on proc.user_favorite_act; UI on
+/account/favorites (_bid_stage.html). Stages: bidding / submitted / won / lost /
+no_bid; NULL = bookmark. Removing the star forgets the stage.
+- **The ledger suggests, it never writes.** detect_outcomes is read-only;
+  confirm_from_ledger RE-DETECTS and takes nothing from the form. Only it sets
+  bid_stage_source='ledger' + bid_outcome_adam; a manual stage change drops
+  both. That split is the win/loss data fit.py will be calibrated on — keep it.
+- "Awarded to others" is confirmable as a loss ONLY when the customer's ΑΦΜ is
+  linked (fit.operator_ids_for — never onboarding's declared_afm). Lots, joint
+  ventures and a winners-only ledger are why nothing is automatic.
+- Detection is for entitled users only (winner names are act data).
+- no_bid leaves the calendar feed on BOTH paths (favourites and ticked
+  searches — calendar_feed.declined_adams).
+- Isolation: bid_pipeline must not read act_ai_summary (test-enforced).
+
+## Per-tender checklist (docs/specs/tender-checklist.md)
+app/tender_checklist.py; tab «Λίστα ελέγχου» on the act page, after the summary.
+- A VIEW over the act's CURRENT summary payload + final_submission_date,
+  rebuilt per request. No model call. No current summary = no checklist.
+- Tasks: eligibility + submission (all), pricing + requirements (mandatory
+  only). award/attention never; timeline = the deadline set.
+- A timeline item is dated only when it names exactly ONE date. Athens local
+  dates; each dated deadline shows calendar AND working days left.
+- Ticks: proc.act_checklist_tick, per user. Key = sha256(section|folded label|
+  folded quote)[:20]; the POST accepts only a key in the current checklist.
+  Orphaned ticks (re-worded after regeneration) are kept and counted.
+- Isolation, one way: it reads act_ai_summary and never writes it; ai_summary.py
+  never reads the ticks; no company profile. Test-enforced.
+- Entitled readers only; GET answers "" otherwise. Lives under AI_SUMMARY_ENABLED.
+- Its DATED timeline items are calendar events (calendar_feed.milestone_event):
+  favourites in the feed + the one-off download, entitled only, never from
+  search matches. UID never contains the date; SEQUENCE = max(act
+  last_update_date, summary generated_at). The closing date is never repeated.
+- /account/favorites shows "n / N + next deadline" (progress_for) while the
+  favourite is open (no stage / bidding / submitted). Counts only current
+  items — same rule as the panel.
+- Own items (proc.act_checklist_own_item): per user AND act on every query,
+  ≤200 chars, ≤50 per act; counted in both progress numbers. Their routes
+  are registered BEFORE /checklist/{key}.
+- Print (/checklist/print) and Excel (/checklist.xlsx, app/checklist_export.py)
+  are built from view() — never a second arithmetic. Both state when they
+  were made and carry the warning. Every xlsx text cell is forced to a
+  STRING (openpyxl makes "=…" a formula; test-enforced). Not allowed → 303
+  to the act page.
+
+## Certificates on the checklist (docs/specs/evaluation-layer.md)
+app/eligibility_eval.py; proc.company_certificate; entered by an admin on the
+CRM card (Ταίριασμα tab → Πιστοποιητικά). Customer self-service is slice 2.
+- **Suggests, never ticks** (owner, 2026-09-24): a note under the item
+  («✓ Στο προφίλ σας: ISO 9001:2015, ισχύει έως …» / «⚠ … πριν την υποβολή»).
+  A tick means "in the envelope"; holding a certificate is not that.
+- Undeclared schemes get a NEUTRAL line, never "you lack it". The notes appear
+  only for a customer with ≥1 certificate: everyone else's panel is
+  byte-identical, and so is the Excel file's shape (test-enforced).
+- The catalogue is CLOSED and firm-level only (the migration's CHECK repeats
+  it). Product standards (10993, 15223…) are never matched. 13458 = the 13485
+  typo; OHSAS 18001 is answered by 45001 and cannot be declared.
+- holder 'manufacturer' + name: an item naming «ο κατασκευαστής» is answered
+  from those rows. Validity is judged against the closing date (Athens).
+- Isolation: joined at render in tender_checklist.view(), never written to
+  act_ai_summary; ai_summary.py never reads certificates (test-enforced).
+- Not gated on company_profile.is_active: that needs CPV history, and a firm
+  with no ledger could never see its certificates.
+
+## Working days (app/workdays.py, docs/specs/working-day-deadlines.md)
+- **Μεγάλη Παρασκευή is a WORKING day; 26 December is NOT** — the owner's
+  decision, 2026-09-24. Changing either is a code change, never a guess.
+- Pure arithmetic, no DB, no legal periods. Takes dates, REFUSES datetimes:
+  convert to Europe/Athens and take .date() first.
+- working_days_between(a, b) counts days AFTER a up to and including b.
+- Overrides: proc.public_holiday (true adds, false removes a computed day),
+  loaded by tender_checklist.refresh_holidays() every ≤10 min. No admin UI yet.
+
+## Attachments (app/attachments.py)
+Files an admin attaches to an act — mainly the ΕΣΗΔΗΣ διακήρυξη of a big
+tender whose KHMDHS text is only a περίληψη. ATTACHMENTS_ENABLED (default off).
+- Bytes: Supabase Storage in prod (S3 endpoint, PRIVATE bucket, path-style
+  addressing, ATTACH_MAX_MB=50 — the free plan's per-file limit). Never Postgres.
+- Text: proc.act_attachment.extracted_text, capped at ATTACH_TEXT_MAX_CHARS
+  (200k) because prod's DB is a 500 MB free tier; text_total_chars records the
+  full length when cut. Truncation is shown, never silent.
+- Downloads (/act/<adam>/attachment/<id>, attachments.zip) follow the act
+  page's teaser rule: gated callers are redirected to the act. The zip is built
+  in memory, so it refuses past ATTACH_ZIP_MAX_MB.
+- The AI summary reads them as "attachment:<id>" sources (build_sources' third
+  argument — still only the ACT's own documents; test_ai_policy pins it). An
+  act with no attachments keeps its exact cache key. /ai names attached
+  documents only while attachments_on.
+- A failed row insert removes the stored object (no orphans).
 
 ## Tests
 pytest in tests/, runs in CI. Needs TEST_DATABASE_URL (throwaway DB) + psql.

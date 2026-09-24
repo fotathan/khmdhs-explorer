@@ -17,7 +17,7 @@ import threading
 
 from urllib.parse import quote
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -26,6 +26,10 @@ try:
 except ImportError:  # run with --app-dir=app
     import auth as _auth
 
+try:
+    from app import eligibility_eval as _eval
+except ImportError:                      # pragma: no cover — run with --app-dir=app
+    import eligibility_eval as _eval
 try:
     from app import fit as _fit
 except ImportError:                      # flat layout (run with --app-dir=app)
@@ -457,9 +461,14 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
                     (uid,)).fetchone()
         except Exception:                # noqa: BLE001 — a panel, not the page
             fit_data, fit_row = {"rows": [], "reason": "could not be computed"}, None
+        # Declared certificates (docs/specs/evaluation-layer.md). Admin-entered
+        # in this slice; the checklist shows them under the items that ask.
+        with cursor() as c:
+            certs = _eval.certificates(c, uid)
 
         return {**digest,
                 "fit": fit_data, "fit_row": fit_row,
+                "certs": certs, "cert_schemes": _eval.CATALOGUE,
                 "cust": cust, "profile": profile or {}, "history": history,
                 "products": products, "current": current,
                 "fields": _auth.PROFILE_FIELDS,
@@ -513,6 +522,63 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
                  else f"Δεν ήταν δυνατός ο υπολογισμός: {out.get('reason', '')}")
         return RedirectResponse(
             f"/admin/crm/{uid}?tab=fit&flash={quote(flash)}", status_code=303)
+
+    @router.post("/{uid}/fit/visible")
+    def crm_fit_visible(uid: int, request: Request, on: str = Form("")):
+        """Show (or stop showing) this profile's fit to the customer — the
+        company_profile.is_active switch, off by default. An admin turns it on
+        after looking at the ranking, never anything automatic. Showing needs
+        a profile with CPV history; hiding always works."""
+        show = on == "1"
+        with cursor() as c:
+            if not _auth.get_customer(c, uid):
+                raise HTTPException(404, "customer not found")
+            profile = _fit.load_profile(c, uid)
+            if show and (profile is None or not profile.is_usable):
+                flash = "Δεν υπάρχει προφίλ με ιστορικό CPV για να εμφανιστεί."
+            else:
+                c.execute("""UPDATE proc.company_profile
+                                SET is_active = %s, updated_at = now(),
+                                    updated_by = %s
+                              WHERE user_id = %s""",
+                          (show, _admin_uid(request), uid))
+                flash = ("Το ταίριασμα εμφανίζεται πλέον στον πελάτη."
+                         if show else "Το ταίριασμα δεν εμφανίζεται πλέον στον πελάτη.")
+        return RedirectResponse(
+            f"/admin/crm/{uid}?tab=fit&flash={quote(flash)}", status_code=303)
+
+    # ---- declared certificates (evaluation layer) ----------------------- #
+    # Admin-only in this slice (owner's decision, 2026-09-24); customer
+    # self-service is slice 2. Saving the same scheme + holder again updates
+    # the row — that is how a renewal is entered.
+    @router.post("/{uid}/certificates")
+    def crm_cert_save(uid: int, request: Request, scheme: str = Form(""),
+                      holder: str = Form("self"), manufacturer: str = Form(""),
+                      edition: str = Form(""), number: str = Form(""),
+                      issuer: str = Form(""), valid_until: str = Form("")):
+        with cursor() as c:
+            if not _auth.get_customer(c, uid):
+                raise HTTPException(404, "customer not found")
+            try:
+                _eval.save(c, uid, scheme=scheme, holder=holder,
+                           manufacturer=manufacturer, edition=edition,
+                           number=number, issuer=issuer,
+                           valid_until=valid_until, by=_admin_uid(request))
+                flash = "Το πιστοποιητικό αποθηκεύτηκε."
+            except _eval.CertError as e:
+                flash = str(e)
+        return RedirectResponse(
+            f"/admin/crm/{uid}?tab=fit&flash={quote(flash)}#certs", status_code=303)
+
+    @router.post("/{uid}/certificates/{cert_id}/delete")
+    def crm_cert_delete(uid: int, cert_id: int, request: Request):
+        with cursor() as c:
+            if not _auth.get_customer(c, uid):
+                raise HTTPException(404, "customer not found")
+            gone = _eval.delete(c, uid, cert_id)
+        flash = "Το πιστοποιητικό διαγράφηκε." if gone else "Δεν βρέθηκε."
+        return RedirectResponse(
+            f"/admin/crm/{uid}?tab=fit&flash={quote(flash)}#certs", status_code=303)
 
     @router.get("/{uid}/fit/{view}", response_class=HTMLResponse)
     def crm_fit_view(uid: int, view: str, request: Request, page: int = 1,

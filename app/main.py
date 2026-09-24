@@ -165,10 +165,10 @@ templates.env.globals["source_doc_url"] = source_doc_url
 TABLES_ENABLED = os.environ.get("TABLES_ENABLED", "1") == "1"
 templates.env.globals["tables_enabled"] = TABLES_ENABLED
 
-# Attachment upload/store + search-inside is LOCAL-ONLY for now (prod is a
-# free-tier DB with no room for the raw files). Default OFF. When off, the edit
-# hub tab is hidden and build_where emits no attachment clause — so prod never
-# references proc.act_attachment (that table is applied to the local DB only).
+# Attachment upload/store + search-inside (app/attachments.py). Default OFF.
+# In prod the raw files go to Supabase Storage and only the CAPPED text reaches
+# the free-tier DB. When off, the edit hub tab is hidden, build_where emits no
+# attachment clause and the download routes 404.
 ATTACHMENTS_ENABLED = os.environ.get("ATTACHMENTS_ENABLED", "0") == "1"
 templates.env.globals["attachments_enabled"] = ATTACHMENTS_ENABLED
 
@@ -701,8 +701,8 @@ def build_where(params: dict) -> tuple[str, list]:
                         WHERE et.adam = a.adam AND et.is_published AND {s}
                     )""")
                     fargs.extend(a)
-                # Uploaded attachments (LOCAL-ONLY, flag-gated). Off in prod →
-                # clause never emitted → proc.act_attachment need not exist there.
+                # Uploaded attachments, flag-gated (ATTACHMENTS_ENABLED). Off →
+                # the clause is never emitted and the table is never read.
                 if ATTACHMENTS_ENABLED:
                     s, a = _text_search_clause(qstr, "att.content_tsv", "att.filename")
                     if s:
@@ -2401,6 +2401,16 @@ except ImportError:
     from account_favorites import make_router as _make_acct_fav_router
 app.include_router(_make_acct_fav_router(templates, cursor))
 
+# /account/fit + /act/<adam>/fit — the fit score (app/fit.py), shown to the
+# customer it belongs to once an admin has switched their profile on
+# (company_profile.is_active). The act panel is fetched by HTMX after the page,
+# so act_detail is untouched. Computed per request, stored and cached nowhere.
+try:
+    from app.account_fit import make_router as _make_acct_fit_router
+except ImportError:
+    from account_fit import make_router as _make_acct_fit_router
+app.include_router(_make_acct_fit_router(templates, cursor))
+
 # /calendar/<token>.ics — the subscribed deadline feed a customer's own calendar
 # (Google, Outlook, Apple) polls — and /account/calendar, where they make the
 # link. The token in the URL is the credential: calendar servers send no cookies.
@@ -2996,6 +3006,9 @@ def ai_policy_page(request: Request):
     return templates.TemplateResponse(
         request, "ai_policy.html",
         {"ai_summary_on": _flag(_ai_mod.can_generate),
+         # Whether the summary also reads attached tender documents — the live
+         # switch ai_summary.load_inputs checks, not a sentence in the prose.
+         "attachments_on": _flag(lambda: _attachments_mod().enabled()),
          "summary_provider_id": summary_provider_id,
          "anthropic_elsewhere": (summary_provider_id != "anthropic"
                                  and ((ocr_key and TABLES_ENABLED) or calls_on)),
@@ -4036,8 +4049,8 @@ def act_detail(adam: str, request: Request):
         elif annotation and annotation.get("flag") == "suspicious":
             excluded_reason = "flagged"
 
-    # Uploaded attachments (LOCAL-ONLY, flag-gated) — surfaced on the detail page
-    # for download. Prod (flag off) never queries proc.act_attachment.
+    # Uploaded attachments (flag-gated) — surfaced on the detail page for
+    # download. Flag off → proc.act_attachment is never queried.
     attachments = []
     if ATTACHMENTS_ENABLED:
         with cursor() as c:
@@ -4292,7 +4305,22 @@ def act_calendar_ics(adam: str, request: Request):
     event = _calfeed.act_event(
         notice, lang=lang, base_url=_seo.base_url(request),
         lead_days=_digests.DEFAULT_LEAD_DAYS)
-    body = _ics.render([event], name=_i18n.translate("ΚΗΜΔΗΣ — Προθεσμίες", lang))
+    events = [event]
+    # The act's other dated deadlines from its checklist (questions, site
+    # visit, opening) — docs/specs/tender-checklist.md, slice 2. Entitled
+    # readers only: they come from the AI summary, which is subscriber
+    # content, whereas the closing date above is in the public hero.
+    if user.get("has_access"):
+        from app import tender_checklist as _tcl
+        with cursor() as c:
+            today = _tcl.athens_today()
+            miles = _calfeed.milestone_rows(
+                c, [notice], budget=_calfeed.CALENDAR_MAX_EVENTS, today=today)
+        events += [_calfeed.milestone_event(
+                       m, a, lang=lang, base_url=_seo.base_url(request),
+                       lead_days=_digests.DEFAULT_LEAD_DAYS)
+                   for m, a in miles]
+    body = _ics.render(events, name=_i18n.translate("ΚΗΜΔΗΣ — Προθεσμίες", lang))
     # ASCII by construction, so the header needs no RFC 5987 escape hatch.
     filename = re.sub(r"[^A-Za-z0-9._-]", "_", adam) + ".ics"
     return _Response(
@@ -4631,6 +4659,21 @@ def act_ai_generate(adam: str, request: Request):
     return templates.TemplateResponse(request, "_panel_ai.html", ctx)
 
 
+# /act/<adam>/checklist — the per-tender checklist + deadline set
+# (app/tender_checklist.py, docs/specs/tender-checklist.md). Derived from the
+# CURRENT summary above at request time; the only thing it stores is which
+# items the reader ticked off (proc.act_checklist_tick). It reads the summary
+# and never writes it — the isolation rule runs one way (test-enforced).
+try:
+    from app import tender_checklist as _checklist
+except ImportError:
+    import tender_checklist as _checklist  # type: ignore
+app.include_router(_checklist.make_router(
+    templates, cursor,
+    log_event=lambda ev, **kw: _obs.log_event(logging.WARNING, ev,
+                                              exc_info=True, **kw)))
+
+
 def _attachments_mod():
     try:
         from app import attachments as _att
@@ -4639,11 +4682,28 @@ def _attachments_mod():
     return _att
 
 
-@app.get("/act/{adam}/attachment/{aid}")
-def act_attachment_download(adam: str, aid: int):
-    """Download one uploaded attachment from the detail page (LOCAL-ONLY)."""
+# The whole-act zip is built in memory on a small instance; past this many MB
+# of stored files it is refused and the files are downloaded one at a time.
+ATTACH_ZIP_MAX_MB = int(os.environ.get("ATTACH_ZIP_MAX_MB") or 150)
+
+
+def _attachment_gate(request: Request, adam: str):
+    """Attachments follow the act page's teaser rule: the list is shown only to
+    a caller with access (beta_act.html, inside `not gated`), so the files are
+    served only to them too. Anyone else — a crawler included — goes back to
+    the act page and its register/renew CTA."""
     if not ATTACHMENTS_ENABLED:
         raise HTTPException(404, "not found")
+    if _is_gated(request):
+        return _Redirect(url=f"/act/{_quote(adam, safe='')}", status_code=303)
+    return None
+
+
+@app.get("/act/{adam}/attachment/{aid}")
+def act_attachment_download(adam: str, aid: int, request: Request):
+    """Download one uploaded attachment from the detail page."""
+    if (gate := _attachment_gate(request, adam)) is not None:
+        return gate
     att = _attachments_mod()
     with cursor() as c:
         c.execute("""SELECT filename, mimetype, storage_ref
@@ -4661,17 +4721,19 @@ def act_attachment_download(adam: str, aid: int):
 
 
 @app.get("/act/{adam}/attachments.zip")
-def act_attachments_zip(adam: str):
-    """Download all of an act's uploaded attachments as one zip (LOCAL-ONLY)."""
-    if not ATTACHMENTS_ENABLED:
-        raise HTTPException(404, "not found")
+def act_attachments_zip(adam: str, request: Request):
+    """Download all of an act's uploaded attachments as one zip."""
+    if (gate := _attachment_gate(request, adam)) is not None:
+        return gate
     att = _attachments_mod()
     with cursor() as c:
-        c.execute("""SELECT id, filename, storage_ref FROM proc.act_attachment
-                     WHERE adam=%s ORDER BY id""", (adam,))
+        c.execute("""SELECT id, filename, storage_ref, size_bytes
+                     FROM proc.act_attachment WHERE adam=%s ORDER BY id""", (adam,))
         rows = c.fetchall()
     if not rows:
         raise HTTPException(404, "no attachments")
+    if sum(int(r["size_bytes"] or 0) for r in rows) > ATTACH_ZIP_MAX_MB * 1024 * 1024:
+        raise HTTPException(413, "too large to zip — download the files one by one")
     import io
     import zipfile
     buf = io.BytesIO()

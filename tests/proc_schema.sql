@@ -496,7 +496,8 @@ CREATE TABLE proc.act_attachment (
     content_tsv tsvector GENERATED ALWAYS AS (to_tsvector('greek'::regconfig, COALESCE(extracted_text, ''::text))) STORED,
     n_inner integer,
     uploaded_by text,
-    uploaded_at timestamp with time zone DEFAULT now()
+    uploaded_at timestamp with time zone DEFAULT now(),
+    text_total_chars integer
 );
 
 
@@ -6650,6 +6651,26 @@ CREATE TABLE proc.user_favorite_act (
 CREATE INDEX ix_user_favorite_act_recent
   ON proc.user_favorite_act (user_id,created_at DESC,adam DESC);
 
+-- Bid pipeline on favourites. Mirrors
+-- migrations/20260923180000_favorite_bid_stage.sql.
+ALTER TABLE proc.user_favorite_act
+  ADD COLUMN bid_stage text,
+  ADD COLUMN bid_note text,
+  ADD COLUMN bid_stage_at timestamptz,
+  ADD COLUMN bid_stage_source text,
+  ADD COLUMN bid_outcome_adam text
+    REFERENCES proc.procurement_act(adam) ON DELETE SET NULL,
+  ADD CONSTRAINT user_favorite_act_bid_stage_ck CHECK (
+    bid_stage IS NULL
+    OR bid_stage IN ('bidding','submitted','won','lost','no_bid')),
+  ADD CONSTRAINT user_favorite_act_bid_source_ck CHECK (
+    bid_stage_source IS NULL OR bid_stage_source IN ('user','ledger')),
+  ADD CONSTRAINT user_favorite_act_bid_note_ck CHECK (
+    bid_note IS NULL OR length(bid_note) <= 300);
+CREATE INDEX ix_user_favorite_act_outcome
+  ON proc.user_favorite_act (bid_outcome_adam)
+  WHERE bid_outcome_adam IS NOT NULL;
+
 --
 -- PostgreSQL database dump complete
 --
@@ -6744,3 +6765,124 @@ CREATE TABLE proc.calendar_feed (
     CONSTRAINT calendar_feed_token_hash_uk UNIQUE (token_hash),
     CONSTRAINT calendar_feed_lang_ck CHECK (lang IN ('el', 'en'))
 );
+
+--
+-- calendar_search — migrations/20260923163148_calendar_search.sql.
+-- Appended by hand, like the blocks above: saved searches a customer has put
+-- in their calendar feed (docs/specs/calendar-feed.md, slice 5).
+--
+
+CREATE TABLE proc.calendar_search (
+    user_id           bigint NOT NULL
+                      REFERENCES proc.app_user(id) ON DELETE CASCADE,
+    search_profile_id bigint NOT NULL
+                      REFERENCES proc.search_profile(id) ON DELETE CASCADE,
+    created_at        timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, search_profile_id)
+);
+
+CREATE INDEX ix_calendar_search_profile
+    ON proc.calendar_search (search_profile_id);
+
+--
+-- act_checklist_tick — migrations/20260924120000_tender_checklist.sql.
+-- Appended by hand, like the blocks above: checklist items a customer has
+-- ticked off on a tender (docs/specs/tender-checklist.md, slice 1).
+--
+
+CREATE TABLE proc.act_checklist_tick (
+    user_id   bigint NOT NULL
+              REFERENCES proc.app_user(id) ON DELETE CASCADE,
+    adam      text   NOT NULL
+              REFERENCES proc.procurement_act(adam) ON DELETE CASCADE,
+    item_key  text   NOT NULL
+              CONSTRAINT act_checklist_tick_key_ck CHECK (item_key ~ '^[0-9a-f]{20}$'),
+    done_at   timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, adam, item_key)
+);
+
+CREATE INDEX ix_act_checklist_tick_adam
+    ON proc.act_checklist_tick (adam);
+
+--
+-- act_checklist_own_item — migrations/20260924130000_checklist_own_items.sql.
+-- Appended by hand, like the blocks above: a customer's own checklist lines
+-- on a tender (docs/specs/tender-checklist.md, slice 4).
+--
+
+CREATE TABLE proc.act_checklist_own_item (
+    id          bigserial PRIMARY KEY,
+    user_id     bigint NOT NULL
+                REFERENCES proc.app_user(id) ON DELETE CASCADE,
+    adam        text   NOT NULL
+                REFERENCES proc.procurement_act(adam) ON DELETE CASCADE,
+    text        text   NOT NULL
+                CONSTRAINT act_checklist_own_item_text_ck
+                CHECK (length(btrim(text)) BETWEEN 1 AND 200),
+    done_at     timestamptz,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX ix_act_checklist_own_item_user_adam
+    ON proc.act_checklist_own_item (user_id, adam);
+
+CREATE INDEX ix_act_checklist_own_item_adam
+    ON proc.act_checklist_own_item (adam);
+
+--
+-- public_holiday — migrations/20260924140000_public_holiday.sql.
+-- Appended by hand, like the blocks above: overrides for app/workdays.py
+-- (docs/specs/working-day-deadlines.md §3c).
+--
+
+CREATE TABLE proc.public_holiday (
+    day         date    PRIMARY KEY,
+    name        text    NOT NULL,
+    is_holiday  boolean NOT NULL DEFAULT true,
+    note        text,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+
+--
+-- company_certificate — migrations/20260924150000_company_certificate.sql.
+-- Appended by hand, like the blocks above: declared certificates for the
+-- evaluation layer (docs/specs/evaluation-layer.md).
+--
+
+CREATE TABLE proc.company_certificate (
+    id            bigserial PRIMARY KEY,
+    user_id       bigint NOT NULL
+                  REFERENCES proc.app_user(id) ON DELETE CASCADE,
+    scheme        text   NOT NULL
+                  CONSTRAINT company_certificate_scheme_ck
+                  CHECK (scheme IN ('iso9001', 'iso13485', 'iso14001',
+                                    'iso45001', 'iso27001', 'iso37001',
+                                    'iso22000', 'haccp', 'iso22301',
+                                    'iso50001', 'iso39001')),
+    holder        text   NOT NULL DEFAULT 'self'
+                  CONSTRAINT company_certificate_holder_ck
+                  CHECK (holder IN ('self', 'manufacturer')),
+    manufacturer  text,
+    edition       text
+                  CONSTRAINT company_certificate_edition_ck
+                  CHECK (edition IS NULL OR edition ~ '^[0-9]{4}$'),
+    number        text   CHECK (number IS NULL OR length(number) <= 100),
+    issuer        text   CHECK (issuer IS NULL OR length(issuer) <= 200),
+    valid_until   date,
+    source        text   NOT NULL DEFAULT 'admin'
+                  CONSTRAINT company_certificate_source_ck
+                  CHECK (source IN ('admin', 'customer')),
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    created_by    bigint,
+    updated_at    timestamptz NOT NULL DEFAULT now(),
+    updated_by    bigint,
+    CONSTRAINT company_certificate_manufacturer_ck CHECK (
+        (holder = 'self' AND manufacturer IS NULL)
+        OR (holder = 'manufacturer' AND length(btrim(manufacturer)) BETWEEN 1 AND 200))
+);
+
+-- One row per scheme for the firm itself, one per scheme AND manufacturer.
+CREATE UNIQUE INDEX ux_company_certificate_holder
+    ON proc.company_certificate
+       (user_id, scheme, holder, lower(coalesce(manufacturer, '')));

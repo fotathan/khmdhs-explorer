@@ -177,14 +177,25 @@ def test_the_ai_panel_links_here(db, monkeypatch, client):
 # --------------------------------------------------------------------------- #
 def test_summary_sources_are_the_act_only(db):
     """"Nothing about the reader is sent" — build_sources is the only thing
-    that decides what reaches the model, and it takes an act and its tables.
-    If a customer-shaped argument ever appears here, this page is a lie."""
+    that decides what reaches the model, and it takes an act, its tables and
+    the tender documents attached to it — all three the ACT's own. If a
+    customer-shaped argument ever appears here, this page is a lie."""
     import inspect
     from app import ai_summary as ai
     params = list(inspect.signature(ai.build_sources).parameters)
-    assert params == ["act", "tables"]
+    assert params == ["act", "tables", "attachments"]
     sources = ai.build_sources({"full_text": "ΔΙΑΚΗΡΥΞΗ κάτι"}, [])
     assert set(sources) == {"full_text"}
+
+
+def test_the_page_names_attached_documents_only_while_they_are_read(client,
+                                                                    monkeypatch):
+    """/ai says what is sent. While attachments are off it must not claim the
+    summary reads them, and while they are on it must say so."""
+    monkeypatch.setenv("ATTACHMENTS_ENABLED", "0")
+    assert "έχουμε επισυνάψει" not in client.get("/ai").text
+    monkeypatch.setenv("ATTACHMENTS_ENABLED", "1")
+    assert "έχουμε επισυνάψει" in client.get("/ai").text
 
 
 def test_summary_cache_key_has_no_user_in_it():

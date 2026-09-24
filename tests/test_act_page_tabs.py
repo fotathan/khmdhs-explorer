@@ -114,7 +114,9 @@ def test_the_ai_summary_is_its_own_tab_right_after_the_overview(reader, act, mon
     bar = body[body.index('id="act-tabs"'):]
     bar = bar[: bar.index("</div>")]
     order = re.findall(r'data-tab="([a-z]+)" aria-controls', bar)
-    assert order[:3] == ["overview", "ai", "items"]
+    # The checklist is built from the summary, so it follows it
+    # (app/tender_checklist.py); this reader is entitled and gets both.
+    assert order[:4] == ["overview", "ai", "checklist", "items"]
 
     section = body[body.rindex("<section", 0, body.index('id="tab-ai"')):]
     assert "data-autohide" in section[: section.index(">")]

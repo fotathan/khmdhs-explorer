@@ -26,8 +26,9 @@ is present. Change a rule here, change it there.
 
 What a favourite is, and is not
 -------------------------------
-One bookmark on one act, owned by one user. It does NOT subscribe anyone to
-anything. Alerts live on saved searches (/account/searches); this is the "keep
+One bookmark on one act, owned by one user, optionally carrying a bid stage
+(bidding / submitted / won / lost / no_bid — app/bid_pipeline.py). It does NOT
+subscribe anyone to anything. Alerts live on saved searches (/account/searches); this is the "keep
 an eye on this one" gesture, and it is deliberately not wired to mail.
 
 Who may
@@ -50,14 +51,18 @@ from __future__ import annotations
 
 import os
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 try:
+    from app import bid_pipeline as _pipeline
     from app import i18n as _i18n
+    from app import tender_checklist as _checklist
 except ImportError:                      # pragma: no cover — run with --app-dir=app
+    import bid_pipeline as _pipeline
     import i18n as _i18n
+    import tender_checklist as _checklist
 
 PAGE = "/account/favorites"
 
@@ -124,6 +129,36 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             raise HTTPException(403, "sign in first")
         return u
 
+    def _detections(c, user, rows):
+        """What the award ledger says, for the favourites still in an OPEN
+        stage. Entitled users only: winner names are act data, which a lapsed
+        customer's teaser does not carry."""
+        if not user.get("has_access"):
+            return {}
+        return _pipeline.detect_outcomes(
+            c, user["id"],
+            [r["adam"] for r in rows if r["bid_stage"] in _pipeline.OPEN_STAGES])
+
+    def _checklists(c, user, rows):
+        """Checklist progress (tender_checklist.progress_for) for the
+        favourites still in play: no stage yet, bidding or submitted. A
+        won / lost / no-bid tender's checklist is history. Entitled users
+        only — the checklist is built from the AI summary, which is
+        subscriber content."""
+        if not user.get("has_access"):
+            return {}
+        return _checklist.progress_for(
+            c, user["id"],
+            [r["adam"] for r in rows
+             if r["bid_stage"] in (None, "bidding", "submitted")])
+
+    def _stage_panel(request, row, detection=None, *, error: str = ""):
+        return templates.TemplateResponse(
+            request, "_bid_stage.html",
+            {"fav": row, "detection": detection, "error": error,
+             "stages": _pipeline.STAGES,
+             "no_stage_label": _pipeline.NO_STAGE_LABEL})
+
     def _toggle(request, adam: str, favorited: bool, *, compact=False,
                 error: str = ""):
         return templates.TemplateResponse(
@@ -132,8 +167,12 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
              "error": error})
 
     # ---- the list ---------------------------------------------------------- #
+    # ?stage= narrows the list to one pipeline stage. 'none' = favourites with
+    # no stage; anything unknown falls back to everything rather than erroring.
+    _STAGE_FILTERS = ("none",) + _pipeline.STAGE_CODES
+
     @router.get("", response_class=HTMLResponse)
-    def page(request: Request):
+    def page(request: Request, stage: str = ""):
         user = getattr(request.state, "user", None)
         if not user:
             return RedirectResponse(url=f"/login?next={PAGE}", status_code=303)
@@ -141,6 +180,13 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             from app import main as web
         except ImportError:              # pragma: no cover
             import main as web
+        stage = stage if stage in _STAGE_FILTERS else ""
+        where, args = "", [user["id"]]
+        if stage == "none":
+            where = "AND f.bid_stage IS NULL"
+        elif stage:
+            where = "AND f.bid_stage = %s"
+            args.append(stage)
         with cursor() as c:
             # Newest bookmark first: the reason someone opens this page is
             # usually the thing they marked last.
@@ -150,19 +196,30 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             # the link works, and silently dropping a row they created would be
             # harder to explain than a redirect. The mobile list does the same.
             c.execute(
-                f"""SELECT f.created_at AS favorited_at, {web.SELECT_COLS}
+                f"""SELECT f.created_at AS favorited_at, f.bid_stage,
+                           f.bid_note, f.bid_stage_at, f.bid_stage_source,
+                           f.bid_outcome_adam, {web.SELECT_COLS}
                     FROM proc.user_favorite_act f
                     JOIN proc.procurement_act a ON a.adam = f.adam
                     LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
-                    WHERE f.user_id = %s
+                    WHERE f.user_id = %s {where}
                     ORDER BY f.created_at DESC, f.adam DESC
                     LIMIT %s""",
-                (user["id"], MAX_FAVORITES))
+                (*args, MAX_FAVORITES))
             rows = c.fetchall()
+            counts = _pipeline.stage_counts(c, user["id"])
+            detections = _detections(c, user, rows)
+            checklists = _checklists(c, user, rows)
         return templates.TemplateResponse(
             request, "account_favorites.html",
             {"rows": rows, "nav_active": "account",
              "favorites": {r["adam"] for r in rows},
+             "stage": stage, "counts": counts,
+             "total": sum(counts.values()),
+             "pipeline": _pipeline.summary(counts),
+             "stages": _pipeline.STAGES,
+             "no_stage_label": _pipeline.NO_STAGE_LABEL,
+             "detections": detections, "checklists": checklists,
              "lang": _i18n.lang_from_request(request)})
 
     # ---- the toggle -------------------------------------------------------- #
@@ -187,4 +244,41 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             remove_favorite(c, user["id"], adam)
         return _toggle(request, adam, False, compact=compact)
 
+    # ---- the bid stage ---------------------------------------------------- #
+    # Both answer with the panel itself (_bid_stage.html), which swaps in place.
+    # A stage only lives on a favourite: an act that is not one is a 404.
+    @router.post("/{adam}/stage", response_class=HTMLResponse)
+    async def set_stage(adam: str, request: Request, stage: str = Form(""),
+                        note: str = Form("")):
+        user = _signed_in(request)
+        try:
+            code = _pipeline.normalize_stage(stage)
+        except ValueError:
+            raise HTTPException(400, "unknown stage")
+        with cursor() as c:
+            row = _pipeline.set_stage(c, user["id"], adam, code, note)
+            if not row:
+                raise HTTPException(404, "not_a_favorite")
+            det = _detections(c, user, [row]).get(adam)
+        return _stage_panel(request, row, det)
+
+    @router.post("/{adam}/stage/confirm", response_class=HTMLResponse)
+    def confirm_stage(adam: str, request: Request):
+        """Record what the ledger shows. Takes NOTHING from the form: the
+        outcome is re-detected here (bid_pipeline.confirm_from_ledger)."""
+        user = _signed_in(request)
+        if not user.get("has_access"):
+            raise HTTPException(403, "no_access")
+        with cursor() as c:
+            row = _pipeline.confirm_from_ledger(c, user["id"], adam)
+            if row:
+                return _stage_panel(request, row)
+            current = _pipeline.get_stage(c, user["id"], adam)
+            if not current:
+                raise HTTPException(404, "not_a_favorite")
+            det = _detections(c, user, [current]).get(adam)
+        return _stage_panel(request, current, det,
+                            error="Δεν βρέθηκε κάτι να επιβεβαιωθεί.")
+
     return router
+

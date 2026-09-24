@@ -43,11 +43,22 @@
       {% if not r.is_own %}<span class="ss-tag portal">{{ t("Πύλη") }}</span>{% endif %}
       {% if r.sub and r.sub.is_active %}<span class="ss-tag on">{{ t("ειδοποίηση ενεργή") }}</span>
       {% elif r.sub %}<span class="ss-tag off">{{ t("ειδοποίηση ανενεργή") }}</span>{% endif %}
+      {% if r.in_calendar %}<span class="ss-tag cal">{{ t("στο ημερολόγιο") }}</span>{% endif %}
     </div>
     {% if r.filters %}<div class="ss-filters">{{ r.filters }}</div>{% endif %}
 
     <div class="ss-actions">
       <a class="ss-btn" href="/search-profiles/{{ r.id }}/apply">{{ t("Άνοιγμα αναζήτησης") }}</a>
+      {# The calendar feed (docs/specs/calendar-feed.md, slice 5): opt-in per
+         search, because a broad one can match thousands of deadlines. #}
+      <form method="post" action="/account/searches/{{ r.id }}/calendar" class="ss-inline">
+        {% if r.in_calendar %}
+        <button type="submit" class="ss-btn">{{ t("Αφαίρεση από το ημερολόγιο") }}</button>
+        {% else %}
+        <input type="hidden" name="on" value="1">
+        <button type="submit" class="ss-btn">{{ t("Προσθήκη στο ημερολόγιο") }}</button>
+        {% endif %}
+      </form>
       {% if r.is_own %}
       <details class="ss-fold ss-inline">
         <summary>{{ t("Μετονομασία") }}</summary>
@@ -155,6 +166,15 @@
     </p>
     <a class="ss-btn ss-btn-go" href="/">{{ t("Νέα αναζήτηση") }}</a>
   </div>
+
+  <div class="ss-card ss-how">
+    <h2>{{ t("Στο ημερολόγιό σας") }}</h2>
+    <p class="ss-hint">
+      {{ t("«Προσθήκη στο ημερολόγιο» βάζει τις προθεσμίες που βρίσκει μια αναζήτηση στο ημερολόγιο Google, Outlook ή Apple, μαζί με τα αγαπημένα σας. Οι ακυρωμένες πράξεις δεν μπαίνουν.") }}
+      {% if not has_feed %}<br>{{ t("Δεν έχετε ακόμη σύνδεσμο ημερολογίου — δημιουργήστε τον μία φορά:") }}{% endif %}
+    </p>
+    <a class="ss-btn" href="/account/calendar">{{ t("Ημερολόγιο προθεσμιών") }}</a>
+  </div>
 </div>
 <style>
   .ss-wrap{max-width:760px;margin:38px auto 64px;padding:0 22px;}
@@ -169,6 +189,7 @@
   .ss-tag.portal{background:#eef2f8;color:#1a4f9c;}
   .ss-tag.on{background:#e9f7ee;color:#1a7a3d;}
   .ss-tag.off{background:#f2f2f0;color:#6b6b6b;}
+  .ss-tag.cal{background:#f4eefb;color:#5b2a9c;}
   .ss-filters{font-size:12.5px;color:var(--ink-2,#5b626d);margin:6px 0 0;line-height:1.5;}
   .ss-meta{font-size:12px;color:var(--ink-2,#5b626d);margin-top:8px;line-height:1.6;}
   .ss-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;}

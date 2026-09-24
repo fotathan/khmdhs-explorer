@@ -1,0 +1,185 @@
+{# checklist_print.html — the checklist laid out for paper (A4).
+
+   GET /act/<adam>/checklist/print, tender_checklist.make_router. Input: `cl`
+   from tender_checklist.view() — the SAME dict the panel renders, so paper
+   and screen cannot disagree — plus `meta` (title, authority, made_at) and
+   `show_quotes`. docs/specs/tender-checklist.md, slice 5.
+
+   Standalone on purpose (no site chrome): it is handed to whoever assembles
+   the envelope. It keeps the screening warning, and every day count is
+   stated as "from <date printed>", because paper does not update itself.
+   The browser's "Save as PDF" is the PDF export. #}
+<!DOCTYPE html>
+<html lang="{{ lang|default('el') }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{{ t("Λίστα ελέγχου") }} · {{ cl.adam }}</title>
+<style>
+  :root{--ink:#1b1b1b;--ink-2:#444;--ink-3:#6b6b6b;--rule:#c9c9c9;--warn:#8a4b00;--warn-bg:#fff6e5;--paper:#fff;--accent:#1f3a5f;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:#eceae6;color:var(--ink);font:12.5px/1.45 "Helvetica Neue",Arial,"Liberation Sans",sans-serif;}
+  .sheet{background:var(--paper);max-width:210mm;margin:16px auto;padding:14mm 14mm 16mm;box-shadow:0 1px 4px rgba(0,0,0,.15);}
+  .bar{max-width:210mm;margin:16px auto 0;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:0 16px;}
+  .bar a,.bar button{font:inherit;font-size:13px;padding:6px 12px;border:1px solid var(--rule);background:#fff;color:var(--ink);border-radius:4px;text-decoration:none;cursor:pointer;}
+  .bar button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+  .bar .sp{flex:1;}
+  h1{font-size:17px;margin:0 0 4px;line-height:1.3;}
+  .meta{color:var(--ink-2);margin:0;}
+  .meta b{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:600;}
+  .stamp{color:var(--ink-3);font-size:11.5px;margin:6px 0 0;}
+  .band{border:1px solid #e3c38a;background:var(--warn-bg);color:var(--warn);padding:7px 10px;margin:12px 0 4px;font-size:11.5px;border-radius:3px;}
+  .band p{margin:0;}
+  .band p + p{margin-top:4px;}
+  h2{font-size:13.5px;margin:18px 0 6px;padding-bottom:3px;border-bottom:1.5px solid var(--ink);display:flex;gap:8px;align-items:baseline;}
+  h2 .n{margin-left:auto;font-weight:400;font-size:11.5px;color:var(--ink-3);font-family:ui-monospace,Menlo,Consolas,monospace;}
+  table{width:100%;border-collapse:collapse;}
+  th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-3);font-weight:600;padding:3px 6px;border-bottom:1px solid var(--rule);}
+  td{vertical-align:top;padding:6px;border-bottom:1px solid var(--rule);}
+  tr{break-inside:avoid;page-break-inside:avoid;}
+  .past td{color:var(--ink-3);}
+  .when{white-space:nowrap;font-weight:600;}
+  .left{white-space:nowrap;}
+  .left small,.src{display:block;color:var(--ink-3);font-size:11px;}
+  .box{width:22px;}
+  .box span{display:inline-block;width:13px;height:13px;border:1.5px solid var(--ink);border-radius:2px;text-align:center;line-height:11px;font-size:11px;font-weight:700;}
+  .lbl{font-weight:600;}
+  .tag{font-size:10px;text-transform:uppercase;letter-spacing:.03em;border:1px solid var(--ink-3);color:var(--ink-2);padding:0 4px;border-radius:2px;margin-left:4px;white-space:nowrap;}
+  .val{margin-top:1px;}
+  .quote{margin-top:3px;color:var(--ink-3);font-size:11px;font-style:italic;}
+  .done{margin-top:2px;font-size:11px;color:var(--ink-3);}
+  .cl-certs{list-style:none;margin:3px 0 0;padding:0;font-size:11px;}
+  .cl-cert .ic{display:inline-block;width:12px;font-weight:700;}
+  .cl-cert.is-expires_before,.cl-cert.is-expired{font-weight:600;}
+  .cl-cert-ed{color:var(--ink-3);margin-left:4px;}
+  .notes{width:30%;}
+  .foot{margin-top:18px;color:var(--ink-3);font-size:11px;}
+  .lines{margin-top:18px;}
+  .lines div{border-bottom:1px solid var(--rule);height:24px;}
+  @page{size:A4;margin:12mm 12mm 14mm;}
+  @media print{
+    body{background:#fff;font-size:11.5px;}
+    .bar{display:none !important;}
+    .sheet{margin:0;padding:0;max-width:none;box-shadow:none;}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    h2{break-after:avoid;page-break-after:avoid;}
+  }
+  @media (max-width:640px){
+    .sheet{margin:8px 0;padding:16px;}
+    .notes{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<nav class="bar" aria-label="{{ t('Ενέργειες') }}">
+  <a href="/act/{{ cl.adam }}#tab-checklist">← {{ t("Πίσω στην πράξη") }}</a>
+  <span class="sp"></span>
+  {% if show_quotes %}
+    <a href="?quotes=0">{{ t("Χωρίς αποσπάσματα") }}</a>
+  {% else %}
+    <a href="?quotes=1">{{ t("Με αποσπάσματα") }}</a>
+  {% endif %}
+  <a href="/act/{{ cl.adam }}/checklist.xlsx">{{ t("Excel") }} ↓</a>
+  <button type="button" class="primary" onclick="window.print()">{{ t("Εκτύπωση") }}</button>
+</nav>
+
+<main class="sheet">
+  <h1>{{ cl.title or cl.adam }}</h1>
+  <p class="meta">ΑΔΑΜ <b>{{ cl.adam }}</b>{% if meta.authority %} · {{ meta.authority }}{% endif %}</p>
+  <p class="stamp">{{ t("Λίστα ελέγχου συμμετοχής") }} · {{ t("Εκτύπωση") }} {{ meta.made_at.strftime('%d/%m/%Y %H:%M') }} —
+    {{ t("οι ημέρες μετρούν από αυτή την ημερομηνία.") }}
+    {% if cl.n_total %}{{ t("Ολοκληρωμένα") }}: {{ cl.n_done }} / {{ cl.n_total }}.{% endif %}</p>
+
+  <div class="band">
+    <p><b>{{ t("Εργαλείο πρώτης αξιολόγησης.") }}</b>
+       {{ t("Η λίστα προκύπτει αυτόματα από τη σύνοψη της προκήρυξης και μπορεί να είναι ελλιπής. Δεν αντικαθιστά την ανάγνωση της διακήρυξης· επιβεβαιώνετε πάντα τις προθεσμίες και τα δικαιολογητικά στα επίσημα έγγραφα.") }}</p>
+    {% if cl.truncated %}
+    <p>{{ t("Η σύνοψη κάλυψε μόνο μέρος του κειμένου, οπότε η λίστα μπορεί να μην περιέχει όσα αναφέρονται στο υπόλοιπο.") }}</p>
+    {% endif %}
+  </div>
+
+  {# ---------------------------------------------------------- deadlines #}
+  {% if cl.deadlines %}
+  <h2>{{ t("Προθεσμίες") }}</h2>
+  <table class="dates">
+    <thead><tr><th>{{ t("Ημερομηνία") }}</th><th>{{ t("Προθεσμία") }}</th><th>{{ t("Απομένουν") }}</th></tr></thead>
+    <tbody>
+    {% for d in cl.deadlines %}
+      <tr class="{% if d.is_past %}past{% endif %}">
+        <td class="when">{% if d.date %}{{ d.date.strftime('%d/%m/%Y') }}{% if d.time %} {{ d.time }}{% endif %}{% else %}—{% endif %}</td>
+        <td>
+          <span class="lbl">{{ d.label | t if d.source == 'record' else d.label }}</span>
+          {% if d.source == 'record' %}<span class="src">{{ t("από το αρχείο της πράξης") }}</span>
+          {% elif d.confidence == 'low' %}<span class="tag">{{ t("ασαφές στο κείμενο") }}</span>{% endif %}
+          {% if d.value and not d.date %}<div class="val">{{ d.value }}</div>{% endif %}
+        </td>
+        <td class="left">
+          {% if d.days_left is not none %}
+            {% if d.days_left < 0 %}{{ t("έληξε") }}
+            {% elif d.days_left == 0 %}{{ t("σήμερα") }}
+            {% else %}
+              {% if lang == 'en' %}{{ d.days_left }} day{{ '' if d.days_left == 1 else 's' }}
+              {% else %}{{ d.days_left }} {{ "ημέρα" if d.days_left == 1 else "ημέρες" }}{% endif %}
+              <small>{% if lang == 'en' %}{{ d.workdays_left }} working
+              {% else %}{{ d.workdays_left }} {{ "εργάσιμη" if d.workdays_left == 1 else "εργάσιμες" }}{% endif %}</small>
+            {% endif %}
+          {% endif %}
+          {% if d.holiday %}<small>{{ t("αργία") }}: {{ d.holiday }}</small>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="foot">{{ t("Οι εργάσιμες δεν μετρούν Σαββατοκύριακα και επίσημες αργίες, ούτε τη σημερινή ημέρα.") }}</p>
+  {% endif %}
+
+  {# -------------------------------------------------------------- tasks #}
+  {% for g in cl.groups %}
+  <h2>{{ g.heading | t }} <span class="n">{{ g.n_done }} / {{ g['items'] | length }}</span></h2>
+  <table class="items">
+    <tbody>
+    {% for item in g['items'] %}
+      <tr>
+        <td class="box"><span>{% if item.done_at %}✓{% endif %}</span></td>
+        <td>
+          <span class="lbl">{{ item.label }}</span>
+          {% if item.obligation == 'mandatory' %}<span class="tag">{{ t("υποχρεωτικό") }}</span>{% endif %}
+          {% if item.confidence == 'low' %}<span class="tag">{{ t("ασαφές στο κείμενο") }}</span>{% endif %}
+          {% if item.value %}<div class="val">{{ item.value }}</div>{% endif %}
+          {% if item.certs %}{% with notes = item.certs %}{% include "_cert_notes.html" %}{% endwith %}{% endif %}
+          {% if show_quotes and item.quote %}<div class="quote">«{{ item.quote }}»{% if item.para %} — {{ t("παρ.") }} {{ item.para }}{% endif %}</div>{% endif %}
+          {% if item.done_at %}<div class="done">{{ t("Ολοκληρώθηκε") }} {{ item.done_at.strftime('%d/%m/%Y') }}</div>{% endif %}
+        </td>
+        <td class="notes"></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endfor %}
+
+  {# ---------------------------------------------------------- own items #}
+  {% if cl.own %}
+  <h2>{{ t("Δικά σας") }} <span class="n">{{ cl.own_done }} / {{ cl.own | length }}</span></h2>
+  <table class="items own">
+    <tbody>
+    {% for o in cl.own %}
+      <tr>
+        <td class="box"><span>{% if o.done_at %}✓{% endif %}</span></td>
+        <td><span class="lbl">{{ o.text }}</span>
+          {% if o.done_at %}<div class="done">{{ t("Ολοκληρώθηκε") }} {{ o.done_at.strftime('%d/%m/%Y') }}</div>{% endif %}
+        </td>
+        <td class="notes"></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <h2>{{ t("Σημειώσεις") }}</h2>
+  <div class="lines">{% for _ in range(5) %}<div></div>{% endfor %}</div>
+</main>
+
+</body>
+</html>

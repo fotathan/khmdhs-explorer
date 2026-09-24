@@ -2,7 +2,7 @@
 calendar_feed.py — the subscribed calendar feed, and the one definition of
 "an act as a calendar event".
 
-Spec: docs/specs/calendar-feed.md, slice 4.
+Spec: docs/specs/calendar-feed.md, slices 4 and 5.
 
 What it is
 ----------
@@ -11,6 +11,22 @@ Google Calendar, Outlook or Apple Calendar once. From then on every act they
 have favourited appears on its submission deadline, with reminders, and moves
 when the authority moves the deadline — without our tab being open and without
 another email. /calendar/<token>.ics is what their calendar server fetches.
+
+Saved searches (slice 5) join in only when the customer ticks them, one by one,
+on /account/searches. A search can match thousands of acts and a calendar that
+fills up with them is uninstalled the same day, so:
+
+  * favourites always go in first — they are explicit, one click each;
+  * search matches fill what is left of CALENDAR_MAX_EVENTS, the soonest
+    UPCOMING deadlines first, then the recent past — but only deadlines that
+    closed AFTER the search was ticked. So what was in the calendar does not
+    vanish the morning after it closes, and ticking a broad search does not
+    backfill a month of closed tenders nobody asked to see;
+  * a cancelled act is never brought in by a search (the deadline digest
+    refuses to chase one, and this must agree with it). A cancelled FAVOURITE
+    is still stated as cancelled, as before;
+  * each event says which saved search brought it in, so a customer can tell
+    why it is there and which box to untick.
 
 Why the URL is the credential
 -----------------------------
@@ -73,12 +89,14 @@ try:
     from app import i18n as _i18n
     from app import ics as _ics
     from app import seo as _seo
+    from app import tender_checklist as _checklist
 except ImportError:                      # pragma: no cover — run with --app-dir=app
     import auth as _auth
     import digests as _digests
     import i18n as _i18n
     import ics as _ics
     import seo as _seo
+    import tender_checklist as _checklist
 
 PAGE = "/account/calendar"
 
@@ -203,6 +221,11 @@ def act_event(row, *, lang: str, base_url: str, lead_days) -> _ics.Event:
         lines.append(f"{tr('Αξία με ΦΠΑ')}: € "
                      + "{:,.0f}".format(value).replace(",", "."))
     lines.append(f"{tr('ΑΔΑΜ')}: {adam}")
+    if row.get("searches"):
+        # Which ticked saved search brought it in: the customer's own names,
+        # never translated. Favourites carry no such line.
+        lines.append(f"{tr('Αποθηκευμένη αναζήτηση')}: "
+                     + ", ".join(row["searches"]))
 
     return _ics.Event(
         uid=f"{adam}@khmdhs",
@@ -213,6 +236,262 @@ def act_event(row, *, lang: str, base_url: str, lead_days) -> _ics.Event:
         sequence=_ics.sequence_from(row.get("last_update_date")),
         cancelled=bool(row.get("cancelled")),
         alarms=tuple(_ics.Alarm(d, _alarm_text(d, lang)) for d in lead_days))
+
+
+# --------------------------------------------------------------------------- #
+# The act's OTHER dates — docs/specs/tender-checklist.md, slice 2
+# --------------------------------------------------------------------------- #
+def milestone_event(m, act, *, lang: str, base_url: str, lead_days) -> _ics.Event:
+    """One dated milestone from the checklist's deadline set -> an ics.Event.
+
+    `m` is a tender_checklist.milestones() entry, `act` the act row
+    (act_event's columns). The ONE definition of a milestone as an event,
+    shared by the feed and the one-off download, like act_event.
+
+    * UID = <adam>-m-<uid_key>@khmdhs. Never derived from the date: a date
+      that moves must move the SAME event.
+    * SEQUENCE = the later of the act's last_update_date and the summary's
+      generated_at. A regenerated summary is the only way a milestone's date
+      changes, and a client ignores a new DTSTART unless SEQUENCE rose.
+    * A time the text states -> a timed event (Athens). No time -> an
+      all-day event on that date; we do not invent 23:59.
+    * The description says where the date came from. The closing date is the
+      record's; these are an AI reading of the text, and must say so.
+    * A cancelled act cancels its milestones too.
+    """
+    tr = lambda s: _i18n.translate(s, lang)      # noqa: E731
+    adam = act["adam"]
+    title = (act.get("title") or "").strip()
+    label = (m.get("label") or "").strip() or tr("Προθεσμία")
+    summary = f"{label} — {title}" if title else label
+
+    if m.get("time"):
+        hh, mm = (int(x) for x in m["time"].split(":"))
+        start = dt.datetime.combine(m["date"], dt.time(hh, mm),
+                                    tzinfo=_checklist.ATHENS)
+    else:
+        start = m["date"]
+
+    lines = []
+    if m.get("value"):
+        lines.append(m["value"])
+    lines.append(tr("Από τη σύνοψη AI της προκήρυξης — επιβεβαιώστε την "
+                    "ημερομηνία στα επίσημα έγγραφα."))
+    if act.get("authority_name"):
+        lines.append(act["authority_name"])
+    lines.append(f"{tr('ΑΔΑΜ')}: {adam}")
+
+    sequence = max(_ics.sequence_from(act.get("last_update_date")),
+                   _ics.sequence_from(m.get("generated_at")))
+    return _ics.Event(
+        uid=f"{adam}-m-{m['uid_key']}@khmdhs",
+        start=start,
+        summary=summary,
+        description="\n".join(lines),
+        url=f"{base_url}/act/{quote(adam, safe='')}#tab-checklist",
+        sequence=sequence,
+        cancelled=bool(act.get("cancelled")),
+        alarms=tuple(_ics.Alarm(d, _alarm_text(d, lang)) for d in lead_days))
+
+
+def milestone_rows(c, acts, *, budget: int, today: dt.date) -> list:
+    """(milestone, act) pairs for these acts, soonest first, at most `budget`.
+
+    Only acts with a summary row are looked at (one query), and each of those
+    is re-checked for being CURRENT by tender_checklist — a stale summary's
+    dates are not put in anyone's calendar. Milestones older than
+    CALENDAR_PAST_DAYS drop out, as closed deadlines do.
+    """
+    acts = [a for a in acts if a.get("adam")]
+    # The checklist lives under the AI summary's switch; so do its dates.
+    if budget <= 0 or not acts or not _checklist._ai.enabled():
+        return []
+    c.execute("SELECT adam FROM proc.act_ai_summary WHERE adam = ANY(%s)",
+              ([a["adam"] for a in acts],))
+    have = {r["adam"] for r in c.fetchall()}
+    cutoff = today - dt.timedelta(days=CALENDAR_PAST_DAYS)
+    out = []
+    for act in acts:
+        if act["adam"] not in have:
+            continue
+        for m in _checklist.milestones(c, act["adam"]):
+            if m["date"] >= cutoff:
+                out.append((m, act))
+    out.sort(key=lambda p: (p[0]["date"], p[0]["time"] or "", p[1]["adam"],
+                            p[0]["uid_key"]))
+    return out[:budget]
+
+
+# --------------------------------------------------------------------------- #
+# Saved searches in the feed (slice 5)
+# --------------------------------------------------------------------------- #
+def _main():
+    """app.main imported lazily, as digests does: it owns build_where, and
+    importing it at module scope would open the DB pool on import."""
+    try:
+        from app import main as m
+    except ImportError:                  # pragma: no cover — run with --app-dir=app
+        import main as m                 # type: ignore
+    return m
+
+
+def search_ids(c, user_id: int) -> set:
+    """The ids of the saved searches this user has put in their calendar."""
+    c.execute("SELECT search_profile_id FROM proc.calendar_search WHERE user_id=%s",
+              (user_id,))
+    return {r["search_profile_id"] for r in c.fetchall()}
+
+
+def set_search(c, user_id: int, profile_id: int, on: bool) -> None:
+    """Tick or untick one saved search. The caller has already checked that
+    the user may apply this profile (account_searches._owned)."""
+    if on:
+        c.execute("""INSERT INTO proc.calendar_search (user_id, search_profile_id)
+                     VALUES (%s, %s) ON CONFLICT DO NOTHING""", (user_id, profile_id))
+    else:
+        c.execute("""DELETE FROM proc.calendar_search
+                     WHERE user_id=%s AND search_profile_id=%s""", (user_id, profile_id))
+
+
+def opted_in_searches(c, user) -> list:
+    """The saved searches in this user's feed that they may STILL apply, each
+    with its effective params. A portal profile that has since been
+    unpublished drops out here rather than feeding a calendar its owner can no
+    longer open; a search with no filters is skipped — it would match the
+    whole corpus."""
+    c.execute("""SELECT sp.*, cs.created_at AS opted_at
+                 FROM proc.calendar_search cs
+                 JOIN proc.search_profile sp ON sp.id = cs.search_profile_id
+                 WHERE cs.user_id = %s
+                 ORDER BY lower(sp.name), sp.id""", (user["id"],))
+    out = []
+    for profile in c.fetchall():
+        if not _auth.can_apply_profile(user, profile):
+            continue
+        params = _auth.effective_params(c, profile)
+        if not params:
+            continue
+        out.append({"id": profile["id"], "name": profile["name"],
+                    "params": params, "opted_at": profile["opted_at"],
+                    "updated_at": profile.get("updated_at")})
+    return out
+
+
+_SEARCH_COLS = """
+    a.adam, a.title, a.final_submission_date, a.cancelled,
+    a.last_update_date, a.total_cost_with_vat,
+    proc.resolved_value(a.adam, a.total_cost_with_vat) AS resolved_value,
+    auth.name AS authority_name
+"""
+
+
+def _search_matches(c, params, *, upcoming: bool, limit: int, since=None):
+    """One saved search's deadlines: upcoming ones soonest first, or the
+    recent past latest first. Never a cancelled act.
+
+    The past reaches back CALENDAR_PAST_DAYS but never before `since` — the
+    moment the search was ticked. Anything that closed earlier was never in
+    this customer's calendar, so there is nothing to keep."""
+    where, args = _main().build_where(params or {})
+    if upcoming:
+        window = " AND a.final_submission_date > now()"
+        order = "a.final_submission_date, a.adam"
+        wargs = []
+    else:
+        window = (" AND a.final_submission_date <= now()"
+                  " AND a.final_submission_date >= greatest("
+                  "now() - make_interval(days => %s), %s::timestamptz)")
+        order = "a.final_submission_date DESC, a.adam"
+        wargs = [CALENDAR_PAST_DAYS, since]
+    c.execute(f"""SELECT {_SEARCH_COLS}
+                  FROM proc.procurement_act a
+                  LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
+                  WHERE {where}{window}
+                    AND coalesce(a.cancelled, false) = false
+                  ORDER BY {order}
+                  LIMIT %s""", list(args) + wargs + [limit])
+    return c.fetchall()
+
+
+def count_upcoming(c, params) -> int:
+    """How many upcoming, not-cancelled deadlines one saved search matches —
+    what /account/calendar shows next to it, so a customer can see which
+    search is the one crowding their calendar."""
+    where, args = _main().build_where(params or {})
+    c.execute(f"""SELECT count(*) AS n FROM proc.procurement_act a
+                  WHERE {where} AND a.final_submission_date > now()
+                    AND coalesce(a.cancelled, false) = false""", list(args))
+    return int(c.fetchone()["n"])
+
+
+def search_rows(c, searches, *, budget: int, exclude=()) -> list:
+    """The events the ticked searches add, at most `budget` of them.
+
+    Upcoming deadlines first, soonest first, across ALL the searches together
+    (not N per search: one broad search must not starve a narrow one's
+    tomorrow). Only then, with whatever budget is left, the recent past that
+    closed since the search was ticked — so a deadline that closed yesterday
+    does not vanish from the calendar. An act
+    matched by several searches is one event naming all of them; one already
+    in `exclude` (a favourite) is left to the favourite."""
+    if budget <= 0 or not searches:
+        return []
+    skip = set(exclude)
+    picked: list = []
+    for upcoming in (True, False):
+        room = budget - len(picked)
+        if room <= 0:
+            break
+        found: dict = {}
+        for s in searches:
+            for r in _search_matches(c, s["params"], upcoming=upcoming,
+                                     limit=room, since=s["opted_at"]):
+                if r["adam"] in skip:
+                    continue
+                row = found.get(r["adam"])
+                if row is None:
+                    row = found[r["adam"]] = dict(r)
+                    row["searches"] = []
+                    row["favorited_at"] = None
+                row["searches"].append(s["name"])
+                # DTSTAMP input: when this search went into the calendar, or
+                # was last edited — whichever is later.
+                moments = [m for m in (s["opted_at"], s.get("updated_at"),
+                                       row["favorited_at"]) if m]
+                row["favorited_at"] = max(moments) if moments else None
+        ordered = sorted(found.values(),
+                         key=lambda r: (r["final_submission_date"], r["adam"]),
+                         reverse=not upcoming)[:room]
+        picked.extend(ordered)
+        skip.update(r["adam"] for r in ordered)
+    return picked
+
+
+def feed_content(c, user, *, today: dt.date | None = None) -> tuple[list, list]:
+    """Everything one feed carries, in priority order within
+    CALENDAR_MAX_EVENTS: the favourites' deadlines, then the favourites'
+    other dated milestones (tender_checklist), then the ticked searches'
+    deadlines in whatever room is left. Milestones are only ever for
+    favourites — explicit choices — never for search matches, which could be
+    hundreds of acts per poll. Sorted, so the same data is the same bytes."""
+    today = today or dt.datetime.now(_digests._tz(_digests.DEFAULT_TZ)).date()
+    favs = [dict(r) for r in favourite_rows(c, user["id"])]
+    miles = milestone_rows(c, favs, budget=CALENDAR_MAX_EVENTS - len(favs),
+                           today=today)
+    # A favourite marked "no bid" (bid_pipeline) leaves the calendar, and a
+    # ticked search must not bring it straight back.
+    extra = search_rows(c, opted_in_searches(c, user),
+                        budget=CALENDAR_MAX_EVENTS - len(favs) - len(miles),
+                        exclude={r["adam"] for r in favs}
+                                | declined_adams(c, user["id"]))
+    rows = sorted(favs + extra,
+                  key=lambda r: (r["final_submission_date"], r["adam"]))
+    return rows, miles
+
+
+def feed_rows(c, user) -> list:
+    """The act deadlines alone (see feed_content)."""
+    return feed_content(c, user)[0]
 
 
 # --------------------------------------------------------------------------- #
@@ -228,6 +507,7 @@ _FEED_SQL = """
     JOIN proc.procurement_act a ON a.adam = f.adam
     LEFT JOIN proc.authority auth ON auth.org_id = a.authority_id
     WHERE f.user_id = %s
+      AND f.bid_stage IS DISTINCT FROM 'no_bid'
       AND a.final_submission_date IS NOT NULL
       AND a.final_submission_date >= now() - make_interval(days => %s)
     ORDER BY a.final_submission_date, a.adam
@@ -253,20 +533,29 @@ def fetch_act(c, adam: str):
     return c.fetchone()
 
 
+def declined_adams(c, user_id: int) -> set:
+    """Favourites the customer marked 'no_bid'. Out of the feed on every path."""
+    c.execute("""SELECT adam FROM proc.user_favorite_act
+                  WHERE user_id = %s AND bid_stage = 'no_bid'""", (user_id,))
+    return {r["adam"] for r in c.fetchall()}
+
+
 def favourite_rows(c, user_id: int):
-    """Favourited acts with a deadline, from CALENDAR_PAST_DAYS ago onwards.
-    Cancelled ones are INCLUDED — act_event marks them STATUS:CANCELLED, which
+    """Favourited acts with a deadline, from CALENDAR_PAST_DAYS ago onwards,
+    except those marked 'no_bid'. Cancelled ones are INCLUDED — act_event marks them STATUS:CANCELLED, which
     is how a client learns to strike out an event it has already imported."""
     c.execute(_FEED_SQL, (user_id, CALENDAR_PAST_DAYS, CALENDAR_MAX_EVENTS))
     return c.fetchall()
 
 
-def _stamp(rows, fallback) -> dt.datetime:
+def _stamp(rows, fallback, milestones=()) -> dt.datetime:
     """A DTSTAMP derived from the data, so an unchanged feed renders to the
     same bytes on every poll and the ETag can match."""
     moments = [m for r in rows
                for m in (r.get("favorited_at"), r.get("last_update_date"))
                if isinstance(m, dt.datetime)]
+    moments += [m["generated_at"] for m, _a in milestones
+                if isinstance(m.get("generated_at"), dt.datetime)]
     best = max(moments) if moments else fallback
     if best.tzinfo is None:
         best = best.replace(tzinfo=dt.timezone.utc)
@@ -274,11 +563,13 @@ def _stamp(rows, fallback) -> dt.datetime:
 
 
 def render_feed(rows, *, lang: str, base_url: str, lead_days,
-                fallback_stamp: dt.datetime) -> str:
+                fallback_stamp: dt.datetime, milestones=()) -> str:
     events = [act_event(r, lang=lang, base_url=base_url, lead_days=lead_days)
               for r in rows]
+    events += [milestone_event(m, a, lang=lang, base_url=base_url,
+                               lead_days=lead_days) for m, a in milestones]
     return _ics.render(events, name=_i18n.translate("ΚΗΜΔΗΣ — Προθεσμίες", lang),
-                       dtstamp=_stamp(rows, fallback_stamp))
+                       dtstamp=_stamp(rows, fallback_stamp, milestones))
 
 
 def render_lapsed(*, user_id: int, lang: str, base_url: str, today: dt.date,
@@ -342,10 +633,11 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 raise HTTPException(404, "not found")
             record_fetch(c, row["user_id"])
             if user.get("has_access"):
-                rows = favourite_rows(c, row["user_id"])
+                rows, miles = feed_content(c, user, today=today)
                 body = render_feed(rows, lang=row["lang"], base_url=base,
                                    lead_days=lead_days_for(c, row["user_id"]),
-                                   fallback_stamp=row["created_at"])
+                                   fallback_stamp=row["created_at"],
+                                   milestones=miles)
             else:
                 body = render_lapsed(user_id=row["user_id"], lang=row["lang"],
                                      base_url=base, today=today,
@@ -375,15 +667,25 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             c.execute("""SELECT count(*) AS n
                          FROM proc.user_favorite_act f
                          JOIN proc.procurement_act a ON a.adam = f.adam
-                         WHERE f.user_id=%s AND a.final_submission_date >= now()""",
+                         WHERE f.user_id=%s AND a.final_submission_date >= now()
+                           AND f.bid_stage IS DISTINCT FROM 'no_bid'""",
                       (user["id"],))
             upcoming = int(c.fetchone()["n"])
+            searches = [{"id": s["id"], "name": s["name"],
+                         "upcoming": count_upcoming(c, s["params"])}
+                        for s in opted_in_searches(c, user)]
+        # Whether the ticked searches together overflow what the feed carries;
+        # the page then says so instead of letting deadlines go missing quietly.
+        over_cap = (upcoming + sum(s["upcoming"] for s in searches)
+                    > CALENDAR_MAX_EVENTS)
         resp = templates.TemplateResponse(
             request, "account_calendar.html",
             {"feed": feed_row, "new_url": new_url,
              "webcal": webcal_url(new_url) if new_url else None,
              "has_access": bool(user.get("has_access")),
              "marks": list(marks), "upcoming": upcoming, "lang": lang,
+             "searches": searches, "over_cap": over_cap,
+             "max_events": CALENDAR_MAX_EVENTS,
              "nav_active": "account"},
             status_code=status)
         # The page may be carrying the raw URL; nothing may keep a copy.

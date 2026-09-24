@@ -739,8 +739,8 @@ _FORMLABELS = {
     "Λήξη υποβολής": "Submission deadline",
     "Ημερολόγιο προθεσμιών (συνδρομή)":
         "Deadline calendar (subscription)",
-    "Αντί να κατεβάζετε αρχεία, μπορείτε να συνδέσετε μία φορά το ημερολόγιό σας: «Ο λογαριασμός μου → Ημερολόγιο προθεσμιών → Δημιουργία συνδέσμου», και επικολλάτε τον σύνδεσμο στο Google Calendar, στο Outlook ή στο Apple Calendar. Από εκεί και πέρα κάθε αγαπημένο με προθεσμία εμφανίζεται μόνο του, με υπενθυμίσεις, και μετακινείται αν αλλάξει η προθεσμία.":
-        "Instead of downloading files, you can connect your calendar once: “My account → Deadline calendar → Create link”, then paste the link into Google Calendar, Outlook or Apple Calendar. From then on every favourite with a deadline appears by itself, with reminders, and moves if the deadline changes.",
+    "Αντί να κατεβάζετε αρχεία, μπορείτε να συνδέσετε μία φορά το ημερολόγιό σας: «Ο λογαριασμός μου → Ημερολόγιο προθεσμιών → Δημιουργία συνδέσμου», και επικολλάτε τον σύνδεσμο στο Google Calendar, στο Outlook ή στο Apple Calendar. Από εκεί και πέρα κάθε αγαπημένο με προθεσμία — και ό,τι βρίσκουν οι αναζητήσεις που προσθέσατε — εμφανίζεται μόνο του, με υπενθυμίσεις, και μετακινείται αν αλλάξει η προθεσμία. Μια προθεσμία που έληξε μένει στο ημερολόγιο 30 ημέρες ακόμη, για να μη χάνεται την επόμενη μέρα.":
+        "Instead of downloading files, you can connect your calendar once: “My account → Deadline calendar → Create link”, then paste the link into Google Calendar, Outlook or Apple Calendar. From then on every favourite with a deadline — and whatever the searches you added find — appears on its own, with reminders, and moves if the deadline changes. A deadline that has passed stays in the calendar for another 30 days, so it does not vanish the next day.",
     "Ο σύνδεσμος εμφανίζεται μία φορά και λειτουργεί χωρίς σύνδεση — γι' αυτό κρατήστε τον ιδιωτικό. Αν τον χάσετε ή τον μοιραστήκατε κατά λάθος, «Νέος σύνδεσμος» ακυρώνει τον παλιό. Κάθε εφαρμογή ημερολογίου ελέγχει με τον δικό της ρυθμό· το Google μπορεί να αργήσει αρκετές ώρες. Όσο η συνδρομή σας δεν είναι ενεργή, το ημερολόγιο δείχνει μια σημείωση αντί για τις προθεσμίες.":
         "The link is shown once and works without signing in — so keep it private. If you lose it or shared it by mistake, “New link” cancels the old one. Each calendar app checks at its own pace; Google can take several hours. While your subscription is inactive, the calendar shows a notice instead of your deadlines.",
     "Ημερολόγιο προθεσμιών":
@@ -797,6 +797,34 @@ _FORMLABELS = {
         "Favourites with an open deadline:",
     "Κανένα από τα αγαπημένα σας δεν έχει προθεσμία που δεν έχει λήξει. Πατήστε το αστέρι σε μια πράξη για να μπει στο ημερολόγιο.":
         "None of your favourites has an open deadline. Press the star on an act to put it in the calendar.",
+    "Μπορείτε να προσθέσετε και αποθηκευμένες αναζητήσεις: οι προθεσμίες που βρίσκουν μπαίνουν στο ίδιο ημερολόγιο.":
+        "You can add saved searches too: the deadlines they find go into the same calendar.",
+    "Αποθηκευμένες αναζητήσεις στο ημερολόγιο (προθεσμίες που δεν έχουν λήξει):":
+        "Saved searches in the calendar (open deadlines):",
+    "Το ημερολόγιο χωράει έως {n} προθεσμίες. Τα αγαπημένα μπαίνουν πάντα· από τις αναζητήσεις μπαίνουν όσες χωρούν, οι πιο κοντινές πρώτες. Για να μη χάνονται προθεσμίες, στενέψτε ή αφαιρέστε μια αναζήτηση.":
+        "The calendar holds up to {n} deadlines. Favourites always go in; from your searches, as many as fit, soonest first. So that no deadlines go missing, narrow or remove a search.",
+    "Καμία αποθηκευμένη αναζήτηση στο ημερολόγιο.":
+        "No saved searches in the calendar.",
+    "Επιλογή αναζητήσεων για το ημερολόγιο":
+        "Choose searches for the calendar",
+    "στο ημερολόγιο":
+        "in calendar",
+    "Αφαίρεση από το ημερολόγιο":
+        "Remove from calendar",
+    "Προσθήκη στο ημερολόγιο":
+        "Add to calendar",
+    "Στο ημερολόγιό σας":
+        "In your calendar",
+    "«Προσθήκη στο ημερολόγιο» βάζει τις προθεσμίες που βρίσκει μια αναζήτηση στο ημερολόγιο Google, Outlook ή Apple, μαζί με τα αγαπημένα σας. Οι ακυρωμένες πράξεις δεν μπαίνουν.":
+        "“Add to calendar” puts the deadlines a search finds into your Google, Outlook or Apple calendar, alongside your favourites. Cancelled acts are left out.",
+    "Δεν έχετε ακόμη σύνδεσμο ημερολογίου — δημιουργήστε τον μία φορά:":
+        "You do not have a calendar link yet — create it once:",
+    "Η αναζήτηση προστέθηκε στο ημερολόγιο.":
+        "The search was added to your calendar.",
+    "Η αναζήτηση αφαιρέθηκε από το ημερολόγιο.":
+        "The search was removed from your calendar.",
+    "Μπορείτε να βάλετε στο ίδιο ημερολόγιο και αποθηκευμένες αναζητήσεις: στις «Αναζητήσεις & ειδοποιήσεις», «Προσθήκη στο ημερολόγιο» σε όποια θέλετε — και σε κοινή αναζήτηση της πύλης, χωρίς να χρειάζεται ειδοποίηση email. Μπαίνουν οι προθεσμίες που δεν έχουν λήξει (όχι οι ακυρωμένες), και κάθε εγγραφή γράφει ποια αναζήτηση τη βρήκε. Διαγωνισμοί που είχαν ήδη λήξει όταν προσθέσατε την αναζήτηση δεν μπαίνουν, ώστε το ημερολόγιο να μη γεμίσει με παλιές προθεσμίες. Το ημερολόγιο χωράει έως 500 προθεσμίες: τα αγαπημένα μπαίνουν πάντα και από τις αναζητήσεις όσες χωρούν, οι πιο κοντινές πρώτες — η σελίδα του ημερολογίου δείχνει πόσες βρίσκει κάθε αναζήτηση και σας προειδοποιεί αν ξεπερνούν το όριο. «Αφαίρεση από το ημερολόγιο» τη βγάζει ξανά.":
+        "You can put saved searches in the same calendar too: in “Searches & alerts”, press “Add to calendar” on any of them — including a shared portal search, with no email alert needed. Their open deadlines go in (never cancelled ones), and each entry says which search found it. Tenders that had already closed when you added the search are left out, so the calendar does not fill up with old deadlines. The calendar holds up to 500 deadlines: favourites always go in, and from your searches as many as fit, soonest first — the calendar page shows how many each search finds and warns you if they go over the limit. “Remove from calendar” takes it out again.",
     "Υπενθυμίσεις (ημέρες πριν τη λήξη):":
         "Reminders (days before closing):",
     "Ίδιες με την υπενθύμιση προθεσμιών μέσω email· αλλάζουν στις":
@@ -823,6 +851,106 @@ _FORMLABELS = {
         "Remove from favourites",
     "Έχετε φτάσει το όριο αγαπημένων.":
         "You have reached the favourites limit.",
+    # Attachments in production (app/attachments.py, _panel_attachments.html).
+    "Συνημμένα έγγραφα: για μεγάλους διαγωνισμούς, το ΚΗΜΔΗΣ συχνά έχει μόνο την περίληψη και η πλήρης διακήρυξη βρίσκεται στο ΕΣΗΔΗΣ. Ο διαχειριστής μπορεί να επισυνάψει τα έγγραφα αυτά στην πράξη (καρτέλα «Συνημμένα» στην επεξεργασία). Τα αρχεία αποθηκεύονται εκτός βάσης, το κείμενό τους γίνεται αναζητήσιμο και το διαβάζει η σύνοψη, και οι συνδρομητές τα κατεβάζουν από την καρτέλα «Έγγραφα». Κρατούνται έως 200.000 χαρακτήρες κειμένου ανά αρχείο· αν ένα αρχείο είναι μεγαλύτερο, η λίστα το σημειώνει.":
+        "Attached documents: for big tenders KHMDHS often holds only the summary, and the full tender declaration lives on ΕΣΗΔΗΣ. An admin can attach those documents to the act (the “Attachments” tab when editing). The files are stored outside the database, their text becomes searchable and is read by the summary, and subscribers download them from the “Documents” tab. Up to 200,000 characters of text are kept per file; if a file is longer, the list says so.",
+    "Τα συνημμένα είναι απενεργοποιημένα σε αυτό το περιβάλλον (ATTACHMENTS_ENABLED).":
+        "Attachments are switched off in this environment (ATTACHMENTS_ENABLED).",
+    "Ο χώρος αποθήκευσης δεν είναι προσβάσιμος":
+        "The file storage cannot be reached",
+    "Τα αρχεία αποθηκεύονται εκτός βάσης. Το κείμενό τους (και όσων περιέχονται σε zip) γίνεται αναζητήσιμο από την κύρια αναζήτηση και το διαβάζει η σύνοψη διαγωνισμού. Κρατούνται έως":
+        "Files are stored outside the database. Their text (including files inside a zip) becomes searchable from the main search and is read by the tender summary. Up to",
+    "χαρακτήρες κειμένου ανά αρχείο.":
+        "characters of text are kept per file.",
+    "Κρατήθηκε μόνο η αρχή του κειμένου":
+        "Only the beginning of the text was kept",
+    "κείμενο περικομμένο":
+        "text truncated",
+    "από συνημμένο έγγραφο":
+        "from an attached document",
+    "Διαβάζει το πλήρες κείμενο μιας προκήρυξης, τους δημοσιευμένους πίνακές της και τα έγγραφα του διαγωνισμού που έχουμε επισυνάψει (π.χ. τη διακήρυξη από το ΕΣΗΔΗΣ), και βγάζει στην επιφάνεια προθεσμίες, εγγυήσεις, τεχνικές απαιτήσεις και σημεία προσοχής.":
+        "It reads a notice's full text, its published tables and the tender documents we have attached (e.g. the tender declaration from ΕΣΗΔΗΣ), and surfaces deadlines, guarantees, technical requirements and points to watch.",
+    "το κείμενο των δημόσιων εγγράφων του διαγωνισμού και οι πίνακές τους — τίποτε άλλο.":
+        "the text of the tender's public documents and their tables — nothing else.",
+    # Fit score for customers (app/account_fit.py, _fit_parts.html).
+    "Για πελάτες των οποίων το προφίλ έχει ενεργοποιήσει η ομάδα μας, η σελίδα «Ο λογαριασμός μου → Ταιριάζουν σε εσάς» δείχνει τους ανοικτούς διαγωνισμούς που ταιριάζουν περισσότερο με την εταιρεία τους, με βαθμό 0–100. Ο ίδιος βαθμός εμφανίζεται και πάνω σε κάθε προκήρυξη. Ο βαθμός προκύπτει από τις συμβάσεις που έχει ήδη κερδίσει η εταιρεία (από το ΑΦΜ της) και αναλύεται πάντα σε τέσσερα μέρη: αντικείμενο (CPV), μέγεθος, περιοχή και αναθέτουσα.":
+        "For customers whose profile our team has switched on, the page “My account → Fits for you” shows the open tenders that fit their company best, with a score of 0–100. The same score appears on each notice. It comes from the contracts the company has already won (by its VAT number) and always breaks down into four parts: subject (CPV), size, region and authority.",
+    "Είναι απλός υπολογισμός πάνω στα δημόσια δεδομένα αναθέσεων — όχι τεχνητή νοημοσύνη — και δεν αποθηκεύεται πουθενά. Ένας διαγωνισμός σε αντικείμενο όπου η εταιρεία δεν έχει καμία σύμβαση μένει χαμηλά, όσο καλά κι αν ταιριάζουν τα υπόλοιπα. Η εμφάνιση ενεργοποιείται από την καρτέλα «Ταίριασμα» της καρτέλας πελάτη στο CRM, αφού ελεγχθεί το προφίλ.":
+        "It is a plain calculation over public award data — not AI — and it is stored nowhere. A tender in a subject where the company has no contract stays low, however well the rest fits. Showing it is switched on from the “Fit” tab of the customer card in the CRM, after the profile has been checked.",
+    "Ενημερώθηκε": "Updated",
+    "Μέγεθος": "Size",
+    "Περιοχή": "Region",
+    "ίδιος κωδικός CPV με συμβάσεις που έχετε κερδίσει": "same CPV code as contracts you have won",
+    "ίδια ομάδα CPV με συμβάσεις που έχετε κερδίσει": "same CPV group as contracts you have won",
+    "ίδιος τομέας CPV με συμβάσεις που έχετε κερδίσει": "same CPV division as contracts you have won",
+    "δεν έχετε συμβάσεις σε αυτούς τους CPV": "you have no contracts in these CPVs",
+    "δεν υπάρχουν κωδικοί CPV για σύγκριση": "no CPV codes to compare",
+    "στο μέγεθος που κερδίζετε συνήθως": "the size you usually win",
+    "κοντά στο μέγεθος που κερδίζετε συνήθως": "close to the size you usually win",
+    "μεγαλύτερος από ό,τι έχετε αναλάβει": "larger than anything you have taken on",
+    "μικρότερος από ό,τι κερδίζετε συνήθως": "smaller than what you usually win",
+    "χωρίς ιστορικό αξιών για σύγκριση": "no value history to compare",
+    "δεν αναφέρεται αξία": "no value stated",
+    "έχετε συμβάσεις σε αυτή την περιφέρεια": "you have contracts in this region",
+    "ίδια χώρα, άλλη περιφέρεια": "same country, different region",
+    "εκτός των περιφερειών όπου έχετε συμβάσεις": "outside the regions where you have contracts",
+    "χωρίς ιστορικό περιοχών": "no region history",
+    "δεν αναφέρεται περιοχή": "no region stated",
+    "έχετε ξανά σύμβαση με αυτή την αναθέτουσα": "you have had a contract with this authority before",
+    "δεν έχετε σύμβαση με αυτή την αναθέτουσα": "you have no contract with this authority",
+    "χωρίς ιστορικό αναθετουσών": "no authority history",
+    "Βαθμός ταιριάσματος 0–100": "Fit score 0–100",
+    "Χωρίς συμβάσεις σε αυτό το αντικείμενο, η βαθμολογία περιορίζεται όσο καλά κι αν ταιριάζουν τα υπόλοιπα.": "With no contracts in this subject, the score is capped however well the rest fits.",
+    "Ταίριασμα με την εταιρεία σας": "Fit with your company",
+    "Από το ιστορικό συμβάσεών σας — υπολογισμός, όχι τεχνητή νοημοσύνη.": "From your contract history — a calculation, not AI.",
+    "Όλοι οι διαγωνισμοί που σας ταιριάζουν": "All tenders that fit you",
+    "Ταιριάζουν σε εσάς": "Fits for you",
+    "Οι ανοικτοί διαγωνισμοί που ταιριάζουν περισσότερο με την εταιρεία σας, με βάση": "The open tenders that fit your company best, based on",
+    "αναθέσεις στην εταιρεία σας από": "awards to your company from",
+    "Κάθε βαθμός αναλύεται σε αντικείμενο, μέγεθος, περιοχή και αναθέτουσα. Είναι υπολογισμός πάνω στα δημόσια δεδομένα αναθέσεων, όχι τεχνητή νοημοσύνη, και δεν στέλνει τα στοιχεία σας πουθενά.": "Each score breaks down into subject, size, region and authority. It is a calculation over public award data, not AI, and it sends your details nowhere.",
+    "Εμφανίζονται οι": "Showing the",
+    "καλύτεροι από": "best of",
+    "ανοικτούς διαγωνισμούς στους τομείς σας.": "open tenders in your fields.",
+    "Δεν υπάρχουν αυτή τη στιγμή ανοικτοί διαγωνισμοί στους τομείς σας.": "There are no open tenders in your fields right now.",
+    "Το ταίριασμα διαγωνισμών είναι διαθέσιμο με ενεργή συνδρομή.": "Tender matching is available with an active subscription.",
+    "Εδώ θα βλέπετε τους ανοικτούς διαγωνισμούς που ταιριάζουν περισσότερο με την εταιρεία σας, βαθμολογημένους με βάση τις συμβάσεις που έχετε ήδη κερδίσει: αντικείμενο, μέγεθος, περιοχή και αναθέτουσα.": "Here you will see the open tenders that fit your company best, scored on the contracts you have already won: subject, size, region and authority.",
+    "Η υπηρεσία δεν έχει ενεργοποιηθεί ακόμη για τον λογαριασμό σας. Επικοινωνήστε μαζί μας και θα τη ρυθμίσουμε από το ΑΦΜ της εταιρείας σας — δεν χρειάζεται να συμπληρώσετε φόρμα.": "The service has not been switched on for your account yet. Contact us and we will set it up from your company’s VAT number — there is no form to fill in.",
+    "Ορατό στον πελάτη": "Visible to the customer",
+    "Κρυφό από τον πελάτη": "Hidden from the customer",
+    "Απόκρυψη από τον πελάτη": "Hide from the customer",
+    "Εμφάνιση στον πελάτη": "Show to the customer",
+    "Το ταίριασμα εμφανίζεται πλέον στον πελάτη.": "The fit is now shown to the customer.",
+    "Το ταίριασμα δεν εμφανίζεται πλέον στον πελάτη.": "The fit is no longer shown to the customer.",
+    "Δεν υπάρχει προφίλ με ιστορικό CPV για να εμφανιστεί.": "There is no profile with CPV history to show.",
+    # Bid pipeline on favourites (app/bid_pipeline.py, _bid_stage.html).
+    "Ετοιμάζουμε προσφορά": "Preparing a bid",
+    "Υποβλήθηκε προσφορά": "Bid submitted",
+    "Κερδήθηκε": "Won",
+    "Δεν κερδήθηκε": "Not won",
+    "Δεν συμμετέχουμε": "Not bidding",
+    "Χωρίς στάδιο": "No stage",
+    "Στάδιο": "Stage",
+    "Ορίστηκε": "Set on",
+    "Σημείωση (π.χ. γιατί δεν συμμετέχουμε)": "Note (e.g. why we are not bidding)",
+    "επιβεβαιώθηκε από την ανάθεση": "confirmed from the award",
+    "Η ανάθεση σας αναφέρει ως ανάδοχο.": "The award names you as the contractor.",
+    "Η ανάθεση δημοσιεύθηκε:": "The award has been published:",
+    "Άνοιγμα ανάθεσης": "Open the award",
+    "Σημείωση ως «Κερδήθηκε»": "Mark as “Won”",
+    "Σημείωση ως «Δεν κερδήθηκε»": "Mark as “Not won”",
+    "Σε διαγωνισμό με τμήματα, ελέγξτε το τμήμα για το οποίο υποβάλατε προσφορά.":
+        "In a tender with lots, check the lot you bid for.",
+    "Δεν βρέθηκε κάτι να επιβεβαιωθεί.": "There was nothing to confirm.",
+    "σε προετοιμασία": "in preparation",
+    "υποβλήθηκαν": "submitted",
+    "κερδήθηκαν": "won",
+    "δεν κερδήθηκαν": "not won",
+    "Ποσοστό επιτυχίας": "Win rate",
+    "Κανένα αγαπημένο σε αυτό το στάδιο.": "No favourites at this stage.",
+    "Κάτω από κάθε αγαπημένο υπάρχει το «Στάδιο»: Ετοιμάζουμε προσφορά, Υποβλήθηκε προσφορά, Κερδήθηκε, Δεν κερδήθηκε ή Δεν συμμετέχουμε, με μια σύντομη σημείωση. Αποθηκεύεται μόλις το αλλάξετε. Πάνω από τη λίστα φαίνεται πόσες προσφορές υποβάλατε, πόσες κερδίσατε και το ποσοστό επιτυχίας, και μπορείτε να φιλτράρετε τη λίστα ανά στάδιο. Μια πράξη με «Δεν συμμετέχουμε» βγαίνει από το ημερολόγιο προθεσμιών. Αν αφαιρέσετε το αστέρι, χάνεται και το στάδιο.":
+        "Under each favourite there is a “Stage”: Preparing a bid, Bid submitted, Won, Not won or Not bidding, with a short note. It saves as soon as you change it. Above the list you see how many bids you submitted, how many you won and your win rate, and you can filter the list by stage. An act marked “Not bidding” leaves the deadline calendar. If you remove the star, the stage goes with it.",
+    "Όταν ένα αγαπημένο είναι «Ετοιμάζουμε προσφορά» ή «Υποβλήθηκε προσφορά» και δημοσιευθεί η ανάθεσή του, η σελίδα δείχνει ποιος πήρε τη σύμβαση. Αν ο ΑΦΜ της εταιρείας σας είναι συνδεδεμένος με τον λογαριασμό σας και βρίσκεται στους αναδόχους, το λέει και προτείνει «Κερδήθηκε». Τίποτα δεν αλλάζει χωρίς να το πατήσετε εσείς: σε διαγωνισμό με τμήματα η ανάθεση μπορεί να αφορά άλλο τμήμα από αυτό που διεκδικήσατε.":
+        "When a favourite is at “Preparing a bid” or “Bid submitted” and its award is published, the page shows who got the contract. If your company’s VAT number is linked to your account and is among the contractors, it says so and suggests “Won”. Nothing changes until you press it yourself: in a tender with lots, the award may concern a different lot from the one you bid for.",
     "Άνοιγμα αγαπημένων":
         "Open favourites",
     "Οι πράξεις που έχετε σημειώσει με το αστέρι, σε ένα σημείο.":
@@ -1980,8 +2108,8 @@ _HELP = {
     "Ο οδηγός περιγράφει την εφαρμογή όπως είναι σήμερα. Η διαθεσιμότητα δυνατοτήτων μπορεί να διαφέρει ανά διαμόρφωση.": "This guide describes the app as it stands today. Feature availability can vary with configuration.",
 
     "Σύνοψη διαγωνισμού (AI)": "Tender summary (AI)",
-    "Σε προκηρύξεις, κάτω από τα βασικά στοιχεία, μπορεί να εμφανίζεται το πάνελ «Σύνοψη διαγωνισμού». Διαβάζει το πλήρες κείμενο και τους δημοσιευμένους πίνακες της πράξης και βγάζει στην επιφάνεια όσα ΔΕΝ υπάρχουν ήδη ως πεδία: προθεσμίες πέρα από την καταληκτική (ερωτήματα, διευκρινίσεις, επιτόπια επίσκεψη, αποσφράγιση), τις βαρύτητες πίσω από το κριτήριο ανάθεσης, εγγυήσεις συμμετοχής και καλής εκτέλεσης, τεχνικές απαιτήσεις, κριτήρια συμμετοχής, τον τρόπο υποβολής και τα σημεία προσοχής — ποινικές ρήτρες, όρια υπεργολαβίας.":
-        "On notices, below the key details, a “Tender summary” panel may appear. It reads the act's full text and published tables and surfaces what is NOT already a field: deadlines beyond the closing one (questions, clarifications, site visit, bid opening), the weightings behind the award criterion, participation and performance guarantees, technical requirements, participation criteria, how to submit, and the points to watch — penalty clauses, subcontracting limits.",
+    "Σε προκηρύξεις, κάτω από τα βασικά στοιχεία, μπορεί να εμφανίζεται το πάνελ «Σύνοψη διαγωνισμού». Διαβάζει το πλήρες κείμενο, τους δημοσιευμένους πίνακες και τα συνημμένα έγγραφα της πράξης (όπου υπάρχουν) και βγάζει στην επιφάνεια όσα ΔΕΝ υπάρχουν ήδη ως πεδία: προθεσμίες πέρα από την καταληκτική (ερωτήματα, διευκρινίσεις, επιτόπια επίσκεψη, αποσφράγιση), τις βαρύτητες πίσω από το κριτήριο ανάθεσης, εγγυήσεις συμμετοχής και καλής εκτέλεσης, τεχνικές απαιτήσεις, κριτήρια συμμετοχής, τον τρόπο υποβολής και τα σημεία προσοχής — ποινικές ρήτρες, όρια υπεργολαβίας.":
+        "On notices, below the key details, a “Tender summary” panel may appear. It reads the act's full text, published tables and attached documents (where there are any) and surfaces what is NOT already a field: deadlines beyond the closing one (questions, clarifications, site visit, bid opening), the weightings behind the award criterion, participation and performance guarantees, technical requirements, participation criteria, how to submit, and the points to watch — penalty clauses, subcontracting limits.",
     "Κάθε στοιχείο συνοδεύεται από το ΑΥΤΟΛΕΞΕΙ απόσπασμα του εγγράφου που το παρήγαγε, και ένα κλικ σας πηγαίνει στην ακριβή παράγραφο μέσα στο πλήρες κείμενο. Αυτό δεν είναι διακοσμητικό: αν ένα απόσπασμα δεν βρεθεί επί λέξει στο έγγραφο, το στοιχείο δεν εμφανίζεται καθόλου. Ό,τι βλέπετε, υπάρχει στο κείμενο.":
         "Every item carries the VERBATIM excerpt of the document that produced it, and one click takes you to the exact paragraph inside the full text. This is not decorative: if an excerpt is not found word for word in the document, the item is not shown at all. What you see exists in the text.",
     "Το πάνελ δεν επαναλαμβάνει ποτέ ό,τι ξέρει ήδη η πράξη — καταληκτική ημερομηνία, προϋπολογισμός, εκτιμώμενη αξία, τύπος διαδικασίας, τμήματα. Αυτά τα βλέπετε από την επίσημη εγγραφή, στα στοιχεία της πράξης, και μια μηχανή δεν είναι καλύτερη πηγή γι' αυτά.":
@@ -1989,8 +2117,8 @@ _HELP = {
     "Εργαλείο πρώτης αξιολόγησης": "A first-pass assessment tool",
     "Δεν είναι δυνατή η σύνοψη για αυτή την προκήρυξη, γιατί δεν υπάρχει διαθέσιμο πλήρες κείμενο ούτε δημοσιευμένοι πίνακες. Η σύνοψη αντλεί μόνο από το κείμενο της πράξης· δείτε τα στοιχεία της στην Επισκόπηση και το επίσημο έγγραφο στην πηγή.":
         "A summary is not possible for this notice, because no full text or published tables are available. The summary draws only on the act's own text; see its details under Overview and the official document at the source.",
-    "Η σύνοψη σας βοηθά να αποφασίσετε σε ένα λεπτό αν αξίζει να διαβάσετε ολόκληρη την προκήρυξη. Δεν την αντικαθιστά. Μπορεί να είναι ελλιπής — ιδίως όταν οι λεπτομέρειες βρίσκονται σε συνημμένα έγγραφα, τα οποία προς το παρόν δεν διαβάζονται. Επιβεβαιώνετε πάντα τα στοιχεία στα επίσημα έγγραφα πριν υποβάλετε προσφορά.":
-        "The summary helps you decide in a minute whether the whole notice is worth reading. It does not replace it. It can be incomplete — especially when the details live in attached documents, which are not read for now. Always confirm the facts in the official documents before you bid.",
+    "Η σύνοψη σας βοηθά να αποφασίσετε σε ένα λεπτό αν αξίζει να διαβάσετε ολόκληρη την προκήρυξη. Δεν την αντικαθιστά. Μπορεί να είναι ελλιπής — ιδίως όταν οι λεπτομέρειες βρίσκονται σε έγγραφα του ΕΣΗΔΗΣ που δεν έχουν επισυναφθεί στην πράξη. Ένα στοιχείο που προέρχεται από συνημμένο έγγραφο φέρει τη σήμανση «από συνημμένο έγγραφο» με σύνδεσμο προς το αρχείο. Επιβεβαιώνετε πάντα τα στοιχεία στα επίσημα έγγραφα πριν υποβάλετε προσφορά.":
+        "The summary helps you decide in a minute whether the whole notice is worth reading. It does not replace it. It can be incomplete — especially when the details are in ΕΣΗΔΗΣ documents that have not been attached to the act. An item that comes from an attached document is marked “from an attached document” with a link to the file. Always confirm the facts in the official documents before you bid.",
     "Ό,τι λείπει, το λέει": "It says what is missing",
     "Στο τέλος του πάνελ υπάρχει η ενότητα «Δεν αναφέρονται στην προκήρυξη». Το ότι ένα έγγραφο ΔΕΝ ορίζει ημερομηνία επιτόπιας επίσκεψης είναι πληροφορία — η σιωπή δεν είναι.":
         "At the foot of the panel there is a “Not stated in the notice” section. That a document does NOT set a site-visit date is information — silence is not.",
@@ -2538,8 +2666,8 @@ _SELF_SERVE = {
     "Οι δικές σας ειδοποιήσεις email": "Your own email alerts",
     "Κάθε συνδεδεμένος χρήστης μπορεί να αποθηκεύσει την τρέχουσα αναζήτηση: πατήστε «Αποθήκευση αναζήτησης» πάνω από τα αποτελέσματα, δώστε ένα όνομα, και η αναζήτηση γίνεται δική σας — δεν χρειάζεται να τη ζητήσετε από τη διαχείριση.":
         "Any signed-in user can save the search they are looking at: press “Save search” above the results, give it a name, and it becomes yours — there is no need to ask an administrator for it.",
-    "Στο «Ο λογαριασμός μου» → «Αποθηκευμένες αναζητήσεις & ειδοποιήσεις» βλέπετε όλες τις αναζητήσεις σας και ορίζετε μόνοι σας για ποιες θέλετε email: μορφή (λίστα αποτελεσμάτων, σύνοψη με στατιστικά ή υπενθύμιση προθεσμιών), συχνότητα, γλώσσα και πλήθος αποτελεσμάτων. Από εκεί τις μετονομάζετε, τις διαγράφετε και βλέπετε τις τελευταίες αποστολές. Τα προφίλ πύλης για τα οποία λαμβάνετε email εμφανίζονται κι αυτά, με τη δική τους ειδοποίηση — αλλά μόνο ένας διαχειριστής μπορεί να τα μετονομάσει ή να τα σβήσει, γιατί είναι κοινά.":
-        "Under “My account” → “Saved searches & alerts” you see all your searches and decide for yourself which ones are emailed to you: the format (result list, summary with statistics, or deadline reminder), how often, in which language, and how many results. From there you also rename them, delete them and see the most recent sends. Portal profiles you are emailed about appear too, with their own alert — but only an administrator can rename or delete those, because they are shared.",
+    "Στο «Ο λογαριασμός μου» → «Αποθηκευμένες αναζητήσεις & ειδοποιήσεις» βλέπετε όλες τις αναζητήσεις σας και ορίζετε μόνοι σας για ποιες θέλετε email: μορφή (λίστα αποτελεσμάτων, σύνοψη με στατιστικά ή υπενθύμιση προθεσμιών), συχνότητα, γλώσσα και πλήθος αποτελεσμάτων. Από εκεί τις μετονομάζετε, τις διαγράφετε, βλέπετε τις τελευταίες αποστολές και, με «Προσθήκη στο ημερολόγιο», βάζετε τις προθεσμίες τους στο ημερολόγιό σας (δείτε «Ημερολόγιο προθεσμιών» παρακάτω). Τα προφίλ πύλης για τα οποία λαμβάνετε email ή που έχετε βάλει στο ημερολόγιο εμφανίζονται κι αυτά — αλλά μόνο ένας διαχειριστής μπορεί να τα μετονομάσει ή να τα σβήσει, γιατί είναι κοινά.":
+        "In “My account” → “Saved searches & alerts” you see all your searches and choose yourself which ones should email you: format (list of results, summary with statistics or deadline reminder), frequency, language and number of results. From there you rename them, delete them, see the latest sends and, with “Add to calendar”, put their deadlines in your calendar (see “Deadline calendar” below). Portal profiles you are emailed about or have put in your calendar appear too — but only an administrator can rename or delete them, because they are shared.",
     "Οι επιπλέον παραλήπτες (συνάδελφοι που λαμβάνουν το ίδιο email) προστίθενται από τη διαχείριση, όχι από εσάς· στη σελίδα σας φαίνεται ποιοι είναι.":
         "Additional recipients (colleagues who receive the same email) are added by an administrator, not by you; your page shows who they are.",
     "Κάντε μια αναζήτηση με τα φίλτρα που σας ενδιαφέρουν και πατήστε «Αποθήκευση αναζήτησης» πάνω από τα αποτελέσματα.":
@@ -3419,6 +3547,132 @@ _ONBOARDING = {
 }
 
 
+# Per-tender checklist + deadline set (_panel_checklist.html,
+# app/tender_checklist.py). The chrome it shares with the AI summary panel
+# («AI εξαγωγή», «στο κείμενο», …) is keyed here too, which translates that
+# panel's chrome as well. Item labels and values are record-derived Greek and
+# are never translated.
+_CHECKLIST = {
+    "Λίστα ελέγχου": "Checklist",
+    "Λίστα ελέγχου συμμετοχής": "Bid checklist",
+    "AI εξαγωγή": "AI extracted",
+    "Εργαλείο πρώτης αξιολόγησης.": "A first-pass screening tool.",
+    "Η λίστα προκύπτει αυτόματα από τη σύνοψη της προκήρυξης και μπορεί να είναι ελλιπής. Δεν αντικαθιστά την ανάγνωση της διακήρυξης· επιβεβαιώνετε πάντα τις προθεσμίες και τα δικαιολογητικά στα επίσημα έγγραφα.":
+        "This list is built automatically from the notice's summary and may be incomplete. It does not replace reading the tender documents; always confirm deadlines and required documents in the official documents.",
+    "Η σύνοψη κάλυψε μόνο μέρος του κειμένου, οπότε η λίστα μπορεί να μην περιέχει όσα αναφέρονται στο υπόλοιπο.":
+        "The summary covered only part of the text, so the list may miss what the rest of it says.",
+    "Η σύνοψη δεν εντόπισε προϋποθέσεις, εγγυήσεις ή δικαιολογητικά υποβολής για να γίνουν λίστα.":
+        "The summary found no participation conditions, guarantees or submission documents to turn into a list.",
+    "Προθεσμίες": "Deadlines",
+    "Υποβολή προσφορών": "Submission of offers",
+    "από το αρχείο της πράξης": "from the act record",
+    "ασαφές στο κείμενο": "unclear in the text",
+    "στο κείμενο": "in the text",
+    "σήμερα": "today",
+    "Οι εργάσιμες δεν μετρούν Σαββατοκύριακα και επίσημες αργίες, ούτε τη σημερινή ημέρα.":
+        "Working days leave out weekends, public holidays and today.",
+    "αργία": "public holiday",
+    "Προϋποθέσεις συμμετοχής": "Conditions for taking part",
+    "Εγγυήσεις και οικονομικοί όροι": "Guarantees and financial terms",
+    "Υποχρεωτικές τεχνικές απαιτήσεις": "Mandatory technical requirements",
+    "Υποβολή προσφοράς": "Submitting the offer",
+    "υποχρεωτικό": "mandatory",
+    "τι λέει η προκήρυξη": "what the notice says",
+    "από πίνακα": "from a table",
+    "Ολοκληρώθηκε": "Done",
+    "Τα σημάδια ολοκλήρωσης είναι δικά σας — δεν τα βλέπει κανείς άλλος.":
+        "Your ticks are your own — nobody else sees them.",
+    # /help — the checklist section (beta_help.html, under the AI summary)
+    "Λίστα ελέγχου και προθεσμίες": "Checklist and deadlines",
+    "Όταν μια προκήρυξη έχει σύνοψη, δίπλα της εμφανίζεται η καρτέλα «Λίστα ελέγχου». Πάνω είναι οι προθεσμίες σε χρονολογική σειρά: η καταληκτική ημερομηνία από την επίσημη εγγραφή και όσες ημερομηνίες βρήκε η σύνοψη (ερωτήματα, επιτόπια επίσκεψη, αποσφράγιση), με τις ημέρες που απομένουν. Μια ημερομηνία παίρνει θέση στη σειρά μόνο όταν το στοιχείο αναφέρει μία συγκεκριμένη ημερομηνία· αν αναφέρει περισσότερες, εμφανίζεται στο τέλος με το κείμενό του, χωρίς να μαντέψουμε ποια ισχύει. Δίπλα στις ημέρες φαίνονται και οι εργάσιμες, χωρίς Σαββατοκύριακα και επίσημες αργίες (η Μεγάλη Παρασκευή μετράει ως εργάσιμη, η 26η Δεκεμβρίου όχι)· μια προθεσμία που πέφτει σε αργία σημειώνεται.":
+        "When a notice has a summary, a «Checklist» tab appears next to it. At the top are the deadlines in date order: the closing date from the official record and every date the summary found (questions, site visit, opening of offers), with the days remaining. A date is placed in the order only when the item names one specific date; if it names several, it is listed at the end with its text, without guessing which one applies. Working days are shown next to the days, leaving out weekends and public holidays (Good Friday counts as a working day, 26 December does not); a deadline that falls on a public holiday is marked.",
+    "Κάτω είναι όσα πρέπει να ετοιμάσετε, σε τέσσερις ομάδες: προϋποθέσεις συμμετοχής, εγγυήσεις (μόνο οι υποχρεωτικές — η τράπεζα θέλει χρόνο), υποχρεωτικές τεχνικές απαιτήσεις και τρόπος υποβολής. Κάθε γραμμή κρατά το απόσπασμα της προκήρυξης και τον σύνδεσμο στην παράγραφο. Τσεκάρετε ό,τι έχετε τακτοποιήσει· τα σημάδια είναι δικά σας, δεν τα βλέπει άλλος πελάτης.":
+        "Below is what you need to prepare, in four groups: conditions for taking part, guarantees (only the mandatory ones — the bank needs time), mandatory technical requirements and how to submit. Each line keeps the notice's own words and the link to the paragraph. Tick off what you have sorted out; the ticks are yours and no other customer sees them.",
+    # slice 2 — dated milestones in the calendar
+    "Όσες έχουν συγκεκριμένη ημερομηνία μπαίνουν και στο ημερολόγιό σας: στο αρχείο «Προθεσμία στο ημερολόγιο» και, αν η πράξη είναι στα αγαπημένα, στο":
+        "Those with a specific date also go into your calendar: in the «Deadline to calendar» file and, if the act is a favourite, in your",
+    "συνδεδεμένο ημερολόγιο": "subscribed calendar",
+    "Όταν μια αγαπημένη προκήρυξη έχει σύνοψη, μπαίνουν και οι άλλες προθεσμίες της με συγκεκριμένη ημερομηνία — ερωτήματα, επιτόπια επίσκεψη, αποσφράγιση — με σημείωση ότι προέρχονται από τη σύνοψη AI.":
+        "When a favourite notice has a summary, its other deadlines with a specific date — questions, site visit, opening of offers — go in too, marked as coming from the AI summary.",
+    "Από τη σύνοψη AI της προκήρυξης — επιβεβαιώστε την ημερομηνία στα επίσημα έγγραφα.":
+        "From the notice's AI summary — confirm the date in the official documents.",
+    "Προθεσμία": "Deadline",
+    "Αν μια προκήρυξη έχει σύνοψη AI, το αρχείο και το συνδεδεμένο ημερολόγιο (για τα αγαπημένα) φέρνουν και τις άλλες προθεσμίες της που έχουν συγκεκριμένη ημερομηνία — ερωτήματα, επιτόπια επίσκεψη, αποσφράγιση — από τη «Λίστα ελέγχου». Κάθε τέτοια εγγραφή γράφει ότι προέρχεται από τη σύνοψη AI. Όσες η σύνοψη διατυπώνει σχετικά («εντός τριών ημερών από τη δημοσίευση») δεν μπαίνουν στο ημερολόγιο, γιατί δεν έχουν ημερομηνία. Αν η σύνοψη ξαναδημιουργηθεί και μια ημερομηνία αλλάξει, η εγγραφή μετακινείται.":
+        "If a notice has an AI summary, the file and the subscribed calendar (for favourites) also bring its other deadlines that have a specific date — questions, site visit, opening of offers — from the «Checklist». Each such entry says it comes from the AI summary. Those the summary words relatively («within three days of publication») are not added, because they have no date. If the summary is regenerated and a date changes, the entry moves.",
+    # slice 3 — progress on /account/favorites
+    "Επόμενη προθεσμία:": "Next deadline:",
+    "Αν μια αγαπημένη προκήρυξη έχει «Λίστα ελέγχου», κάτω από την κάρτα της φαίνεται πόσα στοιχεία έχετε τσεκάρει (π.χ. 4 / 11) και η επόμενη προθεσμία που βρήκε η σύνοψη. Ένα κλικ ανοίγει την πράξη κατευθείαν στη λίστα. Η γραμμή εμφανίζεται όσο η προσφορά είναι ανοιχτή — χωρίς στάδιο, «Ετοιμάζουμε προσφορά» ή «Υποβλήθηκε προσφορά».":
+        "If a favourite notice has a «Checklist», a line under its card shows how many items you have ticked (e.g. 4 / 11) and the next deadline the summary found. One click opens the act straight on the list. The line shows while the bid is open — no stage, «Preparing a bid» or «Bid submitted».",
+    # slice 4 — the customer's own items
+    "Δικά σας": "Your own",
+    "Στο τέλος της λίστας, στο «Δικά σας», προσθέτετε δικά σας στοιχεία — π.χ. «Αίτημα εγγυητικής στην τράπεζα» ή «Βιογραφικά μηχανικών». Τα τσεκάρετε και τα διαγράφετε όπως θέλετε, μετράνε στην πρόοδο της λίστας (και στα αγαπημένα) και τα βλέπετε μόνο εσείς. Έως 50 ανά πράξη, 200 χαρακτήρες το καθένα.":
+        "At the end of the list, under «Your own», you add items of your own — e.g. «Ask the bank for the guarantee» or «Engineers' CVs». You tick and delete them as you like, they count towards the list's progress (and on favourites), and only you see them. Up to 50 per act, 200 characters each.",
+    "Διαγραφή αυτού του στοιχείου;": "Delete this item?",
+    "Προσθέστε δικό σας, π.χ. «Αίτημα εγγυητικής στην τράπεζα»":
+        "Add your own, e.g. «Ask the bank for the guarantee»",
+    "Νέο στοιχείο": "New item",
+    "Γράψτε τι θέλετε να προσθέσετε.": "Type what you want to add.",
+    "Το κείμενο είναι πολύ μεγάλο (έως 200 χαρακτήρες).": "The text is too long (up to 200 characters).",
+    "Έχετε φτάσει το όριο δικών σας στοιχείων για αυτή την πράξη.":
+        "You have reached the limit of your own items for this act.",
+    "Όταν η σύνοψη ξαναδημιουργείται": "When the summary is regenerated",
+    "Η λίστα φτιάχνεται από την τρέχουσα σύνοψη. Αν το κείμενο της πράξης αλλάξει, η λίστα κρύβεται μέχρι να δημιουργηθεί νέα σύνοψη. Τα σημάδια σας δεν χάνονται: όσα αντιστοιχούν σε στοιχείο με την ίδια διατύπωση επανέρχονται, και για τα υπόλοιπα η λίστα γράφει πόσα αφορούν στοιχεία που δεν υπάρχουν πια.":
+        "The list is built from the current summary. If the act's text changes, the list is hidden until a new summary is generated. Your ticks are not lost: those matching an item worded the same way come back, and for the rest the list says how many refer to items that no longer exist.",
+    # slice 5 — printable page + Excel export (checklist_print.html,
+    # checklist_export.py)
+    "Εκτύπωση / PDF": "Print / PDF",
+    "Πίσω στην πράξη": "Back to the act",
+    "Χωρίς αποσπάσματα": "Without quotes",
+    "Με αποσπάσματα": "With quotes",
+    "οι ημέρες μετρούν από αυτή την ημερομηνία.": "days are counted from this date.",
+    "Ολοκληρωμένα": "Done",
+    "Απομένουν": "Left",
+    "Ενότητα": "Section",
+    "Στοιχείο": "Item",
+    "Τι ζητείται": "What is required",
+    "Υποχρεωτικό": "Mandatory",
+    "Τι λέει η προκήρυξη": "What the notice says",
+    "Κείμενο": "Text",
+    "Ημέρες": "Days",
+    "Εργάσιμες ημέρες": "Working days",
+    "σύνοψη AI": "AI summary",
+    "Εκτύπωση και Excel": "Print and Excel",
+    "Πάνω στη λίστα, το «Εκτύπωση / PDF» ανοίγει τη λίστα σε σελίδα έτοιμη για χαρτί A4 — για όποιον ετοιμάζει τον φάκελο της προσφοράς — με κουτάκια, τα δικά σας στοιχεία και χώρο για σημειώσεις· από την ίδια σελίδα την αποθηκεύετε ως PDF. Το «Excel» κατεβάζει την ίδια λίστα σε λογιστικό φύλλο, με τις προθεσμίες σε δεύτερο φύλλο. Και τα δύο γράφουν πότε φτιάχτηκαν: οι ημέρες που απομένουν μετρούν από εκείνη τη στιγμή και στο χαρτί δεν ενημερώνονται.":
+        "At the top of the list, «Print / PDF» opens it as a page ready for A4 paper — for whoever assembles the bid envelope — with tick boxes, your own items and room for notes; from the same page you save it as a PDF. «Excel» downloads the same list as a spreadsheet, with the deadlines on a second sheet. Both state when they were made: the days left are counted from that moment and do not update on paper.",
+}
+
+
+# Evaluation layer — declared certificates against the checklist
+# (app/eligibility_eval.py, docs/specs/evaluation-layer.md).
+_CERTS = {
+    "Κατασκευαστής": "Manufacturer",
+    "Στο προφίλ σας": "In your profile",
+    "κατασκευαστή": "manufacturer's",
+    "δεν έχει δηλωθεί στο προφίλ σας.": "not declared in your profile.",
+    "ισχύει έως": "valid until",
+    "πριν την υποβολή": "before the closing date",
+    "έληξε στις": "expired on",
+    "χωρίς δηλωμένη ημερομηνία λήξης.": "no expiry date declared.",
+    "η προκήρυξη αναφέρει έκδοση": "the notice names edition",
+    "λήγει πριν την υποβολή": "expires before the closing date",
+    "Από το προφίλ σας": "From your profile",
+    "Πιστοποιητικά": "Certificates",
+    "Όσα δηλωθούν εδώ εμφανίζονται στη λίστα ελέγχου του πελάτη, κάτω από τα στοιχεία που τα ζητούν, με την ισχύ τους σε σχέση με την καταληκτική ημερομηνία. Δεν τσεκάρεται τίποτα αυτόματα.":
+        "What is declared here appears on the customer's checklist, under the items that ask for it, with its validity against the closing date. Nothing is ticked automatically.",
+    "Πρότυπο": "Standard",
+    "Κάτοχος": "Holder",
+    "Φορέας πιστοποίησης": "Certification body",
+    "Ισχύει έως": "Valid until",
+    "Η εταιρεία": "The company",
+    "Διαγραφή αυτού του πιστοποιητικού;": "Delete this certificate?",
+    "Έκδοση": "Edition",
+    "Κατασκευαστής (όνομα)": "Manufacturer (name)",
+    "Αποθήκευση πιστοποιητικού": "Save certificate",
+    "Πιστοποιητικά στη λίστα": "Certificates on the list",
+    "Αν στην καρτέλα του πελάτη στο CRM (Ταίριασμα → Πιστοποιητικά) έχουν δηλωθεί τα πιστοποιητικά της εταιρείας του — ή των κατασκευαστών που αντιπροσωπεύει — η λίστα τα δείχνει κάτω από κάθε στοιχείο που ζητά ISO 9001, 13485, 14001, 45001 κ.λπ.: «✓ Στο προφίλ σας: ISO 9001:2015, ισχύει έως …», ή «⚠ λήγει … — πριν την υποβολή» όταν λήγει πριν την καταληκτική ημερομηνία. Ό,τι ζητείται και δεν έχει δηλωθεί εμφανίζεται ουδέτερα («δεν έχει δηλωθεί στο προφίλ σας»). Είναι ένδειξη, όχι κρίση: δεν τσεκάρεται τίποτα αυτόματα. Η προειδοποίηση λήξης φαίνεται και στα αγαπημένα, και οι ενδείξεις περνούν στην εκτύπωση και στο Excel.":
+        "If the customer's CRM card (Fit → Certificates) declares their company's certificates — or those of the manufacturers they represent — the list shows them under every item that asks for ISO 9001, 13485, 14001, 45001 and so on: «✓ In your profile: ISO 9001:2015, valid until …», or «⚠ expires … — before the closing date» when it lapses before the deadline. Anything asked for that has not been declared is shown neutrally («not declared in your profile»). It is a pointer, not a verdict: nothing is ticked automatically. The expiry warning also shows on favourites, and the notes carry over to the print-out and the Excel file.",
+}
+
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
@@ -3428,5 +3682,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMCARD, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
              _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY, _DIGESTS,
              _SELF_SERVE, _PUBLIC, _HELP_PUBLIC, _AI_POLICY, _FIT,
-             _COMPANY_MATCH, _MATCH, _TSG_DUP, _ONBOARDING):
+             _COMPANY_MATCH, _MATCH, _TSG_DUP, _ONBOARDING, _CHECKLIST, _CERTS):
     UI_EN.update(_grp)

@@ -112,6 +112,29 @@ services:
       - key: LOGIN_LINKS_ENABLED
         value: "0"
 
+      # Act attachments (app/attachments.py): files an admin attaches to an act
+      # — e.g. the ΕΣΗΔΗΣ διακήρυξη of a big tender — stored in a PRIVATE
+      # Supabase Storage bucket through its S3 endpoint. Only the extracted
+      # text reaches Postgres, capped per file (ATTACH_TEXT_MAX_CHARS). The
+      # switch is set in the dashboard, and only AFTER the bucket and keys
+      # exist and the …attachment_text_cap migration is on prod.
+      - key: ATTACHMENTS_ENABLED
+        sync: false            # "1" in the dashboard once storage is set up
+      - key: ATTACHMENTS_BACKEND
+        value: s3
+      - key: ATTACH_MAX_MB
+        value: "50"            # Supabase Storage free plan: 50 MB per file
+      - key: ATTACH_S3_BUCKET
+        value: act-attachments
+      - key: ATTACH_S3_ENDPOINT
+        sync: false            # https://<project-ref>.storage.supabase.co/storage/v1/s3
+      - key: ATTACH_S3_REGION
+        sync: false            # the Supabase project's region, e.g. eu-central-1
+      - key: ATTACH_S3_ACCESS_KEY_ID
+        sync: false            # Supabase → Storage → S3 access keys (secret)
+      - key: ATTACH_S3_SECRET_ACCESS_KEY
+        sync: false            # (secret)
+
       # AI summary panel on notices (docs/specs/ai-summary.md). Unlike the
       # switch above, this one has to say YES explicitly: the app defaults it
       # OFF and treats anything not recognisably affirmative as off, because
