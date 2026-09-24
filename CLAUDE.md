@@ -415,6 +415,10 @@ app/tender_checklist.py; tab «Λίστα ελέγχου» on the act page, afte
 - Isolation, one way: it reads act_ai_summary and never writes it; ai_summary.py
   never reads the ticks; no company profile. Test-enforced.
 - Entitled readers only; GET answers "" otherwise. Lives under AI_SUMMARY_ENABLED.
+- Its DATED timeline items are calendar events (calendar_feed.milestone_event):
+  favourites in the feed + the one-off download, entitled only, never from
+  search matches. UID never contains the date; SEQUENCE = max(act
+  last_update_date, summary generated_at). The closing date is never repeated.
 
 ## Attachments (app/attachments.py)
 Files an admin attaches to an act — mainly the ΕΣΗΔΗΣ διακήρυξη of a big

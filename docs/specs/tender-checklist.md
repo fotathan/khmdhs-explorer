@@ -1,6 +1,7 @@
 # Spec: Per-tender checklist + deadline set
 
-**Status:** slice 1 built 2026-09-24 (branch `feat/tender-checklist`).
+**Status:** slice 1 shipped 2026-09-24 (PR #57). Slice 2 (deadlines in the
+calendar) built 2026-09-24 (branch `feat/checklist-calendar`).
 **Roadmap:** Tier 2, "per-tender checklist + deadline set, generated from the
 extraction" — after fit scoring and attachments-to-prod, which is what makes
 the extraction worth building on.
@@ -100,11 +101,7 @@ Routes: `GET /act/<adam>/checklist`, `POST /act/<adam>/checklist/<key>`
 
 ## 5. Next slices (not built)
 
-1. **Deadlines into the calendar.** Dated timeline milestones as extra events
-   in `/act/<adam>/calendar.ics` and in the subscribed feed for favourites.
-   `calendar_feed.act_event` is the one definition of an act as an event, so
-   this needs a second, milestone-shaped event with its own UID scheme — and
-   its SEQUENCE must move when the summary is regenerated.
+1. ~~Deadlines into the calendar~~ — built, see §7.
 2. **Progress on /account/favorites** — "4 / 11" on each card at stage
    `bidding`/`submitted`. Needs one summary lookup per favourite; batch it.
 3. **Working days.** When `app/workdays.py` lands
@@ -127,3 +124,41 @@ names, ambiguity, invalid dates), item identity, which sections become tasks,
 deadline order and Athens-date counting, stale/missing summary → nothing, tick
 idempotency and per-user privacy, key validation, orphaned-tick counting,
 gating, the act-page mount, and both directions of the isolation rule.
+
+---
+
+## 7. Slice 2 — the dated deadlines in the calendar
+
+The checklist's DATED timeline items become calendar events, next to the
+act's own closing-date event.
+
+- **Where:** the subscribed feed (`/calendar/<token>.ics`) for **favourites
+  only**, and the one-off `/act/<adam>/calendar.ics` for an **entitled**
+  reader. Search matches never bring milestones: they can be hundreds of acts
+  per poll, and each needs its summary re-checked. A "no bid" favourite brings
+  none (it is out of the feed altogether).
+- **What:** only `source='ai'` items with a date. The closing date stays the
+  act's one main event. A relative deadline ("within three days of
+  publication") has no date and stays off the calendar until
+  `app/workdays.py` can count it.
+- **Shape:** a time the text states → a timed event in Athens; no time → an
+  all-day event (we do not invent 23:59). The description says the date is
+  from the AI summary and must be confirmed. The URL opens the checklist tab.
+  Reminders use the same marks as the act's deadline.
+- **Identity:** UID `<adam>-m-<key>@khmdhs`, key = item_key("timeline",
+  label, "") with -2/-3 for repeated labels in date order. Never the date, so
+  a moved date moves the same event. SEQUENCE = max(act last_update_date,
+  summary generated_at): a regenerated summary is the only way a milestone
+  moves, and clients ignore a new DTSTART unless SEQUENCE rose.
+- **Budget:** within CALENDAR_MAX_EVENTS, favourites' deadlines first, then
+  their milestones, then ticked searches in the room left.
+- A stale summary, AI_SUMMARY_ENABLED off, or a lapsed reader → no milestones.
+  A cancelled act cancels its milestones.
+
+Known limit: when a regenerated summary re-words a label, its milestone gets a
+new UID and the old event simply stops appearing. Most clients drop it; some
+keep it. Same trade-off as the checklist's ticks.
+
+Code: `tender_checklist.milestones()`, `calendar_feed.milestone_event()` /
+`milestone_rows()` / `feed_content()`, the download route in `main.py`.
+Tests: `tests/test_checklist_calendar.py`.
