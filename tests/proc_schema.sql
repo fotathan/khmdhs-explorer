@@ -6783,3 +6783,23 @@ CREATE TABLE proc.calendar_search (
 
 CREATE INDEX ix_calendar_search_profile
     ON proc.calendar_search (search_profile_id);
+
+--
+-- act_checklist_tick — migrations/20260924120000_tender_checklist.sql.
+-- Appended by hand, like the blocks above: checklist items a customer has
+-- ticked off on a tender (docs/specs/tender-checklist.md, slice 1).
+--
+
+CREATE TABLE proc.act_checklist_tick (
+    user_id   bigint NOT NULL
+              REFERENCES proc.app_user(id) ON DELETE CASCADE,
+    adam      text   NOT NULL
+              REFERENCES proc.procurement_act(adam) ON DELETE CASCADE,
+    item_key  text   NOT NULL
+              CONSTRAINT act_checklist_tick_key_ck CHECK (item_key ~ '^[0-9a-f]{20}$'),
+    done_at   timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, adam, item_key)
+);
+
+CREATE INDEX ix_act_checklist_tick_adam
+    ON proc.act_checklist_tick (adam);

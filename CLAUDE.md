@@ -401,6 +401,21 @@ no_bid; NULL = bookmark. Removing the star forgets the stage.
   searches — calendar_feed.declined_adams).
 - Isolation: bid_pipeline must not read act_ai_summary (test-enforced).
 
+## Per-tender checklist (docs/specs/tender-checklist.md)
+app/tender_checklist.py; tab «Λίστα ελέγχου» on the act page, after the summary.
+- A VIEW over the act's CURRENT summary payload + final_submission_date,
+  rebuilt per request. No model call. No current summary = no checklist.
+- Tasks: eligibility + submission (all), pricing + requirements (mandatory
+  only). award/attention never; timeline = the deadline set.
+- A timeline item is dated only when it names exactly ONE date. Athens local
+  dates; "days left" are calendar days until app/workdays.py exists.
+- Ticks: proc.act_checklist_tick, per user. Key = sha256(section|folded label|
+  folded quote)[:20]; the POST accepts only a key in the current checklist.
+  Orphaned ticks (re-worded after regeneration) are kept and counted.
+- Isolation, one way: it reads act_ai_summary and never writes it; ai_summary.py
+  never reads the ticks; no company profile. Test-enforced.
+- Entitled readers only; GET answers "" otherwise. Lives under AI_SUMMARY_ENABLED.
+
 ## Attachments (app/attachments.py)
 Files an admin attaches to an act — mainly the ΕΣΗΔΗΣ διακήρυξη of a big
 tender whose KHMDHS text is only a περίληψη. ATTACHMENTS_ENABLED (default off).

@@ -3547,6 +3547,51 @@ _ONBOARDING = {
 }
 
 
+# Per-tender checklist + deadline set (_panel_checklist.html,
+# app/tender_checklist.py). The chrome it shares with the AI summary panel
+# («AI εξαγωγή», «στο κείμενο», …) is keyed here too, which translates that
+# panel's chrome as well. Item labels and values are record-derived Greek and
+# are never translated.
+_CHECKLIST = {
+    "Λίστα ελέγχου": "Checklist",
+    "Λίστα ελέγχου συμμετοχής": "Bid checklist",
+    "AI εξαγωγή": "AI extracted",
+    "Εργαλείο πρώτης αξιολόγησης.": "A first-pass screening tool.",
+    "Η λίστα προκύπτει αυτόματα από τη σύνοψη της προκήρυξης και μπορεί να είναι ελλιπής. Δεν αντικαθιστά την ανάγνωση της διακήρυξης· επιβεβαιώνετε πάντα τις προθεσμίες και τα δικαιολογητικά στα επίσημα έγγραφα.":
+        "This list is built automatically from the notice's summary and may be incomplete. It does not replace reading the tender documents; always confirm deadlines and required documents in the official documents.",
+    "Η σύνοψη κάλυψε μόνο μέρος του κειμένου, οπότε η λίστα μπορεί να μην περιέχει όσα αναφέρονται στο υπόλοιπο.":
+        "The summary covered only part of the text, so the list may miss what the rest of it says.",
+    "Η σύνοψη δεν εντόπισε προϋποθέσεις, εγγυήσεις ή δικαιολογητικά υποβολής για να γίνουν λίστα.":
+        "The summary found no participation conditions, guarantees or submission documents to turn into a list.",
+    "Προθεσμίες": "Deadlines",
+    "Υποβολή προσφορών": "Submission of offers",
+    "από το αρχείο της πράξης": "from the act record",
+    "ασαφές στο κείμενο": "unclear in the text",
+    "στο κείμενο": "in the text",
+    "σήμερα": "today",
+    "Οι ημέρες είναι ημερολογιακές, όχι εργάσιμες.": "Days are calendar days, not working days.",
+    "Προϋποθέσεις συμμετοχής": "Conditions for taking part",
+    "Εγγυήσεις και οικονομικοί όροι": "Guarantees and financial terms",
+    "Υποχρεωτικές τεχνικές απαιτήσεις": "Mandatory technical requirements",
+    "Υποβολή προσφοράς": "Submitting the offer",
+    "υποχρεωτικό": "mandatory",
+    "τι λέει η προκήρυξη": "what the notice says",
+    "από πίνακα": "from a table",
+    "Ολοκληρώθηκε": "Done",
+    "Τα σημάδια ολοκλήρωσης είναι δικά σας — δεν τα βλέπει κανείς άλλος.":
+        "Your ticks are your own — nobody else sees them.",
+    # /help — the checklist section (beta_help.html, under the AI summary)
+    "Λίστα ελέγχου και προθεσμίες": "Checklist and deadlines",
+    "Όταν μια προκήρυξη έχει σύνοψη, δίπλα της εμφανίζεται η καρτέλα «Λίστα ελέγχου». Πάνω είναι οι προθεσμίες σε χρονολογική σειρά: η καταληκτική ημερομηνία από την επίσημη εγγραφή και όσες ημερομηνίες βρήκε η σύνοψη (ερωτήματα, επιτόπια επίσκεψη, αποσφράγιση), με τις ημέρες που απομένουν. Μια ημερομηνία παίρνει θέση στη σειρά μόνο όταν το στοιχείο αναφέρει μία συγκεκριμένη ημερομηνία· αν αναφέρει περισσότερες, εμφανίζεται στο τέλος με το κείμενό του, χωρίς να μαντέψουμε ποια ισχύει. Οι ημέρες είναι ημερολογιακές — οι αργίες δεν αφαιρούνται ακόμη.":
+        "When a notice has a summary, a «Checklist» tab appears next to it. At the top are the deadlines in date order: the closing date from the official record and every date the summary found (questions, site visit, opening of offers), with the days remaining. A date is placed in the order only when the item names one specific date; if it names several, it is listed at the end with its text, without guessing which one applies. Days are calendar days — public holidays are not deducted yet.",
+    "Κάτω είναι όσα πρέπει να ετοιμάσετε, σε τέσσερις ομάδες: προϋποθέσεις συμμετοχής, εγγυήσεις (μόνο οι υποχρεωτικές — η τράπεζα θέλει χρόνο), υποχρεωτικές τεχνικές απαιτήσεις και τρόπος υποβολής. Κάθε γραμμή κρατά το απόσπασμα της προκήρυξης και τον σύνδεσμο στην παράγραφο. Τσεκάρετε ό,τι έχετε τακτοποιήσει· τα σημάδια είναι δικά σας, δεν τα βλέπει άλλος πελάτης.":
+        "Below is what you need to prepare, in four groups: conditions for taking part, guarantees (only the mandatory ones — the bank needs time), mandatory technical requirements and how to submit. Each line keeps the notice's own words and the link to the paragraph. Tick off what you have sorted out; the ticks are yours and no other customer sees them.",
+    "Όταν η σύνοψη ξαναδημιουργείται": "When the summary is regenerated",
+    "Η λίστα φτιάχνεται από την τρέχουσα σύνοψη. Αν το κείμενο της πράξης αλλάξει, η λίστα κρύβεται μέχρι να δημιουργηθεί νέα σύνοψη. Τα σημάδια σας δεν χάνονται: όσα αντιστοιχούν σε στοιχείο με την ίδια διατύπωση επανέρχονται, και για τα υπόλοιπα η λίστα γράφει πόσα αφορούν στοιχεία που δεν υπάρχουν πια.":
+        "The list is built from the current summary. If the act's text changes, the list is hidden until a new summary is generated. Your ticks are not lost: those matching an item worded the same way come back, and for the rest the list says how many refer to items that no longer exist.",
+}
+
+
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
@@ -3556,5 +3601,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMCARD, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
              _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY, _DIGESTS,
              _SELF_SERVE, _PUBLIC, _HELP_PUBLIC, _AI_POLICY, _FIT,
-             _COMPANY_MATCH, _MATCH, _TSG_DUP, _ONBOARDING):
+             _COMPANY_MATCH, _MATCH, _TSG_DUP, _ONBOARDING, _CHECKLIST):
     UI_EN.update(_grp)
