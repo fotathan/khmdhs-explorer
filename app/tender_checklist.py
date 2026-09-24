@@ -78,15 +78,17 @@ import re
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 try:
     from app import ai_summary as _ai
+    from app import checklist_export as _export
     from app import textmatch as _tm
     from app import workdays as _wd
 except ImportError:                      # pragma: no cover — run with --app-dir=app
     import ai_summary as _ai
+    import checklist_export as _export
     import textmatch as _tm
     import workdays as _wd
 
@@ -513,6 +515,8 @@ def view(c, user_id, adam: str, *, error: str = "") -> dict | None:
     # label changed). Kept, counted, never silently dropped.
     cl["n_orphaned"] = len(set(done) - cl["keys"])
     cl["adam"] = adam
+    cl["title"] = act.get("title")
+    cl["authority_id"] = act.get("authority_id")
     cl["truncated"] = payload.get("truncated")
     cl["error"] = error
     cl["own_text_max"] = OWN_TEXT_MAX
@@ -555,6 +559,59 @@ def make_router(templates: Jinja2Templates, cursor, log_event=None) -> APIRouter
         if cl is None:
             return HTMLResponse("")
         return _render(request, cl)
+
+    # ---- slice 5: the list leaves the browser ---------------------------- #
+    # Same view() as the panel, so paper, spreadsheet and screen agree. A
+    # reader who may not have it — or an act without a current checklist —
+    # is sent to the act page (the attachments' teaser rule), never shown an
+    # error page for a link they may have bookmarked.
+    def _export_view(request, adam):
+        """(cl, meta) for this reader and act, or None."""
+        user = _reader(request)
+        if user is None or not _ai.enabled():
+            return None
+        with cursor() as c:
+            cl = view(c, user["id"], adam)
+            if cl is None:
+                return None
+            authority = None
+            if cl.get("authority_id"):
+                c.execute("SELECT name FROM proc.authority WHERE org_id = %s",
+                          (cl["authority_id"],))
+                row = c.fetchone()
+                authority = row["name"] if row else None
+        return cl, {"title": cl.get("title"), "authority": authority,
+                    "made_at": _export.made_at(ATHENS)}
+
+    def _to_act(adam):
+        from urllib.parse import quote
+        return RedirectResponse(f"/act/{quote(adam, safe='')}", status_code=303)
+
+    # Private and per user: never cached by anything shared, never indexed.
+    _PRIVATE = {"Cache-Control": "private, no-store", "X-Robots-Tag": "noindex"}
+
+    @router.get("/act/{adam}/checklist/print", response_class=HTMLResponse)
+    def printable(adam: str, request: Request, quotes: str = "1"):
+        got = _export_view(request, adam)
+        if got is None:
+            return _to_act(adam)
+        cl, meta = got
+        resp = templates.TemplateResponse(
+            request, "checklist_print.html",
+            {"cl": cl, "meta": meta, "show_quotes": quotes != "0"})
+        resp.headers.update(_PRIVATE)
+        return resp
+
+    @router.get("/act/{adam}/checklist.xlsx")
+    def spreadsheet(adam: str, request: Request):
+        got = _export_view(request, adam)
+        if got is None:
+            return _to_act(adam)
+        cl, meta = got
+        body = _export.workbook(cl, meta, _export.lang_of(request))
+        return Response(content=body, media_type=_export.XLSX_MIME, headers={
+            "Content-Disposition": _export.disposition(adam, "xlsx"),
+            **_PRIVATE})
 
     # ---- the customer's own items --------------------------------------- #
     # Registered BEFORE /checklist/{key}: that route would otherwise match

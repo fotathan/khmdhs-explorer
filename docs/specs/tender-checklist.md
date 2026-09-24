@@ -3,8 +3,8 @@
 **Status:** slice 1 shipped 2026-09-24 (PR #57). Slice 2 (deadlines in the
 calendar) shipped 2026-09-24 (PR #58). Slice 3 (progress on favourites)
 shipped 2026-09-24 (PR #59). Slice 4 (the customer's own items)
-shipped 2026-09-24 (PR #60). Working days added 2026-09-24 (branch
-`feat/working-days`).
+shipped 2026-09-24 (PR #60). Working days added 2026-09-24 (PR #61).
+Slice 5 (print + Excel) built 2026-09-24 (branch `feat/checklist-print`).
 **Roadmap:** Tier 2, "per-tender checklist + deadline set, generated from the
 extraction" — after fit scoring and attachments-to-prod, which is what makes
 the extraction worth building on.
@@ -109,7 +109,7 @@ Routes: `GET /act/<adam>/checklist`, `POST /act/<adam>/checklist/<key>`
 3. ~~Working days~~ — built with app/workdays.py; see
    working-day-deadlines.md §10.
 4. ~~The customer's own items~~ — built, see §9.
-5. **Printable / exportable list** for the person who assembles the envelope.
+5. ~~Printable / exportable list~~ — built, see §10.
 6. **Evaluation layer** (ai-summary §14): pre-tick eligibility items the
    company profile provably satisfies. Needs declared certificates on the
    profile first, and must stay out of the shared payload.
@@ -215,3 +215,41 @@ Not built: a due date on an own item (and so, own items in the calendar).
 Worth doing if customers ask; it is a column and a milestone source.
 
 Tests: `tests/test_checklist_own_items.py`.
+
+---
+
+## 10. Slice 5 — the list on paper and in a spreadsheet
+
+For the person who assembles the envelope — often not the one who reads the
+notice on the site. Two links at the top of the panel: «Εκτύπωση / PDF ↗»
+and «Excel ↓».
+
+- **One source.** Both are built from `view()`, the panel's own dict: same
+  items, same ticks, same own items, same counts. No second arithmetic.
+- **Print:** `GET /act/<adam>/checklist/print` → `checklist_print.html`, a
+  standalone A4 page (no site chrome): title, ΑΔΑΜ, authority, the deadlines
+  table, each group as rows with a tick box (✓ where ticked, with the date),
+  a blank notes column, the own items, and ruled lines for notes.
+  `?quotes=0` leaves out the notice's quotes for a shorter sheet. The
+  browser's "Save as PDF" is the PDF export — no PDF library.
+- **Excel:** `GET /act/<adam>/checklist.xlsx` (`app/checklist_export.py`):
+  sheet 1 the tasks (section, item, what is required, mandatory, done date,
+  quote, empty notes column), sheet 2 the deadlines with REAL date cells so
+  they sort. Headers and sheet names follow the UI language.
+- **Dated.** Both say when they were made, and that the day counts are from
+  then: a printed "5 days left" is wrong two days later.
+- **Warned.** The screening warning (and the truncation note) travel with
+  the list — on paper nobody sees the panel it came from.
+- **No formulas.** Every text cell is written as a string: openpyxl turns a
+  value starting with "=" into a formula, and these cells hold notice text
+  and text the customer typed. Test-enforced.
+- **Private.** `Cache-Control: private, no-store`, `X-Robots-Tag: noindex`.
+- **Who:** entitled readers with AI summaries on and a current checklist.
+  Anyone else — anonymous, lapsed, feature off, no checklist — is redirected
+  (303) to the act page, never shown an error for a bookmarked link.
+
+Not built: the orphaned-tick note (not actionable on paper), a server-side
+PDF, and a whole-favourites export (one sheet per act) — worth doing if a
+customer asks for a single "everything we are bidding on" file.
+
+Tests: `tests/test_checklist_export.py`.

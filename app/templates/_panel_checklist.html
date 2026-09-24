@@ -21,6 +21,13 @@
     {% endif %}
   </h3>
 
+  {# Slice 5: the list leaves the browser — for whoever assembles the
+     envelope. Both built from the same view() as this panel. #}
+  <div class="cl-actions">
+    <a href="/act/{{ cl.adam }}/checklist/print" target="_blank" rel="noopener">{{ t("Εκτύπωση / PDF") }} ↗</a>
+    <a href="/act/{{ cl.adam }}/checklist.xlsx">{{ t("Excel") }} ↓</a>
+  </div>
+
   <div class="ai-band">
     <span class="ic" aria-hidden="true">⚠</span>
     <div>
