@@ -6803,3 +6803,28 @@ CREATE TABLE proc.act_checklist_tick (
 
 CREATE INDEX ix_act_checklist_tick_adam
     ON proc.act_checklist_tick (adam);
+
+--
+-- act_checklist_own_item — migrations/20260924130000_checklist_own_items.sql.
+-- Appended by hand, like the blocks above: a customer's own checklist lines
+-- on a tender (docs/specs/tender-checklist.md, slice 4).
+--
+
+CREATE TABLE proc.act_checklist_own_item (
+    id          bigserial PRIMARY KEY,
+    user_id     bigint NOT NULL
+                REFERENCES proc.app_user(id) ON DELETE CASCADE,
+    adam        text   NOT NULL
+                REFERENCES proc.procurement_act(adam) ON DELETE CASCADE,
+    text        text   NOT NULL
+                CONSTRAINT act_checklist_own_item_text_ck
+                CHECK (length(btrim(text)) BETWEEN 1 AND 200),
+    done_at     timestamptz,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX ix_act_checklist_own_item_user_adam
+    ON proc.act_checklist_own_item (user_id, adam);
+
+CREATE INDEX ix_act_checklist_own_item_adam
+    ON proc.act_checklist_own_item (adam);

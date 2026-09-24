@@ -1,8 +1,9 @@
 # Spec: Per-tender checklist + deadline set
 
 **Status:** slice 1 shipped 2026-09-24 (PR #57). Slice 2 (deadlines in the
-calendar) shipped 2026-09-24 (PR #58). Slice 3 (progress on favourites) built
-2026-09-24 (branch `feat/checklist-favorites-progress`).
+calendar) shipped 2026-09-24 (PR #58). Slice 3 (progress on favourites)
+shipped 2026-09-24 (PR #59). Slice 4 (the customer's own items) built
+2026-09-24 (branch `feat/checklist-own-items`).
 **Roadmap:** Tier 2, "per-tender checklist + deadline set, generated from the
 extraction" — after fit scoring and attachments-to-prod, which is what makes
 the extraction worth building on.
@@ -108,8 +109,7 @@ Routes: `GET /act/<adam>/checklist`, `POST /act/<adam>/checklist/<key>`
    (working-day-deadlines spec, slices 1–2), show working days left next to
    calendar days. Blocked on the user's decision about Μεγάλη Παρασκευή and
    26 December.
-4. **The customer's own items** ("call the bank", "ask Γιώργος for the CV") —
-   a free-text row type on the same table, keyed separately.
+4. ~~The customer's own items~~ — built, see §9.
 5. **Printable / exportable list** for the person who assembles the envelope.
 6. **Evaluation layer** (ai-summary §14): pre-tick eligibility items the
    company profile provably satisfies. Needs declared certificates on the
@@ -185,3 +185,34 @@ A one-line strip between each favourite's card and its stage panel:
   and the current-ness check only for those.
 
 Tests: `tests/test_checklist_favorites.py`.
+
+---
+
+## 9. Slice 4 — the customer's own items
+
+A «Δικά σας» section at the end of the checklist panel: the customer types
+their own lines ("Αίτημα εγγυητικής στην τράπεζα"), ticks and deletes them.
+
+- **Storage:** `proc.act_checklist_own_item` (migration
+  `20260924130000_checklist_own_items.sql`): id, user_id, adam, text,
+  done_at, created_at. Its own table: a tick points at an item the SUMMARY
+  owns; an own item is content the customer wrote.
+- **Private:** every read and write is keyed on the signed-in user AND the
+  act in the URL; someone else's item id, or an id under another act, is a
+  404.
+- **Bounded:** text trimmed, whitespace collapsed, 1–200 chars (also a CHECK
+  in the database); at most 50 per act per customer. A rejection re-renders
+  the panel with the reason; a full list hides the form.
+- **Counted:** in the panel headline and on /account/favorites — one
+  arithmetic (`view` and `progress_for`).
+- **Where it lives:** inside the checklist panel, so only on acts with a
+  current checklist. Items survive a stale summary and come back with the
+  next one.
+- **Routes:** `POST /act/<adam>/checklist/own` (add),
+  `…/own/<id>` (done=1 ticks), `…/own/<id>/delete`. Registered before
+  `…/checklist/{key}`, which would otherwise swallow `own`.
+
+Not built: a due date on an own item (and so, own items in the calendar).
+Worth doing if customers ask; it is a column and a milestone source.
+
+Tests: `tests/test_checklist_own_items.py`.

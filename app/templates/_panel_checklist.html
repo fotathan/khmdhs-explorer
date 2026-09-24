@@ -16,8 +16,8 @@
   <h3 class="panel-h">
     {{ t("Λίστα ελέγχου συμμετοχής") }}
     <span class="ai-tag">{{ t("AI εξαγωγή") }}</span>
-    {% if cl.n_tasks %}
-    <span class="cl-progress" aria-live="polite">{{ cl.n_done }} / {{ cl.n_tasks }}</span>
+    {% if cl.n_total %}
+    <span class="cl-progress" aria-live="polite">{{ cl.n_done }} / {{ cl.n_total }}</span>
     {% endif %}
   </h3>
 
@@ -127,6 +127,52 @@
   {% if not cl.groups %}
   <p class="ai-note">{{ t("Η σύνοψη δεν εντόπισε προϋποθέσεις, εγγυήσεις ή δικαιολογητικά υποβολής για να γίνουν λίστα.") }}</p>
   {% endif %}
+
+  {# ------------------------------------------------------- own items #}
+  {# The customer's own lines ("call the bank"). Theirs alone, stored in
+     proc.act_checklist_own_item — never in the shared summary. No quote, no
+     AI tag: nothing here was extracted. #}
+  <section class="ai-sec cl-sec cl-own">
+    <div class="ai-sec-h">
+      <h4>{{ t("Δικά σας") }}</h4>
+      {% if cl.own %}<span class="cl-count">{{ cl.own_done }} / {{ cl.own | length }}</span>{% endif %}
+    </div>
+    {% if cl.own %}
+    <ul class="cl-items">
+      {% for o in cl.own %}
+      <li class="cl-item{% if o.done_at %} is-done{% endif %}">
+        <form hx-post="/act/{{ cl.adam }}/checklist/own/{{ o.id }}"
+              hx-target="#checklist-mount" hx-swap="outerHTML"
+              hx-trigger="change">
+          <input type="checkbox" name="done" value="1" id="cl-own-{{ o.id }}"
+                 {% if o.done_at %}checked{% endif %}>
+        </form>
+        <div class="cl-body">
+          <label for="cl-own-{{ o.id }}" class="ai-label cl-own-text">{{ o.text }}</label>
+          {% if o.done_at %}
+            <div class="cl-done">{{ t("Ολοκληρώθηκε") }} {{ o.done_at.strftime('%d/%m/%Y') }}</div>
+          {% endif %}
+        </div>
+        <button type="button" class="cl-del"
+                hx-post="/act/{{ cl.adam }}/checklist/own/{{ o.id }}/delete"
+                hx-target="#checklist-mount" hx-swap="outerHTML"
+                hx-confirm="{{ t('Διαγραφή αυτού του στοιχείου;') }}"
+                aria-label="{{ t('Διαγραφή') }}" title="{{ t('Διαγραφή') }}">×</button>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if not cl.own_full %}
+    <form class="cl-add" hx-post="/act/{{ cl.adam }}/checklist/own"
+          hx-target="#checklist-mount" hx-swap="outerHTML">
+      <input type="text" name="text" maxlength="{{ cl.own_text_max }}" required
+             placeholder="{{ t('Προσθέστε δικό σας, π.χ. «Αίτημα εγγυητικής στην τράπεζα»') }}"
+             aria-label="{{ t('Νέο στοιχείο') }}">
+      <button type="submit">{{ t("Προσθήκη") }}</button>
+    </form>
+    {% endif %}
+    {% if cl.error %}<p class="cl-err" role="alert">{{ cl.error | t }}</p>{% endif %}
+  </section>
 
   {% if cl.n_orphaned %}
   {# The summary was regenerated and some items were re-worded. Those ticks

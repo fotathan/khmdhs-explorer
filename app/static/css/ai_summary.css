@@ -191,3 +191,25 @@
   .cl-date { grid-template-columns: 1fr auto; }
   .cl-what { grid-column: 1 / -1; grid-row: 2; }
 }
+
+/* ---- the customer's own items (slice 4) --------------------------------- */
+.cl-own .cl-item { align-items: center; }
+.cl-own-text { font-weight: 500; }
+.cl-del {
+  margin-left: auto; background: none; border: 0; cursor: pointer;
+  font-size: 18px; line-height: 1; color: var(--ink-3); padding: 2px 6px; border-radius: 4px;
+}
+.cl-del:hover { color: var(--accent); background: var(--paper); }
+.cl-del:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cl-add { display: flex; gap: 8px; margin-top: 10px; }
+.cl-add input {
+  flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 7px 10px;
+  border: 1px solid var(--rule); border-radius: var(--radius-sm);
+  background: var(--paper); color: var(--ink);
+}
+.cl-add button {
+  font: inherit; font-size: 13px; font-weight: 600; padding: 7px 14px; cursor: pointer;
+  border: 0; border-radius: var(--radius-sm); background: var(--accent); color: #fff;
+}
+.cl-add button:hover { background: var(--accent-2); }
+.cl-err { color: var(--accent); font-size: 12.5px; margin: 6px 0 0; }

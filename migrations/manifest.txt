@@ -108,3 +108,4 @@ migrations/20260923180000_favorite_bid_stage.sql
 migrations/20260924095900_act_attachment_on_prod.sql
 migrations/20260924100000_attachment_text_cap.sql
 migrations/20260924120000_tender_checklist.sql
+migrations/20260924130000_checklist_own_items.sql
