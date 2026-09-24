@@ -49,6 +49,11 @@
       {% for r in rows %}
         <div class="fav-item">
           {% include "_result_card.html" %}
+          {% if checklists.get(r.adam) %}
+            {% with cp = checklists.get(r.adam), adam = r.adam %}
+              {% include "_fav_checklist.html" %}
+            {% endwith %}
+          {% endif %}
           {% with fav = r, detection = detections.get(r.adam) %}
             {% include "_bid_stage.html" %}
           {% endwith %}
@@ -100,5 +105,19 @@
   .bid-detect .bid-confirm{margin-left:6px;}
   .bid-hint{font-size:12px;color:var(--ink-2,#5b626d);margin-top:2px;}
   .bid-err{margin-top:4px;color:#b23b3b;}
+
+  /* Checklist progress (_fav_checklist.html): joins the card to the stage
+     panel, so it carries the same side borders and no radius. */
+  .fav-cl{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;
+    border:1px solid var(--rule,#e6e8ec);border-top:0;padding:7px 14px;font-size:13px;
+    background:var(--paper,#fff);color:var(--ink,#1c2230);text-decoration:none;}
+  .fav-cl:hover{background:var(--paper-2,#f7f8fa);}
+  .fav-cl-h{font-weight:600;}
+  .fav-cl-bar{flex:0 0 90px;height:6px;border-radius:3px;background:var(--rule,#e6e8ec);overflow:hidden;}
+  .fav-cl-bar span{display:block;height:100%;background:var(--accent,#b8323a);}
+  .fav-cl.is-complete .fav-cl-bar span{background:#1f8a4c;}
+  .fav-cl-n{font-family:var(--mono,monospace);font-size:12px;color:var(--ink-2,#5b626d);}
+  .fav-cl-next{color:var(--ink-2,#5b626d);}
+  .fav-cl-go{margin-left:auto;color:var(--ink-2,#5b626d);}
 </style>
 {% endblock %}

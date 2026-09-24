@@ -284,6 +284,49 @@ def current(c, adam: str) -> tuple[dict, dict] | None:
     return None if got is None else got[:2]
 
 
+def progress_for(c, user_id, adams, *, today: dt.date | None = None) -> dict:
+    """{adam: {"n_done", "n_tasks", "next"}} for the acts among `adams` that
+    have a current checklist — the favourites page's one-line summary of each
+    (docs/specs/tender-checklist.md, slice 3).
+
+    Batched: one query for which acts have a summary row at all, one for this
+    user's ticks on all of them; only acts with a summary pay for the
+    current-ness check. `next` is the soonest UPCOMING dated deadline the
+    summary found (source 'ai') — the closing date is already on the card.
+    n_done counts only ticks on items the current checklist still has, the
+    same rule as the panel, so the two numbers can never disagree.
+    """
+    adams = [a for a in dict.fromkeys(adams or []) if a]
+    if not adams or not _ai.enabled():
+        return {}
+    today = today or athens_today()
+    c.execute("SELECT adam FROM proc.act_ai_summary WHERE adam = ANY(%s)",
+              (adams,))
+    have = [a for a in adams if a in {r["adam"] for r in c.fetchall()}]
+    if not have:
+        return {}
+    c.execute("""SELECT adam, item_key FROM proc.act_checklist_tick
+                  WHERE user_id = %s AND adam = ANY(%s)""", (user_id, have))
+    ticked: dict[str, set] = {}
+    for r in c.fetchall():
+        ticked.setdefault(r["adam"], set()).add(r["item_key"])
+    out = {}
+    for adam in have:
+        got = current(c, adam)
+        if got is None:
+            continue
+        act, payload = got
+        cl = build(payload, act, today=today)
+        upcoming = [d for d in cl["deadlines"]
+                    if d["source"] == "ai" and d["date"] and not d["is_past"]]
+        if not cl["n_tasks"] and not upcoming:
+            continue
+        out[adam] = {"n_done": len(ticked.get(adam, set()) & cl["keys"]),
+                     "n_tasks": cl["n_tasks"],
+                     "next": upcoming[0] if upcoming else None}
+    return out
+
+
 def milestones(c, adam: str) -> list[dict]:
     """The DATED deadlines the summary found for this act — the calendar's
     share of the deadline set (docs/specs/tender-checklist.md, slice 2).
