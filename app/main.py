@@ -4644,6 +4644,21 @@ def act_ai_generate(adam: str, request: Request):
     return templates.TemplateResponse(request, "_panel_ai.html", ctx)
 
 
+# /act/<adam>/checklist — the per-tender checklist + deadline set
+# (app/tender_checklist.py, docs/specs/tender-checklist.md). Derived from the
+# CURRENT summary above at request time; the only thing it stores is which
+# items the reader ticked off (proc.act_checklist_tick). It reads the summary
+# and never writes it — the isolation rule runs one way (test-enforced).
+try:
+    from app import tender_checklist as _checklist
+except ImportError:
+    import tender_checklist as _checklist  # type: ignore
+app.include_router(_checklist.make_router(
+    templates, cursor,
+    log_event=lambda ev, **kw: _obs.log_event(logging.WARNING, ev,
+                                              exc_info=True, **kw)))
+
+
 def _attachments_mod():
     try:
         from app import attachments as _att

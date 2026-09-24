@@ -1,0 +1,139 @@
+{# _panel_checklist.html — the per-tender checklist and deadline set.
+
+   Returned by GET /act/<adam>/checklist and by POST …/checklist/<key>, and
+   swapped into #checklist-mount with hx-swap="outerHTML", so what the panel
+   shows is always what the server just wrote. Input: `cl` from
+   tender_checklist.view(). docs/specs/tender-checklist.md.
+
+   Built from the AI summary (no model call of its own), so it carries the
+   same permanent screening warning and every item keeps its quote and its
+   jump to the sentence that produced it. The ticks are the reader's own and
+   are the only thing here that is not a property of the act.
+
+   CSRF: _csrf.html attaches X-CSRF-Token to every HTMX request. #}
+<div id="checklist-mount" class="panel ai-panel cl-panel">
+
+  <h3 class="panel-h">
+    {{ t("Λίστα ελέγχου συμμετοχής") }}
+    <span class="ai-tag">{{ t("AI εξαγωγή") }}</span>
+    {% if cl.n_tasks %}
+    <span class="cl-progress" aria-live="polite">{{ cl.n_done }} / {{ cl.n_tasks }}</span>
+    {% endif %}
+  </h3>
+
+  <div class="ai-band">
+    <span class="ic" aria-hidden="true">⚠</span>
+    <div>
+      <p><b>{{ t("Εργαλείο πρώτης αξιολόγησης.") }}</b>
+         {{ t("Η λίστα προκύπτει αυτόματα από τη σύνοψη της προκήρυξης και μπορεί να είναι ελλιπής. Δεν αντικαθιστά την ανάγνωση της διακήρυξης· επιβεβαιώνετε πάντα τις προθεσμίες και τα δικαιολογητικά στα επίσημα έγγραφα.") }}</p>
+    </div>
+  </div>
+
+  {% if cl.truncated %}
+  <p class="ai-warn">{{ t("Η σύνοψη κάλυψε μόνο μέρος του κειμένου, οπότε η λίστα μπορεί να μην περιέχει όσα αναφέρονται στο υπόλοιπο.") }}</p>
+  {% endif %}
+
+  {# ---------------------------------------------------------- deadlines #}
+  {% if cl.deadlines %}
+  <section class="ai-sec cl-sec">
+    <div class="ai-sec-h"><h4>{{ t("Προθεσμίες") }}</h4></div>
+    <ol class="cl-dates">
+      {% for d in cl.deadlines %}
+      <li class="cl-date{% if d.is_past %} is-past{% endif %}{% if d.source == 'record' %} is-record{% endif %}">
+        <div class="cl-when">
+          {% if d.date %}
+            <b>{{ d.date.strftime('%d/%m/%Y') }}</b>{% if d.time %} <span>{{ d.time }}</span>{% endif %}
+          {% else %}
+            <b>—</b>
+          {% endif %}
+        </div>
+        <div class="cl-what">
+          <span class="ai-label">{{ d.label | t if d.source == 'record' else d.label }}</span>
+          {% if d.source == 'record' %}
+            <span class="cl-src">{{ t("από το αρχείο της πράξης") }}</span>
+          {% elif d.confidence == 'low' %}
+            <span class="ai-conf">{{ t("ασαφές στο κείμενο") }}</span>
+          {% endif %}
+          {% if d.value and not d.date %}<div class="ai-value">{{ d.value }}</div>{% endif %}
+          {% if d.anchor %}
+            <button type="button" class="ai-jump" data-ai-anchor="{{ d.anchor }}">
+              {{ t("στο κείμενο") }} — {{ t("παρ.") }} {{ d.para }} ›</button>
+          {% endif %}
+        </div>
+        <div class="cl-left">
+          {% if d.days_left is not none %}
+            {% if d.days_left < 0 %}{{ t("έληξε") }}
+            {% elif d.days_left == 0 %}{{ t("σήμερα") }}
+            {% elif lang == 'en' %}{{ d.days_left }} day{{ '' if d.days_left == 1 else 's' }}
+            {% else %}{{ d.days_left }} {{ "ημέρα" if d.days_left == 1 else "ημέρες" }}{% endif %}
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+    <p class="cl-foot">{{ t("Οι ημέρες είναι ημερολογιακές, όχι εργάσιμες.") }}</p>
+  </section>
+  {% endif %}
+
+  {# -------------------------------------------------------------- tasks #}
+  {% for g in cl.groups %}
+  <section class="ai-sec cl-sec">
+    <div class="ai-sec-h">
+      <h4>{{ g.heading | t }}</h4>
+      <span class="cl-count">{{ g.n_done }} / {{ g['items'] | length }}</span>
+    </div>
+    <ul class="cl-items">
+      {% for item in g['items'] %}
+      <li class="cl-item{% if item.done_at %} is-done{% endif %}">
+        <form hx-post="/act/{{ cl.adam }}/checklist/{{ item.key }}"
+              hx-target="#checklist-mount" hx-swap="outerHTML"
+              hx-trigger="change">
+          <input type="checkbox" name="done" value="1" id="cl-{{ item.key }}"
+                 {% if item.done_at %}checked{% endif %}>
+        </form>
+        <div class="cl-body">
+          <label for="cl-{{ item.key }}" class="ai-label">{{ item.label }}</label>
+          {% if item.obligation == 'mandatory' %}
+            <span class="ai-ob req">{{ t("υποχρεωτικό") }}</span>
+          {% endif %}
+          {% if item.confidence == 'low' %}
+            <span class="ai-conf">{{ t("ασαφές στο κείμενο") }}</span>
+          {% endif %}
+          <div class="ai-value">{{ item.value }}</div>
+          <details class="cl-quote">
+            <summary>{{ t("τι λέει η προκήρυξη") }}</summary>
+            <blockquote class="ai-quote">«{{ item.quote }}»</blockquote>
+          </details>
+          {% if item.anchor %}
+            <button type="button" class="ai-jump" data-ai-anchor="{{ item.anchor }}">
+              {{ t("στο κείμενο") }} — {{ t("παρ.") }} {{ item.para }} ›</button>
+          {% elif item.source and item.source.startswith('attachment:') %}
+            <a class="ai-src" href="/act/{{ cl.adam }}/attachment/{{ item.source.split(':', 1)[1] }}">{{ t("από συνημμένο έγγραφο") }} ↗</a>
+          {% elif item.source and item.source.startswith('table:') %}
+            <span class="ai-src">{{ t("από πίνακα") }}</span>
+          {% endif %}
+          {% if item.done_at %}
+            <div class="cl-done">{{ t("Ολοκληρώθηκε") }} {{ item.done_at.strftime('%d/%m/%Y') }}</div>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+
+  {% if not cl.groups %}
+  <p class="ai-note">{{ t("Η σύνοψη δεν εντόπισε προϋποθέσεις, εγγυήσεις ή δικαιολογητικά υποβολής για να γίνουν λίστα.") }}</p>
+  {% endif %}
+
+  {% if cl.n_orphaned %}
+  {# The summary was regenerated and some items were re-worded. Those ticks
+     are kept, not deleted — say so rather than let the count quietly drop. #}
+  <p class="cl-foot">
+    {% if lang == 'en' %}{{ cl.n_orphaned }} earlier tick{{ '' if cl.n_orphaned == 1 else 's' }} belong{{ 's' if cl.n_orphaned == 1 else '' }} to items the summary no longer lists (it was regenerated).
+    {% else %}{{ cl.n_orphaned }} {{ "σημείωση" if cl.n_orphaned == 1 else "σημειώσεις" }} αφορ{{ "ά" if cl.n_orphaned == 1 else "ούν" }} στοιχεία που η σύνοψη δεν περιέχει πλέον (αναδημιουργήθηκε).{% endif %}
+  </p>
+  {% endif %}
+
+  <p class="cl-foot">{{ t("Τα σημάδια ολοκλήρωσης είναι δικά σας — δεν τα βλέπει κανείς άλλος.") }}</p>
+</div>
