@@ -58,9 +58,11 @@ from fastapi.templating import Jinja2Templates
 try:
     from app import bid_pipeline as _pipeline
     from app import i18n as _i18n
+    from app import tender_checklist as _checklist
 except ImportError:                      # pragma: no cover — run with --app-dir=app
     import bid_pipeline as _pipeline
     import i18n as _i18n
+    import tender_checklist as _checklist
 
 PAGE = "/account/favorites"
 
@@ -137,6 +139,19 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             c, user["id"],
             [r["adam"] for r in rows if r["bid_stage"] in _pipeline.OPEN_STAGES])
 
+    def _checklists(c, user, rows):
+        """Checklist progress (tender_checklist.progress_for) for the
+        favourites still in play: no stage yet, bidding or submitted. A
+        won / lost / no-bid tender's checklist is history. Entitled users
+        only — the checklist is built from the AI summary, which is
+        subscriber content."""
+        if not user.get("has_access"):
+            return {}
+        return _checklist.progress_for(
+            c, user["id"],
+            [r["adam"] for r in rows
+             if r["bid_stage"] in (None, "bidding", "submitted")])
+
     def _stage_panel(request, row, detection=None, *, error: str = ""):
         return templates.TemplateResponse(
             request, "_bid_stage.html",
@@ -194,6 +209,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             rows = c.fetchall()
             counts = _pipeline.stage_counts(c, user["id"])
             detections = _detections(c, user, rows)
+            checklists = _checklists(c, user, rows)
         return templates.TemplateResponse(
             request, "account_favorites.html",
             {"rows": rows, "nav_active": "account",
@@ -203,7 +219,7 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
              "pipeline": _pipeline.summary(counts),
              "stages": _pipeline.STAGES,
              "no_stage_label": _pipeline.NO_STAGE_LABEL,
-             "detections": detections,
+             "detections": detections, "checklists": checklists,
              "lang": _i18n.lang_from_request(request)})
 
     # ---- the toggle -------------------------------------------------------- #

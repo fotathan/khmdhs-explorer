@@ -1,7 +1,8 @@
 # Spec: Per-tender checklist + deadline set
 
 **Status:** slice 1 shipped 2026-09-24 (PR #57). Slice 2 (deadlines in the
-calendar) built 2026-09-24 (branch `feat/checklist-calendar`).
+calendar) shipped 2026-09-24 (PR #58). Slice 3 (progress on favourites) built
+2026-09-24 (branch `feat/checklist-favorites-progress`).
 **Roadmap:** Tier 2, "per-tender checklist + deadline set, generated from the
 extraction" — after fit scoring and attachments-to-prod, which is what makes
 the extraction worth building on.
@@ -102,8 +103,7 @@ Routes: `GET /act/<adam>/checklist`, `POST /act/<adam>/checklist/<key>`
 ## 5. Next slices (not built)
 
 1. ~~Deadlines into the calendar~~ — built, see §7.
-2. **Progress on /account/favorites** — "4 / 11" on each card at stage
-   `bidding`/`submitted`. Needs one summary lookup per favourite; batch it.
+2. ~~Progress on /account/favorites~~ — built, see §8.
 3. **Working days.** When `app/workdays.py` lands
    (working-day-deadlines spec, slices 1–2), show working days left next to
    calendar days. Blocked on the user's decision about Μεγάλη Παρασκευή and
@@ -162,3 +162,26 @@ keep it. Same trade-off as the checklist's ticks.
 Code: `tender_checklist.milestones()`, `calendar_feed.milestone_event()` /
 `milestone_rows()` / `feed_content()`, the download route in `main.py`.
 Tests: `tests/test_checklist_calendar.py`.
+
+---
+
+## 8. Slice 3 — progress on /account/favorites
+
+A one-line strip between each favourite's card and its stage panel:
+«Λίστα ελέγχου ▬▬ 4 / 11 · Επόμενη προθεσμία: Ερωτήματα, 12/06 15:00 (σε 3
+ημέρες) ›», linking to `/act/<adam>#tab-checklist`.
+
+- **When:** the act has a CURRENT checklist, the customer is entitled, AI
+  summaries are on, and the favourite is still in play — no stage, bidding or
+  submitted. Won / lost / no_bid hide it; that checklist is history. This is
+  wider than "bidding/submitted" as first planned: on a bare bookmark the
+  strip is how a customer finds out the act has a checklist at all.
+- **Numbers:** ticks count only on items the current checklist still has —
+  the panel's rule, so the favourites page and the act page always agree.
+- **Next deadline:** the soonest upcoming DATED deadline from the summary.
+  Never the closing date (it is on the card) and never a past one.
+- **Cost:** `tender_checklist.progress_for` does one query for which
+  favourites have a summary row, one for the user's ticks on all of them,
+  and the current-ness check only for those.
+
+Tests: `tests/test_checklist_favorites.py`.

@@ -419,6 +419,9 @@ app/tender_checklist.py; tab «Λίστα ελέγχου» on the act page, afte
   favourites in the feed + the one-off download, entitled only, never from
   search matches. UID never contains the date; SEQUENCE = max(act
   last_update_date, summary generated_at). The closing date is never repeated.
+- /account/favorites shows "n / N + next deadline" (progress_for) while the
+  favourite is open (no stage / bidding / submitted). Counts only current
+  items — same rule as the panel.
 
 ## Attachments (app/attachments.py)
 Files an admin attaches to an act — mainly the ΕΣΗΔΗΣ διακήρυξη of a big
