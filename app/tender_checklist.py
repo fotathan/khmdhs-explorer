@@ -293,8 +293,9 @@ def progress_for(c, user_id, adams, *, today: dt.date | None = None) -> dict:
     user's ticks on all of them; only acts with a summary pay for the
     current-ness check. `next` is the soonest UPCOMING dated deadline the
     summary found (source 'ai') — the closing date is already on the card.
-    n_done counts only ticks on items the current checklist still has, the
-    same rule as the panel, so the two numbers can never disagree.
+    n_done counts only ticks on items the current checklist still has, plus
+    the customer's own items — the same arithmetic as the panel (view), so
+    the two numbers can never disagree.
     """
     adams = [a for a in dict.fromkeys(adams or []) if a]
     if not adams or not _ai.enabled():
@@ -310,6 +311,12 @@ def progress_for(c, user_id, adams, *, today: dt.date | None = None) -> dict:
     ticked: dict[str, set] = {}
     for r in c.fetchall():
         ticked.setdefault(r["adam"], set()).add(r["item_key"])
+    c.execute("""SELECT adam, count(*) AS n,
+                        count(*) FILTER (WHERE done_at IS NOT NULL) AS n_done
+                   FROM proc.act_checklist_own_item
+                  WHERE user_id = %s AND adam = ANY(%s)
+                  GROUP BY adam""", (user_id, have))
+    own = {r["adam"]: (r["n"], r["n_done"]) for r in c.fetchall()}
     out = {}
     for adam in have:
         got = current(c, adam)
@@ -319,10 +326,12 @@ def progress_for(c, user_id, adams, *, today: dt.date | None = None) -> dict:
         cl = build(payload, act, today=today)
         upcoming = [d for d in cl["deadlines"]
                     if d["source"] == "ai" and d["date"] and not d["is_past"]]
-        if not cl["n_tasks"] and not upcoming:
+        n_own, own_done = own.get(adam, (0, 0))
+        if not cl["n_tasks"] and not n_own and not upcoming:
             continue
-        out[adam] = {"n_done": len(ticked.get(adam, set()) & cl["keys"]),
-                     "n_tasks": cl["n_tasks"],
+        # Same arithmetic as view(): the summary's items plus the customer's own.
+        out[adam] = {"n_done": len(ticked.get(adam, set()) & cl["keys"]) + own_done,
+                     "n_tasks": cl["n_tasks"] + n_own,
                      "next": upcoming[0] if upcoming else None}
     return out
 
@@ -379,26 +388,100 @@ def set_tick(c, user_id, adam: str, key: str, done: bool) -> None:
                   (user_id, adam, key))
 
 
-def view(c, user_id, adam: str) -> dict | None:
+# --------------------------------------------------------------------------- #
+# The customer's own items (slice 4)
+# --------------------------------------------------------------------------- #
+# A line the customer writes themselves — "ask the bank for the guarantee".
+# Private to them (every query is keyed on user_id), never near the shared
+# summary. Bounded twice, like every table a signed-in user can write to: the
+# text length (also a CHECK in the migration) and the rows per act.
+OWN_TEXT_MAX = 200
+OWN_MAX_PER_ACT = 50
+_WS = re.compile(r"\s+")
+
+
+class OwnItemError(ValueError):
+    """A rejected own item. The message is a Greek UI string (a t() key)."""
+
+
+def clean_own_text(text: str) -> str:
+    """Whitespace collapsed, trimmed, and within bounds — or OwnItemError."""
+    text = _WS.sub(" ", text or "").strip()
+    if not text:
+        raise OwnItemError("Γράψτε τι θέλετε να προσθέσετε.")
+    if len(text) > OWN_TEXT_MAX:
+        raise OwnItemError("Το κείμενο είναι πολύ μεγάλο (έως 200 χαρακτήρες).")
+    return text
+
+
+def own_items(c, user_id, adam: str) -> list[dict]:
+    c.execute("""SELECT id, text, done_at, created_at
+                   FROM proc.act_checklist_own_item
+                  WHERE user_id = %s AND adam = %s
+                  ORDER BY created_at, id""", (user_id, adam))
+    return c.fetchall()
+
+
+def add_own(c, user_id, adam: str, text: str) -> dict:
+    """Add one. Raises OwnItemError on bad text or a full list."""
+    text = clean_own_text(text)
+    c.execute("""SELECT count(*) AS n FROM proc.act_checklist_own_item
+                  WHERE user_id = %s AND adam = %s""", (user_id, adam))
+    if c.fetchone()["n"] >= OWN_MAX_PER_ACT:
+        raise OwnItemError("Έχετε φτάσει το όριο δικών σας στοιχείων για αυτή την πράξη.")
+    c.execute("""INSERT INTO proc.act_checklist_own_item (user_id, adam, text)
+                 VALUES (%s, %s, %s) RETURNING id, text, done_at, created_at""",
+              (user_id, adam, text))
+    return c.fetchone()
+
+
+def set_own_done(c, user_id, adam: str, item_id: int, done: bool) -> bool:
+    """Tick / untick. False when no such item is THIS user's on THIS act.
+    Ticking an already-done item keeps its original done_at."""
+    c.execute("""UPDATE proc.act_checklist_own_item
+                    SET done_at = CASE WHEN %s THEN coalesce(done_at, now())
+                                       ELSE NULL END
+                  WHERE id = %s AND user_id = %s AND adam = %s
+                  RETURNING id""", (done, item_id, user_id, adam))
+    return c.fetchone() is not None
+
+
+def delete_own(c, user_id, adam: str, item_id: int) -> bool:
+    c.execute("""DELETE FROM proc.act_checklist_own_item
+                  WHERE id = %s AND user_id = %s AND adam = %s
+                  RETURNING id""", (item_id, user_id, adam))
+    return c.fetchone() is not None
+
+
+def view(c, user_id, adam: str, *, error: str = "") -> dict | None:
     """Everything the panel renders for this user and act, or None."""
     got = current(c, adam)
     if got is None:
         return None
     act, payload = got
     cl = build(payload, act)
-    if not cl["deadlines"] and not cl["groups"]:
+    own = own_items(c, user_id, adam)
+    if not cl["deadlines"] and not cl["groups"] and not own:
         return None
     done = ticks(c, user_id, adam)
     for g in cl["groups"]:
         for item in g["items"]:
             item["done_at"] = done.get(item["key"])
         g["n_done"] = sum(1 for i in g["items"] if i["done_at"])
-    cl["n_done"] = sum(g["n_done"] for g in cl["groups"])
+    cl["own"] = own
+    cl["own_done"] = sum(1 for o in own if o["done_at"])
+    cl["own_full"] = len(own) >= OWN_MAX_PER_ACT
+    # The headline counts everything on the customer's list: the summary's
+    # items and their own. progress_for uses the same arithmetic.
+    cl["n_done"] = sum(g["n_done"] for g in cl["groups"]) + cl["own_done"]
+    cl["n_total"] = cl["n_tasks"] + len(own)
     # Ticks for items this summary no longer has (it was regenerated and a
     # label changed). Kept, counted, never silently dropped.
     cl["n_orphaned"] = len(set(done) - cl["keys"])
     cl["adam"] = adam
     cl["truncated"] = payload.get("truncated")
+    cl["error"] = error
+    cl["own_text_max"] = OWN_TEXT_MAX
     return cl
 
 
@@ -438,6 +521,58 @@ def make_router(templates: Jinja2Templates, cursor, log_event=None) -> APIRouter
         if cl is None:
             return HTMLResponse("")
         return _render(request, cl)
+
+    # ---- the customer's own items --------------------------------------- #
+    # Registered BEFORE /checklist/{key}: that route would otherwise match
+    # ".../checklist/own" first and answer 404 for a malformed key.
+    def _own_guard(request, adam):
+        """(user, None) when this reader may write own items on this act,
+        else (None, response)."""
+        user = _reader(request)
+        if user is None or not _ai.enabled():
+            return None, HTMLResponse("", status_code=403)
+        return user, None
+
+    @router.post("/act/{adam}/checklist/own", response_class=HTMLResponse)
+    def own_add(adam: str, request: Request, text: str = Form("")):
+        user, deny = _own_guard(request, adam)
+        if deny:
+            return deny
+        with cursor() as c:
+            # Only on an act that HAS a checklist: the panel is the only
+            # place the form exists, and it exists only then.
+            if current(c, adam) is None:
+                return HTMLResponse("", status_code=404)
+            error = ""
+            try:
+                add_own(c, user["id"], adam, text)
+            except OwnItemError as e:
+                error = str(e)
+            cl = view(c, user["id"], adam, error=error)
+        return _render(request, cl) if cl else HTMLResponse("")
+
+    @router.post("/act/{adam}/checklist/own/{item_id}", response_class=HTMLResponse)
+    def own_toggle(adam: str, item_id: int, request: Request, done: str = Form("")):
+        user, deny = _own_guard(request, adam)
+        if deny:
+            return deny
+        with cursor() as c:
+            if not set_own_done(c, user["id"], adam, item_id, done == "1"):
+                return HTMLResponse("", status_code=404)
+            cl = view(c, user["id"], adam)
+        return _render(request, cl) if cl else HTMLResponse("")
+
+    @router.post("/act/{adam}/checklist/own/{item_id}/delete",
+                 response_class=HTMLResponse)
+    def own_delete(adam: str, item_id: int, request: Request):
+        user, deny = _own_guard(request, adam)
+        if deny:
+            return deny
+        with cursor() as c:
+            if not delete_own(c, user["id"], adam, item_id):
+                return HTMLResponse("", status_code=404)
+            cl = view(c, user["id"], adam)
+        return _render(request, cl) if cl else HTMLResponse("")
 
     @router.post("/act/{adam}/checklist/{key}", response_class=HTMLResponse)
     def toggle(adam: str, key: str, request: Request, done: str = Form("")):

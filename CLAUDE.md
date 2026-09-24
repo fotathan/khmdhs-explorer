@@ -422,6 +422,9 @@ app/tender_checklist.py; tab «Λίστα ελέγχου» on the act page, afte
 - /account/favorites shows "n / N + next deadline" (progress_for) while the
   favourite is open (no stage / bidding / submitted). Counts only current
   items — same rule as the panel.
+- Own items (proc.act_checklist_own_item): per user AND act on every query,
+  ≤200 chars, ≤50 per act; counted in both progress numbers. Their routes
+  are registered BEFORE /checklist/{key}.
 
 ## Attachments (app/attachments.py)
 Files an admin attaches to an act — mainly the ΕΣΗΔΗΣ διακήρυξη of a big

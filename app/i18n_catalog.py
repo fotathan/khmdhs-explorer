@@ -3601,6 +3601,18 @@ _CHECKLIST = {
     "Επόμενη προθεσμία:": "Next deadline:",
     "Αν μια αγαπημένη προκήρυξη έχει «Λίστα ελέγχου», κάτω από την κάρτα της φαίνεται πόσα στοιχεία έχετε τσεκάρει (π.χ. 4 / 11) και η επόμενη προθεσμία που βρήκε η σύνοψη. Ένα κλικ ανοίγει την πράξη κατευθείαν στη λίστα. Η γραμμή εμφανίζεται όσο η προσφορά είναι ανοιχτή — χωρίς στάδιο, «Ετοιμάζουμε προσφορά» ή «Υποβλήθηκε προσφορά».":
         "If a favourite notice has a «Checklist», a line under its card shows how many items you have ticked (e.g. 4 / 11) and the next deadline the summary found. One click opens the act straight on the list. The line shows while the bid is open — no stage, «Preparing a bid» or «Bid submitted».",
+    # slice 4 — the customer's own items
+    "Δικά σας": "Your own",
+    "Στο τέλος της λίστας, στο «Δικά σας», προσθέτετε δικά σας στοιχεία — π.χ. «Αίτημα εγγυητικής στην τράπεζα» ή «Βιογραφικά μηχανικών». Τα τσεκάρετε και τα διαγράφετε όπως θέλετε, μετράνε στην πρόοδο της λίστας (και στα αγαπημένα) και τα βλέπετε μόνο εσείς. Έως 50 ανά πράξη, 200 χαρακτήρες το καθένα.":
+        "At the end of the list, under «Your own», you add items of your own — e.g. «Ask the bank for the guarantee» or «Engineers' CVs». You tick and delete them as you like, they count towards the list's progress (and on favourites), and only you see them. Up to 50 per act, 200 characters each.",
+    "Διαγραφή αυτού του στοιχείου;": "Delete this item?",
+    "Προσθέστε δικό σας, π.χ. «Αίτημα εγγυητικής στην τράπεζα»":
+        "Add your own, e.g. «Ask the bank for the guarantee»",
+    "Νέο στοιχείο": "New item",
+    "Γράψτε τι θέλετε να προσθέσετε.": "Type what you want to add.",
+    "Το κείμενο είναι πολύ μεγάλο (έως 200 χαρακτήρες).": "The text is too long (up to 200 characters).",
+    "Έχετε φτάσει το όριο δικών σας στοιχείων για αυτή την πράξη.":
+        "You have reached the limit of your own items for this act.",
     "Όταν η σύνοψη ξαναδημιουργείται": "When the summary is regenerated",
     "Η λίστα φτιάχνεται από την τρέχουσα σύνοψη. Αν το κείμενο της πράξης αλλάξει, η λίστα κρύβεται μέχρι να δημιουργηθεί νέα σύνοψη. Τα σημάδια σας δεν χάνονται: όσα αντιστοιχούν σε στοιχείο με την ίδια διατύπωση επανέρχονται, και για τα υπόλοιπα η λίστα γράφει πόσα αφορούν στοιχεία που δεν υπάρχουν πια.":
         "The list is built from the current summary. If the act's text changes, the list is hidden until a new summary is generated. Your ticks are not lost: those matching an item worded the same way come back, and for the rest the list says how many refer to items that no longer exist.",
