@@ -205,6 +205,19 @@ on the CRM card's Ταίριασμα tab. Deterministic arithmetic, NO model.
   Test with real-format codes, not bare 8 digits.
 - Components are always shown, never just the total. `why` is a fixed Greek
   phrase (a translation key) and the variable part rides in `detail`.
+- **Customers see it** (app/account_fit.py): /account/fit ranks their open
+  tenders, and /act/<adam>/fit is an HTMX panel on each notice (act_detail is
+  untouched). Only for an ENTITLED customer whose company_profile.is_active an
+  admin switched on (CRM Ταίριασμα tab → "Εμφάνιση στον πελάτη"); nothing turns
+  it on automatically. The panel answers EMPTY, never 403, for everyone else.
+- Customers read fit.py's `why` phrases through account_fit.CUSTOMER_WHY (second
+  person). A new phrase in fit.py needs a customer version — a test runs every
+  scorer branch and fails otherwise.
+- open_tenders scores EVERY open candidate (CANDIDATE_CAP 5000). It used to take
+  the 200 closing soonest before scoring, i.e. ~12% of a real profile's
+  candidates. It also excludes hidden duplicates (VISIBLE_SQL).
+- n_awards counts award ACTS (decision + contract), so customer copy says
+  "αναθέσεις", never "συμβάσεις".
 
 ## Two providers for the AI summary
 **DeepSeek is production; Anthropic is the second option.** AI_SUMMARY_MODEL

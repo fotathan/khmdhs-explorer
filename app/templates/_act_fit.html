@@ -1,0 +1,24 @@
+{# _act_fit.html — the fit panel on a notice's page, for the signed-in
+   customer. Fetched after the page by HTMX (GET /act/<adam>/fit, see
+   account_fit.act_panel); the endpoint answers EMPTY for anyone who may not
+   see it, so this only ever renders for a customer whose profile an admin
+   switched on. Nothing here is cached: it is theirs alone. #}
+{% from "_fit_parts.html" import score_badge, parts, styles with context %}
+<aside class="act-fit" aria-label="{{ t('Ταίριασμα με την εταιρεία σας') }}">
+  <div class="act-fit-h">
+    {{ score_badge(fit, band) }}
+    <div>
+      <strong>{{ t("Ταίριασμα με την εταιρεία σας") }}</strong>
+      <div class="act-fit-sub">{{ t("Από το ιστορικό συμβάσεών σας — υπολογισμός, όχι τεχνητή νοημοσύνη.") }}
+        <a href="/account/fit">{{ t("Όλοι οι διαγωνισμοί που σας ταιριάζουν") }} →</a></div>
+    </div>
+  </div>
+  {{ parts(fit, customer_why) }}
+</aside>
+{{ styles() }}
+<style>
+  .act-fit{margin:14px 0 0;padding:12px 14px;border:1px solid var(--rule,#e6e8ec);border-radius:12px;
+    background:var(--paper,#fff);}
+  .act-fit-h{display:flex;gap:10px;align-items:center;}
+  .act-fit-sub{font-size:12.5px;color:var(--ink-2,#5b626d);margin-top:2px;}
+</style>

@@ -137,6 +137,12 @@
       {% endif %}
       <button type="button" class="act-btn" data-act-print hidden><span aria-hidden="true">⎙</span> {{ t("Εκτύπωση") }}</button>
     </div>
+    {# Fit with the customer's own firm (app/account_fit.py). Loaded after the
+       page; the endpoint answers empty unless an admin switched their
+       profile on, so for everyone else this div simply disappears. #}
+    {% if user and atype == 'notice' %}
+    <div hx-get="/act/{{ n.adam }}/fit" hx-trigger="load" hx-swap="outerHTML"></div>
+    {% endif %}
     {% endif %}
   </div>
 

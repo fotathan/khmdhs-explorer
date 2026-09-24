@@ -9,5 +9,8 @@
 {% set _ap = request.url.path %}
 <a href="/account/searches" class="{{ 'on' if _ap.startswith('/account/searches') else '' }}">{{ t("Αναζητήσεις & ειδοποιήσεις") }}</a>
 <a href="/account/favorites" class="{{ 'on' if _ap.startswith('/account/favorites') else '' }}">{{ t("Αγαπημένα") }}</a>
+{% if request.state.user and request.state.user.has_access %}
+<a href="/account/fit" class="{{ 'on' if _ap.startswith('/account/fit') else '' }}">{{ t("Ταιριάζουν σε εσάς") }}</a>
+{% endif %}
 <a href="/account/calendar" class="{{ 'on' if _ap.startswith('/account/calendar') else '' }}">{{ t("Ημερολόγιο προθεσμιών") }}</a>
 <a href="/account" class="{{ 'on' if _ap in ('/account', '/account/password') or _ap.startswith('/account/mfa') else '' }}">{{ t("Ρυθμίσεις λογαριασμού") }}</a>

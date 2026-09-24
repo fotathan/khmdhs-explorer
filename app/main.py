@@ -2401,6 +2401,16 @@ except ImportError:
     from account_favorites import make_router as _make_acct_fav_router
 app.include_router(_make_acct_fav_router(templates, cursor))
 
+# /account/fit + /act/<adam>/fit — the fit score (app/fit.py), shown to the
+# customer it belongs to once an admin has switched their profile on
+# (company_profile.is_active). The act panel is fetched by HTMX after the page,
+# so act_detail is untouched. Computed per request, stored and cached nowhere.
+try:
+    from app.account_fit import make_router as _make_acct_fit_router
+except ImportError:
+    from account_fit import make_router as _make_acct_fit_router
+app.include_router(_make_acct_fit_router(templates, cursor))
+
 # /calendar/<token>.ics — the subscribed deadline feed a customer's own calendar
 # (Google, Outlook, Apple) polls — and /account/calendar, where they make the
 # link. The token in the URL is the credential: calendar servers send no cookies.
