@@ -6886,3 +6886,28 @@ CREATE TABLE proc.company_certificate (
 CREATE UNIQUE INDEX ux_company_certificate_holder
     ON proc.company_certificate
        (user_id, scheme, holder, lower(coalesce(manufacturer, '')));
+
+
+--
+-- certificate_alert / certificate_expiry_notice —
+-- migrations/20260924160000_certificate_reminders.sql. Appended by hand, like
+-- the blocks above (evaluation-layer spec §10). The 'cert_expiry' template
+-- rows are data, not schema: the code falls back to built-in wording.
+--
+
+CREATE TABLE proc.certificate_alert (
+    user_id     bigint PRIMARY KEY
+                REFERENCES proc.app_user(id) ON DELETE CASCADE,
+    enabled     boolean NOT NULL DEFAULT false,
+    lang        text    NOT NULL DEFAULT 'el' CHECK (lang IN ('el', 'en')),
+    updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE proc.certificate_expiry_notice (
+    certificate_id  bigint  NOT NULL
+                    REFERENCES proc.company_certificate(id) ON DELETE CASCADE,
+    mark_days       integer NOT NULL CHECK (mark_days > 0),
+    valid_until     date    NOT NULL,
+    sent_at         timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (certificate_id, mark_days, valid_until)
+);

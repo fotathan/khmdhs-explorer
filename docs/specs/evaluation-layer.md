@@ -1,7 +1,8 @@
 # Spec: Evaluation layer: the customer's certificates against the checklist
 
-**Status:** slice 1 built 2026-09-24 (branch `feat/evaluation-layer`) with the
-owner's decisions in §9. Customer self-service (slice 2) not built.
+**Status:** slice 1 shipped 2026-09-24 (PR #63) with the owner's decisions in
+§9. Slice 2 (customer self-service + expiry reminders, §10) built 2026-09-24
+(branch `feat/certificates-self-service`).
 **Roadmap:** Tier 2, tender-checklist.md §5 item 6 and ai-summary.md §14
 ("per-customer eligibility evaluation"). This is the last open checklist slice.
 **Depends on:** tender-checklist.md (the checklist it annotates), ai-summary.md
@@ -225,7 +226,8 @@ customer edit override an admin row, and is there an audit trail?
    for a customer who declared at least one certificate. Without a
    self-service editor yet, telling everyone else "not declared" would be
    noise they cannot act on.
-5. **Expiry reminder emails**: later.
+5. **Expiry reminder emails**: "later" at first, then asked for the same day
+   — built as slice 2 (§10), opt-in.
 6. **Catalogue**: the measured list only. HACCP / ΕΛΟΤ 1416 is its own
    scheme. OHSAS 18001 cannot be declared (every such certificate lapsed in
    2021); a notice asking for it is answered by ISO 45001.
@@ -273,3 +275,51 @@ The questions as they were put:
 
 Migration: one file, the table plus its index, with no `DO $$` blocks. Run on
 local and Supabase before the code push. No RLS toggle on Supabase.
+
+---
+
+## 10. Slice 2: customers keep their own list, and are reminded
+
+**`/account/certificates`** (app/account_certificates.py), under the account
+menu for entitled customers:
+
+- **The same catalogue and rules** as the CRM form (`eligibility_eval.save`):
+  add, renew (save the same standard again with the new date), delete.
+- **Whose data:** a row the customer saves is `source='customer'`. The customer
+  may also edit or delete an admin-entered row, because it is their company's
+  data. The CRM table has a «Καταχώριση» column that says who entered each row.
+- **Scoped:** every write is (signed-in user, id). Another account's id is a
+  404, never a delete. A lapsed customer sees why, gets no form, and a POST is
+  a 403.
+- **Linked from the checklist:** an undeclared scheme's neutral line carries
+  «Προσθήκη ›» to this page (on screen only, not on paper).
+
+**The expiry reminder** (app/cert_reminders.py):
+
+- **Opt-in** on the same page, off by default (`proc.certificate_alert`, no
+  row = off). Deliverability is not done, so nobody gets this mail without
+  asking for it. It goes to the account address only; extra recipients stay
+  admin-only (CLAUDE.md "Email alerts").
+- **Marks:** 60 and 14 days before `valid_until`. Each mark fires once per
+  certificate and per `valid_until` (`proc.certificate_expiry_notice`), so a
+  renewal re-arms. A certificate already inside both marks gets ONE line and
+  spends both.
+- **One message per customer per run**, listing every certificate that is
+  due. An expired or undated certificate is never chased.
+- **The ledger is written only after the message left**, so a failed send
+  retries on the next tick.
+- **Who:** entitled, active accounts with an address (`auth.load_user` →
+  `has_access`).
+- **Language:** the UI language at the moment the switch was turned on
+  (`certificate_alert.lang`). There is no per-user language otherwise, and the
+  calendar feed does the same.
+- **Wording:** `proc.email_template` slug `cert_expiry` (el/en, seeded by the
+  migration), resolved through `digests._soft_resolve`. The list and the link
+  are placed by `email_cert_expiry.html`, never by the fragment. Without a
+  template row the code falls back to built-in wording.
+- **Runner:** the digest runner, `digests.run_loop` (DIGEST_SCHEDULER=1) or
+  `cron_digests.py`. There is no third runner.
+
+Migration: `20260924160000_certificate_reminders.sql`.
+Tests: `tests/test_certificates_self_service.py`.
+
