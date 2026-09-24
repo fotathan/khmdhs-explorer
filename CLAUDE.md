@@ -401,6 +401,23 @@ no_bid; NULL = bookmark. Removing the star forgets the stage.
   searches — calendar_feed.declined_adams).
 - Isolation: bid_pipeline must not read act_ai_summary (test-enforced).
 
+## Attachments (app/attachments.py)
+Files an admin attaches to an act — mainly the ΕΣΗΔΗΣ διακήρυξη of a big
+tender whose KHMDHS text is only a περίληψη. ATTACHMENTS_ENABLED (default off).
+- Bytes: Supabase Storage in prod (S3 endpoint, PRIVATE bucket, path-style
+  addressing, ATTACH_MAX_MB=50 — the free plan's per-file limit). Never Postgres.
+- Text: proc.act_attachment.extracted_text, capped at ATTACH_TEXT_MAX_CHARS
+  (200k) because prod's DB is a 500 MB free tier; text_total_chars records the
+  full length when cut. Truncation is shown, never silent.
+- Downloads (/act/<adam>/attachment/<id>, attachments.zip) follow the act
+  page's teaser rule: gated callers are redirected to the act. The zip is built
+  in memory, so it refuses past ATTACH_ZIP_MAX_MB.
+- The AI summary reads them as "attachment:<id>" sources (build_sources' third
+  argument — still only the ACT's own documents; test_ai_policy pins it). An
+  act with no attachments keeps its exact cache key. /ai names attached
+  documents only while attachments_on.
+- A failed row insert removes the stored object (no orphans).
+
 ## Tests
 pytest in tests/, runs in CI. Needs TEST_DATABASE_URL (throwaway DB) + psql.
 Schema comes from tests/proc_schema.sql — regenerate it when you add a table.

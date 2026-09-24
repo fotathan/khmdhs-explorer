@@ -2740,9 +2740,9 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
 
     # ------------------------------------------------------------------ #
     # ATTACHMENTS — upload/store original files per act and search inside
-    # them. LOCAL-ONLY: bytes live on the local filesystem (app/attachments),
-    # the DB holds only text+metadata, and everything is gated on
-    # attachments.enabled() (ATTACHMENTS_ENABLED) so prod stores nothing.
+    # them. Bytes live in object storage (Supabase Storage in prod) or on the
+    # local filesystem (app/attachments); the DB holds only metadata and the
+    # CAPPED text. Everything is gated on attachments.enabled().
     # ------------------------------------------------------------------ #
     def _attachments():
         try:
@@ -2758,11 +2758,14 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             with cursor() as c:
                 c.execute("""SELECT id, filename, mimetype, size_bytes, n_inner,
                                     (extracted_text IS NOT NULL AND extracted_text <> '') AS searchable,
-                                    uploaded_at
+                                    text_total_chars, uploaded_at
                              FROM proc.act_attachment WHERE adam=%s
                              ORDER BY id DESC""", (adam,))
                 rows = c.fetchall()
-        return {"adam": adam, "attachments": rows, "attachments_enabled": att.enabled()}
+        storage_ok, storage_msg = att.check_storage() if att.enabled() else (False, "")
+        return {"adam": adam, "attachments": rows, "attachments_enabled": att.enabled(),
+                "storage_ok": storage_ok, "storage_msg": storage_msg,
+                "text_max_chars": att.TEXT_MAX_CHARS}
 
     @router.get("/act/{adam}/panel/attachments", response_class=HTMLResponse)
     def panel_attachments(adam: str, request: Request):
@@ -2804,17 +2807,27 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 n_inner = len(entries)
             except Exception:  # noqa: BLE001
                 pass
-            with cursor() as c:
-                c.execute(
-                    """INSERT INTO proc.act_attachment
-                         (adam, filename, mimetype, size_bytes, checksum,
-                          storage_backend, storage_ref, extracted_text, n_inner, uploaded_by)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                    (adam, uf.filename, meta["mimetype"], meta["size"], meta["checksum"],
-                     meta.get("backend", "local_fs"), meta["storage_ref"],
-                     text, n_inner, curator))
-                c.execute("UPDATE proc.procurement_act SET has_attachments=true WHERE adam=%s",
-                          (adam,))
+            # Prod's database is a 500 MB free tier: keep at most
+            # ATTACH_TEXT_MAX_CHARS and record the full length (attachments.py).
+            text, total = att.cap_text(text)
+            try:
+                with cursor() as c:
+                    c.execute(
+                        """INSERT INTO proc.act_attachment
+                             (adam, filename, mimetype, size_bytes, checksum,
+                              storage_backend, storage_ref, extracted_text,
+                              text_total_chars, n_inner, uploaded_by)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        (adam, uf.filename, meta["mimetype"], meta["size"], meta["checksum"],
+                         meta.get("backend", "local_fs"), meta["storage_ref"],
+                         text, total, n_inner, curator))
+                    c.execute("UPDATE proc.procurement_act SET has_attachments=true WHERE adam=%s",
+                              (adam,))
+            except Exception:
+                # The bytes are already in the bucket; without a row nothing
+                # would ever point at them again, so take them back out.
+                att.remove(meta["storage_ref"])
+                raise
         return templates.TemplateResponse(
             request, "_attachment_list.html", _attach_ctx(adam))
 

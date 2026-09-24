@@ -105,3 +105,5 @@ migrations/20260921120000_onboarding_wizard.sql
 migrations/20260923075702_calendar_feed.sql
 migrations/20260923163148_calendar_search.sql
 migrations/20260923180000_favorite_bid_stage.sql
+migrations/20260924095900_act_attachment_on_prod.sql
+migrations/20260924100000_attachment_text_cap.sql

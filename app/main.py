@@ -165,10 +165,10 @@ templates.env.globals["source_doc_url"] = source_doc_url
 TABLES_ENABLED = os.environ.get("TABLES_ENABLED", "1") == "1"
 templates.env.globals["tables_enabled"] = TABLES_ENABLED
 
-# Attachment upload/store + search-inside is LOCAL-ONLY for now (prod is a
-# free-tier DB with no room for the raw files). Default OFF. When off, the edit
-# hub tab is hidden and build_where emits no attachment clause — so prod never
-# references proc.act_attachment (that table is applied to the local DB only).
+# Attachment upload/store + search-inside (app/attachments.py). Default OFF.
+# In prod the raw files go to Supabase Storage and only the CAPPED text reaches
+# the free-tier DB. When off, the edit hub tab is hidden, build_where emits no
+# attachment clause and the download routes 404.
 ATTACHMENTS_ENABLED = os.environ.get("ATTACHMENTS_ENABLED", "0") == "1"
 templates.env.globals["attachments_enabled"] = ATTACHMENTS_ENABLED
 
@@ -701,8 +701,8 @@ def build_where(params: dict) -> tuple[str, list]:
                         WHERE et.adam = a.adam AND et.is_published AND {s}
                     )""")
                     fargs.extend(a)
-                # Uploaded attachments (LOCAL-ONLY, flag-gated). Off in prod →
-                # clause never emitted → proc.act_attachment need not exist there.
+                # Uploaded attachments, flag-gated (ATTACHMENTS_ENABLED). Off →
+                # the clause is never emitted and the table is never read.
                 if ATTACHMENTS_ENABLED:
                     s, a = _text_search_clause(qstr, "att.content_tsv", "att.filename")
                     if s:
@@ -3006,6 +3006,9 @@ def ai_policy_page(request: Request):
     return templates.TemplateResponse(
         request, "ai_policy.html",
         {"ai_summary_on": _flag(_ai_mod.can_generate),
+         # Whether the summary also reads attached tender documents — the live
+         # switch ai_summary.load_inputs checks, not a sentence in the prose.
+         "attachments_on": _flag(lambda: _attachments_mod().enabled()),
          "summary_provider_id": summary_provider_id,
          "anthropic_elsewhere": (summary_provider_id != "anthropic"
                                  and ((ocr_key and TABLES_ENABLED) or calls_on)),
@@ -4046,8 +4049,8 @@ def act_detail(adam: str, request: Request):
         elif annotation and annotation.get("flag") == "suspicious":
             excluded_reason = "flagged"
 
-    # Uploaded attachments (LOCAL-ONLY, flag-gated) — surfaced on the detail page
-    # for download. Prod (flag off) never queries proc.act_attachment.
+    # Uploaded attachments (flag-gated) — surfaced on the detail page for
+    # download. Flag off → proc.act_attachment is never queried.
     attachments = []
     if ATTACHMENTS_ENABLED:
         with cursor() as c:
@@ -4649,11 +4652,28 @@ def _attachments_mod():
     return _att
 
 
-@app.get("/act/{adam}/attachment/{aid}")
-def act_attachment_download(adam: str, aid: int):
-    """Download one uploaded attachment from the detail page (LOCAL-ONLY)."""
+# The whole-act zip is built in memory on a small instance; past this many MB
+# of stored files it is refused and the files are downloaded one at a time.
+ATTACH_ZIP_MAX_MB = int(os.environ.get("ATTACH_ZIP_MAX_MB") or 150)
+
+
+def _attachment_gate(request: Request, adam: str):
+    """Attachments follow the act page's teaser rule: the list is shown only to
+    a caller with access (beta_act.html, inside `not gated`), so the files are
+    served only to them too. Anyone else — a crawler included — goes back to
+    the act page and its register/renew CTA."""
     if not ATTACHMENTS_ENABLED:
         raise HTTPException(404, "not found")
+    if _is_gated(request):
+        return _Redirect(url=f"/act/{_quote(adam, safe='')}", status_code=303)
+    return None
+
+
+@app.get("/act/{adam}/attachment/{aid}")
+def act_attachment_download(adam: str, aid: int, request: Request):
+    """Download one uploaded attachment from the detail page."""
+    if (gate := _attachment_gate(request, adam)) is not None:
+        return gate
     att = _attachments_mod()
     with cursor() as c:
         c.execute("""SELECT filename, mimetype, storage_ref
@@ -4671,17 +4691,19 @@ def act_attachment_download(adam: str, aid: int):
 
 
 @app.get("/act/{adam}/attachments.zip")
-def act_attachments_zip(adam: str):
-    """Download all of an act's uploaded attachments as one zip (LOCAL-ONLY)."""
-    if not ATTACHMENTS_ENABLED:
-        raise HTTPException(404, "not found")
+def act_attachments_zip(adam: str, request: Request):
+    """Download all of an act's uploaded attachments as one zip."""
+    if (gate := _attachment_gate(request, adam)) is not None:
+        return gate
     att = _attachments_mod()
     with cursor() as c:
-        c.execute("""SELECT id, filename, storage_ref FROM proc.act_attachment
-                     WHERE adam=%s ORDER BY id""", (adam,))
+        c.execute("""SELECT id, filename, storage_ref, size_bytes
+                     FROM proc.act_attachment WHERE adam=%s ORDER BY id""", (adam,))
         rows = c.fetchall()
     if not rows:
         raise HTTPException(404, "no attachments")
+    if sum(int(r["size_bytes"] or 0) for r in rows) > ATTACH_ZIP_MAX_MB * 1024 * 1024:
+        raise HTTPException(413, "too large to zip — download the files one by one")
     import io
     import zipfile
     buf = io.BytesIO()
