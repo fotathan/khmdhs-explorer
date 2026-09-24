@@ -1936,8 +1936,6 @@ _HELP = {
     "στο": "at",
     "και": "and",
     "Το όνομα και η κατάσταση πρόσβασής σας εμφανίζονται πάνω δεξιά μόλις συνδεθείτε.": "Your name and access status appear at the top-right once you sign in.",
-    "Πατώντας το όνομά σας πάνω δεξιά ανοίγει το μενού του λογαριασμού σας, με μια σελίδα για το καθένα: «Αναζητήσεις & ειδοποιήσεις» (εκεί ζουν τα δικά σας email αποτελεσμάτων), «Αγαπημένα», «Ημερολόγιο προθεσμιών» και «Ρυθμίσεις λογαριασμού», καθώς και την αποσύνδεση. Οι ίδιες σελίδες εμφανίζονται ως καρτέλες στην κορυφή κάθε σελίδας του λογαριασμού.":
-        "Clicking your name at the top-right opens your account menu, with one page for each: “Searches & alerts” (where your own result emails live), “Favourites”, “Deadline calendar” and “Account settings”, plus sign-out. The same pages appear as tabs at the top of every account page.",
     "Στις «Ρυθμίσεις λογαριασμού»": "In “Account settings”",
     "Στο κάτω μέρος των «Ρυθμίσεων λογαριασμού»": "At the bottom of “Account settings”",
     "Ο κανόνας προεπισκόπησης": "The preview rule",
@@ -1989,8 +1987,6 @@ _HELP = {
     "Τύπος, πηγή, τίτλος, ο αγοραστής, οι αξίες, η ημ/νία δημοσίευσης και η προθεσμία με τις ημέρες που απομένουν, ο τόπος εκτέλεσης, και κουμπιά για το επίσημο έγγραφο και την εκτύπωση.":
         "Type, source, title, the buyer, the values, publication date and the deadline with the days left, place of performance, and buttons for the official document and printing.",
     "Καρτέλες & ενότητες": "Tabs & sections",
-    "Σε υπολογιστή η σελίδα χωρίζεται σε καρτέλες: Επισκόπηση, Σύνοψη διαγωνισμού (όπου υπάρχει), Είδη & CPV, Πλήρες κείμενο, Ανταγωνισμός, Συνδεδεμένες πράξεις, Έγγραφα. Στο κινητό γίνονται ενότητες που ανοίγουν με ένα άγγιγμα. Οι ετικέτες «Γιατί ταιριάζει» και οι παραπομπές της σύνοψης AI ανοίγουν μόνες τους τη σωστή ενότητα. Η ανοιχτή καρτέλα γράφεται στη διεύθυνση (μετά το #), οπότε ένας σύνδεσμος που μοιράζεστε ανοίγει στην ίδια καρτέλα· η εκτύπωση περιλαμβάνει όλες τις ενότητες.":
-        "On a computer the page is split into tabs: Overview, Tender summary (where there is one), Items & CPV, Full text, Competition, Linked acts, Documents. On a phone they become sections that open with one tap. The “Why it matches” chips and the AI summary’s citations open the right section by themselves. The open tab is written into the address (after the #), so a link you share opens on the same tab; printing includes every section.",
     "Βασικά στοιχεία": "Key facts",
     "ΑΔΑΜ, είδος διαδικασίας & κριτηρίου, σημαίες συμφωνίας-πλαισίου, ημ/νία υπογραφής.": "ADAM, procedure & criterion type, framework-agreement flags, signing date.",
     "Είδη / αντικείμενο": "Items / object",
@@ -2285,8 +2281,6 @@ _HELP = {
     "Η λίστα με τους τομείς δωρεάν email (gmail.com, hotmail.com…). Την χρησιμοποιούν ο έλεγχος διπλοτύπων στους δυνητικούς πελάτες και το ταίριασμα ΓΕΜΗ, ώστε ένα κοινό domain να μην περνά ποτέ για απόδειξη ότι δύο εγγραφές είναι η ίδια εταιρεία.":
         "The list of free-email domains (gmail.com, hotmail.com…). The lead duplicate check and the GEMI match both use it, so a shared domain never passes as proof that two records are the same company.",
     "Πρότυπα email": "Email templates",
-    "Τα κείμενα κάθε μηνύματος που στέλνει η εφαρμογή, σε ελληνικά και αγγλικά — τα τρία πρότυπα ειδοποιήσεων, ο σύνδεσμος σύνδεσης, και όσα χρησιμοποιεί η «Σύνθεση email». Η αλλαγή μιας διατύπωσης δεν χρειάζεται νέα έκδοση.":
-        "The wording of every message the app sends, in Greek and English — the three alert templates, the sign-in link, and the ones “Compose email” uses. Changing a phrase needs no new release.",
     "Τα προγράμματα συχνότητας, η συνολική εικόνα των εγγραφών (μόνο ανάγνωση) και το ιστορικό αποστολών.":
         "The frequency schedules, the read-only overview of subscriptions, and the send history.",
     "Εκκίνηση και παρακολούθηση εισαγωγών από τις τρεις πηγές.":
@@ -2311,8 +2305,6 @@ _HELP = {
     "Οι αποθηκευμένες αναζητήσεις του και τα email αποτελεσμάτων που λαμβάνει.":
         "Their saved searches and the result emails they receive.",
     "Σημειώσεις, κλήσεις και εργασίες.": "Notes, calls and tasks.",
-    "Οι ανοικτοί διαγωνισμοί που του ταιριάζουν, βαθμολογημένοι.":
-        "The open tenders that fit them, scored.",
     "Σύνταξη μηνύματος προς τον πελάτη από τα πρότυπα email, με τα πεδία του ήδη συμπληρωμένα.":
         "Drafting a message to the customer from the email templates, with their fields already filled in.",
     "Οι αριθμοί πάνω στις καρτέλες δείχνουν πόσα υπάρχουν σε καθεμία. Πάνω από όλες, μια γραμμή με τα βασικά — εταιρεία, ΑΦΜ, τηλέφωνο, τρέχον προϊόν, ενεργές ειδοποιήσεις — παραμένει ορατή σε όποια καρτέλα κι αν βρίσκεστε, και η ανοιχτή καρτέλα επιβιώνει μιας αποθήκευσης.":
@@ -3161,8 +3153,6 @@ _FIT = {
         'Every score is broken into four parts — subject matter (CPV), size, region, authority — and each says why. A bare score cannot be argued with; the parts show which one is at fault when the ordering looks wrong. A tender for something the customer does not supply never rises far, however well the rest of it fits.',
     'Μόνο για διαχειριστές':
         'Administrators only',
-    'Η βαθμολογία δεν εμφανίζεται πουθενά στους πελάτες προς το παρόν. Είναι νέα και πρέπει να την κρίνετε εσείς πρώτα: μια λανθασμένη βαθμολογία που τη βλέπει πελάτης τον μαθαίνει να αγνοεί τη λειτουργία για πάντα. Επίσης, τίποτα από το προφίλ δεν φτάνει ποτέ σε μοντέλο — η βαθμολογία είναι καθαρή αριθμητική πάνω στα δεδομένα.':
-        'The score is shown to no customer at present. It is new and you should judge it first: a wrong score seen by a customer teaches them to ignore the feature permanently. Nothing from the profile ever reaches a model either — the score is plain arithmetic over the data.',
     'Ταίριασμα':
         'Fit',
     'Ταίριασμα με ανοικτούς διαγωνισμούς':
@@ -3668,8 +3658,34 @@ _CERTS = {
     "Έκδοση": "Edition",
     "Κατασκευαστής (όνομα)": "Manufacturer (name)",
     "Αποθήκευση πιστοποιητικού": "Save certificate",
-    'Ο πελάτης διαχειρίζεται και ο ίδιος τα πιστοποιητικά του στο «Πιστοποιητικά» του λογαριασμού του (προσθήκη, ανανέωση με νέα ημερομηνία, διαγραφή)· στην καρτέλα CRM φαίνεται ποιος καταχώρισε το καθένα. Στην ίδια σελίδα ενεργοποιεί, αν θέλει, υπενθύμιση με email 60 και 14 ημέρες πριν λήξει ένα πιστοποιητικό — είναι απενεργοποιημένη αν δεν τη ζητήσει. Κάθε υπενθύμιση στέλνεται μία φορά· με νέα ημερομηνία λήξης ξαναοπλίζεται. Τα email φεύγουν από τον ίδιο μηχανισμό με τις ειδοποιήσεις αναζητήσεων, και το κείμενό τους αλλάζει στο πρότυπο email «cert_expiry».':
-        'Customers also manage their own certificates under «Certificates» in their account (add, renew with a new date, delete); the CRM card shows who entered each one. On the same page they can turn on an email reminder 60 and 14 days before a certificate expires — it is off unless they ask for it. Each reminder is sent once; a new expiry date re-arms it. The emails go out through the same mechanism as the search alerts, and their wording is edited in the «cert_expiry» email template.',
+    'Πατώντας το όνομά σας πάνω δεξιά ανοίγει το μενού του λογαριασμού σας, με μια σελίδα για το καθένα: «Αναζητήσεις & ειδοποιήσεις» (εκεί ζουν τα δικά σας email αποτελεσμάτων), «Αγαπημένα», «Ταιριάζουν σε εσάς» και «Πιστοποιητικά» (μόνο με ενεργή συνδρομή), «Ημερολόγιο προθεσμιών» και «Ρυθμίσεις λογαριασμού», καθώς και την αποσύνδεση. Οι ίδιες σελίδες εμφανίζονται ως καρτέλες στην κορυφή κάθε σελίδας του λογαριασμού.':
+        'Clicking your name at the top-right opens your account menu, with one page for each: “Searches & alerts” (where your own result emails live), “Favourites”, “Fits you” and “Certificates” (with an active subscription only), “Deadline calendar” and “Account settings”, plus sign-out. The same pages appear as tabs at the top of every account page.',
+    'Σε υπολογιστή η σελίδα χωρίζεται σε καρτέλες: Επισκόπηση, Σύνοψη διαγωνισμού και Λίστα ελέγχου (όπου υπάρχει σύνοψη), Είδη & CPV, Πλήρες κείμενο, Ανταγωνισμός, Συνδεδεμένες πράξεις, Έγγραφα. Στο κινητό γίνονται ενότητες που ανοίγουν με ένα άγγιγμα. Οι ετικέτες «Γιατί ταιριάζει» και οι παραπομπές της σύνοψης AI ανοίγουν μόνες τους τη σωστή ενότητα. Η ανοιχτή καρτέλα γράφεται στη διεύθυνση (μετά το #), οπότε ένας σύνδεσμος που μοιράζεστε ανοίγει στην ίδια καρτέλα· η εκτύπωση περιλαμβάνει όλες τις ενότητες.':
+        "On a computer the page is split into tabs: Overview, Tender summary and Checklist (where there is a summary), Items & CPV, Full text, Competition, Linked acts, Documents. On a phone they become sections that open with one tap. The “Why it matches” tags and the AI summary's references open the right section by themselves. The open tab is written into the address (after the #), so a link you share opens on the same tab; printing includes every section.",
+    'Αν ο πελάτης έχει δηλώσει πιστοποιητικά (δείτε «Πιστοποιητικά» στην ενότητα της αναζήτησης), η λίστα τα δείχνει κάτω από κάθε στοιχείο που ζητά ISO 9001, 13485, 14001, 45001 κ.λπ.: «✓ Στο προφίλ σας: ISO 9001:2015, ισχύει έως …», ή «⚠ λήγει … — πριν την υποβολή» όταν λήγει πριν την καταληκτική ημερομηνία. Ό,τι ζητείται και δεν έχει δηλωθεί εμφανίζεται ουδέτερα («δεν έχει δηλωθεί στο προφίλ σας»), με σύνδεσμο «Προσθήκη ›». Είναι ένδειξη, όχι κρίση: δεν τσεκάρεται τίποτα αυτόματα. Η προειδοποίηση λήξης φαίνεται και στα αγαπημένα, και οι ενδείξεις περνούν στην εκτύπωση και στο Excel. Όποιος δεν έχει δηλώσει κανένα πιστοποιητικό βλέπει τη λίστα όπως πριν.':
+        'If the customer has declared certificates (see “Certificates” in the search section), the list shows them under every item that asks for ISO 9001, 13485, 14001, 45001 and so on: «✓ In your profile: ISO 9001:2015, valid until …», or «⚠ expires … — before the closing date» when it lapses before the deadline. Anything asked for that has not been declared is shown neutrally («not declared in your profile»), with an «Add ›» link. It is a pointer, not a verdict: nothing is ticked automatically. The expiry warning also shows on favourites, and the notes carry over to the print-out and the Excel file. Anyone who has declared no certificate sees the list as before.',
+    'Στο «Ο λογαριασμός μου → Πιστοποιητικά» (/account/certificates) δηλώνετε τα πιστοποιητικά της εταιρείας σας — ISO 9001, 13485, 14001, 45001, 27001, 37001, 22000, HACCP, 22301, 50001, 39001 — και, αν θέλετε, των κατασκευαστών που αντιπροσωπεύετε: πρότυπο, έκδοση, αριθμό, φορέα πιστοποίησης και ημερομηνία λήξης. Για ανανέωση αποθηκεύετε ξανά το ίδιο πρότυπο με τη νέα ημερομηνία. Η σελίδα υπάρχει μόνο με ενεργή συνδρομή· τα πιστοποιητικά μπορεί να τα έχει καταχωρίσει και η ομάδα μας, και τα διορθώνετε ή τα διαγράφετε κι εσείς.':
+        "Under “My account → Certificates” (/account/certificates) you declare your company's certificates — ISO 9001, 13485, 14001, 45001, 27001, 37001, 22000, HACCP, 22301, 50001, 39001 — and, if you like, those of the manufacturers you represent: standard, edition, number, certification body and expiry date. To renew, save the same standard again with the new date. The page exists only with an active subscription; our team may also have entered certificates for you, and you can correct or delete those too.",
+    'Τα πιστοποιητικά εμφανίζονται στη «Λίστα ελέγχου» κάθε προκήρυξης που έχει σύνοψη, κάτω από τα στοιχεία που τα ζητούν, με την ισχύ τους σε σχέση με την καταληκτική ημερομηνία. Τίποτα δεν τσεκάρεται αυτόματα: το τσεκ σημαίνει ότι το έγγραφο μπήκε στον φάκελο, όχι ότι το έχετε.':
+        'Certificates appear on the “Checklist” of every notice that has a summary, under the items that ask for them, with their validity against the closing date. Nothing is ticked automatically: a tick means the document went into the envelope, not that you hold it.',
+    'Στην ίδια σελίδα ενεργοποιείτε, αν θέλετε, υπενθύμιση με email 60 και 14 ημέρες πριν λήξει ένα πιστοποιητικό με δηλωμένη ημερομηνία λήξης. Είναι απενεργοποιημένη αν δεν τη ζητήσετε. Έρχεται ένα μήνυμα με όσα λήγουν, στη διεύθυνση του λογαριασμού σας· κάθε υπενθύμιση στέλνεται μία φορά, και με νέα ημερομηνία λήξης ξαναοπλίζεται. Τα ληγμένα πιστοποιητικά δεν υπενθυμίζονται.':
+        'On the same page you can turn on an email reminder 60 and 14 days before a certificate with a declared expiry date lapses. It is off unless you ask for it. One message lists what is expiring, sent to your account address; each reminder is sent once, and a new expiry date re-arms it. Expired certificates are not reminded.',
+    'Τα κείμενα κάθε μηνύματος που στέλνει η εφαρμογή, σε ελληνικά και αγγλικά — τα τρία πρότυπα ειδοποιήσεων, ο σύνδεσμος σύνδεσης, η υπενθύμιση λήξης πιστοποιητικού («cert_expiry»), και όσα χρησιμοποιεί η «Σύνθεση email». Η αλλαγή μιας διατύπωσης δεν χρειάζεται νέα έκδοση.':
+        'The wording of every message the app sends, in Greek and English — the three alert templates, the sign-in link, the certificate expiry reminder (“cert_expiry”), and the ones “Compose email” uses. Changing a phrase needs no new release.',
+    'Ο ίδιος μηχανισμός στέλνει και τις υπενθυμίσεις λήξης πιστοποιητικών, σε όσους πελάτες τις ενεργοποίησαν οι ίδιοι στη σελίδα «Πιστοποιητικά». Δεν ρυθμίζονται από εδώ και δεν εμφανίζονται στο «Ιστορικό»· το κείμενό τους είναι το πρότυπο «cert_expiry».':
+        'The same mechanism also sends the certificate expiry reminders, to the customers who turned them on themselves on their “Certificates” page. They are not configured here and do not appear in the “History”; their wording is the “cert_expiry” template.',
+    'Οι ανοικτοί διαγωνισμοί που του ταιριάζουν, βαθμολογημένοι· ο διακόπτης «Εμφάνιση στον πελάτη»· και τα πιστοποιητικά του, με το ποιος καταχώρισε το καθένα.':
+        'The open tenders that fit them, scored; the “Show to customer” switch; and their certificates, with who entered each one.',
+    'Ο πελάτης βλέπει τη βαθμολογία μόνο αφού πατήσετε «Εμφάνιση στον πελάτη» σε αυτή την καρτέλα — τότε εμφανίζεται στο «Ταιριάζουν σε εσάς» του λογαριασμού του και πάνω σε κάθε προκήρυξη, με τα τέσσερα μέρη διατυπωμένα σε δεύτερο πρόσωπο. Κρίνετε πρώτα την κατάταξη: μια λανθασμένη βαθμολογία που τη βλέπει πελάτης τον μαθαίνει να αγνοεί τη λειτουργία για πάντα. Ο διακόπτης θέλει προφίλ με ιστορικό CPV, και η «Απόκρυψη από τον πελάτη» την κρύβει ξανά αμέσως. Τίποτα από το προφίλ δεν φτάνει ποτέ σε μοντέλο — η βαθμολογία είναι καθαρή αριθμητική πάνω στα δεδομένα.':
+        'The customer sees the score only after you press “Show to customer” on this tab — it then appears on “Fits you” in their account and on every notice, with the four parts worded in the second person. Judge the ranking first: a wrong score seen by a customer teaches them to ignore the feature permanently. The switch needs a profile with CPV history, and “Hide from customer” hides it again at once. Nothing from the profile ever reaches a model — the score is plain arithmetic over the data.',
+    'Πότε το βλέπει ο πελάτης':
+        'When the customer sees it',
+    'Κάτω από τη λίστα, η ενότητα «Πιστοποιητικά» κρατά τα πιστοποιητικά του πελάτη (δικά του ή κατασκευαστών που αντιπροσωπεύει) με ημερομηνία λήξης. Τα βλέπει και τα διορθώνει και ο ίδιος στον λογαριασμό του· η στήλη «Καταχώριση» λέει ποιος έγραψε το καθένα. Δεν αλλάζουν τη βαθμολογία — εμφανίζονται στη λίστα ελέγχου των προκηρύξεων.':
+        "Below the list, the “Certificates” section holds the customer's certificates (their own or of manufacturers they represent) with expiry dates. The customer also sees and corrects them in their account; the “Entered by” column says who wrote each one. They do not change the score — they appear on the notices' checklists.",
+    'Από την προκήρυξη στην προσφορά':
+        'From notice to bid',
+    'Ειδοποιήσεις, αγαπημένα με στάδιο προσφοράς, ημερολόγιο προθεσμιών, λίστα ελέγχου ανά διαγωνισμό και τα πιστοποιητικά σας πάνω της.':
+        'Alerts, favourites with a bid stage, a deadline calendar, a checklist per tender, and your certificates on it.',
     'αύριο': 'tomorrow',
     'σε %d ημέρες': 'in %d days',
     'Τα πιστοποιητικά μου': 'My certificates',
@@ -3710,8 +3726,6 @@ _CERTS = {
     'Ο πελάτης τα βλέπει και τα διορθώνει και ο ίδιος στο «Πιστοποιητικά» του λογαριασμού του, όπου ενεργοποιεί και την υπενθύμιση λήξης με email.':
         'The customer also sees and corrects them under «Certificates» in their account, where they can turn on the expiry reminder email.',
     "Πιστοποιητικά στη λίστα": "Certificates on the list",
-    "Αν στην καρτέλα του πελάτη στο CRM (Ταίριασμα → Πιστοποιητικά) έχουν δηλωθεί τα πιστοποιητικά της εταιρείας του — ή των κατασκευαστών που αντιπροσωπεύει — η λίστα τα δείχνει κάτω από κάθε στοιχείο που ζητά ISO 9001, 13485, 14001, 45001 κ.λπ.: «✓ Στο προφίλ σας: ISO 9001:2015, ισχύει έως …», ή «⚠ λήγει … — πριν την υποβολή» όταν λήγει πριν την καταληκτική ημερομηνία. Ό,τι ζητείται και δεν έχει δηλωθεί εμφανίζεται ουδέτερα («δεν έχει δηλωθεί στο προφίλ σας»). Είναι ένδειξη, όχι κρίση: δεν τσεκάρεται τίποτα αυτόματα. Η προειδοποίηση λήξης φαίνεται και στα αγαπημένα, και οι ενδείξεις περνούν στην εκτύπωση και στο Excel.":
-        "If the customer's CRM card (Fit → Certificates) declares their company's certificates — or those of the manufacturers they represent — the list shows them under every item that asks for ISO 9001, 13485, 14001, 45001 and so on: «✓ In your profile: ISO 9001:2015, valid until …», or «⚠ expires … — before the closing date» when it lapses before the deadline. Anything asked for that has not been declared is shown neutrally («not declared in your profile»). It is a pointer, not a verdict: nothing is ticked automatically. The expiry warning also shows on favourites, and the notes carry over to the print-out and the Excel file.",
 }
 
 # (there should be none — keep keys unique across groups).
