@@ -3618,6 +3618,27 @@ _CHECKLIST = {
     "Όταν η σύνοψη ξαναδημιουργείται": "When the summary is regenerated",
     "Η λίστα φτιάχνεται από την τρέχουσα σύνοψη. Αν το κείμενο της πράξης αλλάξει, η λίστα κρύβεται μέχρι να δημιουργηθεί νέα σύνοψη. Τα σημάδια σας δεν χάνονται: όσα αντιστοιχούν σε στοιχείο με την ίδια διατύπωση επανέρχονται, και για τα υπόλοιπα η λίστα γράφει πόσα αφορούν στοιχεία που δεν υπάρχουν πια.":
         "The list is built from the current summary. If the act's text changes, the list is hidden until a new summary is generated. Your ticks are not lost: those matching an item worded the same way come back, and for the rest the list says how many refer to items that no longer exist.",
+    # slice 5 — printable page + Excel export (checklist_print.html,
+    # checklist_export.py)
+    "Εκτύπωση / PDF": "Print / PDF",
+    "Πίσω στην πράξη": "Back to the act",
+    "Χωρίς αποσπάσματα": "Without quotes",
+    "Με αποσπάσματα": "With quotes",
+    "οι ημέρες μετρούν από αυτή την ημερομηνία.": "days are counted from this date.",
+    "Ολοκληρωμένα": "Done",
+    "Απομένουν": "Left",
+    "Ενότητα": "Section",
+    "Στοιχείο": "Item",
+    "Τι ζητείται": "What is required",
+    "Υποχρεωτικό": "Mandatory",
+    "Τι λέει η προκήρυξη": "What the notice says",
+    "Κείμενο": "Text",
+    "Ημέρες": "Days",
+    "Εργάσιμες ημέρες": "Working days",
+    "σύνοψη AI": "AI summary",
+    "Εκτύπωση και Excel": "Print and Excel",
+    "Πάνω στη λίστα, το «Εκτύπωση / PDF» ανοίγει τη λίστα σε σελίδα έτοιμη για χαρτί A4 — για όποιον ετοιμάζει τον φάκελο της προσφοράς — με κουτάκια, τα δικά σας στοιχεία και χώρο για σημειώσεις· από την ίδια σελίδα την αποθηκεύετε ως PDF. Το «Excel» κατεβάζει την ίδια λίστα σε λογιστικό φύλλο, με τις προθεσμίες σε δεύτερο φύλλο. Και τα δύο γράφουν πότε φτιάχτηκαν: οι ημέρες που απομένουν μετρούν από εκείνη τη στιγμή και στο χαρτί δεν ενημερώνονται.":
+        "At the top of the list, «Print / PDF» opens it as a page ready for A4 paper — for whoever assembles the bid envelope — with tick boxes, your own items and room for notes; from the same page you save it as a PDF. «Excel» downloads the same list as a spreadsheet, with the deadlines on a second sheet. Both state when they were made: the days left are counted from that moment and do not update on paper.",
 }
 
 

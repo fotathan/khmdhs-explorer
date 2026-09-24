@@ -425,6 +425,11 @@ app/tender_checklist.py; tab «Λίστα ελέγχου» on the act page, afte
 - Own items (proc.act_checklist_own_item): per user AND act on every query,
   ≤200 chars, ≤50 per act; counted in both progress numbers. Their routes
   are registered BEFORE /checklist/{key}.
+- Print (/checklist/print) and Excel (/checklist.xlsx, app/checklist_export.py)
+  are built from view() — never a second arithmetic. Both state when they
+  were made and carry the warning. Every xlsx text cell is forced to a
+  STRING (openpyxl makes "=…" a formula; test-enforced). Not allowed → 303
+  to the act page.
 
 ## Working days (app/workdays.py, docs/specs/working-day-deadlines.md)
 - **Μεγάλη Παρασκευή is a WORKING day; 26 December is NOT** — the owner's
