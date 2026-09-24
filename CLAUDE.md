@@ -431,6 +431,25 @@ app/tender_checklist.py; tab «Λίστα ελέγχου» on the act page, afte
   STRING (openpyxl makes "=…" a formula; test-enforced). Not allowed → 303
   to the act page.
 
+## Certificates on the checklist (docs/specs/evaluation-layer.md)
+app/eligibility_eval.py; proc.company_certificate; entered by an admin on the
+CRM card (Ταίριασμα tab → Πιστοποιητικά). Customer self-service is slice 2.
+- **Suggests, never ticks** (owner, 2026-09-24): a note under the item
+  («✓ Στο προφίλ σας: ISO 9001:2015, ισχύει έως …» / «⚠ … πριν την υποβολή»).
+  A tick means "in the envelope"; holding a certificate is not that.
+- Undeclared schemes get a NEUTRAL line, never "you lack it". The notes appear
+  only for a customer with ≥1 certificate: everyone else's panel is
+  byte-identical, and so is the Excel file's shape (test-enforced).
+- The catalogue is CLOSED and firm-level only (the migration's CHECK repeats
+  it). Product standards (10993, 15223…) are never matched. 13458 = the 13485
+  typo; OHSAS 18001 is answered by 45001 and cannot be declared.
+- holder 'manufacturer' + name: an item naming «ο κατασκευαστής» is answered
+  from those rows. Validity is judged against the closing date (Athens).
+- Isolation: joined at render in tender_checklist.view(), never written to
+  act_ai_summary; ai_summary.py never reads certificates (test-enforced).
+- Not gated on company_profile.is_active: that needs CPV history, and a firm
+  with no ledger could never see its certificates.
+
 ## Working days (app/workdays.py, docs/specs/working-day-deadlines.md)
 - **Μεγάλη Παρασκευή is a WORKING day; 26 December is NOT** — the owner's
   decision, 2026-09-24. Changing either is a code change, never a guess.

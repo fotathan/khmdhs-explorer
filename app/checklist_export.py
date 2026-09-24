@@ -34,8 +34,10 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
 try:
+    from app import eligibility_eval as _eval
     from app import i18n as _i18n
 except ImportError:                      # pragma: no cover — run with --app-dir=app
+    import eligibility_eval as _eval
     import i18n as _i18n
 
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -110,10 +112,18 @@ def workbook(cl: dict, meta: dict, lang: str = "el") -> bytes:
     ws = wb.active
     ws.title = t("Λίστα ελέγχου")[:31]
     row = _preamble(ws, cl, meta, t)
-    _header(ws, row, [t("Ενότητα"), t("Στοιχείο"), t("Τι ζητείται"),
-                      t("Υποχρεωτικό"), t("Ολοκληρώθηκε"),
-                      t("Τι λέει η προκήρυξη"), t("Σημειώσεις")],
-            [24, 30, 40, 12, 14, 60, 30])
+    # The evaluation layer's column exists only for a customer who declared
+    # certificates — everyone else's workbook keeps its old shape.
+    has_certs = any(item.get("certs") for g in cl["groups"] for item in g["items"])
+    labels = [t("Ενότητα"), t("Στοιχείο"), t("Τι ζητείται"),
+              t("Υποχρεωτικό"), t("Ολοκληρώθηκε"),
+              t("Τι λέει η προκήρυξη"), t("Σημειώσεις")]
+    widths = [24, 30, 40, 12, 14, 60, 30]
+    if has_certs:
+        labels.append(t("Από το προφίλ σας"))
+        widths.append(44)
+    ncol = len(labels)
+    _header(ws, row, labels, widths)
     for g in cl["groups"]:
         for item in g["items"]:
             row += 1
@@ -124,7 +134,9 @@ def workbook(cl: dict, meta: dict, lang: str = "el") -> bytes:
             if item.get("done_at"):
                 _put(ws, row, 5, item["done_at"].date()).number_format = "DD/MM/YYYY"
             _put(ws, row, 6, item.get("quote") or "")
-            for col in range(1, 8):
+            if item.get("certs"):
+                _put(ws, row, 8, "\n".join(_eval.note_text(n, t) for n in item["certs"]))
+            for col in range(1, ncol + 1):
                 ws.cell(row=row, column=col).alignment = _WRAP
     for o in cl.get("own") or []:
         row += 1
@@ -132,7 +144,7 @@ def workbook(cl: dict, meta: dict, lang: str = "el") -> bytes:
         _put(ws, row, 2, o["text"])
         if o.get("done_at"):
             _put(ws, row, 5, o["done_at"].date()).number_format = "DD/MM/YYYY"
-        for col in range(1, 8):
+        for col in range(1, ncol + 1):
             ws.cell(row=row, column=col).alignment = _WRAP
 
     # ---- sheet 2: by when ---------------------------------------------- #

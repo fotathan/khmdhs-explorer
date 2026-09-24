@@ -49,6 +49,10 @@
   .val{margin-top:1px;}
   .quote{margin-top:3px;color:var(--ink-3);font-size:11px;font-style:italic;}
   .done{margin-top:2px;font-size:11px;color:var(--ink-3);}
+  .cl-certs{list-style:none;margin:3px 0 0;padding:0;font-size:11px;}
+  .cl-cert .ic{display:inline-block;width:12px;font-weight:700;}
+  .cl-cert.is-expires_before,.cl-cert.is-expired{font-weight:600;}
+  .cl-cert-ed{color:var(--ink-3);margin-left:4px;}
   .notes{width:30%;}
   .foot{margin-top:18px;color:var(--ink-3);font-size:11px;}
   .lines{margin-top:18px;}
@@ -144,6 +148,7 @@
           {% if item.obligation == 'mandatory' %}<span class="tag">{{ t("υποχρεωτικό") }}</span>{% endif %}
           {% if item.confidence == 'low' %}<span class="tag">{{ t("ασαφές στο κείμενο") }}</span>{% endif %}
           {% if item.value %}<div class="val">{{ item.value }}</div>{% endif %}
+          {% if item.certs %}{% with notes = item.certs %}{% include "_cert_notes.html" %}{% endwith %}{% endif %}
           {% if show_quotes and item.quote %}<div class="quote">«{{ item.quote }}»{% if item.para %} — {{ t("παρ.") }} {{ item.para }}{% endif %}</div>{% endif %}
           {% if item.done_at %}<div class="done">{{ t("Ολοκληρώθηκε") }} {{ item.done_at.strftime('%d/%m/%Y') }}</div>{% endif %}
         </td>

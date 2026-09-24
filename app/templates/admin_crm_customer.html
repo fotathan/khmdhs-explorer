@@ -351,6 +351,67 @@
   <p class="fit-note">{{ t(fit.reason) if fit and fit.reason else t("Δεν βρέθηκαν ανοικτοί διαγωνισμοί που να ταιριάζουν.") }}</p>
   {% endif %}
 
+  {# ---- Declared certificates (evaluation layer) ------------------------
+     docs/specs/evaluation-layer.md. What the firm HOLDS — and optionally the
+     manufacturers it carries. The customer's checklist shows them under the
+     items that ask for them («Στο προφίλ σας: ISO 9001, ισχύει έως …»); a
+     suggestion only, nothing is ever ticked. Private to this customer, never
+     in the shared AI summary. Saving the same standard + holder again
+     updates it (a renewal). #}
+  <div class="cert-box" id="certs">
+    <h3>{{ t("Πιστοποιητικά") }}</h3>
+    <p class="fit-note">{{ t("Όσα δηλωθούν εδώ εμφανίζονται στη λίστα ελέγχου του πελάτη, κάτω από τα στοιχεία που τα ζητούν, με την ισχύ τους σε σχέση με την καταληκτική ημερομηνία. Δεν τσεκάρεται τίποτα αυτόματα.") }}</p>
+    {% if certs %}
+    <table class="crm-tbl cert-tbl">
+      <thead><tr>
+        <th>{{ t("Πρότυπο") }}</th><th>{{ t("Κάτοχος") }}</th><th>{{ t("Αριθμός") }}</th>
+        <th>{{ t("Φορέας πιστοποίησης") }}</th><th>{{ t("Ισχύει έως") }}</th><th></th>
+      </tr></thead>
+      <tbody>
+        {% for cert in certs %}
+        <tr>
+          <td><strong>{{ cert.name }}</strong>{% if cert.edition %}:{{ cert.edition }}{% endif %}</td>
+          <td>{% if cert.holder == 'manufacturer' %}{{ t("Κατασκευαστής") }}: {{ cert.manufacturer }}{% else %}{{ t("Η εταιρεία") }}{% endif %}</td>
+          <td>{{ cert.number or "—" }}</td>
+          <td>{{ cert.issuer or "—" }}</td>
+          <td class="nowrap">{{ cert.valid_until.strftime("%d/%m/%Y") if cert.valid_until else "—" }}</td>
+          <td>
+            <form method="post" action="/admin/crm/{{ cust.id }}/certificates/{{ cert.id }}/delete"
+                  onsubmit="return confirm('{{ t("Διαγραφή αυτού του πιστοποιητικού;") }}')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="cert-del">{{ t("Διαγραφή") }}</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    <form method="post" action="/admin/crm/{{ cust.id }}/certificates" class="cert-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>{{ t("Πρότυπο") }}
+        <select name="scheme" required>
+          {% for key, name, _n in cert_schemes %}<option value="{{ key }}">{{ name }}</option>{% endfor %}
+        </select></label>
+      <label>{{ t("Έκδοση") }}
+        <input type="text" name="edition" inputmode="numeric" pattern="(19|20)[0-9]{2}" maxlength="4" placeholder="2015" size="5"></label>
+      <label>{{ t("Κάτοχος") }}
+        <select name="holder">
+          <option value="self">{{ t("Η εταιρεία") }}</option>
+          <option value="manufacturer">{{ t("Κατασκευαστής") }}</option>
+        </select></label>
+      <label>{{ t("Κατασκευαστής (όνομα)") }}
+        <input type="text" name="manufacturer" maxlength="200"></label>
+      <label>{{ t("Αριθμός") }}
+        <input type="text" name="number" maxlength="100"></label>
+      <label>{{ t("Φορέας πιστοποίησης") }}
+        <input type="text" name="issuer" maxlength="200"></label>
+      <label>{{ t("Ισχύει έως") }}
+        <input type="date" name="valid_until"></label>
+      <button type="submit">{{ t("Αποθήκευση πιστοποιητικού") }}</button>
+    </form>
+  </div>
+
   {# One dialog for all three lists. The links are real hrefs (without JS they
      open the bare fragment); with JS, fitDialog() opens the dialog and loads
      the fragment into it with htmx. Competitors take a few seconds on a large
@@ -883,6 +944,12 @@
   .cmatch-linked form{display:inline;}
   .cmatch-confirm{margin:0 0 10px;}
   .cmatch-search{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;}
+  .cert-box{margin-top:22px;padding-top:14px;border-top:1px solid var(--rule);}
+  .cert-box h3{margin:0 0 4px;}
+  .cert-tbl{margin:8px 0 10px;}
+  .cert-del{font-size:12px;}
+  .cert-form{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:flex-end;font-size:13px;}
+  .cert-form label{display:flex;flex-direction:column;gap:2px;}
   .cmatch-declared{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;margin-top:8px;padding:8px 10px;border:1px dashed var(--rule);border-radius:8px;}
   .cmatch-inline{margin:0;}
   .cmatch-search input{flex:1 1 220px;padding:7px 9px;border:1px solid var(--rule);

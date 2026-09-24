@@ -1,6 +1,7 @@
 # Spec: Evaluation layer: the customer's certificates against the checklist
 
-**Status:** DRAFT, 2026-09-24. Nothing built. The owner decides §9 before any code.
+**Status:** slice 1 built 2026-09-24 (branch `feat/evaluation-layer`) with the
+owner's decisions in §9. Customer self-service (slice 2) not built.
 **Roadmap:** Tier 2, tender-checklist.md §5 item 6 and ai-summary.md §14
 ("per-customer eligibility evaluation"). This is the last open checklist slice.
 **Depends on:** tender-checklist.md (the checklist it annotates), ai-summary.md
@@ -95,10 +96,11 @@ What the customer sees instead, under the item:
 
 The tick box stays exactly as it is.
 
-**Absence is not shown.** "Δεν έχετε ISO 27001" is a verdict built on a
-profile that may simply be incomplete. It is the "you do not hold X" failure
-that ai-summary §3 warns about, and a customer who believes it may skip a bid
-they could win. (Open decision §9.4.)
+**Absence is neutral, never a verdict** (§9.4). "Δεν έχετε ISO 27001" is a
+verdict built on a profile that may simply be incomplete. That is the "you do
+not hold X" failure ai-summary §3 warns about, and a customer who believes it
+may skip a bid they could win. The line reads «ISO 27001: δεν έχει δηλωθεί
+στο προφίλ σας», and it appears only for a customer who declared something.
 
 ---
 
@@ -107,18 +109,23 @@ they could win. (Open decision §9.4.)
 One new table, per customer (keyed like company_profile, by user):
 
 ```
-proc.company_certificate
+proc.company_certificate      (migrations/20260924150000_company_certificate.sql)
   id            bigserial PK
   user_id       bigint  → app_user, ON DELETE CASCADE
   scheme        text    NOT NULL   -- catalogue key: 'iso9001', 'iso13485', …
+  holder        text    NOT NULL   -- 'self' | 'manufacturer' (§9.3)
+  manufacturer  text               -- required exactly when holder = manufacturer
   edition       text               -- '2015' (optional; see §6)
   number        text               -- certificate no., for the customer's own reference
   issuer        text               -- certification body
   valid_until   date               -- NULL = not entered; never inferred
   source        text    NOT NULL   -- 'admin' | 'customer'
   created_at / created_by / updated_at / updated_by
-  UNIQUE (user_id, scheme, edition)
+  UNIQUE (user_id, scheme, holder, lower(coalesce(manufacturer, '')))
 ```
+
+Saving the same scheme and holder again updates the row, which is how a
+renewal is entered.
 
 - **No files.** A scan of the certificate would be a document store of
   customer data on a 500 MB free tier. The attachments feature is for ACT
@@ -141,23 +148,27 @@ notices contain that typo. OHSAS 18001 → 45001 (its successor): a notice
 asking for OHSAS is answered by a 45001 holder. The reverse is not true: a
 firm holding only OHSAS does not meet a 45001 requirement.
 
-**Which items:** checklist items in `eligibility` (all) and `requirements`
-(mandatory only), i.e. exactly the ones the checklist already shows. The
-matcher reads label + value + quote.
+**Which items:** every item the checklist shows (eligibility, mandatory
+pricing and requirements, submission). The matcher reads label + value +
+quote.
 
-**Product vs firm:** a scheme outside the catalogue is never matched. That
-alone excludes 10993/15223/7376. A catalogue scheme inside a `requirements`
-item is matched only when the text also names the bidder (a fixed phrase list:
-«ο προσφέρων», «ο οικονομικός φορέας», «ο ανάδοχος», «να διαθέτει», «ο
-κατασκευαστής»). The manufacturer case needs the owner's decision (§9.3).
+**Product vs firm:** a scheme outside the catalogue is never matched, and
+that alone excludes 10993/15223/7376. *Changed while building:* the draft also
+required a bidder phrase in `requirements` items. Every catalogue scheme is a
+management system that only an organisation can hold, so the phrase only
+decides WHOSE certificate answers the item (§9.3): an item naming «ο
+κατασκευαστής» uses the manufacturer rows, one also naming the bidder («ο
+προσφέρων», «ο οικονομικός φορέας», «ο ανάδοχος», …) uses both, and anything
+else uses the firm's own.
 
 **Edition:** when the item names an edition (`:2015`) and the customer
-declared a different one, the note reads "έχετε δηλώσει 9001:2008" rather than
-✓. When either side has no edition, it is a match.
+declared a different one, the note keeps its validity status and adds «(η
+προκήρυξη αναφέρει έκδοση 2015)». When either side has no edition, nothing is
+added.
 
 **Validity:** compared on Europe/Athens dates against the act's
-final_submission_date. `valid_until` NULL → "ισχύς: δεν έχει δηλωθεί", never
-✓ on its own. Past `valid_until` → the note says so. Nothing is hidden.
+final_submission_date. `valid_until` NULL → «χωρίς δηλωμένη ημερομηνία λήξης», never
+✓. Past `valid_until` → the note says so. Nothing is hidden.
 
 **Several schemes in one item** («ISO 9001 και ISO 14001»): one line per
 scheme, each with its own status.
@@ -176,10 +187,15 @@ scheme, each with its own status.
   (A certificate-aware fit component is plausible later. CPV_FLOOR shows how
   a hard requirement caps a score.)
 
-**Who:** the same gate as the customer fit panel: entitled, AND
-`company_profile.is_active` switched on by an admin. Everyone else gets the
-checklist exactly as it is today. The panel's response for a customer with no
-certificates is byte-identical to today's, and a test pins that.
+**Who:** entitled readers (the checklist's own gate) who have at least one
+declared certificate. *Changed while building:* the draft reused the fit
+panel's `company_profile.is_active` switch, but that switch needs a usable CPV
+history, so a firm with no award ledger could never see its certificates.
+An admin entering a certificate is already the deliberate act, so no
+second switch is needed. Everyone else gets the checklist exactly as it is
+today. The panel's response for a customer with no certificates is
+byte-identical to today's (test-enforced), and so is the Excel file's shape:
+the extra column appears only when there are notes.
 
 ---
 
@@ -197,7 +213,26 @@ customer edit override an admin row, and is there an audit trail?
 
 ---
 
-## 9. Decisions for the owner
+## 9. Decisions (the owner, 2026-09-24)
+
+1. **Suggest, never tick**: yes.
+2. **Admin-entered first**, customer self-service second: agreed.
+3. **Manufacturer certificates**: optionally yes. They are declared with
+   holder = manufacturer and the manufacturer's name. An item that names «ο
+   κατασκευαστής» is answered from those rows, one naming the bidder too from
+   both.
+4. **Absence**: shown neutrally («δεν έχει δηλωθεί στο προφίλ σας»), and only
+   for a customer who declared at least one certificate. Without a
+   self-service editor yet, telling everyone else "not declared" would be
+   noise they cannot act on.
+5. **Expiry reminder emails**: later.
+6. **Catalogue**: the measured list only. HACCP / ΕΛΟΤ 1416 is its own
+   scheme. OHSAS 18001 cannot be declared (every such certificate lapsed in
+   2021); a notice asking for it is answered by ISO 45001.
+
+The questions as they were put:
+
+
 
 1. **Suggest, never tick** (§4). Yes / no?
 2. **Admin-entered first, customer self-service second** (§8). Or customer

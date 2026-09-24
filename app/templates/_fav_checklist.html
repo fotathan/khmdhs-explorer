@@ -22,5 +22,9 @@
     {% else %}(σε {{ cp.next.days_left }} {{ "ημέρα" if cp.next.days_left == 1 else "ημέρες" }}, {{ cp.next.workdays_left }} {{ "εργάσιμη" if cp.next.workdays_left == 1 else "εργάσιμες" }}){% endif %}
   </span>
   {% endif %}
+  {% if cp.cert_warn %}
+  {# Evaluation layer: a declared certificate lapses before the closing date. #}
+  <span class="fav-cl-cert">⚠ {{ cp.cert_warn | join(", ") }}: {{ t("λήγει πριν την υποβολή") }}</span>
+  {% endif %}
   <span class="fav-cl-go" aria-hidden="true">›</span>
 </a>

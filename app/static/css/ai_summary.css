@@ -187,6 +187,14 @@
 .cl-quote { margin-top: 5px; }
 .cl-quote summary { cursor: pointer; font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .04em; }
 .cl-done { font-family: var(--mono); font-size: 10px; color: var(--ok); margin-top: 5px; }
+/* Evaluation layer (_cert_notes.html): the customer's certificates under an
+   item. Evidence, not a verdict — quiet unless something lapses. */
+.cl-certs { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--ink-2); }
+.cl-cert .ic { display: inline-block; width: 14px; font-weight: 700; }
+.cl-cert.is-ok .ic { color: var(--ok); }
+.cl-cert.is-expires_before, .cl-cert.is-expired { color: var(--warn); }
+.cl-cert.is-undeclared, .cl-cert.is-no_date { color: var(--ink-3); }
+.cl-cert-ed { color: var(--ink-3); margin-left: 4px; }
 .cl-foot { font-size: 11.5px; color: var(--ink-3); margin: 10px 0 0; }
 
 @media (max-width: 560px) {

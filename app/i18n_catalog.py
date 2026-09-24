@@ -3642,6 +3642,37 @@ _CHECKLIST = {
 }
 
 
+# Evaluation layer — declared certificates against the checklist
+# (app/eligibility_eval.py, docs/specs/evaluation-layer.md).
+_CERTS = {
+    "Κατασκευαστής": "Manufacturer",
+    "Στο προφίλ σας": "In your profile",
+    "κατασκευαστή": "manufacturer's",
+    "δεν έχει δηλωθεί στο προφίλ σας.": "not declared in your profile.",
+    "ισχύει έως": "valid until",
+    "πριν την υποβολή": "before the closing date",
+    "έληξε στις": "expired on",
+    "χωρίς δηλωμένη ημερομηνία λήξης.": "no expiry date declared.",
+    "η προκήρυξη αναφέρει έκδοση": "the notice names edition",
+    "λήγει πριν την υποβολή": "expires before the closing date",
+    "Από το προφίλ σας": "From your profile",
+    "Πιστοποιητικά": "Certificates",
+    "Όσα δηλωθούν εδώ εμφανίζονται στη λίστα ελέγχου του πελάτη, κάτω από τα στοιχεία που τα ζητούν, με την ισχύ τους σε σχέση με την καταληκτική ημερομηνία. Δεν τσεκάρεται τίποτα αυτόματα.":
+        "What is declared here appears on the customer's checklist, under the items that ask for it, with its validity against the closing date. Nothing is ticked automatically.",
+    "Πρότυπο": "Standard",
+    "Κάτοχος": "Holder",
+    "Φορέας πιστοποίησης": "Certification body",
+    "Ισχύει έως": "Valid until",
+    "Η εταιρεία": "The company",
+    "Διαγραφή αυτού του πιστοποιητικού;": "Delete this certificate?",
+    "Έκδοση": "Edition",
+    "Κατασκευαστής (όνομα)": "Manufacturer (name)",
+    "Αποθήκευση πιστοποιητικού": "Save certificate",
+    "Πιστοποιητικά στη λίστα": "Certificates on the list",
+    "Αν στην καρτέλα του πελάτη στο CRM (Ταίριασμα → Πιστοποιητικά) έχουν δηλωθεί τα πιστοποιητικά της εταιρείας του — ή των κατασκευαστών που αντιπροσωπεύει — η λίστα τα δείχνει κάτω από κάθε στοιχείο που ζητά ISO 9001, 13485, 14001, 45001 κ.λπ.: «✓ Στο προφίλ σας: ISO 9001:2015, ισχύει έως …», ή «⚠ λήγει … — πριν την υποβολή» όταν λήγει πριν την καταληκτική ημερομηνία. Ό,τι ζητείται και δεν έχει δηλωθεί εμφανίζεται ουδέτερα («δεν έχει δηλωθεί στο προφίλ σας»). Είναι ένδειξη, όχι κρίση: δεν τσεκάρεται τίποτα αυτόματα. Η προειδοποίηση λήξης φαίνεται και στα αγαπημένα, και οι ενδείξεις περνούν στην εκτύπωση και στο Excel.":
+        "If the customer's CRM card (Fit → Certificates) declares their company's certificates — or those of the manufacturers they represent — the list shows them under every item that asks for ISO 9001, 13485, 14001, 45001 and so on: «✓ In your profile: ISO 9001:2015, valid until …», or «⚠ expires … — before the closing date» when it lapses before the deadline. Anything asked for that has not been declared is shown neutrally («not declared in your profile»). It is a pointer, not a verdict: nothing is ticked automatically. The expiry warning also shows on favourites, and the notes carry over to the print-out and the Excel file.",
+}
+
 # (there should be none — keep keys unique across groups).
 UI_EN: dict[str, str] = {}
 for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
@@ -3651,5 +3682,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMCARD, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
              _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY, _DIGESTS,
              _SELF_SERVE, _PUBLIC, _HELP_PUBLIC, _AI_POLICY, _FIT,
-             _COMPANY_MATCH, _MATCH, _TSG_DUP, _ONBOARDING, _CHECKLIST):
+             _COMPANY_MATCH, _MATCH, _TSG_DUP, _ONBOARDING, _CHECKLIST, _CERTS):
     UI_EN.update(_grp)
