@@ -259,8 +259,8 @@ def build(payload: dict, act: dict, *, today: dt.date | None = None) -> dict:
 # --------------------------------------------------------------------------- #
 # Database
 # --------------------------------------------------------------------------- #
-def current(c, adam: str) -> tuple[dict, dict] | None:
-    """(act, payload) when the act has a CURRENT summary, else None.
+def current_row(c, adam: str) -> tuple[dict, dict, dt.datetime | None] | None:
+    """(act, payload, generated_at) when the act has a CURRENT summary.
 
     Current = its input_hash matches the act as it is now. A stale payload's
     items point into text that no longer exists; a checklist built on it
@@ -275,7 +275,45 @@ def current(c, adam: str) -> tuple[dict, dict] | None:
     row = _ai.cached(c, adam, _ai.input_hash(sources))
     if not row or not row.get("payload"):
         return None
-    return act, dict(row["payload"])
+    return act, dict(row["payload"]), row.get("generated_at")
+
+
+def current(c, adam: str) -> tuple[dict, dict] | None:
+    """(act, payload) when the act has a CURRENT summary, else None."""
+    got = current_row(c, adam)
+    return None if got is None else got[:2]
+
+
+def milestones(c, adam: str) -> list[dict]:
+    """The DATED deadlines the summary found for this act — the calendar's
+    share of the deadline set (docs/specs/tender-checklist.md, slice 2).
+
+    Only source 'ai': the record's own closing date is already the act's main
+    calendar event (calendar_feed.act_event) and must not appear twice. Only
+    dated items: "within three days of publication" has no place on a
+    calendar until we can count it (app/workdays.py).
+
+    Each carries `uid_key`, stable across polls and across a regeneration
+    that keeps the label, and NOT derived from the date — a moved date must
+    move the same event, which is what SEQUENCE (from `generated_at`) is for.
+    Two items with the same label in one act get -2, -3 suffixes, in date
+    order.
+    """
+    got = current_row(c, adam)
+    if got is None:
+        return []
+    act, payload, generated_at = got
+    out, seen = [], {}
+    for d in build(payload, act)["deadlines"]:
+        if d["source"] != "ai" or d["date"] is None:
+            continue
+        base = item_key("timeline", d["label"] or "", "")
+        seen[base] = seen.get(base, 0) + 1
+        key = base if seen[base] == 1 else f"{base}-{seen[base]}"
+        out.append({"uid_key": key, "label": d["label"], "value": d["value"],
+                    "date": d["date"], "time": d["time"],
+                    "generated_at": generated_at})
+    return out
 
 
 def ticks(c, user_id, adam: str) -> dict[str, dt.datetime]:

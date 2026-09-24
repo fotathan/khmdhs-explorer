@@ -89,12 +89,14 @@ try:
     from app import i18n as _i18n
     from app import ics as _ics
     from app import seo as _seo
+    from app import tender_checklist as _checklist
 except ImportError:                      # pragma: no cover — run with --app-dir=app
     import auth as _auth
     import digests as _digests
     import i18n as _i18n
     import ics as _ics
     import seo as _seo
+    import tender_checklist as _checklist
 
 PAGE = "/account/calendar"
 
@@ -234,6 +236,90 @@ def act_event(row, *, lang: str, base_url: str, lead_days) -> _ics.Event:
         sequence=_ics.sequence_from(row.get("last_update_date")),
         cancelled=bool(row.get("cancelled")),
         alarms=tuple(_ics.Alarm(d, _alarm_text(d, lang)) for d in lead_days))
+
+
+# --------------------------------------------------------------------------- #
+# The act's OTHER dates — docs/specs/tender-checklist.md, slice 2
+# --------------------------------------------------------------------------- #
+def milestone_event(m, act, *, lang: str, base_url: str, lead_days) -> _ics.Event:
+    """One dated milestone from the checklist's deadline set -> an ics.Event.
+
+    `m` is a tender_checklist.milestones() entry, `act` the act row
+    (act_event's columns). The ONE definition of a milestone as an event,
+    shared by the feed and the one-off download, like act_event.
+
+    * UID = <adam>-m-<uid_key>@khmdhs. Never derived from the date: a date
+      that moves must move the SAME event.
+    * SEQUENCE = the later of the act's last_update_date and the summary's
+      generated_at. A regenerated summary is the only way a milestone's date
+      changes, and a client ignores a new DTSTART unless SEQUENCE rose.
+    * A time the text states -> a timed event (Athens). No time -> an
+      all-day event on that date; we do not invent 23:59.
+    * The description says where the date came from. The closing date is the
+      record's; these are an AI reading of the text, and must say so.
+    * A cancelled act cancels its milestones too.
+    """
+    tr = lambda s: _i18n.translate(s, lang)      # noqa: E731
+    adam = act["adam"]
+    title = (act.get("title") or "").strip()
+    label = (m.get("label") or "").strip() or tr("Προθεσμία")
+    summary = f"{label} — {title}" if title else label
+
+    if m.get("time"):
+        hh, mm = (int(x) for x in m["time"].split(":"))
+        start = dt.datetime.combine(m["date"], dt.time(hh, mm),
+                                    tzinfo=_checklist.ATHENS)
+    else:
+        start = m["date"]
+
+    lines = []
+    if m.get("value"):
+        lines.append(m["value"])
+    lines.append(tr("Από τη σύνοψη AI της προκήρυξης — επιβεβαιώστε την "
+                    "ημερομηνία στα επίσημα έγγραφα."))
+    if act.get("authority_name"):
+        lines.append(act["authority_name"])
+    lines.append(f"{tr('ΑΔΑΜ')}: {adam}")
+
+    sequence = max(_ics.sequence_from(act.get("last_update_date")),
+                   _ics.sequence_from(m.get("generated_at")))
+    return _ics.Event(
+        uid=f"{adam}-m-{m['uid_key']}@khmdhs",
+        start=start,
+        summary=summary,
+        description="\n".join(lines),
+        url=f"{base_url}/act/{quote(adam, safe='')}#tab-checklist",
+        sequence=sequence,
+        cancelled=bool(act.get("cancelled")),
+        alarms=tuple(_ics.Alarm(d, _alarm_text(d, lang)) for d in lead_days))
+
+
+def milestone_rows(c, acts, *, budget: int, today: dt.date) -> list:
+    """(milestone, act) pairs for these acts, soonest first, at most `budget`.
+
+    Only acts with a summary row are looked at (one query), and each of those
+    is re-checked for being CURRENT by tender_checklist — a stale summary's
+    dates are not put in anyone's calendar. Milestones older than
+    CALENDAR_PAST_DAYS drop out, as closed deadlines do.
+    """
+    acts = [a for a in acts if a.get("adam")]
+    # The checklist lives under the AI summary's switch; so do its dates.
+    if budget <= 0 or not acts or not _checklist._ai.enabled():
+        return []
+    c.execute("SELECT adam FROM proc.act_ai_summary WHERE adam = ANY(%s)",
+              ([a["adam"] for a in acts],))
+    have = {r["adam"] for r in c.fetchall()}
+    cutoff = today - dt.timedelta(days=CALENDAR_PAST_DAYS)
+    out = []
+    for act in acts:
+        if act["adam"] not in have:
+            continue
+        for m in _checklist.milestones(c, act["adam"]):
+            if m["date"] >= cutoff:
+                out.append((m, act))
+    out.sort(key=lambda p: (p[0]["date"], p[0]["time"] or "", p[1]["adam"],
+                            p[0]["uid_key"]))
+    return out[:budget]
 
 
 # --------------------------------------------------------------------------- #
@@ -381,19 +467,31 @@ def search_rows(c, searches, *, budget: int, exclude=()) -> list:
     return picked
 
 
-def feed_rows(c, user) -> list:
-    """Everything one feed carries: the favourites, then the ticked searches'
-    deadlines in whatever room CALENDAR_MAX_EVENTS leaves. Sorted by
-    deadline, so the body is the same bytes for the same data."""
+def feed_content(c, user, *, today: dt.date | None = None) -> tuple[list, list]:
+    """Everything one feed carries, in priority order within
+    CALENDAR_MAX_EVENTS: the favourites' deadlines, then the favourites'
+    other dated milestones (tender_checklist), then the ticked searches'
+    deadlines in whatever room is left. Milestones are only ever for
+    favourites — explicit choices — never for search matches, which could be
+    hundreds of acts per poll. Sorted, so the same data is the same bytes."""
+    today = today or dt.datetime.now(_digests._tz(_digests.DEFAULT_TZ)).date()
     favs = [dict(r) for r in favourite_rows(c, user["id"])]
+    miles = milestone_rows(c, favs, budget=CALENDAR_MAX_EVENTS - len(favs),
+                           today=today)
     # A favourite marked "no bid" (bid_pipeline) leaves the calendar, and a
     # ticked search must not bring it straight back.
     extra = search_rows(c, opted_in_searches(c, user),
-                        budget=CALENDAR_MAX_EVENTS - len(favs),
+                        budget=CALENDAR_MAX_EVENTS - len(favs) - len(miles),
                         exclude={r["adam"] for r in favs}
                                 | declined_adams(c, user["id"]))
-    return sorted(favs + extra,
+    rows = sorted(favs + extra,
                   key=lambda r: (r["final_submission_date"], r["adam"]))
+    return rows, miles
+
+
+def feed_rows(c, user) -> list:
+    """The act deadlines alone (see feed_content)."""
+    return feed_content(c, user)[0]
 
 
 # --------------------------------------------------------------------------- #
@@ -450,12 +548,14 @@ def favourite_rows(c, user_id: int):
     return c.fetchall()
 
 
-def _stamp(rows, fallback) -> dt.datetime:
+def _stamp(rows, fallback, milestones=()) -> dt.datetime:
     """A DTSTAMP derived from the data, so an unchanged feed renders to the
     same bytes on every poll and the ETag can match."""
     moments = [m for r in rows
                for m in (r.get("favorited_at"), r.get("last_update_date"))
                if isinstance(m, dt.datetime)]
+    moments += [m["generated_at"] for m, _a in milestones
+                if isinstance(m.get("generated_at"), dt.datetime)]
     best = max(moments) if moments else fallback
     if best.tzinfo is None:
         best = best.replace(tzinfo=dt.timezone.utc)
@@ -463,11 +563,13 @@ def _stamp(rows, fallback) -> dt.datetime:
 
 
 def render_feed(rows, *, lang: str, base_url: str, lead_days,
-                fallback_stamp: dt.datetime) -> str:
+                fallback_stamp: dt.datetime, milestones=()) -> str:
     events = [act_event(r, lang=lang, base_url=base_url, lead_days=lead_days)
               for r in rows]
+    events += [milestone_event(m, a, lang=lang, base_url=base_url,
+                               lead_days=lead_days) for m, a in milestones]
     return _ics.render(events, name=_i18n.translate("ΚΗΜΔΗΣ — Προθεσμίες", lang),
-                       dtstamp=_stamp(rows, fallback_stamp))
+                       dtstamp=_stamp(rows, fallback_stamp, milestones))
 
 
 def render_lapsed(*, user_id: int, lang: str, base_url: str, today: dt.date,
@@ -531,10 +633,11 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 raise HTTPException(404, "not found")
             record_fetch(c, row["user_id"])
             if user.get("has_access"):
-                rows = feed_rows(c, user)
+                rows, miles = feed_content(c, user, today=today)
                 body = render_feed(rows, lang=row["lang"], base_url=base,
                                    lead_days=lead_days_for(c, row["user_id"]),
-                                   fallback_stamp=row["created_at"])
+                                   fallback_stamp=row["created_at"],
+                                   milestones=miles)
             else:
                 body = render_lapsed(user_id=row["user_id"], lang=row["lang"],
                                      base_url=base, today=today,

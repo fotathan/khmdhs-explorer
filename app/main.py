@@ -4305,7 +4305,22 @@ def act_calendar_ics(adam: str, request: Request):
     event = _calfeed.act_event(
         notice, lang=lang, base_url=_seo.base_url(request),
         lead_days=_digests.DEFAULT_LEAD_DAYS)
-    body = _ics.render([event], name=_i18n.translate("ΚΗΜΔΗΣ — Προθεσμίες", lang))
+    events = [event]
+    # The act's other dated deadlines from its checklist (questions, site
+    # visit, opening) — docs/specs/tender-checklist.md, slice 2. Entitled
+    # readers only: they come from the AI summary, which is subscriber
+    # content, whereas the closing date above is in the public hero.
+    if user.get("has_access"):
+        from app import tender_checklist as _tcl
+        with cursor() as c:
+            today = _tcl.athens_today()
+            miles = _calfeed.milestone_rows(
+                c, [notice], budget=_calfeed.CALENDAR_MAX_EVENTS, today=today)
+        events += [_calfeed.milestone_event(
+                       m, a, lang=lang, base_url=_seo.base_url(request),
+                       lead_days=_digests.DEFAULT_LEAD_DAYS)
+                   for m, a in miles]
+    body = _ics.render(events, name=_i18n.translate("ΚΗΜΔΗΣ — Προθεσμίες", lang))
     # ASCII by construction, so the header needs no RFC 5987 escape hatch.
     filename = re.sub(r"[^A-Za-z0-9._-]", "_", adam) + ".ics"
     return _Response(
