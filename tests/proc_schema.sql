@@ -6842,3 +6842,47 @@ CREATE TABLE proc.public_holiday (
     note        text,
     created_at  timestamptz NOT NULL DEFAULT now()
 );
+
+
+--
+-- company_certificate — migrations/20260924150000_company_certificate.sql.
+-- Appended by hand, like the blocks above: declared certificates for the
+-- evaluation layer (docs/specs/evaluation-layer.md).
+--
+
+CREATE TABLE proc.company_certificate (
+    id            bigserial PRIMARY KEY,
+    user_id       bigint NOT NULL
+                  REFERENCES proc.app_user(id) ON DELETE CASCADE,
+    scheme        text   NOT NULL
+                  CONSTRAINT company_certificate_scheme_ck
+                  CHECK (scheme IN ('iso9001', 'iso13485', 'iso14001',
+                                    'iso45001', 'iso27001', 'iso37001',
+                                    'iso22000', 'haccp', 'iso22301',
+                                    'iso50001', 'iso39001')),
+    holder        text   NOT NULL DEFAULT 'self'
+                  CONSTRAINT company_certificate_holder_ck
+                  CHECK (holder IN ('self', 'manufacturer')),
+    manufacturer  text,
+    edition       text
+                  CONSTRAINT company_certificate_edition_ck
+                  CHECK (edition IS NULL OR edition ~ '^[0-9]{4}$'),
+    number        text   CHECK (number IS NULL OR length(number) <= 100),
+    issuer        text   CHECK (issuer IS NULL OR length(issuer) <= 200),
+    valid_until   date,
+    source        text   NOT NULL DEFAULT 'admin'
+                  CONSTRAINT company_certificate_source_ck
+                  CHECK (source IN ('admin', 'customer')),
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    created_by    bigint,
+    updated_at    timestamptz NOT NULL DEFAULT now(),
+    updated_by    bigint,
+    CONSTRAINT company_certificate_manufacturer_ck CHECK (
+        (holder = 'self' AND manufacturer IS NULL)
+        OR (holder = 'manufacturer' AND length(btrim(manufacturer)) BETWEEN 1 AND 200))
+);
+
+-- One row per scheme for the firm itself, one per scheme AND manufacturer.
+CREATE UNIQUE INDEX ux_company_certificate_holder
+    ON proc.company_certificate
+       (user_id, scheme, holder, lower(coalesce(manufacturer, '')));

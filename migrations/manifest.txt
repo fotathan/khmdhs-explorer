@@ -110,3 +110,4 @@ migrations/20260924100000_attachment_text_cap.sql
 migrations/20260924120000_tender_checklist.sql
 migrations/20260924130000_checklist_own_items.sql
 migrations/20260924140000_public_holiday.sql
+migrations/20260924150000_company_certificate.sql

@@ -84,11 +84,13 @@ from fastapi.templating import Jinja2Templates
 try:
     from app import ai_summary as _ai
     from app import checklist_export as _export
+    from app import eligibility_eval as _eval
     from app import textmatch as _tm
     from app import workdays as _wd
 except ImportError:                      # pragma: no cover — run with --app-dir=app
     import ai_summary as _ai
     import checklist_export as _export
+    import eligibility_eval as _eval
     import textmatch as _tm
     import workdays as _wd
 
@@ -352,6 +354,7 @@ def progress_for(c, user_id, adams, *, today: dt.date | None = None) -> dict:
                   WHERE user_id = %s AND adam = ANY(%s)
                   GROUP BY adam""", (user_id, have))
     own = {r["adam"]: (r["n"], r["n_done"]) for r in c.fetchall()}
+    certs = _eval.certificates(c, user_id)
     out = {}
     for adam in have:
         got = current(c, adam)
@@ -367,7 +370,13 @@ def progress_for(c, user_id, adams, *, today: dt.date | None = None) -> dict:
         # Same arithmetic as view(): the summary's items plus the customer's own.
         out[adam] = {"n_done": len(ticked.get(adam, set()) & cl["keys"]) + own_done,
                      "n_tasks": cl["n_tasks"] + n_own,
-                     "next": upcoming[0] if upcoming else None}
+                     "next": upcoming[0] if upcoming else None,
+                     # Certificates that lapse before the closing date — the
+                     # case that loses a bid (evaluation-layer spec §7).
+                     "cert_warn": _eval.warnings(
+                         cl["groups"], certs,
+                         closing=_eval.closing_date(cl["deadlines"]),
+                         today=today)}
     return out
 
 
@@ -504,6 +513,13 @@ def view(c, user_id, adam: str, *, error: str = "") -> dict | None:
         for item in g["items"]:
             item["done_at"] = done.get(item["key"])
         g["n_done"] = sum(1 for i in g["items"] if i["done_at"])
+    # The evaluation layer (docs/specs/evaluation-layer.md): the customer's
+    # declared certificates under the items that ask for them. Joined here at
+    # render time like the ticks — never into the shared summary. A customer
+    # with no certificates gets no notes at all.
+    cl["n_cert_warn"] = _eval.annotate(
+        cl["groups"], _eval.certificates(c, user_id),
+        closing=_eval.closing_date(cl["deadlines"]), today=athens_today())
     cl["own"] = own
     cl["own_done"] = sum(1 for o in own if o["done_at"])
     cl["own_full"] = len(own) >= OWN_MAX_PER_ACT

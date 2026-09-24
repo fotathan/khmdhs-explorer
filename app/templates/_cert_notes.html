@@ -1,0 +1,34 @@
+{# _cert_notes.html — the customer's certificates under one checklist item.
+
+   Input: `notes` = item.certs from eligibility_eval.annotate(), via
+   tender_checklist.view(). Included by _panel_checklist.html and
+   checklist_print.html. docs/specs/evaluation-layer.md.
+
+   Evidence, never a verdict: it says what the PROFILE shows and leaves the
+   tick box alone. A scheme nobody declared gets a neutral line, not "you do
+   not have it" — the profile may simply be incomplete. #}
+<ul class="cl-certs">
+  {% for n in notes %}
+  {% set who = (t("Κατασκευαστής") ~ " " ~ n.manufacturer) if n.manufacturer else t("Στο προφίλ σας") %}
+  {% set name = n.name ~ ((":" ~ n.cert.edition) if n.cert and n.cert.edition else "") %}
+  <li class="cl-cert is-{{ n.status }}">
+    {% if n.status == 'undeclared' %}
+      <span class="ic" aria-hidden="true">·</span>
+      {{ n.name }}{% if n.holder == 'manufacturer' %} ({{ t("κατασκευαστή") }}){% endif %}: {{ t("δεν έχει δηλωθεί στο προφίλ σας.") }}
+    {% elif n.status == 'ok' %}
+      <span class="ic" aria-hidden="true">✓</span>
+      {{ who }}: <b>{{ name }}</b>, {{ t("ισχύει έως") }} {{ n.cert.valid_until.strftime('%d/%m/%Y') }}.
+    {% elif n.status == 'expires_before' %}
+      <span class="ic" aria-hidden="true">⚠</span>
+      {{ who }}: <b>{{ name }}</b>, {{ t("λήγει") }} {{ n.cert.valid_until.strftime('%d/%m/%Y') }} — <b>{{ t("πριν την υποβολή") }}</b>.
+    {% elif n.status == 'expired' %}
+      <span class="ic" aria-hidden="true">⚠</span>
+      {{ who }}: <b>{{ name }}</b>, {{ t("έληξε στις") }} {{ n.cert.valid_until.strftime('%d/%m/%Y') }}.
+    {% else %}
+      <span class="ic" aria-hidden="true">·</span>
+      {{ who }}: <b>{{ name }}</b>, {{ t("χωρίς δηλωμένη ημερομηνία λήξης.") }}
+    {% endif %}
+    {% if n.edition_differs %}<span class="cl-cert-ed">({{ t("η προκήρυξη αναφέρει έκδοση") }} {{ n.edition }})</span>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
