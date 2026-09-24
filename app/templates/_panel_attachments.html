@@ -1,12 +1,17 @@
 {# Attachments panel (edit hub → "Συνημμένα" tab). Upload + list stored files
-   and search inside them. LOCAL-ONLY: gated on attachments_enabled. Reuses the
-   tt-* styles from tables/_tt_assets.html (already on the hub). #}
+   and search inside them. Gated on attachments_enabled (ATTACHMENTS_ENABLED);
+   in production the bytes go to Supabase Storage (app/attachments.py). Reuses
+   the tt-* styles from tables/_tt_assets.html (already on the hub). #}
 {% if not attachments_enabled %}
 <p class="tt-truncated" style="color:var(--ink-3,#999); padding:14px 0;">
-  {{ t("Τα συνημμένα είναι διαθέσιμα μόνο στο τοπικό περιβάλλον (η βάση παραγωγής δεν έχει διαθέσιμο χώρο).") }}
+  {{ t("Τα συνημμένα είναι απενεργοποιημένα σε αυτό το περιβάλλον (ATTACHMENTS_ENABLED).") }}
 </p>
 {% else %}
 <div class="tt-wrap">
+  {% if not storage_ok %}
+  {# A wrong key or bucket shows here, before anyone uploads. #}
+  <div class="tt-flash tt-error">{{ t("Ο χώρος αποθήκευσης δεν είναι προσβάσιμος") }}: <code>{{ storage_msg }}</code></div>
+  {% endif %}
   <div class="section-h" style="margin-top:6px;">{{ t("Μεταφόρτωση συνημμένων") }}</div>
   <form id="att-upload-form" hx-post="/admin/act/{{ adam }}/attachments"
         hx-target="#att-list" hx-swap="outerHTML"
@@ -27,7 +32,7 @@
     </p>
   </form>
   <p class="tt-truncated" style="margin-top:-4px;">
-    {{ t("Τα αρχεία αποθηκεύονται τοπικά· το κείμενό τους (και όσων περιέχονται σε zip) γίνεται αναζητήσιμο από την κύρια αναζήτηση.") }}
+    {{ t("Τα αρχεία αποθηκεύονται εκτός βάσης. Το κείμενό τους (και όσων περιέχονται σε zip) γίνεται αναζητήσιμο από την κύρια αναζήτηση και το διαβάζει η σύνοψη διαγωνισμού. Κρατούνται έως") }} {{ "{:,}".format(text_max_chars).replace(",", ".") }} {{ t("χαρακτήρες κειμένου ανά αρχείο.") }}
   </p>
 
   {% include "_attachment_list.html" %}

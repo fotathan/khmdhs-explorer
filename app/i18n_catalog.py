@@ -851,6 +851,27 @@ _FORMLABELS = {
         "Remove from favourites",
     "Έχετε φτάσει το όριο αγαπημένων.":
         "You have reached the favourites limit.",
+    # Attachments in production (app/attachments.py, _panel_attachments.html).
+    "Συνημμένα έγγραφα: για μεγάλους διαγωνισμούς, το ΚΗΜΔΗΣ συχνά έχει μόνο την περίληψη και η πλήρης διακήρυξη βρίσκεται στο ΕΣΗΔΗΣ. Ο διαχειριστής μπορεί να επισυνάψει τα έγγραφα αυτά στην πράξη (καρτέλα «Συνημμένα» στην επεξεργασία). Τα αρχεία αποθηκεύονται εκτός βάσης, το κείμενό τους γίνεται αναζητήσιμο και το διαβάζει η σύνοψη, και οι συνδρομητές τα κατεβάζουν από την καρτέλα «Έγγραφα». Κρατούνται έως 200.000 χαρακτήρες κειμένου ανά αρχείο· αν ένα αρχείο είναι μεγαλύτερο, η λίστα το σημειώνει.":
+        "Attached documents: for big tenders KHMDHS often holds only the summary, and the full tender declaration lives on ΕΣΗΔΗΣ. An admin can attach those documents to the act (the “Attachments” tab when editing). The files are stored outside the database, their text becomes searchable and is read by the summary, and subscribers download them from the “Documents” tab. Up to 200,000 characters of text are kept per file; if a file is longer, the list says so.",
+    "Τα συνημμένα είναι απενεργοποιημένα σε αυτό το περιβάλλον (ATTACHMENTS_ENABLED).":
+        "Attachments are switched off in this environment (ATTACHMENTS_ENABLED).",
+    "Ο χώρος αποθήκευσης δεν είναι προσβάσιμος":
+        "The file storage cannot be reached",
+    "Τα αρχεία αποθηκεύονται εκτός βάσης. Το κείμενό τους (και όσων περιέχονται σε zip) γίνεται αναζητήσιμο από την κύρια αναζήτηση και το διαβάζει η σύνοψη διαγωνισμού. Κρατούνται έως":
+        "Files are stored outside the database. Their text (including files inside a zip) becomes searchable from the main search and is read by the tender summary. Up to",
+    "χαρακτήρες κειμένου ανά αρχείο.":
+        "characters of text are kept per file.",
+    "Κρατήθηκε μόνο η αρχή του κειμένου":
+        "Only the beginning of the text was kept",
+    "κείμενο περικομμένο":
+        "text truncated",
+    "από συνημμένο έγγραφο":
+        "from an attached document",
+    "Διαβάζει το πλήρες κείμενο μιας προκήρυξης, τους δημοσιευμένους πίνακές της και τα έγγραφα του διαγωνισμού που έχουμε επισυνάψει (π.χ. τη διακήρυξη από το ΕΣΗΔΗΣ), και βγάζει στην επιφάνεια προθεσμίες, εγγυήσεις, τεχνικές απαιτήσεις και σημεία προσοχής.":
+        "It reads a notice's full text, its published tables and the tender documents we have attached (e.g. the tender declaration from ΕΣΗΔΗΣ), and surfaces deadlines, guarantees, technical requirements and points to watch.",
+    "το κείμενο των δημόσιων εγγράφων του διαγωνισμού και οι πίνακές τους — τίποτε άλλο.":
+        "the text of the tender's public documents and their tables — nothing else.",
     # Fit score for customers (app/account_fit.py, _fit_parts.html).
     "Για πελάτες των οποίων το προφίλ έχει ενεργοποιήσει η ομάδα μας, η σελίδα «Ο λογαριασμός μου → Ταιριάζουν σε εσάς» δείχνει τους ανοικτούς διαγωνισμούς που ταιριάζουν περισσότερο με την εταιρεία τους, με βαθμό 0–100. Ο ίδιος βαθμός εμφανίζεται και πάνω σε κάθε προκήρυξη. Ο βαθμός προκύπτει από τις συμβάσεις που έχει ήδη κερδίσει η εταιρεία (από το ΑΦΜ της) και αναλύεται πάντα σε τέσσερα μέρη: αντικείμενο (CPV), μέγεθος, περιοχή και αναθέτουσα.":
         "For customers whose profile our team has switched on, the page “My account → Fits for you” shows the open tenders that fit their company best, with a score of 0–100. The same score appears on each notice. It comes from the contracts the company has already won (by its VAT number) and always breaks down into four parts: subject (CPV), size, region and authority.",
@@ -2087,8 +2108,8 @@ _HELP = {
     "Ο οδηγός περιγράφει την εφαρμογή όπως είναι σήμερα. Η διαθεσιμότητα δυνατοτήτων μπορεί να διαφέρει ανά διαμόρφωση.": "This guide describes the app as it stands today. Feature availability can vary with configuration.",
 
     "Σύνοψη διαγωνισμού (AI)": "Tender summary (AI)",
-    "Σε προκηρύξεις, κάτω από τα βασικά στοιχεία, μπορεί να εμφανίζεται το πάνελ «Σύνοψη διαγωνισμού». Διαβάζει το πλήρες κείμενο και τους δημοσιευμένους πίνακες της πράξης και βγάζει στην επιφάνεια όσα ΔΕΝ υπάρχουν ήδη ως πεδία: προθεσμίες πέρα από την καταληκτική (ερωτήματα, διευκρινίσεις, επιτόπια επίσκεψη, αποσφράγιση), τις βαρύτητες πίσω από το κριτήριο ανάθεσης, εγγυήσεις συμμετοχής και καλής εκτέλεσης, τεχνικές απαιτήσεις, κριτήρια συμμετοχής, τον τρόπο υποβολής και τα σημεία προσοχής — ποινικές ρήτρες, όρια υπεργολαβίας.":
-        "On notices, below the key details, a “Tender summary” panel may appear. It reads the act's full text and published tables and surfaces what is NOT already a field: deadlines beyond the closing one (questions, clarifications, site visit, bid opening), the weightings behind the award criterion, participation and performance guarantees, technical requirements, participation criteria, how to submit, and the points to watch — penalty clauses, subcontracting limits.",
+    "Σε προκηρύξεις, κάτω από τα βασικά στοιχεία, μπορεί να εμφανίζεται το πάνελ «Σύνοψη διαγωνισμού». Διαβάζει το πλήρες κείμενο, τους δημοσιευμένους πίνακες και τα συνημμένα έγγραφα της πράξης (όπου υπάρχουν) και βγάζει στην επιφάνεια όσα ΔΕΝ υπάρχουν ήδη ως πεδία: προθεσμίες πέρα από την καταληκτική (ερωτήματα, διευκρινίσεις, επιτόπια επίσκεψη, αποσφράγιση), τις βαρύτητες πίσω από το κριτήριο ανάθεσης, εγγυήσεις συμμετοχής και καλής εκτέλεσης, τεχνικές απαιτήσεις, κριτήρια συμμετοχής, τον τρόπο υποβολής και τα σημεία προσοχής — ποινικές ρήτρες, όρια υπεργολαβίας.":
+        "On notices, below the key details, a “Tender summary” panel may appear. It reads the act's full text, published tables and attached documents (where there are any) and surfaces what is NOT already a field: deadlines beyond the closing one (questions, clarifications, site visit, bid opening), the weightings behind the award criterion, participation and performance guarantees, technical requirements, participation criteria, how to submit, and the points to watch — penalty clauses, subcontracting limits.",
     "Κάθε στοιχείο συνοδεύεται από το ΑΥΤΟΛΕΞΕΙ απόσπασμα του εγγράφου που το παρήγαγε, και ένα κλικ σας πηγαίνει στην ακριβή παράγραφο μέσα στο πλήρες κείμενο. Αυτό δεν είναι διακοσμητικό: αν ένα απόσπασμα δεν βρεθεί επί λέξει στο έγγραφο, το στοιχείο δεν εμφανίζεται καθόλου. Ό,τι βλέπετε, υπάρχει στο κείμενο.":
         "Every item carries the VERBATIM excerpt of the document that produced it, and one click takes you to the exact paragraph inside the full text. This is not decorative: if an excerpt is not found word for word in the document, the item is not shown at all. What you see exists in the text.",
     "Το πάνελ δεν επαναλαμβάνει ποτέ ό,τι ξέρει ήδη η πράξη — καταληκτική ημερομηνία, προϋπολογισμός, εκτιμώμενη αξία, τύπος διαδικασίας, τμήματα. Αυτά τα βλέπετε από την επίσημη εγγραφή, στα στοιχεία της πράξης, και μια μηχανή δεν είναι καλύτερη πηγή γι' αυτά.":
@@ -2096,8 +2117,8 @@ _HELP = {
     "Εργαλείο πρώτης αξιολόγησης": "A first-pass assessment tool",
     "Δεν είναι δυνατή η σύνοψη για αυτή την προκήρυξη, γιατί δεν υπάρχει διαθέσιμο πλήρες κείμενο ούτε δημοσιευμένοι πίνακες. Η σύνοψη αντλεί μόνο από το κείμενο της πράξης· δείτε τα στοιχεία της στην Επισκόπηση και το επίσημο έγγραφο στην πηγή.":
         "A summary is not possible for this notice, because no full text or published tables are available. The summary draws only on the act's own text; see its details under Overview and the official document at the source.",
-    "Η σύνοψη σας βοηθά να αποφασίσετε σε ένα λεπτό αν αξίζει να διαβάσετε ολόκληρη την προκήρυξη. Δεν την αντικαθιστά. Μπορεί να είναι ελλιπής — ιδίως όταν οι λεπτομέρειες βρίσκονται σε συνημμένα έγγραφα, τα οποία προς το παρόν δεν διαβάζονται. Επιβεβαιώνετε πάντα τα στοιχεία στα επίσημα έγγραφα πριν υποβάλετε προσφορά.":
-        "The summary helps you decide in a minute whether the whole notice is worth reading. It does not replace it. It can be incomplete — especially when the details live in attached documents, which are not read for now. Always confirm the facts in the official documents before you bid.",
+    "Η σύνοψη σας βοηθά να αποφασίσετε σε ένα λεπτό αν αξίζει να διαβάσετε ολόκληρη την προκήρυξη. Δεν την αντικαθιστά. Μπορεί να είναι ελλιπής — ιδίως όταν οι λεπτομέρειες βρίσκονται σε έγγραφα του ΕΣΗΔΗΣ που δεν έχουν επισυναφθεί στην πράξη. Ένα στοιχείο που προέρχεται από συνημμένο έγγραφο φέρει τη σήμανση «από συνημμένο έγγραφο» με σύνδεσμο προς το αρχείο. Επιβεβαιώνετε πάντα τα στοιχεία στα επίσημα έγγραφα πριν υποβάλετε προσφορά.":
+        "The summary helps you decide in a minute whether the whole notice is worth reading. It does not replace it. It can be incomplete — especially when the details are in ΕΣΗΔΗΣ documents that have not been attached to the act. An item that comes from an attached document is marked “from an attached document” with a link to the file. Always confirm the facts in the official documents before you bid.",
     "Ό,τι λείπει, το λέει": "It says what is missing",
     "Στο τέλος του πάνελ υπάρχει η ενότητα «Δεν αναφέρονται στην προκήρυξη». Το ότι ένα έγγραφο ΔΕΝ ορίζει ημερομηνία επιτόπιας επίσκεψης είναι πληροφορία — η σιωπή δεν είναι.":
         "At the foot of the panel there is a “Not stated in the notice” section. That a document does NOT set a site-visit date is information — silence is not.",

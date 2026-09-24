@@ -7,8 +7,8 @@ config change, not a rewrite: `local_fs` (dev, under ATTACHMENTS_DIR) or `s3`
 (any S3-compatible object store — AWS S3, Cloudflare R2, or Supabase Storage's
 S3 endpoint). Render disks are ephemeral, so prod should use `s3`.
 
-The whole feature is gated on ATTACHMENTS_ENABLED (default off), so prod — which
-never sets it — stores nothing and never grows.
+The whole feature is gated on ATTACHMENTS_ENABLED (default off). An
+environment that does not set it stores nothing and never grows.
 
 KHMDHS-specific glue: NOT one of the byte-identical sibling modules
 (extractors/exporter/ocr). Text extraction for search reuses
@@ -17,7 +17,9 @@ app.extractors.extract_text_from_upload (which also unpacks zips).
 Env:
   ATTACHMENTS_ENABLED=1            turn the feature on (default 0)
   ATTACHMENTS_BACKEND=local_fs|s3  storage backend (default local_fs)
-  ATTACH_MAX_MB=80                 per-file upload cap
+  ATTACH_MAX_MB=80                 per-file upload cap. Set 50 on Supabase
+                                   Storage: its free plan refuses bigger files.
+  ATTACH_TEXT_MAX_CHARS=200000     extracted text kept per file (see below)
 
   local_fs:
   ATTACHMENTS_DIR=<path>           where local_fs writes (default <repo>/attachment_store)
@@ -29,6 +31,21 @@ Env:
   ATTACH_S3_ENDPOINT=<url>            S3 endpoint — set for R2/Supabase; omit for AWS S3
   ATTACH_S3_REGION=<region>           default "auto" (fine for R2/Supabase; use e.g. eu-west-3 on AWS)
   ATTACH_S3_PREFIX=<prefix>           optional key prefix within the bucket
+  ATTACH_S3_ADDRESSING=path|virtual   default "path" when an endpoint is set
+                                      (Supabase Storage needs path-style)
+
+Production (2026-09-24): Supabase Storage through its S3 endpoint, a PRIVATE
+bucket, files uploaded by an admin only. The bytes never touch Postgres.
+
+The text cap
+------------
+The extracted text DOES live in Postgres (proc.act_attachment.extracted_text,
+for search-inside and the AI summary), and prod is a free-tier database with a
+500 MB ceiling. So each file keeps at most ATTACH_TEXT_MAX_CHARS characters and
+records how long the full text was (text_total_chars, NULL = nothing cut). The
+AI summary reads at most 120k characters across ALL of an act's sources anyway,
+so the cap costs it nothing; search-inside covers the first 200k characters.
+Truncation is recorded, never silent.
 """
 
 from __future__ import annotations
@@ -51,6 +68,17 @@ _S3_ENDPOINT = os.environ.get("ATTACH_S3_ENDPOINT") or None   # None → real AW
 _S3_REGION = os.environ.get("ATTACH_S3_REGION", "auto")
 _S3_PREFIX = os.environ.get("ATTACH_S3_PREFIX", "").strip("/")
 _s3_client_cache = None
+
+TEXT_MAX_CHARS = max(1, int(os.environ.get("ATTACH_TEXT_MAX_CHARS") or 200_000))
+
+
+def cap_text(text: str | None) -> tuple[str | None, int | None]:
+    """(text to store, full length if it was cut else None). See "The text cap"."""
+    if not text:
+        return text, None
+    if len(text) <= TEXT_MAX_CHARS:
+        return text, None
+    return text[:TEXT_MAX_CHARS], len(text)
 
 
 def enabled() -> bool:
@@ -100,6 +128,7 @@ def _s3():
     if _s3_client_cache is None:
         try:
             import boto3
+            from botocore.config import Config
         except ImportError as e:      # noqa: BLE001
             raise AttachmentError("S3 backend needs boto3 (pip install boto3)") from e
         if not _S3_BUCKET:
@@ -107,8 +136,35 @@ def _s3():
         _s3_client_cache = boto3.client(
             "s3", endpoint_url=_S3_ENDPOINT, region_name=_S3_REGION,
             aws_access_key_id=os.environ.get("ATTACH_S3_ACCESS_KEY_ID"),
-            aws_secret_access_key=os.environ.get("ATTACH_S3_SECRET_ACCESS_KEY"))
+            aws_secret_access_key=os.environ.get("ATTACH_S3_SECRET_ACCESS_KEY"),
+            config=s3_config(Config))
     return _s3_client_cache
+
+
+def s3_config(config_cls):
+    """botocore Config for the client. Path-style addressing when an endpoint
+    is set: Supabase Storage answers <endpoint>/<bucket>/<key>, and boto3's
+    default for a custom endpoint would put the bucket in the hostname."""
+    style = (os.environ.get("ATTACH_S3_ADDRESSING")
+             or ("path" if _S3_ENDPOINT else "auto"))
+    return config_cls(s3={"addressing_style": style},
+                      retries={"max_attempts": 3, "mode": "standard"})
+
+
+def check_storage() -> tuple[bool, str]:
+    """Can we reach the bucket? (ok, message). For the admin panel: a wrong key
+    or bucket name should show up there, not as a failed upload."""
+    if not enabled():
+        return False, "disabled"
+    if BACKEND == "local_fs":
+        return (os.path.isdir(DIR) or not os.path.exists(DIR)), f"local_fs:{DIR}"
+    try:
+        _s3().head_bucket(Bucket=_S3_BUCKET)
+        return True, f"s3:{_S3_BUCKET}"
+    except AttachmentError as e:
+        return False, str(e)
+    except Exception as e:      # noqa: BLE001
+        return False, f"s3:{_S3_BUCKET}: {type(e).__name__}"
 
 
 def _s3_key(storage_ref: str) -> str:

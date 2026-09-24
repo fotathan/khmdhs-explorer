@@ -286,13 +286,20 @@ _AMOUNT_RE = re.compile(r"\d[\d.,\s]{2,}\d|\b\d+\b")
 # --------------------------------------------------------------------------- #
 # Source assembly and the cache key
 # --------------------------------------------------------------------------- #
-def build_sources(act: dict, tables: list[dict] | None = None) -> dict[str, str]:
+def build_sources(act: dict, tables: list[dict] | None = None,
+                  attachments: list[dict] | None = None) -> dict[str, str]:
     """The texts the model may quote, keyed by the label it must cite.
 
-    Keys are the `source` discriminator the model echoes back: "full_text" and
-    "table:<id>". Attachments would be "attachment:<id>" — the shape is already
-    here, but proc.act_attachment is local-only (ATTACHMENTS_ENABLED), so
-    nothing populates it in production. See spec §6.
+    Keys are the `source` discriminator the model echoes back: "full_text",
+    "table:<id>" and "attachment:<id>". All three are the ACT's own public
+    documents — an attachment is a tender document an admin attached to the
+    act (proc.act_attachment), never anything about a reader. Its block starts
+    with the file name so the model can tell a specification from an annex.
+
+    Order in the capped input (_render_sources) is full_text first, then the
+    rest by key: attachments before tables. For a notice whose full_text is a
+    short περίληψη pointing to ΕΣΗΔΗΣ, the attached διακήρυξη is what fills
+    the budget — which is the reason attachments are read at all.
     """
     sources: dict[str, str] = {}
     full_text = (act.get("full_text") or "").strip()
@@ -306,6 +313,12 @@ def build_sources(act: dict, tables: list[dict] | None = None) -> dict[str, str]
                          for row in rows)
         locator = t.get("locator") or ""
         sources[f"table:{t['id']}"] = f"{locator}\n{body}".strip()
+    for a in attachments or []:
+        text = (a.get("extracted_text") or "").strip()
+        if not text:
+            continue
+        name = (a.get("filename") or "").strip()
+        sources[f"attachment:{a['id']}"] = f"{name}\n{text}".strip()
     return sources
 
 
@@ -1197,7 +1210,13 @@ def load_inputs(c, adam: str) -> tuple[dict, dict[str, str]] | None:
         c.execute("""SELECT id, locator, rows FROM proc.extracted_table
                       WHERE adam = %s AND is_published ORDER BY id""", (adam,))
         tables = c.fetchall() or []
-    return act, build_sources(act, tables)
+    attachments = []
+    if os.environ.get("ATTACHMENTS_ENABLED", "0") == "1":
+        c.execute("""SELECT id, filename, extracted_text FROM proc.act_attachment
+                      WHERE adam = %s AND extracted_text IS NOT NULL
+                        AND extracted_text <> '' ORDER BY id""", (adam,))
+        attachments = c.fetchall() or []
+    return act, build_sources(act, tables, attachments)
 
 
 def generate(c, adam: str, *, by: str = None, model: str = None,

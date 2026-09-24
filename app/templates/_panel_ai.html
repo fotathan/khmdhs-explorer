@@ -146,6 +146,10 @@
             </button>
           {% elif item.source and item.source.startswith('table:') %}
             <span class="ai-src">{{ t("από πίνακα") }}</span>
+          {% elif item.source and item.source.startswith('attachment:') %}
+            {# An attached tender document. The quote above was checked
+               verbatim against its text; the link opens the file itself. #}
+            <a class="ai-src" href="/act/{{ adam }}/attachment/{{ item.source.split(':', 1)[1] }}">{{ t("από συνημμένο έγγραφο") }} ↗</a>
           {% endif %}
         </div>
       </li>

@@ -13,6 +13,9 @@
           {% endif %}
           {% if a.searchable %}
             <span class="tt-badge ok">{{ t("αναζητήσιμο") }}</span>
+            {% if a.text_total_chars %}
+            <span class="tt-badge" title="{{ t('Κρατήθηκε μόνο η αρχή του κειμένου') }}">{{ t("κείμενο περικομμένο") }} · {{ "{:,}".format(a.text_total_chars).replace(",", ".") }} {{ t("χαρ.") }}</span>
+            {% endif %}
           {% else %}
             <span class="tt-badge">{{ t("χωρίς κείμενο") }}</span>
           {% endif %}

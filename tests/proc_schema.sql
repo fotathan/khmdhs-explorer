@@ -496,7 +496,8 @@ CREATE TABLE proc.act_attachment (
     content_tsv tsvector GENERATED ALWAYS AS (to_tsvector('greek'::regconfig, COALESCE(extracted_text, ''::text))) STORED,
     n_inner integer,
     uploaded_by text,
-    uploaded_at timestamp with time zone DEFAULT now()
+    uploaded_at timestamp with time zone DEFAULT now(),
+    text_total_chars integer
 );
 
 
