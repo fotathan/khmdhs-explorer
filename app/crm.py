@@ -17,7 +17,7 @@ import threading
 
 from urllib.parse import quote
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -511,6 +511,30 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
         flash = (f"Το προφίλ ενημερώθηκε από {out['n_awards']} αναθέσεις."
                  if out.get("ok")
                  else f"Δεν ήταν δυνατός ο υπολογισμός: {out.get('reason', '')}")
+        return RedirectResponse(
+            f"/admin/crm/{uid}?tab=fit&flash={quote(flash)}", status_code=303)
+
+    @router.post("/{uid}/fit/visible")
+    def crm_fit_visible(uid: int, request: Request, on: str = Form("")):
+        """Show (or stop showing) this profile's fit to the customer — the
+        company_profile.is_active switch, off by default. An admin turns it on
+        after looking at the ranking, never anything automatic. Showing needs
+        a profile with CPV history; hiding always works."""
+        show = on == "1"
+        with cursor() as c:
+            if not _auth.get_customer(c, uid):
+                raise HTTPException(404, "customer not found")
+            profile = _fit.load_profile(c, uid)
+            if show and (profile is None or not profile.is_usable):
+                flash = "Δεν υπάρχει προφίλ με ιστορικό CPV για να εμφανιστεί."
+            else:
+                c.execute("""UPDATE proc.company_profile
+                                SET is_active = %s, updated_at = now(),
+                                    updated_by = %s
+                              WHERE user_id = %s""",
+                          (show, _admin_uid(request), uid))
+                flash = ("Το ταίριασμα εμφανίζεται πλέον στον πελάτη."
+                         if show else "Το ταίριασμα δεν εμφανίζεται πλέον στον πελάτη.")
         return RedirectResponse(
             f"/admin/crm/{uid}?tab=fit&flash={quote(flash)}", status_code=303)
 

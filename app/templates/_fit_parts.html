@@ -1,0 +1,44 @@
+{# _fit_parts.html — how one fit score breaks down, for a CUSTOMER.
+
+   Macros shared by /account/fit and the act page's panel (_act_fit.html).
+   Takes fit.explain()'s output. `why` phrases go through customer_why first
+   (account_fit.CUSTOMER_WHY): fit.py speaks about the firm, this speaks to it.
+   Never a bare number — the parts are always next to it. #}
+
+{% macro score_badge(fit, band) -%}
+<span class="fitc-score fitc-{{ band(fit.score) }}" title="{{ t('Βαθμός ταιριάσματος 0–100') }}">{{ fit.score }}</span>
+{%- endmacro %}
+
+{% macro parts(fit, customer_why) -%}
+<ul class="fitc-parts">
+  {% for comp in fit.components %}
+  <li class="{% if comp.score >= 0.7 %}ok{% elif comp.score >= 0.35 %}mid{% else %}no{% endif %}">
+    <span class="fitc-lbl">{{ t(comp.label) }}</span>
+    <span class="fitc-bar" aria-hidden="true"><i style="width:{{ (comp.score * 100)|round|int }}%"></i></span>
+    <span class="fitc-why">{{ t(customer_why(comp.why)) }}{% if comp.detail %} <code>{{ comp.detail }}</code>{% endif %}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% if fit.capped %}<p class="fitc-cap">{{ t("Χωρίς συμβάσεις σε αυτό το αντικείμενο, η βαθμολογία περιορίζεται όσο καλά κι αν ταιριάζουν τα υπόλοιπα.") }}</p>{% endif %}
+{%- endmacro %}
+
+{% macro styles() -%}
+<style>
+  .fitc-score{display:inline-flex;align-items:center;justify-content:center;min-width:38px;height:28px;
+    padding:0 6px;border-radius:8px;font-weight:700;font-size:14px;}
+  .fitc-hi{background:#e7f4ef;color:#1f8a63;}
+  .fitc-mid{background:#fdf3e7;color:#8a5a1c;}
+  .fitc-lo{background:var(--rule-2,#eef0f3);color:var(--ink-3,#7a818c);}
+  .fitc-parts{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:3px;font-size:12.5px;}
+  .fitc-parts li{display:grid;grid-template-columns:92px 60px 1fr;align-items:center;gap:8px;}
+  .fitc-lbl{color:var(--ink-2,#5b626d);}
+  .fitc-bar{height:6px;border-radius:3px;background:var(--rule-2,#eef0f3);overflow:hidden;}
+  .fitc-bar i{display:block;height:100%;background:#8a8f98;}
+  .fitc-parts li.ok .fitc-bar i{background:#1f8a63;}
+  .fitc-parts li.mid .fitc-bar i{background:#c98a1b;}
+  .fitc-parts li.no .fitc-bar i{background:#b8bcc4;}
+  .fitc-why{color:var(--ink,#1c2230);line-height:1.4;}
+  .fitc-why code{font-size:11.5px;color:var(--ink-2,#5b626d);}
+  .fitc-cap{font-size:12px;color:var(--ink-2,#5b626d);margin:6px 0 0;}
+</style>
+{%- endmacro %}

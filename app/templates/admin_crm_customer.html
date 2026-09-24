@@ -301,11 +301,23 @@
       <p class="fit-sub">{{ t("Δεν έχει δημιουργηθεί προφίλ ακόμη. Το προφίλ προκύπτει από το ιστορικό αναθέσεων του ΑΦΜ — δεν χρειάζεται συμπλήρωση φόρμας.") }}</p>
       {% endif %}
     </div>
+    <div class="fit-actions">
     <form method="post" action="/admin/crm/{{ cust.id }}/fit/derive" class="fit-derive">
       {% include "_csrf.html" ignore missing %}
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit">{{ t("Υπολογισμός από το ιστορικό") }}</button>
     </form>
+    {# company_profile.is_active: whether the CUSTOMER sees this ranking, on
+       /account/fit and on each notice. Off until an admin has looked. #}
+    {% if fit_row and fit_row.derived_at %}
+    <form method="post" action="/admin/crm/{{ cust.id }}/fit/visible" class="fit-derive">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="on" value="{{ '' if fit_row.is_active else '1' }}">
+      <span class="fit-vis {{ 'on' if fit_row.is_active else 'off' }}">{{ t("Ορατό στον πελάτη") if fit_row.is_active else t("Κρυφό από τον πελάτη") }}</span>
+      <button type="submit">{{ t("Απόκρυψη από τον πελάτη") if fit_row.is_active else t("Εμφάνιση στον πελάτη") }}</button>
+    </form>
+    {% endif %}
+    </div>
   </div>
 
   {% if fit and fit.rows %}
@@ -1048,6 +1060,10 @@
   .fit-derive button:hover{border-color:var(--accent);color:var(--accent);}
   .fit-tbl td{vertical-align:top;}
   /* The score is a summary, never the argument — the components beside it are */
+  .fit-actions{display:flex;flex-direction:column;align-items:flex-end;gap:8px;}
+  .fit-vis{font-size:12px;margin-right:6px;padding:2px 8px;border-radius:999px;}
+  .fit-vis.on{background:#e7f4ef;color:#1f8a63;}
+  .fit-vis.off{background:var(--rule-2);color:var(--ink-3);}
   .fit-score{display:inline-block;min-width:34px;text-align:center;font-weight:700;
     font-size:13px;padding:3px 7px;border-radius:7px;font-variant-numeric:tabular-nums;}
   .fit-score.hi{background:#e7f4ef;color:#1f8a63;}

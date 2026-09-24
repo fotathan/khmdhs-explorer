@@ -27,6 +27,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+try:
+    from app.act_visibility import VISIBLE_SQL
+except ImportError:                      # pragma: no cover — run with --app-dir=app
+    from act_visibility import VISIBLE_SQL
+
 # --------------------------------------------------------------------------- #
 # Weights
 #
@@ -549,7 +554,16 @@ def load_profile(c, user_id: int) -> Profile | None:
 # --------------------------------------------------------------------------- #
 # Ranking open tenders
 # --------------------------------------------------------------------------- #
-def open_tenders(c, profile: Profile, *, limit: int = 200) -> list[dict]:
+# How many open candidates are scored. It used to be 200, taken in DEADLINE
+# order before scoring — so the "top 25" was the best of whatever closed
+# soonest, about 12% of the 1,150–1,800 open candidates a real profile has
+# (measured 2026-09-23). Scoring all of them costs 65–150 ms and finds 2–5x as
+# many 60+ fits. This is a safety bound, not a sample size: keep it above what
+# a broad supplier actually has open.
+CANDIDATE_CAP = 5000
+
+
+def open_tenders(c, profile: Profile, *, limit: int = CANDIDATE_CAP) -> list[dict]:
     """Candidate open notices, pre-filtered to the firm's CPV divisions.
 
     The filter is the point: scoring every open notice would rank a few
@@ -561,7 +575,9 @@ def open_tenders(c, profile: Profile, *, limit: int = 200) -> list[dict]:
     divisions = sorted({p for p in profile.cpv if len(p) == 2})
     if not divisions:
         return []
-    c.execute("""
+    # Hidden duplicates (a Tender Service record of an act we already show)
+    # are not candidates: the customer would see one tender twice.
+    c.execute(f"""
         SELECT a.adam, a.title, a.nuts_code, a.authority_id, a.signed_date,
                a.final_submission_date, a.total_cost_with_vat,
                proc.resolved_value(a.adam, a.total_cost_with_vat) AS resolved_value,
@@ -574,6 +590,7 @@ def open_tenders(c, profile: Profile, *, limit: int = 200) -> list[dict]:
          WHERE a.type = 'notice'
            AND NOT coalesce(a.cancelled, false)
            AND a.final_submission_date > now()
+           AND {VISIBLE_SQL}
            AND substr(oc.cpv_code, 1, 2) = ANY(%s)
          GROUP BY a.adam, a.title, a.nuts_code, a.authority_id, a.signed_date,
                   a.final_submission_date, a.total_cost_with_vat, auth.name
