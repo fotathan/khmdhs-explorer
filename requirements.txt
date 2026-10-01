@@ -1,6 +1,6 @@
 fastapi==0.141.1   # was 0.115.6; pulls starlette>=1.3.1 (clears PYSEC-2026-161/248/249/1941/1942, CVE-2026-48817/48818)
-starlette==1.6.0   # explicit transitive pin so the CVE fix can't drift out under fastapi's range
-uvicorn[standard]==0.53.0
+starlette==1.7.0   # explicit transitive pin so the CVE fix can't drift out under fastapi's range
+uvicorn[standard]==0.54.0
 jinja2==3.1.6   # was 3.1.5 (PYSEC-2026-1471: sandbox escape via str.format)
 psycopg[binary,pool]==3.3.6
 requests==2.34.2   # was 2.32.3 (PYSEC-2026-1872 + CVE-2026-25645)
@@ -18,8 +18,8 @@ nh3>=0.3.7,<0.4   # HTML sanitiser for curator-authored full_text_html
 # transitive dep of python-docx, pinned here now that the app imports it directly
 lxml==6.1.3
 itsdangerous==2.2.0
-boto3==1.43.98      # S3-compatible object storage for act attachments (ATTACHMENTS_BACKEND=s3)
+boto3==1.43.103      # S3-compatible object storage for act attachments (ATTACHMENTS_BACKEND=s3)
 pyotp==2.10.0      # TOTP two-factor auth
 segno==1.6.6       # QR codes for TOTP enrollment (pure-python, inline SVG)
-phonenumbers==9.0.39  # phone-number parsing/normalisation for CTI caller lookup
+phonenumbers==9.0.40  # phone-number parsing/normalisation for CTI caller lookup
 cryptography==50.0.1
