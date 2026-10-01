@@ -381,3 +381,35 @@ plain SQL, with no `DO $$` blocks.
   `20260915200000_cpv_contract_wins_rollup.sql`) plus three lines. Check prod's
   definition matches before applying there, or the replace drops whatever
   prod has that local does not.
+
+## 13. Award pages (added 2026-10-01, same branch, no migration)
+
+The owner asked for bidder information on award pages too. Names are still out
+(§2): what an award page can say is its own count and where it sits.
+
+- **One endpoint, three kinds.** `/act/<adam>/competition` now answers for a
+  notice (unchanged), a contract and an award decision (`type = 'auction'`).
+  `competition.for_act` returns `kind` = `notice` / `contract` / `decision`.
+- **Contract:** «Προσφορές σε αυτή τη σύμβαση: N», then the authority's half
+  of the same kind (competitive / direct) and ONE comparative sentence taken
+  from the histogram (`competition.compare`): below the median it quotes the
+  share of the authority's contracts that got MORE bids, above it the share
+  that got FEWER, at the median «Όσες η διάμεσος». Never "typical is N" — the
+  KHMDHS-wide median is 1 even for open procedures (per-lot contracts).
+  Under MIN_SHOW the count stays and the comparison is replaced by «δεν έχει
+  αρκετές συμβάσεις για σύγκριση». A count outside 1..100 shows no line (the
+  bare value is still in the facts list).
+- **Award decision:** KHMDHS reports no count on it. Measured locally: 0 of
+  728k decisions carry one; 61k link to a contract that does. The line reads
+  the linked contracts (`auction_to_contract` from the decision OR
+  `contract_from_auction` towards it), not cancelled, not hidden duplicates,
+  bids 1..100, and names each (max 10, then «και N ακόμη»). It compares only
+  when all of them agree on one count AND one kind of procedure; lots that
+  disagree are listed, never merged.
+- **Every award line says why there are no names:** «Οι πηγές δημοσιεύουν
+  μόνο τον αριθμό των προσφορών και τον ανάδοχο, όχι τους υπόλοιπους
+  διαγωνιζόμενους.»
+- The contract being viewed is itself inside the authority's histogram when
+  it falls in the period. Not removed: one contract in ≥10, and removing it
+  needs a second read per page.
+- Same gate and isolation as the rest: subscribers only, acts only.

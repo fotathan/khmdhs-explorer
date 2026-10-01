@@ -505,6 +505,11 @@ panel (/authority/<id>/competition), one line on a notice
   <30: «περιορισμένο δείγμα».
 - The notice line compares like with like (direct-award notice → direct
   awards). Not part of the fit score (slice 3 adds it as context, zero weight).
+- The same endpoint serves contracts and award decisions (spec §13): the
+  award's own count, placed in the authority's histogram (compare()) — never
+  "typical is N". A decision has no count of its own; it reads its linked
+  contracts and compares only when they all agree. Every award line says that
+  no source names the other bidders.
 - Isolation: reads acts only — no profile, no act_ai_summary (test-enforced).
 
 ## Tests

@@ -5226,11 +5226,13 @@ def authority_competition(org_id: str, request: Request):
 
 @app.get("/act/{adam}/competition", response_class=HTMLResponse)
 def act_competition(adam: str, request: Request):
-    """One line on a notice: how much competition its authority's contracts
-    usually got. EMPTY (never an error) for a gated reader, for anything that is
-    not a notice, and for an authority under the minimum sample — the act page
-    asks on every load and an "insufficient data" line on every small buyer's
-    notice would be noise. act_detail itself is untouched."""
+    """The competition line of an act page (competition.for_act). On a notice:
+    how much competition its authority's contracts usually got. On a contract
+    or an award decision: how many bids THIS award got, and where that sits
+    among the authority's contracts of the same kind. EMPTY (never an error)
+    for a gated reader, for any other act type, and whenever there is nothing
+    to say — the act page asks on every load and an "insufficient data" line on
+    every small buyer's notice would be noise. act_detail itself is untouched."""
     if _is_gated(request):
         return HTMLResponse("")
     lang = _i18n.lang_from_request(request)

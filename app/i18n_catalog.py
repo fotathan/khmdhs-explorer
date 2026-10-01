@@ -3655,6 +3655,21 @@ _COMPETITION = {
     "Μήνας υπογραφής": "Month signed",
     "Με αριθμό προσφορών": "With a bid count",
     "Εκτός μέτρησης (0 ή πάνω από 100 προσφορές):": "Left out (0 or more than 100 bids):",
+    # The award line (contract / award decision pages)
+    "Προσφορές σε αυτή τη σύμβαση": "Bids on this contract",
+    "Προσφορές, από τη σύμβαση": "Bids, from the contract",
+    "Προσφορές, από τις συμβάσεις": "Bids, from the contracts",
+    "και {n} ακόμη": "and {n} more",
+    "Η αναθέτουσα": "The authority",
+    "Το {pct} των συμβάσεών της πήρε περισσότερες.": "{pct} of its contracts got more.",
+    "Το {pct} των συμβάσεών της πήρε λιγότερες.": "{pct} of its contracts got fewer.",
+    "Όσες η διάμεσος της αναθέτουσας.": "The same as the authority's median.",
+    "Η αναθέτουσα δεν έχει αρκετές συμβάσεις για σύγκριση.": "The authority has too few contracts to compare with.",
+    "Οι πηγές δημοσιεύουν μόνο τον αριθμό των προσφορών και τον ανάδοχο, όχι τους υπόλοιπους διαγωνιζόμενους.":
+        "The sources publish only the number of bids and the winner, not the other bidders.",
+    "Και στις αναθέσεις": "On awards too",
+    "Κάθε σύμβαση που δηλώνει αριθμό προσφορών τον δείχνει και τον συγκρίνει με τις συμβάσεις της ίδιας αρχής, για το ίδιο είδος διαδικασίας: πόσες από αυτές πήραν περισσότερες ή λιγότερες προσφορές. Μια κατακύρωση δεν δηλώνει αριθμό προσφορών στο ΚΗΜΔΗΣ, γι' αυτό τον παίρνει από τις συμβάσεις που προέκυψαν από αυτήν, με σύνδεσμο στην καθεμία· όταν οι συμβάσεις (π.χ. τμήματα) διαφέρουν, εμφανίζονται χωριστά και δεν γίνεται σύγκριση.":
+        "Every contract that states a number of bids shows it and compares it with the same authority's contracts, for the same kind of procedure: how many of them got more or fewer bids. An award decision states no number of bids in KHMDHS, so it takes it from the contracts that followed it, with a link to each; when those contracts (e.g. lots) differ, they are shown separately and nothing is compared.",
     # /help
     "Ανταγωνισμός: πόσες προσφορές παίρνει μια αρχή": "Competition: how many bids an authority gets",
     "Το προφίλ κάθε αρχής έχει τον πίνακα «Ανταγωνισμός»: πόσες προσφορές πήραν συνήθως οι συμβάσεις της (διάμεσος) και τι ποσοστό έλαβε μία μόνο προσφορά, με την κατανομή 1 / 2–3 / 4–6 / 7+. Οι ανταγωνιστικές διαδικασίες μετρούν χωριστά από τις απευθείας αναθέσεις, που δείχνονται σε δεύτερη γραμμή. Κάθε σελίδα προκήρυξης δείχνει μία γραμμή με τα ίδια στοιχεία για την αρχή της, για το ίδιο είδος διαδικασίας με την προκήρυξη.":
