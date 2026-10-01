@@ -484,6 +484,29 @@ tender whose KHMDHS text is only a περίληψη. ATTACHMENTS_ENABLED (defaul
   documents only while attachments_on.
 - A failed row insert removes the stored object (no orphans).
 
+## Competition indicator (docs/specs/competition-indicator.md)
+app/competition.py; "how many bids does this buyer usually get". Authority
+panel (/authority/<id>/competition), one line on a notice
+(/act/<adam>/competition), a table on /analytics, a fill monitor on
+/admin/collection. Subscribers only (gated → empty).
+- **Counts only, never names.** No source names losing bidders (KHMDHS, TED,
+  Diavgeia, Tender Service all list winners). Measured 2026-10-01.
+- Source: procurement_act.bids_submitted (KHMDHS). It was filled reliably ONLY
+  2025-04 … 2026-01, so **every figure prints its period**, computed from the
+  data (the months holding the central 90% of the contracts), never a constant
+  and never min..max (mistyped dates reach 1919).
+- Histograms, not statistics: mv_competition_authority / _cpv
+  (group, competitive, bids, month, n), summed in Python because medians do
+  not add and authority groups merge. Refreshed by refresh_analytics().
+- Counted: contracts, 1..100 bids, is_analytics_eligible (so NOT TED/Tender
+  Service: they duplicate KHMDHS awards), not hidden. Direct awards are never
+  mixed with competitive procedures.
+- Median + single-bid share, NEVER a mean. <10 contracts: nothing shown;
+  <30: «περιορισμένο δείγμα».
+- The notice line compares like with like (direct-award notice → direct
+  awards). Not part of the fit score (slice 3 adds it as context, zero weight).
+- Isolation: reads acts only — no profile, no act_ai_summary (test-enforced).
+
 ## Tests
 pytest in tests/, runs in CI. Needs TEST_DATABASE_URL (throwaway DB) + psql.
 Schema comes from tests/proc_schema.sql — regenerate it when you add a table.

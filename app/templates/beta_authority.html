@@ -116,6 +116,15 @@
     <div style="min-height:48px;"></div>
   </div>
 
+  {# How many bids this authority's contracts usually got
+     (_panel_authority_competition.html, app/competition.py). Mounted like the
+     panel above so the page's own queries stay as they are. #}
+  <div class="panel" id="authority-competition"
+       hx-get="/authority/{{ a.org_id }}/competition" hx-trigger="load" hx-swap="outerHTML">
+    <h3 class="panel-h">{{ t("Ανταγωνισμός") }}</h3>
+    <div style="min-height:48px;"></div>
+  </div>
+
   <div class="panel">
     <h3 class="panel-h">
       {{ t("Πράξεις") }}

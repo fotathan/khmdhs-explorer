@@ -500,11 +500,21 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
                 ted_summary = c.fetchall()
             except Exception:
                 ted_summary = []
+            # Is KHMDHS filling bidsSubmitted again? It stopped in February
+            # 2026; the competition indicator's period follows the data, and
+            # this is where an admin sees it come back
+            # (docs/specs/competition-indicator.md §8).
+            try:
+                from app import competition as _competition
+            except ImportError:                    # pragma: no cover
+                import competition as _competition
+            bid_fill = _competition.fill_monitor(c)
         return templates.TemplateResponse(
             request, "admin_index.html",
             {"jobs": jobs, "window_summary": window_summary,
              "diavgeia_summary": diavgeia_summary,
              "ted_summary": ted_summary,
+             "bid_fill": bid_fill,
              "running_now": any_running(),
              "act_types": ACT_TYPES,
              "diavgeia_types": DIAVGEIA_TYPE_NAMES,

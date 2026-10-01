@@ -238,7 +238,7 @@ BEGIN
     EXCEPTION WHEN undefined_table THEN NULL; END;
     BEGIN REFRESH MATERIALIZED VIEW CONCURRENTLY proc.mv_authority_counts;
     EXCEPTION WHEN undefined_table THEN NULL; END;
-    -- explore overview views (this migration)
+    -- explore overview views
     BEGIN REFRESH MATERIALIZED VIEW CONCURRENTLY proc.mv_explore_authority;
     EXCEPTION WHEN undefined_table THEN NULL; END;
     BEGIN REFRESH MATERIALIZED VIEW CONCURRENTLY proc.mv_explore_authority_name;
@@ -246,6 +246,16 @@ BEGIN
     BEGIN REFRESH MATERIALIZED VIEW CONCURRENTLY proc.mv_explore_contractor;
     EXCEPTION WHEN undefined_table THEN NULL; END;
     BEGIN REFRESH MATERIALIZED VIEW CONCURRENTLY proc.mv_explore_contractor_name;
+    EXCEPTION WHEN undefined_table THEN NULL; END;
+    -- act page competition panel (20260915200000_cpv_contract_wins_rollup.sql)
+    BEGIN REFRESH MATERIALIZED VIEW CONCURRENTLY proc.mv_cpv_contract_wins;
+    EXCEPTION WHEN undefined_table THEN NULL; END;
+    -- competition indicator (20261001082952_competition_indicator.sql)
+    BEGIN REFRESH MATERIALIZED VIEW CONCURRENTLY proc.mv_competition_authority;
+    EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN REFRESH MATERIALIZED VIEW CONCURRENTLY proc.mv_competition_cpv;
+    EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN REFRESH MATERIALIZED VIEW CONCURRENTLY proc.mv_competition_fill;
     EXCEPTION WHEN undefined_table THEN NULL; END;
 END;
 $$;
@@ -6911,3 +6921,92 @@ CREATE TABLE proc.certificate_expiry_notice (
     sent_at         timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (certificate_id, mark_days, valid_until)
 );
+
+-- Competition indicator (migrations/20261001082952_competition_indicator.sql).
+-- At the END: the views read procurement_act.duplicate_of, added above.
+--
+-- Name: mv_competition_authority; Type: MATERIALIZED VIEW; Schema: proc; Owner: -
+--
+
+CREATE MATERIALIZED VIEW proc.mv_competition_authority AS
+ SELECT authority_id,
+    (procedure_family IS DISTINCT FROM 'Απευθείας ανάθεση'::text) AS competitive,
+    (bids_submitted)::integer AS bids,
+    (date_trunc('month'::text, (COALESCE(contract_signed_date, signed_date))::timestamp with time zone))::date AS month,
+    (count(*))::integer AS n
+   FROM proc.procurement_act a
+  WHERE ((type = 'contract'::proc.act_type) AND (authority_id IS NOT NULL) AND ((bids_submitted >= 1) AND (bids_submitted <= 100)) AND (COALESCE(contract_signed_date, signed_date) >= '2020-01-01'::date) AND (COALESCE(contract_signed_date, signed_date) <= CURRENT_DATE) AND proc.is_analytics_eligible(adam, total_cost_with_vat, cancelled) AND (NOT (EXISTS ( SELECT 1
+           FROM proc.procurement_act hid
+          WHERE ((hid.duplicate_of IS NOT NULL) AND (hid.adam = a.adam))))))
+  GROUP BY authority_id, (procedure_family IS DISTINCT FROM 'Απευθείας ανάθεση'::text), ((bids_submitted)::integer), ((date_trunc('month'::text, (COALESCE(contract_signed_date, signed_date))::timestamp with time zone))::date)
+  WITH NO DATA;
+
+
+--
+-- Name: mv_competition_cpv; Type: MATERIALIZED VIEW; Schema: proc; Owner: -
+--
+
+CREATE MATERIALIZED VIEW proc.mv_competition_cpv AS
+ WITH counted AS (
+         SELECT a.adam,
+            (a.procedure_family IS DISTINCT FROM 'Απευθείας ανάθεση'::text) AS competitive,
+            (a.bids_submitted)::integer AS bids,
+            (date_trunc('month'::text, (COALESCE(a.contract_signed_date, a.signed_date))::timestamp with time zone))::date AS month
+           FROM proc.procurement_act a
+          WHERE ((a.type = 'contract'::proc.act_type) AND ((a.bids_submitted >= 1) AND (a.bids_submitted <= 100)) AND (COALESCE(a.contract_signed_date, a.signed_date) >= '2020-01-01'::date) AND (COALESCE(a.contract_signed_date, a.signed_date) <= CURRENT_DATE) AND proc.is_analytics_eligible(a.adam, a.total_cost_with_vat, a.cancelled) AND (NOT (EXISTS ( SELECT 1
+                   FROM proc.procurement_act hid
+                  WHERE ((hid.duplicate_of IS NOT NULL) AND (hid.adam = a.adam))))))
+        ), lines AS (
+         SELECT DISTINCT substr((oc.cpv_code)::text, 1, 2) AS division,
+            c.adam,
+            c.competitive,
+            c.bids,
+            c.month
+           FROM ((counted c
+             JOIN proc.act_object_detail od ON ((od.adam = c.adam)))
+             JOIN proc.object_detail_cpv oc ON ((oc.object_detail_id = od.id)))
+        )
+ SELECT division,
+    competitive,
+    bids,
+    month,
+    (count(*))::integer AS n
+   FROM lines
+  GROUP BY division, competitive, bids, month
+  WITH NO DATA;
+
+
+--
+-- Name: mv_competition_fill; Type: MATERIALIZED VIEW; Schema: proc; Owner: -
+--
+
+CREATE MATERIALIZED VIEW proc.mv_competition_fill AS
+ SELECT (date_trunc('month'::text, (COALESCE(contract_signed_date, signed_date))::timestamp with time zone))::date AS month,
+    (count(*))::integer AS n_contracts,
+    (count(bids_submitted))::integer AS n_filled,
+    (count(*) FILTER (WHERE ((bids_submitted = 0) OR (bids_submitted > 100))))::integer AS n_excluded
+   FROM proc.procurement_act a
+  WHERE ((type = 'contract'::proc.act_type) AND (COALESCE(data_source, 'khmdhs'::text) = 'khmdhs'::text) AND (COALESCE(contract_signed_date, signed_date) >= '2020-01-01'::date) AND (COALESCE(contract_signed_date, signed_date) < (CURRENT_DATE + 1)))
+  GROUP BY ((date_trunc('month'::text, (COALESCE(contract_signed_date, signed_date))::timestamp with time zone))::date)
+  WITH NO DATA;
+
+
+--
+-- Name: ux_mv_competition_authority; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_mv_competition_authority ON proc.mv_competition_authority USING btree (authority_id, competitive, bids, month);
+
+
+--
+-- Name: ux_mv_competition_cpv; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_mv_competition_cpv ON proc.mv_competition_cpv USING btree (division, competitive, bids, month);
+
+
+--
+-- Name: ux_mv_competition_fill; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_mv_competition_fill ON proc.mv_competition_fill USING btree (month);
