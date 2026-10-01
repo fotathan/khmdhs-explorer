@@ -9,8 +9,11 @@ COUNTING    which contracts reach the views: 1..100 bids only; not cancelled,
             not TED, not a hidden duplicate; direct awards apart.
 
 SURFACES    the authority panel (merged across an entity group), the notice
-            line (like with like, empty below the minimum), /analytics and the
-            admin monitor; every one of them closed to a gated reader.
+            line (like with like, empty below the minimum), the award line on
+            a contract and on an award decision (its own count against the
+            authority's histogram; a decision reads its contracts),
+            /analytics and the admin monitor; every one of them closed to a
+            gated reader.
 
 ISOLATION   competition.py reads acts only: no profile, no AI summary.
 """
@@ -30,6 +33,10 @@ CPV = "99000000-3"           # a division root of its own: '99'
 NOTICE = "CMPX-NOTICE-OPEN"
 NOTICE_DIRECT = "CMPX-NOTICE-DIRECT"
 NOTICE_SMALL = "CMPX-NOTICE-SMALL"
+DEC_ONE = "CMPX-DEC-ONE"         # award decision → one contract (3 bids)
+DEC_LOTS = "CMPX-DEC-LOTS"       # → two contracts that disagree (1 and 3)
+DEC_NONE = "CMPX-DEC-NONE"       # → only a cancelled and a hidden contract
+NO_NAMES = "όχι τους υπόλοιπους διαγωνιζόμενους"
 
 VIEWS = ("mv_competition_authority", "mv_competition_cpv", "mv_competition_fill")
 
@@ -111,6 +118,21 @@ def test_split_keeps_direct_awards_apart():
     assert out["direct"]["n"] == 40 and out["direct"]["single_share"] == 1
 
 
+def test_compare_places_a_count_in_the_histogram():
+    s = cx.summarise(_h((1, "2025-05", 6), (3, "2025-05", 6)))   # median 2
+    assert cx.compare(s, 1) == {"side": "fewer", "fewer": 0, "more": 0.5}
+    assert cx.compare(s, 3) == {"side": "more", "fewer": 0.5, "more": 0}
+    assert cx.compare(s, 2)["side"] == "same"
+
+
+def test_compare_needs_a_sample_and_a_valid_count():
+    s = cx.summarise(_h((1, "2025-05", 12)))
+    assert cx.compare(s, 0) is None and cx.compare(s, 150) is None
+    assert cx.compare(s, None) is None
+    assert cx.compare(None, 1) is None
+    assert cx.compare(cx.summarise(_h((1, "2025-05", 9))), 1) is None   # < MIN_SHOW
+
+
 # --------------------------------------------------------------------------- #
 # Isolation
 # --------------------------------------------------------------------------- #
@@ -140,6 +162,8 @@ def _refresh(cur):
 def _cleanup(cur):
     cur.execute("DELETE FROM proc.entity_member WHERE member_key LIKE 'CMPX-%'")
     cur.execute("DELETE FROM proc.entity_group WHERE canonical_key LIKE 'CMPX-%'")
+    cur.execute("DELETE FROM proc.act_link WHERE source_adam LIKE 'CMPX-%' "
+                "OR target_adam LIKE 'CMPX-%'")
     cur.execute("UPDATE proc.procurement_act SET duplicate_of = NULL WHERE adam LIKE 'CMPX-%'")
     cur.execute("DELETE FROM proc.procurement_act WHERE adam LIKE 'CMPX-%'")
     cur.execute("DELETE FROM proc.authority WHERE org_id LIKE 'CMPX-%'")
@@ -197,6 +221,17 @@ def acts(db):
     _act(cur, NOTICE, ORG, None, atype="notice")
     _act(cur, NOTICE_DIRECT, ORG, None, atype="notice", family="Απευθείας ανάθεση")
     _act(cur, NOTICE_SMALL, SMALL, None, atype="notice")
+    _act(cur, "CMPX-PAY", ORG, None, atype="payment")
+    # --- award decisions and the contracts they led to, linked both ways ---
+    for dec in (DEC_ONE, DEC_LOTS, DEC_NONE):
+        _act(cur, dec, ORG, None, atype="auction")
+    for src, dst, rel in ((DEC_ONE, "CMPX-O3-1", "auction_to_contract"),
+                          (DEC_LOTS, "CMPX-O1-1", "auction_to_contract"),
+                          ("CMPX-O3-2", DEC_LOTS, "contract_from_auction"),
+                          (DEC_NONE, "CMPX-X-CANCEL", "auction_to_contract"),
+                          ("CMPX-X-HIDDEN", DEC_NONE, "contract_from_auction")):
+        cur.execute("INSERT INTO proc.act_link (source_adam, target_adam, relation) "
+                    "VALUES (%s, %s, %s)", (src, dst, rel))
     _refresh(cur)
     yield
     _cleanup(cur)
@@ -323,13 +358,85 @@ def test_the_notice_line_disappears_under_the_minimum(reader, acts):
     assert reader.get(f"/act/{NOTICE_SMALL}/competition").text == ""
 
 
-def test_the_notice_line_is_only_for_notices(reader, acts):
-    assert reader.get("/act/CMPX-O1-0/competition").text == ""
+def test_the_line_is_empty_for_other_types_and_unknown_acts(reader, acts):
+    assert reader.get("/act/CMPX-PAY/competition").text == ""
     assert reader.get("/act/CMPX-NO-SUCH/competition").text == ""
 
 
 def test_the_notice_line_is_closed_to_a_gated_reader(unpaid, acts):
     assert unpaid.get(f"/act/{NOTICE}/competition").text == ""
+
+
+# --------------------------------------------------------------------------- #
+# Award line: contracts and award decisions
+# --------------------------------------------------------------------------- #
+def test_a_single_bid_contract_is_placed_below_the_median(reader, acts):
+    body = reader.get("/act/CMPX-O1-0/competition").text
+    assert "Προσφορές σε αυτή τη σύμβαση" in body and "</span> 1." in body
+    assert "ανταγωνιστικές διαδικασίες" in body and "12 συμβάσεις" in body
+    assert "Το 50% των συμβάσεών της πήρε περισσότερες." in body
+    assert NO_NAMES in body
+
+
+def test_a_contract_above_the_median_says_how_many_got_fewer(reader, acts):
+    body = reader.get("/act/CMPX-O3-0/competition").text
+    assert "Το 50% των συμβάσεών της πήρε λιγότερες." in body
+
+
+def test_a_direct_award_is_compared_with_direct_awards(reader, acts):
+    body = reader.get("/act/CMPX-D-0/competition").text
+    assert "απευθείας αναθέσεις" in body and "10 συμβάσεις" in body
+    assert "Όσες η διάμεσος της αναθέτουσας." in body
+
+
+def test_a_small_authority_shows_the_count_without_a_comparison(reader, acts):
+    body = reader.get("/act/CMPX-S-0/competition").text
+    assert "</span> 2." in body
+    assert "δεν έχει αρκετές συμβάσεις για σύγκριση" in body
+    assert "διάμεσος" not in body and NO_NAMES in body
+
+
+def test_a_contract_without_a_usable_count_has_no_line(reader, acts):
+    assert reader.get("/act/CMPX-X-ZERO/competition").text == ""
+    assert reader.get("/act/CMPX-X-HUGE/competition").text == ""
+
+
+def test_the_contract_page_mounts_the_line(reader, acts):
+    assert "/act/CMPX-O1-0/competition" in reader.get("/act/CMPX-O1-0").text
+    assert "/act/CMPX-PAY/competition" not in reader.get("/act/CMPX-PAY").text
+
+
+def test_a_decision_reads_its_contract_and_compares(reader, acts):
+    body = reader.get(f"/act/{DEC_ONE}/competition").text
+    assert "Προσφορές, από τη σύμβαση" in body
+    assert 'href="/act/CMPX-O3-1"' in body and "CMPX-O3-1</a>: 3" in body
+    assert "Το 50% των συμβάσεών της πήρε λιγότερες." in body
+    assert NO_NAMES in body
+    assert f"/act/{DEC_ONE}/competition" in reader.get(f"/act/{DEC_ONE}").text
+
+
+def test_a_decision_lists_lots_that_disagree_and_does_not_compare(reader, acts):
+    """One link each way round: both contracts are found."""
+    body = reader.get(f"/act/{DEC_LOTS}/competition").text
+    assert "Προσφορές, από τις συμβάσεις" in body
+    assert "CMPX-O1-1</a>: 1" in body and "CMPX-O3-2</a>: 3" in body
+    assert "διάμεσος" not in body and "σύγκριση" not in body
+
+
+def test_a_decision_ignores_cancelled_and_hidden_contracts(reader, acts):
+    assert reader.get(f"/act/{DEC_NONE}/competition").text == ""
+
+
+def test_the_award_line_speaks_english(reader, acts):
+    reader.cookies.set("lang", "en")
+    body = reader.get("/act/CMPX-O1-0/competition").text
+    assert "Bids on this contract" in body and "50% of its contracts got more." in body
+    assert "not the other bidders" in body
+
+
+def test_the_award_line_is_closed_to_a_gated_reader(unpaid, acts):
+    assert unpaid.get("/act/CMPX-O1-0/competition").text == ""
+    assert unpaid.get(f"/act/{DEC_ONE}/competition").text == ""
 
 
 # --------------------------------------------------------------------------- #
@@ -378,3 +485,4 @@ def test_the_manual_describes_it(client):
     body = client.get("/help").text
     assert "Ανταγωνισμός: πόσες προσφορές παίρνει μια αρχή" in body
     assert "Απρίλιο 2025 ως τον Ιανουάριο 2026" in body
+    assert "Μια κατακύρωση δεν δηλώνει αριθμό προσφορών" in body

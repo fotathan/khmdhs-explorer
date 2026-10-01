@@ -7,7 +7,9 @@ KHMDHS reports `bidsSubmitted` on a contract (procurement_act.bids_submitted).
 Nothing else in the product aggregated it, so the one place it appeared was the
 page of a contract already awarded. This module turns it into two figures a
 bidder can use BEFORE bidding: the median number of bids and the share of
-single-bid awards, for an authority or a CPV division.
+single-bid awards, for an authority or a CPV division. On an award page
+(contract, award decision) it places the award's own count in its
+authority's histogram (spec §13); a decision reads its linked contracts.
 
 Where the numbers come from
 ---------------------------
@@ -47,11 +49,17 @@ from typing import Iterable
 
 import psycopg
 
+try:
+    from app.act_visibility import VISIBLE_SQL
+except ImportError:
+    from act_visibility import VISIBLE_SQL
+
 MIN_SHOW = 10           # below this, no figures at all
 MIN_CONFIDENT = 30      # below this, «περιορισμένο δείγμα»
 PERIOD_TRIM = 0.05      # the period spans the central 90% of counted contracts
 ANALYTICS_ROWS = 15     # /analytics: the divisions with the thinnest competition
 MONITOR_MONTHS = 6      # /admin/collection: months of fill rate shown
+DECISION_CONTRACTS = 10 # an award decision's line lists at most this many contracts
 
 # (label, lowest, highest) — highest None = open-ended.
 BUCKETS = (("1", 1, 1), ("2–3", 2, 3), ("4–6", 4, 6), ("7+", 7, None))
@@ -104,8 +112,9 @@ def summarise(rows: Iterable) -> dict | None:
     """Figures from histogram rows, each with `bids`, `month` and `n` (a dict
     or a mapping-like DB row). None when there is nothing to summarise.
 
-    Returns {n, median, single_share, buckets:[(label, share)], first, last,
-    trimmed, confidence: 'none' | 'limited' | 'ok'}. Shares are 0..1.
+    Returns {n, median, single_share, buckets:[(label, share)], hist:{bids: n},
+    first, last, trimmed, confidence: 'none' | 'limited' | 'ok'}. Shares are
+    0..1.
     """
     hist: dict[int, int] = {}
     months: dict[dt.date, int] = {}
@@ -130,6 +139,7 @@ def summarise(rows: Iterable) -> dict | None:
         "median": _median(hist, n),
         "single_share": hist.get(1, 0) / n,
         "buckets": buckets,
+        "hist": hist,
         "first": first,
         "last": last,
         # False when n is too small to trim anything: the period then covers
@@ -147,6 +157,30 @@ def split(rows: Iterable) -> dict:
     for r in rows:
         (comp if r["competitive"] else direct).append(r)
     return {"competitive": summarise(comp), "direct": summarise(direct)}
+
+
+def compare(s: dict | None, bids: int | None) -> dict | None:
+    """Where one contract's bid count sits in an authority's histogram:
+    {side: 'fewer' | 'same' | 'more', fewer: share, more: share}, where
+    `fewer`/`more` are the shares of the authority's contracts that got fewer /
+    more bids than this one. The side is taken against the MEDIAN, and the
+    sentence then quotes the share on the other side — a position in the
+    histogram, never "typical is N". None when there is nothing to compare
+    (no summary, under MIN_SHOW, or a count outside 1..100)."""
+    if not s or s["confidence"] == "none" or not valid_bids(bids):
+        return None
+    hist, n = s["hist"], s["n"]
+    fewer = sum(k for v, k in hist.items() if v < bids) / n
+    more = sum(k for v, k in hist.items() if v > bids) / n
+    side = ("fewer" if bids < s["median"]
+            else "more" if bids > s["median"] else "same")
+    return {"side": side, "fewer": fewer, "more": more}
+
+
+def valid_bids(bids) -> bool:
+    """The views' own range: a contract cannot be signed on 0 bids, and
+    three-figure counts on small contracts are typing errors."""
+    return bids is not None and 1 <= int(bids) <= 100
 
 
 # --------------------------------------------------------------------------- #
@@ -208,32 +242,112 @@ def for_authority(c, member_ids: list[str]) -> dict:
 
 
 def for_act(c, adam: str) -> dict | None:
-    """The figures of a notice's authority FOR THE SAME KIND OF PROCEDURE as
-    the notice: a direct-award invitation is compared with the authority's
-    direct awards, everything else with its competitive procedures. None when
-    the act is not a notice, has no authority, or that half of the authority's
-    history is under MIN_SHOW. The result carries `competitive` so the line
-    can say which it is.
+    """The competition line of an act page, by kind of act (`kind`):
+
+    'notice'    the authority's figures FOR THE SAME KIND OF PROCEDURE as the
+                notice: a direct-award invitation is compared with the
+                authority's direct awards, everything else with its
+                competitive procedures. None under MIN_SHOW.
+    'contract'  the contract's own bid count, and where it sits among the
+                authority's contracts of the same kind (compare()). The count
+                is shown even when the authority is under MIN_SHOW; only the
+                comparison then drops out.
+    'decision'  an award decision carries no count in KHMDHS, so it is read
+                from the contract(s) the decision led to (act_link), each
+                named. Compared only when they all agree on one count and one
+                kind of procedure — lots that disagree are listed, not merged.
+
+    None when there is nothing to say: an unknown act, another type, no
+    authority, or no bid count in 1..100. Every result carries `competitive`
+    so the line can say which half it compares with.
 
     The authority's entity group is NOT merged here: one indexed lookup is the
-    whole cost of a line shown on every notice page. The authority page, where
+    whole cost of a line shown on every act page. The authority page, where
     the panel lives, merges."""
-    # procedure_family is filled by refresh_analytics(), so a notice imported
+    # procedure_family is filled by refresh_analytics(), so an act imported
     # since the last refresh has none yet: compute it the same way.
-    c.execute("""SELECT type::text AS type, authority_id,
+    c.execute("""SELECT type::text AS type, authority_id, bids_submitted,
                         coalesce(procedure_family,
                                  proc.compute_procedure_family(procedure_type_code))
                             AS procedure_family
                  FROM proc.procurement_act WHERE adam = %s""", (adam,))
     act = c.fetchone()
-    if not act or act["type"] != "notice" or not act["authority_id"]:
+    if not act or not act["authority_id"]:
         return None
-    competitive = act["procedure_family"] != DIRECT_FAMILY
-    figs = for_authority(c, [act["authority_id"]])
+    kind = {"notice": "notice", "contract": "contract",
+            "auction": "decision"}.get(act["type"])
+    if kind is None:
+        return None
+
+    if kind == "notice":
+        competitive = act["procedure_family"] != DIRECT_FAMILY
+        s = _half(c, act["authority_id"], competitive)
+        if not s:
+            return None
+        return {"kind": kind, "authority_id": act["authority_id"],
+                "competitive": competitive, **s}
+
+    if kind == "contract":
+        if not valid_bids(act["bids_submitted"]):
+            return None
+        competitive = act["procedure_family"] != DIRECT_FAMILY
+        bids = int(act["bids_submitted"])
+        contracts = []
+    else:
+        contracts = decision_contracts(c, adam)
+        if not contracts:
+            return None
+        counts = {k["bids"] for k in contracts}
+        halves = {k["competitive"] for k in contracts}
+        bids = counts.pop() if len(counts) == 1 else None
+        competitive = halves.pop() if len(halves) == 1 else None
+        if competitive is None:
+            bids = None                 # one count, two kinds: nothing to compare
+
+    s = _half(c, act["authority_id"], competitive) if bids is not None else None
+    return {"kind": kind, "authority_id": act["authority_id"],
+            "competitive": competitive, "bids": bids,
+            "contracts": contracts[:DECISION_CONTRACTS],
+            "n_contracts": len(contracts),
+            "s": s, "cmp": compare(s, bids)}
+
+
+def _half(c, authority_id: str, competitive: bool) -> dict | None:
+    """One half of an authority's figures, or None under MIN_SHOW."""
+    figs = for_authority(c, [authority_id])
     s = figs["competitive" if competitive else "direct"]
     if not s or s["confidence"] == "none":
         return None
-    return {"authority_id": act["authority_id"], "competitive": competitive, **s}
+    return s
+
+
+def decision_contracts(c, adam: str) -> list[dict]:
+    """The contracts an award decision led to that state a usable bid count:
+    linked either way round (auction_to_contract from the decision,
+    contract_from_auction from the contract), not cancelled, not a hidden
+    duplicate. [{adam, bids, competitive}] in ΑΔΑΜ order."""
+    c.execute(f"""
+        /* competition_decision_contracts */
+        SELECT a.adam, a.bids_submitted AS bids,
+               coalesce(a.procedure_family,
+                        proc.compute_procedure_family(a.procedure_type_code))
+                   AS procedure_family
+        FROM proc.procurement_act a
+        WHERE a.adam IN (
+                SELECT target_adam FROM proc.act_link
+                 WHERE source_adam = %s AND relation = 'auction_to_contract'
+                UNION
+                SELECT source_adam FROM proc.act_link
+                 WHERE target_adam = %s AND relation = 'contract_from_auction')
+          AND a.type = 'contract'
+          AND a.cancelled IS NOT TRUE
+          AND a.bids_submitted BETWEEN 1 AND 100
+          AND {VISIBLE_SQL}
+        ORDER BY a.adam
+    """, (adam, adam))
+    return [{"adam": r["adam"], "bids": int(r["bids"]),
+             "competitive": r["procedure_family"] != DIRECT_FAMILY}
+            for r in c.fetchall()]
 
 
 def by_division(c, lang: str = "el", limit: int = ANALYTICS_ROWS) -> list[dict]:

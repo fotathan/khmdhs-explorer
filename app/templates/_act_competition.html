@@ -1,22 +1,64 @@
-{# _act_competition.html — one line on a notice: how much competition this
-   authority's contracts usually got (GET /act/<adam>/competition, main.py
-   act_competition). The endpoint answers EMPTY for a gated reader, a non-notice
-   and an authority under the minimum sample, so the mount simply disappears.
-   Compared like with like: a direct-award notice with the authority's direct
-   awards, anything else with its competitive procedures, and the line says
-   which. The period is always stated. #}
+{# _act_competition.html — the competition line of an act page
+   (GET /act/<adam>/competition, main.py act_competition; figures from
+   app/competition.for_act). The endpoint answers EMPTY for a gated reader and
+   whenever there is nothing to say, so the mount simply disappears.
+
+   notice    how much competition this authority's contracts usually got.
+   contract  this contract's bid count, then where it sits among the
+             authority's contracts of the same kind.
+   decision  the same, read from the contract(s) the decision led to, each
+             named — KHMDHS reports no count on the decision itself.
+
+   Compared like with like: direct awards with direct awards, everything else
+   with competitive procedures, and the line says which. The period is always
+   stated. Counts only: no source names the losing bidders, and the award
+   lines say so. #}
+{% macro figures(s) -%}
+  {% if lang == 'en' -%}
+  median {{ cx.median_label(s.median, lang) }} bid{{ "" if s.median == 1 else "s" }}, {{ cx.pct(s.single_share) }} with a single bid ({{ cx.period_label(s, lang) }}, {{ "{:,}".format(s.n) }} contracts)
+  {%- else -%}
+  διάμεσος {{ cx.median_label(s.median, lang) }} προσφορ{{ "ά" if s.median == 1 else "ές" }}, {{ cx.pct(s.single_share) }} με μία προσφορά ({{ cx.period_label(s, lang) }}, {{ "{:,}".format(s.n).replace(",", ".") }} συμβάσεις)
+  {%- endif %}
+{%- endmacro %}
+{% macro half(competitive) -%}
+  {{ t("ανταγωνιστικές διαδικασίες") if competitive else t("απευθείας αναθέσεις") }}
+{%- endmacro %}
+
+{% if s.kind == 'notice' %}
 <p class="act-cmp">
   <span class="act-cmp-k">{{ t("Ανταγωνισμός σε αυτή την αναθέτουσα") }}</span>
-  ({{ t("ανταγωνιστικές διαδικασίες") if s.competitive else t("απευθείας αναθέσεις") }}):
-  {% if lang == 'en' %}
-  median {{ cx.median_label(s.median, lang) }} bid{{ "" if s.median == 1 else "s" }}, {{ cx.pct(s.single_share) }} with a single bid ({{ cx.period_label(s, lang) }}, {{ "{:,}".format(s.n) }} contracts).
-  {% else %}
-  διάμεσος {{ cx.median_label(s.median, lang) }} προσφορ{{ "ά" if s.median == 1 else "ές" }}, {{ cx.pct(s.single_share) }} με μία προσφορά ({{ cx.period_label(s, lang) }}, {{ "{:,}".format(s.n).replace(",", ".") }} συμβάσεις).
-  {% endif %}
+  ({{ half(s.competitive) }}): {{ figures(s) }}.
   {% if s.confidence == 'limited' %}<span class="pill">{{ t("περιορισμένο δείγμα") }}</span>{% endif %}
   <a href="/authority/{{ s.authority_id }}#authority-competition">{{ t("Λεπτομέρειες") }} →</a>
 </p>
+{% else %}
+<div class="act-cmp" id="act-bids">
+  <p>
+    {% if s.kind == 'contract' %}
+    <span class="act-cmp-k">{{ t("Προσφορές σε αυτή τη σύμβαση") }}:</span> {{ s.bids }}.
+    {% else %}
+    <span class="act-cmp-k">{{ t("Προσφορές, από τη σύμβαση") if s.n_contracts == 1 else t("Προσφορές, από τις συμβάσεις") }}:</span>
+    {% for k in s.contracts %}<a href="/act/{{ k.adam }}">{{ k.adam }}</a>: {{ k.bids }}{% if not loop.last %} · {% endif %}{% endfor %}{% if s.n_contracts > s.contracts|length %} {{ t("και {n} ακόμη")|replace("{n}", s.n_contracts - s.contracts|length) }}{% endif %}.
+    {% endif %}
+  </p>
+  {% if s.s %}
+  <p>
+    {{ t("Η αναθέτουσα") }} ({{ half(s.competitive) }}): {{ figures(s.s) }}.
+    {% if s.cmp.side == 'fewer' %}{{ t("Το {pct} των συμβάσεών της πήρε περισσότερες.")|replace("{pct}", cx.pct(s.cmp.more)) }}
+    {% elif s.cmp.side == 'more' %}{{ t("Το {pct} των συμβάσεών της πήρε λιγότερες.")|replace("{pct}", cx.pct(s.cmp.fewer)) }}
+    {% else %}{{ t("Όσες η διάμεσος της αναθέτουσας.") }}{% endif %}
+    {% if s.s.confidence == 'limited' %}<span class="pill">{{ t("περιορισμένο δείγμα") }}</span>{% endif %}
+    <a href="/authority/{{ s.authority_id }}#authority-competition">{{ t("Λεπτομέρειες") }} →</a>
+  </p>
+  {% elif s.bids is not none %}
+  <p>{{ t("Η αναθέτουσα δεν έχει αρκετές συμβάσεις για σύγκριση.") }}</p>
+  {% endif %}
+  <p class="act-cmp-note">{{ t("Οι πηγές δημοσιεύουν μόνο τον αριθμό των προσφορών και τον ανάδοχο, όχι τους υπόλοιπους διαγωνιζόμενους.") }}</p>
+</div>
+{% endif %}
 <style>
   .act-cmp{margin:10px 0 0;font-size:13px;color:var(--ink-2);}
+  .act-cmp p{margin:0 0 4px;}
   .act-cmp-k{font-weight:600;color:var(--ink);}
+  .act-cmp-note{font-size:12px;color:var(--ink-3, var(--ink-2));}
 </style>
