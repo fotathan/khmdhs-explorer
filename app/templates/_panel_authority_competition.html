@@ -1,0 +1,79 @@
+{# _panel_authority_competition.html — «Ανταγωνισμός» on the authority page.
+
+   Loaded over HTMX from GET /authority/<org_id>/competition (main.py
+   authority_competition), swapped with outerHTML over the placeholder in
+   beta_authority.html. Figures come from app/competition.py; the rules that
+   matter (spec docs/specs/competition-indicator.md):
+     * competitive procedures are the headline; direct awards a second line;
+     * median and single-bid share only, never a mean;
+     * the measured period is always printed (central 90% of the contracts);
+     * under MIN_SHOW contracts nothing is stated, under MIN_CONFIDENT the
+       figures say «περιορισμένο δείγμα». #}
+<div class="panel" id="authority-competition">
+  <h3 class="panel-h">{{ t("Ανταγωνισμός") }}</h3>
+  {% if comp and comp.confidence != 'none' %}
+  <div class="cmp-figs">
+    <div class="cmp-fig">
+      <div class="cmp-num">{{ cx.median_label(comp.median, lang) }}</div>
+      <div class="cmp-cap">{{ t("προσφορές ανά σύμβαση (διάμεσος)") }}</div>
+    </div>
+    <div class="cmp-fig">
+      <div class="cmp-num">{{ cx.pct(comp.single_share) }}</div>
+      <div class="cmp-cap">{{ t("με μία μόνο προσφορά") }}</div>
+    </div>
+  </div>
+  <div class="cmp-bar" role="img"
+       aria-label="{{ t('Κατανομή αριθμού προσφορών') }}: {% for label, share in comp.buckets %}{{ label }}: {{ cx.pct(share) }}{% if not loop.last %}, {% endif %}{% endfor %}">
+    {% for label, share in comp.buckets %}{% if share > 0 %}
+    <span class="cmp-seg cmp-seg-{{ loop.index }}" style="width:{{ (share * 100)|round(1) }}%"
+          title="{{ label }}: {{ cx.pct(share) }}"></span>
+    {% endif %}{% endfor %}
+  </div>
+  <div class="cmp-legend">
+    {% for label, share in comp.buckets %}
+    <span><i class="cmp-dot cmp-seg-{{ loop.index }}"></i>{{ label }} {% if lang == 'en' %}{{ "bid" if label == "1" else "bids" }}{% else %}{{ "προσφορά" if label == "1" else "προσφορές" }}{% endif %} · {{ cx.pct(share) }}</span>
+    {% endfor %}
+  </div>
+  <p class="cmp-note">
+    {% if lang == 'en' %}
+    Based on {{ "{:,}".format(comp.n) }} contract{{ "" if comp.n == 1 else "s" }} from competitive procedures that stated a number of bids; {{ "9 in 10 were" if comp.trimmed else "all were" }} signed {{ cx.period_label(comp, lang) }}.
+    {% else %}
+    Με βάση {{ "{:,}".format(comp.n).replace(",", ".") }} σ{{ "ύμβαση" if comp.n == 1 else "υμβάσεις" }} ανταγωνιστικών διαδικασιών που δήλωναν αριθμό προσφορών· {{ "9 στις 10 υπογράφηκαν" if comp.trimmed else "υπογεγραμμένες" }} {{ cx.period_label(comp, lang) }}.
+    {% endif %}
+    {% if comp.confidence == 'limited' %}<span class="pill">{{ t("περιορισμένο δείγμα") }}</span>{% endif %}
+  </p>
+  {% else %}
+  <div class="empty">
+    {% if lang == 'en' %}
+    Not enough data: fewer than {{ min_show }} contracts from competitive procedures state a number of bids.
+    {% else %}
+    Δεν υπάρχουν αρκετά στοιχεία: λιγότερες από {{ min_show }} συμβάσεις ανταγωνιστικών διαδικασιών δηλώνουν αριθμό προσφορών.
+    {% endif %}
+  </div>
+  {% endif %}
+  {% if direct and direct.confidence != 'none' %}
+  <p class="cmp-direct">
+    {% if lang == 'en' %}
+    Direct awards: {{ "{:,}".format(direct.n) }}, of which {{ cx.pct(direct.single_share) }} with a single bid ({{ cx.period_label(direct, lang) }}).
+    {% else %}
+    Απευθείας αναθέσεις: {{ "{:,}".format(direct.n).replace(",", ".") }}, εκ των οποίων {{ cx.pct(direct.single_share) }} με μία προσφορά ({{ cx.period_label(direct, lang) }}).
+    {% endif %}
+  </p>
+  {% endif %}
+  <p style="font-size:11.5px;color:var(--ink-3);margin-top:10px;">{{ t("Από τον αριθμό προσφορών που δηλώνει το ΚΗΜΔΗΣ στις συμβάσεις. Ανταγωνιστικές: κάθε διαδικασία εκτός της απευθείας ανάθεσης.") }}</p>
+</div>
+<style>
+  .cmp-figs{display:flex;gap:28px;flex-wrap:wrap;margin:2px 0 12px;}
+  .cmp-num{font-size:26px;font-weight:600;color:var(--ink);line-height:1.1;}
+  .cmp-cap{font-size:12.5px;color:var(--ink-2);margin-top:2px;}
+  .cmp-bar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--paper-2);gap:2px;}
+  .cmp-seg{display:block;height:100%;}
+  .cmp-seg-1{background:var(--warn);}
+  .cmp-seg-2{background:var(--ink-3);}
+  .cmp-seg-3{background:var(--ink-2);}
+  .cmp-seg-4{background:var(--ink);}
+  .cmp-legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--ink-2);margin-top:8px;}
+  .cmp-dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px;}
+  .cmp-note{font-size:12.5px;color:var(--ink-2);margin-top:10px;}
+  .cmp-direct{font-size:12.5px;color:var(--ink-2);margin-top:6px;}
+</style>

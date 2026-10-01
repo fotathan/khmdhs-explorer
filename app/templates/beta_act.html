@@ -142,6 +142,9 @@
        profile on, so for everyone else this div simply disappears. #}
     {% if user and atype == 'notice' %}
     <div hx-get="/act/{{ n.adam }}/fit" hx-trigger="load" hx-swap="outerHTML"></div>
+    {# How much competition this authority usually gets (app/competition.py).
+       Empty for a gated reader and for an authority under the minimum sample. #}
+    <div hx-get="/act/{{ n.adam }}/competition" hx-trigger="load" hx-swap="outerHTML"></div>
     {% endif %}
     {% endif %}
   </div>

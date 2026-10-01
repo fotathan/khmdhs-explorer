@@ -413,6 +413,32 @@
         </tbody>
       </table>
     {% endif %}
+
+    {# competition indicator source monitor (app/competition.fill_monitor) #}
+    {% if bid_fill and bid_fill.rows %}
+      <div class="section-h" style="margin-top:24px;">{{ t("Αριθμός προσφορών (ΚΗΜΔΗΣ)") }}</div>
+      <table class="lines" id="bid-fill-monitor">
+        <thead><tr>
+          <th>{{ t("Μήνας υπογραφής") }}</th>
+          <th style="text-align:right;">{{ t("Συμβάσεις") }}</th>
+          <th style="text-align:right;">{{ t("Με αριθμό προσφορών") }}</th>
+        </tr></thead>
+        <tbody>
+          {% for r in bid_fill.rows %}
+            <tr>
+              <td><strong style="font-size:13px;">{{ r.month.strftime('%m/%Y') }}</strong></td>
+              <td class="val">{{ r.n_contracts }}</td>
+              <td class="val">{{ r.n_filled }}{% if r.share is not none %} ({{ (r.share * 100)|round|int }}%){% endif %}</td>
+            </tr>
+          {% endfor %}
+          <tr>
+            <td colspan="3" class="meta" style="padding-top:6px;">
+              {{ t("Εκτός μέτρησης (0 ή πάνω από 100 προσφορές):") }} {{ bid_fill.n_excluded }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    {% endif %}
   </aside>
 </div>
 

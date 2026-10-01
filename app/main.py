@@ -1492,6 +1492,13 @@ try:
 except ImportError:
     import onboarding as _onboarding
 
+# Competition indicator (docs/specs/competition-indicator.md): the authority
+# panel, the notice line and the /analytics table read its histograms.
+try:
+    from app import competition as _competition
+except ImportError:
+    import competition as _competition
+
 # SECRET_KEY signs the session cookies; a known/default value makes admin
 # sessions forgeable. Require it in production and fail closed rather than boot
 # with the insecure fallback. Production is detected via Render's own RENDER
@@ -2944,6 +2951,19 @@ def analytics(request: Request):
     except Exception:
         # Materialized views not created yet — show a friendly hint.
         data = {"available": False}
+
+    # Competition by CPV division (app/competition.py). Subscribers only, like
+    # the authority panel. Its own cursor: a missing competition view must not
+    # take the rest of the page down.
+    data["competition"] = []
+    if data.get("available") and not _is_gated(request):
+        try:
+            with cursor() as c:
+                data["competition"] = _competition.by_division(c, lang)
+        except Exception:
+            data["competition"] = []
+    data["cx"] = _competition
+    data["lang"] = lang
 
     data["nav_active"] = "analytics"
     return templates.TemplateResponse(request, "beta_analytics.html", data)
@@ -5178,6 +5198,49 @@ def authority_top_cpv(org_id: str, request: Request):
         rows = c.fetchall()
     return templates.TemplateResponse(
         request, "_panel_authority_top_cpv.html", {"top_cpv": rows})
+
+
+@app.get("/authority/{org_id}/competition", response_class=HTMLResponse)
+def authority_competition(org_id: str, request: Request):
+    """The authority page's «Ανταγωνισμός» panel: how many bids its contracts
+    usually got (app/competition.py, docs/specs/competition-indicator.md).
+
+    Reads the precomputed histograms, summed across the authority's entity
+    group — a handful of index lookups — but mounted like its neighbours so the
+    page's own query count stays where test_authority_top_contractors pins it.
+    Paid content: a gated caller gets nothing, as for the other panels."""
+    if _is_gated(request):
+        return HTMLResponse("")
+    _rate_limit(request, "authcompetition")
+    lang = _i18n.lang_from_request(request)
+    with cursor() as c:
+        grp = resolve_entity_group(c, "authority", org_id)
+        member_ids = grp["members"] if grp else [org_id]
+        figs = _competition.for_authority(c, member_ids)
+    return templates.TemplateResponse(
+        request, "_panel_authority_competition.html",
+        {"comp": figs["competitive"], "direct": figs["direct"],
+         "cx": _competition, "lang": lang,
+         "min_show": _competition.MIN_SHOW})
+
+
+@app.get("/act/{adam}/competition", response_class=HTMLResponse)
+def act_competition(adam: str, request: Request):
+    """One line on a notice: how much competition its authority's contracts
+    usually got. EMPTY (never an error) for a gated reader, for anything that is
+    not a notice, and for an authority under the minimum sample — the act page
+    asks on every load and an "insufficient data" line on every small buyer's
+    notice would be noise. act_detail itself is untouched."""
+    if _is_gated(request):
+        return HTMLResponse("")
+    lang = _i18n.lang_from_request(request)
+    with cursor() as c:
+        figs = _competition.for_act(c, adam)
+    if figs is None:
+        return HTMLResponse("")
+    return templates.TemplateResponse(
+        request, "_act_competition.html",
+        {"s": figs, "cx": _competition, "lang": lang})
 
 
 @app.get("/authority/{org_id}/top-contractors", response_class=HTMLResponse)

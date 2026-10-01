@@ -112,3 +112,4 @@ migrations/20260924130000_checklist_own_items.sql
 migrations/20260924140000_public_holiday.sql
 migrations/20260924150000_company_certificate.sql
 migrations/20260924160000_certificate_reminders.sql
+migrations/20261001082952_competition_indicator.sql

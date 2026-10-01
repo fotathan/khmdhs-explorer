@@ -3632,6 +3632,43 @@ _CHECKLIST = {
 }
 
 
+# Competition indicator (app/competition.py, docs/specs/competition-indicator.md)
+_COMPETITION = {
+    "προσφορές ανά σύμβαση (διάμεσος)": "bids per contract (median)",
+    "με μία μόνο προσφορά": "with a single bid",
+    "Κατανομή αριθμού προσφορών": "Distribution of the number of bids",
+    "περιορισμένο δείγμα": "limited sample",
+    "Από τον αριθμό προσφορών που δηλώνει το ΚΗΜΔΗΣ στις συμβάσεις. Ανταγωνιστικές: κάθε διαδικασία εκτός της απευθείας ανάθεσης.":
+        "From the number of bids KHMDHS reports on contracts. Competitive: every procedure except direct award.",
+    "Ανταγωνισμός σε αυτή την αναθέτουσα": "Competition at this authority",
+    "ανταγωνιστικές διαδικασίες": "competitive procedures",
+    "απευθείας αναθέσεις": "direct awards",
+    "Ανταγωνισμός ανά τομέα CPV": "Competition by CPV division",
+    "Οι τομείς με τον λιγότερο ανταγωνισμό: ποσοστό συμβάσεων ανταγωνιστικών διαδικασιών που έλαβαν μία μόνο προσφορά. Από τον αριθμό προσφορών που δηλώνει το ΚΗΜΔΗΣ στις συμβάσεις.":
+        "The divisions with the least competition: share of contracts from competitive procedures that received a single bid. From the number of bids KHMDHS reports on contracts.",
+    "Διάμεσος προσφορών": "Median bids",
+    "Με μία προσφορά": "Single bid",
+    "Περίοδος": "Period",
+    "Ανταγωνιστικές: κάθε διαδικασία εκτός της απευθείας ανάθεσης. Η περίοδος καλύπτει τις 9 στις 10 συμβάσεις κάθε τομέα.":
+        "Competitive: every procedure except direct award. The period covers 9 in 10 of each division's contracts.",
+    "Αριθμός προσφορών (ΚΗΜΔΗΣ)": "Number of bids (KHMDHS)",
+    "Μήνας υπογραφής": "Month signed",
+    "Με αριθμό προσφορών": "With a bid count",
+    "Εκτός μέτρησης (0 ή πάνω από 100 προσφορές):": "Left out (0 or more than 100 bids):",
+    # /help
+    "Ανταγωνισμός: πόσες προσφορές παίρνει μια αρχή": "Competition: how many bids an authority gets",
+    "Το προφίλ κάθε αρχής έχει τον πίνακα «Ανταγωνισμός»: πόσες προσφορές πήραν συνήθως οι συμβάσεις της (διάμεσος) και τι ποσοστό έλαβε μία μόνο προσφορά, με την κατανομή 1 / 2–3 / 4–6 / 7+. Οι ανταγωνιστικές διαδικασίες μετρούν χωριστά από τις απευθείας αναθέσεις, που δείχνονται σε δεύτερη γραμμή. Κάθε σελίδα προκήρυξης δείχνει μία γραμμή με τα ίδια στοιχεία για την αρχή της, για το ίδιο είδος διαδικασίας με την προκήρυξη.":
+        "Every authority profile has a «Competition» panel: how many bids its contracts usually received (median) and what share received a single bid, with the 1 / 2–3 / 4–6 / 7+ distribution. Competitive procedures are counted apart from direct awards, which are shown on a second line. Every notice page shows one line with the same figures for its authority, for the same kind of procedure as the notice.",
+    "Από πού και για πότε": "Where from, and for when",
+    "Ο αριθμός προσφορών είναι αυτός που δηλώνει το ΚΗΜΔΗΣ στις συμβάσεις. Οι αρχές τον συμπλήρωναν συστηματικά μόνο από τον Απρίλιο 2025 ως τον Ιανουάριο 2026, γι' αυτό κάθε αριθμός γράφει την περίοδο από την οποία προέρχεται. Κάτω από 10 συμβάσεις δεν δείχνουμε τίποτα· κάτω από 30 τα στοιχεία σημειώνονται ως «περιορισμένο δείγμα». Τα ονόματα όσων έχασαν δεν δημοσιεύονται από καμία πηγή.":
+        "The number of bids is the one KHMDHS reports on contracts. Authorities filled it in consistently only from April 2025 to January 2026, which is why every figure states the period it comes from. Below 10 contracts we show nothing; below 30 the figures are marked «limited sample». No source publishes the names of the losing bidders.",
+    "Για συνδρομητές, ο πίνακας «Ανταγωνισμός ανά τομέα CPV» δείχνει τους τομείς όπου οι συμβάσεις παίρνουν πιο συχνά μία μόνο προσφορά.":
+        "For subscribers, the «Competition by CPV division» table shows the divisions where contracts most often receive a single bid.",
+    "Δείχνει και πόσες συμβάσεις του ΚΗΜΔΗΣ δηλώνουν αριθμό προσφορών ανά μήνα, ώστε να φανεί αν η πηγή ξαναρχίσει να τον συμπληρώνει.":
+        "It also shows how many KHMDHS contracts state a number of bids, per month, so it shows if the source starts filling it in again.",
+}
+
+
 # Evaluation layer — declared certificates against the checklist
 # (app/eligibility_eval.py, docs/specs/evaluation-layer.md).
 _CERTS = {
@@ -3737,5 +3774,6 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _AUTH, _PRODUCTS, _CRM, _CRM2, _CRMCARD, _CRMNAV, _INTERCONNECT, _HELP, _LEGAL,
              _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY, _DIGESTS,
              _SELF_SERVE, _PUBLIC, _HELP_PUBLIC, _AI_POLICY, _FIT,
-             _COMPANY_MATCH, _MATCH, _TSG_DUP, _ONBOARDING, _CHECKLIST, _CERTS):
+             _COMPANY_MATCH, _MATCH, _TSG_DUP, _ONBOARDING, _CHECKLIST, _CERTS,
+             _COMPETITION):
     UI_EN.update(_grp)
