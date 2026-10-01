@@ -24,6 +24,7 @@ ADAM = "TEST-LAYOUT-0001"
 PEER = "TEST-LAYOUT-0002"          # an awarded contract on the same CPV
 CPV = "33184100"
 VAT = "999000111"
+VAT2 = "999000222"                 # a second winner (a lot, or a joint venture)
 
 FULL_TEXT = (
     "ΔΙΑΚΗΡΥΞΗ ΑΝΟΙΚΤΟΥ ΔΙΑΓΩΝΙΣΜΟΥ\n"
@@ -38,7 +39,8 @@ TOPCPV_URL = f"/act/{ADAM}/top-contractors"
 def _cleanup(cur):
     cur.execute("DELETE FROM proc.act_operator WHERE adam = ANY(%s)", ([ADAM, PEER],))
     cur.execute("DELETE FROM proc.procurement_act WHERE adam = ANY(%s)", ([ADAM, PEER],))
-    cur.execute("DELETE FROM proc.economic_operator WHERE vat_number = %s", (VAT,))
+    cur.execute("DELETE FROM proc.economic_operator WHERE vat_number = ANY(%s)",
+                ([VAT, VAT2],))
 
 
 @pytest.fixture()
@@ -217,3 +219,23 @@ def test_the_panel_is_paid_content(client, act):
     — and answering it is exactly what costs a second of database time."""
     assert client.get(TOPCPV_URL).text.strip() == ""
     assert TOPCPV_URL not in client.get(f"/act/{act}").text
+
+
+# --------------------------------------------------------------------------- #
+# The winners table is headed as winners
+# --------------------------------------------------------------------------- #
+def test_the_winners_table_never_calls_itself_the_participants(db, reader, act):
+    """Every act_operator row is a winner; no source names the losing bidders.
+    «Ανάδοχος / Συμμετέχοντες» read as the full bidder list."""
+    body = reader.get(f"/act/{PEER}").text
+    assert '<h3 class="panel-h">Ανάδοχος</h3>' in body
+    assert "Συμμετέχοντες" not in body
+
+    cur = db.cursor()
+    cur.execute("""INSERT INTO proc.economic_operator (vat_number, name, is_greek_vat)
+                   VALUES (%s, 'ΔΕΥΤΕΡΟΣ ΑΝΑΔΟΧΟΣ ΑΕ', true) RETURNING operator_id""",
+                (VAT2,))
+    cur.execute("""INSERT INTO proc.act_operator (adam, operator_id, role)
+                   VALUES (%s, %s, 'winner')""", (PEER, cur.fetchone()["operator_id"]))
+    body = reader.get(f"/act/{PEER}").text
+    assert '<h3 class="panel-h">Ανάδοχοι</h3>' in body

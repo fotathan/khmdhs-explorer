@@ -291,7 +291,12 @@
 
       {% if operators %}
       <div class="panel">
-        <h3 class="panel-h">{% if atype == 'payment' %}{{ t("Προμηθευτής") }}{% else %}{{ t("Ανάδοχος / Συμμετέχοντες") }}{% endif %}</h3>
+        {# Winners only: every act_operator row is role 'winner' (KHMDHS,
+           TED, Diavgeia and Tender Service name no losing bidder — see
+           docs/specs/competition-indicator.md §2). Several rows are lots or a
+           joint venture, never "the participants", so the heading must not
+           say «Συμμετέχοντες»: a reader took it as the full bidder list. #}
+        <h3 class="panel-h">{% if atype == 'payment' %}{{ t("Προμηθευτής") }}{% elif operators|length > 1 %}{{ t("Ανάδοχοι") }}{% else %}{{ t("Ανάδοχος") }}{% endif %}</h3>
         <table class="dtable stack">
           <thead><tr><th>{{ t("Επωνυμία") }}</th><th>{{ t("ΑΦΜ") }}</th><th>{{ t("Ρόλος") }}</th><th class="val">{{ t("Αξία (με ΦΠΑ)") }}</th></tr></thead>
           <tbody>
