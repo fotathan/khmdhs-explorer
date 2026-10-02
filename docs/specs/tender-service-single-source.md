@@ -585,9 +585,30 @@ PID in `runs/phase2.pid`, log `runs/phase2_september.log`.
 - touching `runs/phase2.stop` ends it cleanly at the next check
 - expected: about 3 days
 
-**Still to do in phase 2, offline (no requests):**
-1. projection with the §3 keys
-2. the coverage and identity report against `procurement` (§8.1–2)
+**Built offline (no requests), 2026-10-02:**
+- **Projection**: `db.py tsg-project --single-source`
+  (`tsg_ingest.project_single_source`).
+  - Keys per §3. The ΑΔΑΜ kind sets the act type
+    (REQ/PROC/AWRD/SYMV/PAY → request/notice/auction/contract/payment);
+    otherwise the label decides, and unknown labels are counted.
+  - Two records with one key: the newest publication keeps it, the other gets
+    `skip_reason = 'same key … as …'`.
+  - No duplicate matching.
+  - About 30 ms per record, so ~2 h for the full month: run it after the
+    collection, not during.
+  - The 21,078 records copied from `procurement` need `--reproject` once:
+    they carry that database's projection hash.
+- **Report**: `tsg_coverage.py --start … --end … --out runs/…md`, read-only on
+  both databases.
+  - It compares only days that both sides hold completely, per
+    (source, type).
+  - Our local KHMDHS awards, contracts and payments stop at 2026-08-04, and its
+    notices and requests at 2026-09-16. So September compares only requests and
+    notices (1–16.09) for KHMDHS, plus Diavgeia and TED up to their last
+    ingest. A type with no common days is reported as "no overlap", not as
+    missing.
+  - To compare awards/contracts/payments, either catch our local KHMDHS up
+    first or add a July month to the trial.
 
 ---
 
