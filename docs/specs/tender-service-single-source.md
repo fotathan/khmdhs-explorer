@@ -624,8 +624,23 @@ PID in `runs/phase2.pid`, log `runs/phase2_september.log`.
 - The competition views keep their own `khmdhs` filter: they need
   `bids_submitted`, which Tender Service doesn't fill.
 - Seen on the first data, to check in phase 4:
-  - **CPV 22** (printed matter) shows €3.7B from 361 notices, probably a value
-    parsing or outlier problem. The value ceiling only applies to contracts.
+  - **CPV 22** (printed matter) showed €3.7B from 361 notices. Checked
+    2026-10-02: not a parsing problem, the same money counted several times.
+    - **(a)** The projection puts all of a record's CPV codes on one line with
+      the whole value. Tender Service's code order means nothing (its first
+      code matches our main code 26% of the time; the codes aren't sorted),
+      and the view summed the line once per code: €3,748M vs €837M.
+    - **(b)** Two amendment notices of one €415.6M tender, each with the full
+      value.
+    - The same two flaws exist in production at a smaller scale: about 7% of
+      2026 KHMDHS notice value is double counting.
+    - Fixed by migration `20261003090000_analytics_cpv_count_once.sql`, made
+      on branch `fix/analytics-cpv-count-once` off `main` (for review) and
+      cherry-picked here. It counts one row per (item, division), and skips a
+      notice that a later, not cancelled amendment replaces. Applied to
+      `procurement_tsg`: division 22 is now €837M.
+    - (b) still applies in the trial: Tender Service has no `amended_adam`;
+      the chain (phase 3) has to supply it.
   - Tender Service labels Diavgeia contracts «Αποτέλεσμα», so they become
     `auction`. Our Diavgeia ingester calls 37k of September's decisions
     `contract`.
