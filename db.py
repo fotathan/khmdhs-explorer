@@ -1103,14 +1103,20 @@ def cmd_tsg_backfill(args):
     tg, key = _tsg_setup()
     start = dt.date.fromisoformat(args.start)
     end = dt.date.fromisoformat(args.end) if args.end else dt.date.today()
-    print(f"\n=== Tender Service backfill: {start} .. {end}"
-          f"{' (resume)' if args.resume else ''}, budget {args.max_requests} requests ===")
+    mode = "single-source" if args.single_source else "4 slices"
+    print(f"\n=== Tender Service backfill ({mode}): {start} .. {end}"
+          f"{' (resume)' if args.resume else ''}, budget {args.max_requests} requests, "
+          f"{args.min_interval}s between requests ===")
     with Database() as db:
         final_status = "done"
         try:
-            client = tg.TsgClient(key, max_requests=args.max_requests)
-            s = tg.backfill(db, client, start, end, resume=args.resume,
-                            project=not args.skip_project)
+            client = tg.TsgClient(key, max_requests=args.max_requests, min_interval=args.min_interval)
+            if args.single_source:
+                # Store only: projection is offline (tsg-project), spec §5a.
+                s = tg.backfill_single_source(db, client, start, end, resume=args.resume)
+            else:
+                s = tg.backfill(db, client, start, end, resume=args.resume,
+                                project=not args.skip_project)
         except BaseException:
             final_status = "error"
             raise
@@ -1507,6 +1513,12 @@ def main():
                             "TSG_MAX_REQUESTS)")
     p_gbf.add_argument("--skip-project", action="store_true",
                        help="store only; don't project into procurement_act (defer to tsg-project)")
+    p_gbf.add_argument("--single-source", action="store_true",
+                       help="trial mode: newest day first, one ACTIVE_AND_EXPIRED walk per day "
+                            "(split by document type over the offset cap), store only")
+    p_gbf.add_argument("--min-interval", type=float,
+                       default=float(os.environ.get("TSG_MIN_INTERVAL", "0") or 0),
+                       help="seconds between two API requests (default 0; TSG_MIN_INTERVAL)")
     p_gbf.set_defaults(func=cmd_tsg_backfill)
 
     p_gcu = sub.add_parser("tsg-catchup",

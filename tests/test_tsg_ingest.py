@@ -519,3 +519,149 @@ def test_tender_service_acts_are_out_of_analytics(tdb):
                              FROM proc.procurement_act WHERE adam = ANY(%s)""",
                           (["TSG:900000199", NATIVE_ADAM],)))
     assert rows == {"TSG:900000199": False, NATIVE_ADAM: True}
+
+
+# --------------------------------------------------------------------------- #
+# single-source trial (docs/specs/tender-service-single-source.md §5)
+# --------------------------------------------------------------------------- #
+class FakeClock:
+    def __init__(self):
+        self.t = 1000.0
+
+    def __call__(self):
+        return self.t
+
+
+def _paced_client(responses, **kw):
+    clock = FakeClock()
+    sleeps: list = []
+
+    def sleep(s):
+        sleeps.append(s)
+        clock.t += s
+    c = tg.TsgClient(KEY, session=FakeSession(responses), sleep=sleep, clock=clock, **kw)
+    c.sleeps = sleeps
+    return c
+
+
+def test_every_single_source_slice_asks_for_both_statuses():
+    # A bare query means ACTIVE only: a day four weeks back loses ~94% of it.
+    assert tg.SINGLE_SOURCE_SLICES
+    assert all(p["status"] == "ACTIVE_AND_EXPIRED" for p in tg.SINGLE_SOURCE_SLICES.values())
+    assert {p.get("typeOfDocument") for p in tg.TYPE_PUBLICATION.values()} == set(tg.DOCUMENT_TYPES)
+    assert len(tg.DOCUMENT_TYPES) == 14 and "PAYMENT_ORDER" in tg.DOCUMENT_TYPES
+    p = tg.window_params("pub:all", DAY)
+    assert (p["publicationDate_from"], p["publicationDate_to"]) == ("04.08.26", "05.08.26")
+    assert "lastUpdated_from" not in p
+
+
+def test_a_date_filter_never_carries_a_time():
+    # A time makes the API ignore the filter and answer with the whole archive.
+    for kind in tg.SLICES:
+        for k, v in tg.window_params(kind, DAY).items():
+            if k.endswith(("_from", "_to")):
+                assert len(v) == 8 and " " not in v and "T" not in v
+
+
+def test_requests_are_spaced_by_the_minimum_interval():
+    c = _paced_client([_page(range(10), 30), _page(range(10, 20), 30), _page(range(20, 30), 30)],
+                      min_interval=4.0)
+    c.walk({}, lambda page: None)
+    assert c.sleeps == [4.0, 4.0]
+
+
+def test_no_interval_means_no_pacing_sleep():
+    c = _paced_client([_page(range(10), 20), _page(range(10, 20), 20)])
+    c.walk({}, lambda page: None)
+    assert c.sleeps == []
+
+
+def test_a_429_waits_the_whole_reset_not_the_short_backoff():
+    c = _paced_client([FakeResp(429, text="slow down",
+                                headers={"Rate-Limit-Remaining": "All requests consumed, so it will take 90 seconds to reset"}),
+                       _page([1], 1)])
+    assert c.walk({}, lambda page: None) == (1, 1)
+    assert c.sleeps == [90]
+
+
+def test_a_429_without_a_reset_waits_at_least_a_minute():
+    c = _paced_client([FakeResp(429, text="slow down"), _page([1], 1)])
+    c.walk({}, lambda page: None)
+    assert c.sleeps == [tg.TOO_MANY_WAIT]
+
+
+def test_repeated_429s_stop_the_run_instead_of_knocking_again():
+    c = _paced_client([FakeResp(429, text="slow down")] * tg.MAX_ATTEMPTS)
+    with pytest.raises(tg.QuotaExhausted):
+        c.walk({}, lambda page: None)
+    assert len(c.session.calls) == tg.MAX_ATTEMPTS
+
+
+def _ss_answer(per_day):
+    """per_day: day-string → {None: answer for the all-types walk, 'TENDER': ..., ...}."""
+    def answer(p):
+        return per_day.get(p["publicationDate_from"], {}).get(p.get("typeOfDocument"), [])
+    return answer
+
+
+def test_single_source_walks_newest_day_first_once_per_day_and_stores_only(tdb):
+    d1, d2 = DAY, DAY + dt.timedelta(days=1)
+    client = FakeClient(_ss_answer({"04.08.26": {None: [_rec()]},
+                                    "05.08.26": {None: [_award(publicationDate="05.08.26")]}}))
+    s = tg.backfill_single_source(tdb, client, d1, d2, resume=False, today=TODAY)
+    assert [p["publicationDate_from"] for p in client.params] == ["05.08.26", "04.08.26"]
+    assert all(p["status"] == "ACTIVE_AND_EXPIRED" and "typeOfDocument" not in p for p in client.params)
+    assert s["done"] == 2 and s["stored"] == {"new": 2} and s["split_days"] == 0
+    # Stored, not projected: projection is the offline step.
+    assert _one(tdb, "SELECT count(*) FROM proc.tsg_record") == (2,)
+    assert _one(tdb, "SELECT count(*) FROM proc.procurement_act WHERE adam LIKE 'TSG:%%'") == (0,)
+    assert tg.backfill_single_source(tdb, client, d1, d2, resume=True, today=TODAY)["skipped"] == 2
+    assert len(client.params) == 2
+
+
+def test_a_day_over_the_cap_is_walked_per_type_and_the_gap_recorded(tdb):
+    day = {None: tg.OverCap(12_000), "TENDER": ([_rec()], 1),
+           "RESULT": ([_award()], 1)}
+    client = FakeClient(_ss_answer({"04.08.26": day}))
+    s = tg.backfill_single_source(tdb, client, DAY, DAY, resume=False, today=TODAY)
+    assert s["split_days"] == 1 and s["over_cap"] == 0 and s["done"] == 14
+    assert {p.get("typeOfDocument") for p in client.params} == {None, *tg.DOCUMENT_TYPES}
+    assert s["type_gap"] == {"2026-08-04": 12_000 - 2}
+    assert "gap 11998" in _one(tdb, "SELECT last_error FROM proc.tsg_ingest_window "
+                                    "WHERE kind = 'pub:all' AND day = %s", DAY)[0]
+    # Resume: the split day is finished, so nothing is asked again — not even the all-types page.
+    n = len(client.params)
+    assert tg.backfill_single_source(tdb, client, DAY, DAY, resume=True, today=TODAY)["skipped"] == 14
+    assert len(client.params) == n
+
+
+def test_a_split_day_stopped_halfway_resumes_with_the_missing_types_only(tdb):
+    calls = {"n": 0}
+
+    def answer(p):
+        if p.get("typeOfDocument") is None:
+            return tg.OverCap(12_000)
+        calls["n"] += 1
+        if calls["n"] == 3:
+            return tg.QuotaExhausted("budget")
+        return []
+    client = FakeClient(answer)
+    s = tg.backfill_single_source(tdb, client, DAY, DAY, resume=False, today=TODAY)
+    assert s["stopped"]
+    before = len(client.params)
+    calls["n"] = 100   # no more stops
+    s2 = tg.backfill_single_source(tdb, client, DAY, DAY, resume=True, today=TODAY)
+    asked = [p.get("typeOfDocument") for p in client.params[before:]]
+    assert None not in asked                      # the over-cap answer is remembered
+    assert len(asked) == 14 - 2                   # the two types already done are skipped
+    assert s2["split_days"] == 1
+
+
+def test_an_empty_day_is_not_believed_and_walked_again(tdb):
+    client = FakeClient(lambda p: [])
+    s = tg.backfill_single_source(tdb, client, DAY, DAY, resume=False, today=TODAY)
+    assert s["errored"] == 1 and s["done"] == 0
+    assert _one(tdb, "SELECT status FROM proc.tsg_ingest_window WHERE kind = 'pub:all' AND day = %s",
+                DAY) == ("error",)
+    tg.backfill_single_source(tdb, client, DAY, DAY, resume=True, today=TODAY)
+    assert len(client.params) == 2

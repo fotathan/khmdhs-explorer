@@ -94,6 +94,12 @@ RATE_LIMIT_FLOOR = 20
 MAX_ATTEMPTS = 4
 TIMEOUT = (10, 60)
 DEFAULT_MAX_REQUESTS = int(os.environ.get("TSG_MAX_REQUESTS", "2000"))
+# Seconds between two requests. 0 = as fast as the rate limit allows (bursts of
+# ~280, then a wait). The single-source trial runs at 4.0: 150 / 10 min, half
+# the key's 300 / 10 min, so a long backfill never runs the limit down.
+DEFAULT_MIN_INTERVAL = float(os.environ.get("TSG_MIN_INTERVAL", "0") or 0)
+# On a 429 we wait at least this long, not the short retry backoff.
+TOO_MANY_WAIT = 60
 PROJECT_BATCH = 500
 
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
@@ -112,7 +118,26 @@ UPDATED_SLICES = {
     "upd:active": {},
     "upd:expired": {"status": "EXPIRED"},
 }
-SLICES = {**PUBLICATION_SLICES, **UPDATED_SLICES}
+
+# Single-source mode (docs/specs/tender-service-single-source.md §5). One walk per
+# day with BOTH statuses, because a bare query means ACTIVE only (a day four weeks
+# back loses ~94% of its notices) and two filtered walks miss a record that
+# switches status mid-walk. A day over the offset cap is walked again per
+# document type. The enum is the API's own: an unknown value is a 400, not
+# "ignored", and ACTIVE_AND_EXPIRED was measured to equal ACTIVE + EXPIRED.
+STATUS_ALL = "ACTIVE_AND_EXPIRED"
+DOCUMENT_TYPES = ("TENDER", "PRIOR_INFORMATION", "CORRECTION_CANCELLATION", "RESULT",
+                  "OTHER_INFORMATION", "PROCUREMENT_PLAN", "CORRECTION", "CANCELLATION",
+                  "PAYMENT_ORDER", "CONSULTATION", "CONTRACT", "BUDGET", "DECISION", "LOT")
+ALL_PUBLICATION = "pub:all"
+TYPE_PUBLICATION = {f"pub:type:{t.lower()}": {"status": STATUS_ALL, "typeOfDocument": t}
+                    for t in DOCUMENT_TYPES}
+SINGLE_SOURCE_SLICES = {ALL_PUBLICATION: {"status": STATUS_ALL}, **TYPE_PUBLICATION}
+# A whole publication day with nothing in it is not believed: a renamed status
+# value answers 0, and 0 is also what a silently broken filter would look like.
+SUSPECT_IF_EMPTY = {ALL_PUBLICATION}
+
+SLICES = {**PUBLICATION_SLICES, **UPDATED_SLICES, **SINGLE_SOURCE_SLICES}
 
 ADAM_RE = re.compile(r"^\d{2}(?:PROC|REQ|AWRD|SYMV|PAY)\d{6,}$")
 # Tender Service appends a timestamp to a Diavgeia ΑΔΑ: '94ΩΕ46907Τ-ΚΜΗ-09-11143505'.
@@ -450,10 +475,13 @@ class OverCap(RuntimeError):
 
 class TsgClient:
     def __init__(self, key: str, base: str = PROD_BASE, max_requests: int = DEFAULT_MAX_REQUESTS,
-                 session=None, sleep=time.sleep):
+                 session=None, sleep=time.sleep, min_interval: float = DEFAULT_MIN_INTERVAL,
+                 clock=time.monotonic):
         self.key, self.base, self.max_requests = key, base, max_requests
         self.session = session or requests.Session()
-        self.sleep = sleep
+        self.sleep, self.clock = sleep, clock
+        self.min_interval = max(0.0, min_interval)
+        self._last_sent: float | None = None
         self.spent = 0
         self.page_size = START_PAGE_SIZE
         self.remaining: int | None = None
@@ -467,9 +495,11 @@ class TsgClient:
             self.remaining = None
         params = {k: v for k, v in params.items() if v not in (None, "")}
         last = "no attempt"
+        too_many = 0
         for attempt in range(1, MAX_ATTEMPTS + 1):
             if self.spent >= self.max_requests:
                 raise QuotaExhausted(f"this run's budget of {self.max_requests} requests is spent")
+            self._pace()
             self.spent += 1
             try:
                 # The key goes in a header, never in a URL that could be logged.
@@ -495,9 +525,28 @@ class TsgClient:
                         raise ApiError(resp.status_code, text,
                                        f"{resp.status_code} on {path}: {(reason or text)[:200]}")
                     last = f"{resp.status_code} {(reason or text)[:120]}"
+                    if resp.status_code == 429:
+                        # Told to slow down: wait the whole reset, never the short backoff.
+                        too_many += 1
+                        wait = max(TOO_MANY_WAIT, self.reset or 0)
+                        print(f"  [tsg] 429 from the API; waiting {wait}s", flush=True)
+                        self.sleep(wait)
+                        self.remaining = None
+                        continue
             if attempt < MAX_ATTEMPTS:
                 self.sleep(2 ** attempt * (0.5 + random.random()))
+        if too_many == MAX_ATTEMPTS:
+            # Still refused after waiting each time: stop the run, do not keep knocking.
+            raise QuotaExhausted(f"the API answered 429 {too_many} times in a row; stopping")
         raise ApiError(None, last, f"{path} failed after {MAX_ATTEMPTS} attempts: {last}")
+
+    def _pace(self) -> None:
+        """Keep at least min_interval seconds between two requests."""
+        if self.min_interval and self._last_sent is not None:
+            wait = self.min_interval - (self.clock() - self._last_sent)
+            if wait > 0:
+                self.sleep(wait)
+        self._last_sent = self.clock()
 
     def check_date_format(self) -> str | None:
         body = self._get("/branch/dateFormat", {})
@@ -621,10 +670,11 @@ def run_windows(db, client, kinds: list[str], days: list[dt.date], *, resume: bo
     s = _summary()
     done: set = set()
     if resume and days:
+        # min/max, not first/last: the single-source backfill walks newest first.
         done = {(k, d) for k, d in db.query(
             """SELECT kind, day FROM proc.tsg_ingest_window
                WHERE status = 'done' AND kind = ANY(%s) AND day BETWEEN %s AND %s""",
-            (list(kinds), days[0], days[-1]))}
+            (list(kinds), min(days), max(days)))}
     for day in days:
         for kind in kinds:
             s["windows"] += 1
@@ -663,6 +713,14 @@ def run_windows(db, client, kinds: list[str], days: list[dt.date], *, resume: bo
                 s["stored"].update(counts)
                 print(f"[tsg] {kind} {day} ERROR: {e}", flush=True)
                 continue
+            if kind in SUSPECT_IF_EMPTY and not total and not fetched:
+                _window_finish(db, kind, day, "error", counts, client.spent - spent_before,
+                               total=total, fetched=fetched,
+                               error="no records for a whole day: not believed (a renamed "
+                                     "status value also answers 0); walked again next run")
+                s["errored"] += 1
+                print(f"[tsg] {kind} {day} SUSPECT: no records at all", flush=True)
+                continue
             if total is not None and fetched < total:
                 status = "incomplete"
             elif day >= today:
@@ -698,6 +756,72 @@ def backfill(db, client, start: dt.date, end: dt.date, *, resume: bool = True,
         s["projection"] = project_all(db, today=today, trigger="tsg-backfill")
     s["requests"] = client.spent
     return s
+
+
+def _windows_by_status(db, kinds, days) -> dict:
+    rows = db.query("""SELECT kind, day, status, total FROM proc.tsg_ingest_window
+                       WHERE kind = ANY(%s) AND day BETWEEN %s AND %s""",
+                    (list(kinds), min(days), max(days)))
+    return {(k, d): (st, tot) for k, d, st, tot in rows}
+
+
+def backfill_single_source(db, client, start: dt.date, end: dt.date, *, resume: bool = True,
+                           today: dt.date | None = None) -> dict:
+    """The trial's backfill (spec §5a): newest day first, one ACTIVE_AND_EXPIRED
+    walk per publication day, and per document type for a day over the offset
+    cap. Stores into tsg_record only. Projection is a separate, offline step
+    (tsg-project): it can be redone any number of times without one request."""
+    today = today or dt.date.today()
+    days = sorted(_days(start, min(end, today)), reverse=True)
+    out = _summary()
+    out["from"], out["to"], out["split_days"], out["type_gap"] = start, min(end, today), 0, {}
+    if not days:
+        out["requests"] = client.spent
+        return out
+    client.check_date_format()
+    type_kinds = list(TYPE_PUBLICATION)
+
+    def merge(s):
+        for k in ("windows", "skipped", "done", "partial", "incomplete", "over_cap", "errored"):
+            out[k] += s[k]
+        out["stored"].update(s["stored"])
+        out["stopped"] = out["stopped"] or s["stopped"]
+
+    for day in days:
+        state = _windows_by_status(db, [ALL_PUBLICATION, *type_kinds], [day]) if resume else {}
+        whole = state.get((ALL_PUBLICATION, day), (None, None))
+        if whole[0] == "done":
+            out["windows"] += 1
+            out["skipped"] += 1
+            continue
+        if whole[0] != "over_cap":
+            s = run_windows(db, client, [ALL_PUBLICATION], [day], resume=False, today=today)
+            merge(s)
+            if s["stopped"]:
+                break
+            whole = _windows_by_status(db, [ALL_PUBLICATION], [day]).get((ALL_PUBLICATION, day), (None, None))
+            if whole[0] != "over_cap":
+                continue
+            # The over-cap window is the day's split marker, not a failure.
+            out["over_cap"] -= 1
+        out["split_days"] += 1
+        s = run_windows(db, client, type_kinds, [day], resume=resume, today=today)
+        merge(s)
+        if s["stopped"]:
+            break
+        typed = _windows_by_status(db, type_kinds, [day])
+        if all(typed.get((k, day), ("", 0))[0] in ("done", "partial") for k in type_kinds):
+            got = sum(t or 0 for _, t in typed.values())
+            gap = (whole[1] or 0) - got
+            out["type_gap"][day.isoformat()] = gap
+            # Records without one of the 14 types cannot be fetched by type; say so.
+            db.execute("""UPDATE proc.tsg_ingest_window SET last_error = %s
+                          WHERE kind = %s AND day = %s""",
+                       (f"split by document type: the types hold {got} of {whole[1]} "
+                        f"(gap {gap})", ALL_PUBLICATION, day))
+            db.commit()
+    out["requests"] = client.spent
+    return out
 
 
 def catchup(db, client, *, start: dt.date | None = None, overlap_days: int = 1,
@@ -951,6 +1075,10 @@ def format_summary(s: dict) -> str:
              "records: " + (", ".join(f"{k}={v}" for k, v in sorted(s["stored"].items())) or "none")]
     if "requests" in s:
         lines.append(f"requests spent: {s['requests']}")
+    if s.get("split_days"):
+        gaps = {d: g for d, g in s.get("type_gap", {}).items() if g}
+        lines.append(f"days split by document type: {s['split_days']}"
+                     + (f"; records outside the 14 types: {gaps}" if gaps else ""))
     if s.get("projection") is not None:
         proj = {k: v for k, v in s["projection"].items() if k != "matching"}
         lines.append("projection: " + ", ".join(f"{k}={v}" for k, v in sorted(proj.items())))
