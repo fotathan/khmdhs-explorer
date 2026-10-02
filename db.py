@@ -1151,6 +1151,16 @@ def cmd_tsg_catchup(args):
 def cmd_tsg_project(args):
     """Project stored Tender Service records into procurement_act (no API calls)."""
     tg, _ = _tsg_setup(need_key=False)
+    if getattr(args, "single_source", False):
+        with Database() as db:
+            out = tg.project_single_source(db, limit=args.limit, reproject=args.reproject)
+        labels = out.pop("unknown_labels", {})
+        print("Tender Service projection (single-source): "
+              + (", ".join(f"{k}={v}" for k, v in sorted(out.items())) or "nothing to do"))
+        if labels:
+            print(f"labels with no act type (imported as notice): {labels}")
+        out["unknown_labels"] = labels
+        return out
     with Database() as db:
         out = tg.project_all(db, limit=args.limit, reproject=args.reproject)
     import tsg_match as tm
@@ -1536,6 +1546,9 @@ def main():
     p_gp2.add_argument("--reproject", action="store_true",
                        help="revisit every stored record, not only changed ones "
                             "(after a mapping or scope rule change)")
+    p_gp2.add_argument("--single-source", action="store_true",
+                       help="trial mode: key acts by ΑΔΑΜ / ΑΔΑ / TED id where the record "
+                            "names one (spec §3); no duplicate matching")
     p_gp2.set_defaults(func=cmd_tsg_project)
 
     p_gm = sub.add_parser("tsg-match",

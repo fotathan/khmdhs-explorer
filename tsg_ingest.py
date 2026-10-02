@@ -1068,6 +1068,132 @@ def project_all(db, *, limit: int | None = None, today: dt.date | None = None,
     return result
 
 
+# --------------------------------------------------------------------------- #
+# single-source projection (trial, spec §3) — no duplicate matching: there is
+# no second source to be a duplicate of.
+# --------------------------------------------------------------------------- #
+# The ΑΔΑΜ names its own kind; it decides the act type before any label does.
+ADAM_KIND_TYPE = {"REQ": "request", "PROC": "notice", "AWRD": "auction",
+                  "SYMV": "contract", "PAY": "payment"}
+_ADAM_KIND = re.compile(r"^\d{2}([A-Z]+)\d")
+
+
+def single_source_key(internal: str, r: dict) -> tuple[str, str]:
+    """(our key, which identity it is). The key an act already has in our other
+    ingesters, so favourites, alert history and URLs survive (spec §3):
+    ΑΔΑΜ → the ΑΔΑΜ; Diavgeia → the bare ΑΔΑ; TED → 'TED:n-yyyy'; else TSG:id."""
+    ext = str(r.get("externalId") or "").strip()
+    for kind, key in (("adam", adam_of(ext)), ("ada", ada_of(ext)),
+                      ("ted", ted_of(ext, r.get("sourceUrl")))):
+        if key:
+            return key, kind
+    return PREFIX + internal, "tsg"
+
+
+def single_source_type(key: str, kind: str, r: dict) -> tuple[str, bool]:
+    """(act type, known). The ΑΔΑΜ kind first; otherwise the display label."""
+    if kind == "adam":
+        m = _ADAM_KIND.match(key)
+        if m and m.group(1) in ADAM_KIND_TYPE:
+            return ADAM_KIND_TYPE[m.group(1)], True
+    return type_of(r.get("typeOfDocument"))
+
+
+def _project_single(cur, internal: str, r: dict, h: str, caches: dict,
+                    today: dt.date | None) -> str:
+    key, kind = single_source_key(internal, r)
+    if outside_greece(r):
+        cur.execute("""DELETE FROM proc.procurement_act
+                       WHERE adam = (SELECT projected_adam FROM proc.tsg_record WHERE internal_id = %s)
+                         AND data_source = 'tsg' AND origin = 'import'""", (internal,))
+        cur.execute("""UPDATE proc.tsg_record
+                       SET projected_adam = NULL, projected_hash = %s, projection_error = NULL,
+                           skip_reason = %s, projected_at = now()
+                       WHERE internal_id = %s""", (h, OUTSIDE_GREECE, internal))
+        return "out_of_scope"
+    # A record whose identity changed (externalId corrected) leaves its old act behind.
+    cur.execute("SELECT projected_adam FROM proc.tsg_record WHERE internal_id = %s", (internal,))
+    old = cur.fetchone()
+    if old and old[0] and old[0] != key:
+        cur.execute("""DELETE FROM proc.procurement_act
+                       WHERE adam = %s AND data_source = 'tsg' AND origin = 'import'""", (old[0],))
+    # Two records claiming one key (a notice published twice, a re-issued
+    # Diavgeia decision): the first one projected keeps it, the other is
+    # recorded, never silently merged.
+    cur.execute("""SELECT internal_id FROM proc.tsg_record
+                   WHERE projected_adam = %s AND internal_id <> %s LIMIT 1""", (key, internal))
+    holder = cur.fetchone()
+    if holder:
+        cur.execute("""UPDATE proc.tsg_record
+                       SET projected_adam = NULL, projected_hash = %s, projection_error = NULL,
+                           skip_reason = %s, projected_at = now()
+                       WHERE internal_id = %s""", (h, f"same key {key} as {holder[0]}", internal))
+        return "same_key"
+    cols, extras = map_record(r, today)
+    cols["adam"] = key
+    cols["type"], known = single_source_type(key, kind, r)
+    if not known:
+        caches["unknown_labels"][r.get("typeOfDocument")] += 1
+    if cols["nuts_code"] and not nuts_known(cur, cols["nuts_code"], caches["nuts"]):
+        cols["nuts_code"] = None
+    cols["authority_id"] = authority_id(cur, extras["authority"], caches["authority"])
+    cols["raw_json"] = _as_jsonb(payload(r))
+    written = upsert_act(cur, cols)
+    if written:
+        replace_cpvs(cur, key, cols, extras["cpvs"])
+        replace_winners(cur, key, extras["winners"])
+    cur.execute("""UPDATE proc.tsg_record
+                   SET projected_adam = %s, projected_hash = %s, projection_error = NULL,
+                       skip_reason = NULL, projected_at = now()
+                   WHERE internal_id = %s""", (key if written else None, h, internal))
+    if not written:
+        return "authored"
+    return f"{written}:{kind}"
+
+
+def project_single_source(db, *, limit: int | None = None, today: dt.date | None = None,
+                          reproject: bool = False) -> dict:
+    """Project every stored record whose content changed since its last
+    projection, under the single-source key rule. No API calls. Newest
+    publication first, so a key collision is decided the same way every run."""
+    today = today or dt.date.today()
+    out: collections.Counter = collections.Counter()
+    if reproject:
+        db.execute("UPDATE proc.tsg_record SET projected_hash = NULL WHERE projected_hash IS NOT NULL")
+        db.commit()
+    caches: dict = {"authority": {}, "nuts": {}, "unknown_labels": collections.Counter()}
+    remaining = limit
+    while remaining is None or remaining > 0:
+        n = PROJECT_BATCH if remaining is None else min(PROJECT_BATCH, remaining)
+        rows = db.query("""SELECT internal_id, raw_json, content_hash FROM proc.tsg_record
+                           WHERE projected_hash IS DISTINCT FROM content_hash
+                           ORDER BY publication_date DESC NULLS LAST, internal_id
+                           LIMIT %s""", (n,))
+        if not rows:
+            break
+        for internal, raw, h in rows:
+            raw = raw if isinstance(raw, dict) else json.loads(raw)
+            db.cur.execute("SAVEPOINT tsg_single")
+            try:
+                outcome = _project_single(db.cur, internal, raw, h, caches, today)
+                db.cur.execute("RELEASE SAVEPOINT tsg_single")
+            except Exception as e:  # noqa: BLE001 — recorded on the row
+                db.cur.execute("ROLLBACK TO SAVEPOINT tsg_single")
+                caches["authority"], caches["nuts"] = {}, {}
+                db.cur.execute("""UPDATE proc.tsg_record
+                                  SET projected_hash = %s, projection_error = %s, projected_at = now()
+                                  WHERE internal_id = %s""",
+                               (h, f"{type(e).__name__}: {e}"[:500], internal))
+                outcome = "error"
+            out[outcome] += 1
+        db.commit()
+        if remaining is not None:
+            remaining -= len(rows)
+    result = dict(out)
+    result["unknown_labels"] = dict(caches["unknown_labels"])
+    return result
+
+
 def format_summary(s: dict) -> str:
     lines = [f"windows={s['windows']} done={s['done']} partial={s['partial']} "
              f"incomplete={s['incomplete']} over_cap={s['over_cap']} errored={s['errored']} "

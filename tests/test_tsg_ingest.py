@@ -665,3 +665,81 @@ def test_an_empty_day_is_not_believed_and_walked_again(tdb):
                 DAY) == ("error",)
     tg.backfill_single_source(tdb, client, DAY, DAY, resume=True, today=TODAY)
     assert len(client.params) == 2
+
+
+# --------------------------------------------------------------------------- #
+# single-source projection (spec §3)
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("ext,url,key,kind", [
+    ("26PROC019000777", None, "26PROC019000777", "adam"),
+    ("94ΩΕ46907Τ-ΚΜΗ-09-11143505", None, "94ΩΕ46907Τ-ΚΜΗ", "ada"),
+    ("TED.00538898-2026", None, "TED:538898-2026", "ted"),
+    ("attik-26-0000001", None, "TSG:900000101", "tsg"),
+    (None, None, "TSG:900000101", "tsg"),
+])
+def test_the_single_source_key_is_the_id_our_other_ingesters_use(ext, url, key, kind):
+    assert tg.single_source_key("900000101", {"externalId": ext, "sourceUrl": url}) == (key, kind)
+
+
+@pytest.mark.parametrize("adam,typ", [("26REQ019700909", "request"), ("26PROC019739253", "notice"),
+                                      ("26AWRD019000001", "auction"), ("26SYMV019000001", "contract"),
+                                      ("26PAY019000001", "payment")])
+def test_the_adam_kind_decides_the_type_before_the_label(adam, typ):
+    assert tg.single_source_type(adam, "adam", {"typeOfDocument": "Προκήρυξη"}) == (typ, True)
+
+
+def test_without_an_adam_the_label_decides_and_an_unknown_one_is_counted():
+    assert tg.single_source_type("ΨΨΨΨ46ΜΤΛΡ-ΑΒΓ", "ada", {"typeOfDocument": "Αποτέλεσμα"}) == ("auction", True)
+    assert tg.single_source_type("TSG:1", "tsg", {"typeOfDocument": "Κάτι νέο"}) == ("notice", False)
+
+
+def _store(d, *recs):
+    for r in recs:
+        tg.upsert_record(d, r, TODAY)
+    d.commit()
+
+
+def test_single_source_projection_keys_acts_by_their_own_ids(tdb):
+    adam = "26PROC019000777"
+    _store(tdb, _rec(internalID="900000201", externalId=adam, dataSource="eprocurement-gov-gr"),
+           _award(internalID="900000202"), _rec(internalID="900000203"))
+    out = tg.project_single_source(tdb, today=TODAY)
+    assert out["inserted:adam"] == 1 and out["inserted:ada"] == 1 and out["inserted:tsg"] == 1
+    assert _one(tdb, "SELECT type, data_source FROM proc.procurement_act WHERE adam = %s", adam) == ("notice", "tsg")
+    assert _one(tdb, "SELECT type FROM proc.procurement_act WHERE adam = %s", "9ΖΖΖΖ46-ΑΒΓ") == ("auction",)
+    assert _one(tdb, "SELECT 1 FROM proc.procurement_act WHERE adam = %s", "TSG:900000203") == (1,)
+    assert _one(tdb, "SELECT projected_adam FROM proc.tsg_record WHERE internal_id = %s", "900000201") == (adam,)
+    assert tg.project_single_source(tdb, today=TODAY) == {"unknown_labels": {}}   # nothing changed
+    tdb.execute("DELETE FROM proc.procurement_act WHERE adam = ANY(%s)", ([adam, "9ΖΖΖΖ46-ΑΒΓ"],))
+    tdb.commit()
+
+
+def test_two_records_with_one_key_keep_the_first_and_record_the_second(tdb):
+    adam = "26PROC019000778"
+    _store(tdb, _rec(internalID="900000211", externalId=adam, publicationDate="05.08.26"),
+           _rec(internalID="900000212", externalId=adam, publicationDate="04.08.26"))
+    out = tg.project_single_source(tdb, today=TODAY)
+    assert out["inserted:adam"] == 1 and out["same_key"] == 1
+    # Newest publication first, so the same record wins every run.
+    assert _one(tdb, "SELECT projected_adam FROM proc.tsg_record WHERE internal_id = '900000211'") == (adam,)
+    assert _one(tdb, "SELECT skip_reason FROM proc.tsg_record WHERE internal_id = '900000212'") == (
+        f"same key {adam} as 900000211",)
+    tdb.execute("DELETE FROM proc.procurement_act WHERE adam = %s", (adam,))
+    tdb.commit()
+
+
+def test_a_corrected_external_id_moves_the_act_to_its_new_key(tdb):
+    _store(tdb, _rec(internalID="900000221"))
+    tg.project_single_source(tdb, today=TODAY)
+    _store(tdb, _rec(internalID="900000221", externalId="26PROC019000779", title="Διορθωμένο"))
+    tg.project_single_source(tdb, today=TODAY)
+    assert _one(tdb, "SELECT 1 FROM proc.procurement_act WHERE adam = 'TSG:900000221'") is None
+    assert _one(tdb, "SELECT title FROM proc.procurement_act WHERE adam = '26PROC019000779'") == ("Διορθωμένο",)
+    tdb.execute("DELETE FROM proc.procurement_act WHERE adam = '26PROC019000779'")
+    tdb.commit()
+
+
+def test_single_source_projection_keeps_cyprus_out(tdb):
+    _store(tdb, _rec(internalID="900000231", nutsCodes="CY000"))
+    assert tg.project_single_source(tdb, today=TODAY)["out_of_scope"] == 1
+    assert _one(tdb, "SELECT 1 FROM proc.procurement_act WHERE adam = 'TSG:900000231'") is None
