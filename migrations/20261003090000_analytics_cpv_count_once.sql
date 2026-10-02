@@ -75,12 +75,16 @@ CREATE MATERIALIZED VIEW proc.mv_analytics_cpv AS
                OR proc.resolved_value(a.adam, a.total_cost_with_vat) IS NULL
                OR proc.resolved_value(a.adam, a.total_cost_with_vat) <= proc.analytics_value_ceiling())
           -- A notice replaced by a later amendment counts only as that amendment.
-          AND NOT (a.type = 'notice'::proc.act_type
-                   AND EXISTS (SELECT 1 FROM proc.procurement_act n
-                               WHERE n.amended_adam = a.adam
-                                 AND n.adam <> a.adam
-                                 AND n.type = 'notice'::proc.act_type
-                                 AND NOT n.cancelled))
+          -- Written as a plain top-level NOT EXISTS (the a.type test inside) so
+          -- the planner makes it ONE hash anti-join. `NOT (type = notice AND
+          -- EXISTS ...)` became a per-row SubPlan: a sequential scan of every
+          -- act for every item line (EXPLAIN on the local database, 2026-10-02).
+          AND NOT EXISTS (SELECT 1 FROM proc.procurement_act n
+                          WHERE n.amended_adam = a.adam
+                            AND a.type = 'notice'::proc.act_type
+                            AND n.adam <> a.adam
+                            AND n.type = 'notice'::proc.act_type
+                            AND NOT n.cancelled)
     ), agg AS (
         SELECT items.division,
                count(DISTINCT items.adam) FILTER (WHERE items.type = 'contract'::proc.act_type) AS contract_count,
