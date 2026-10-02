@@ -610,6 +610,26 @@ PID in `runs/phase2.pid`, log `runs/phase2_september.log`.
   - To compare awards/contracts/payments, either catch our local KHMDHS up
     first or add a July month to the trial.
 
+### 9c. Analytics switched on for the trial (2026-10-02)
+- Migration `20261002220000_analytics_sources_switch.sql`:
+  - The allowlist becomes `proc.analytics_sources()` = {khmdhs, manual}, plus
+    tsg **only where the database sets `khmdhs.single_source = 'on'`**.
+  - `is_analytics_eligible` and `mv_analytics_cpv` read it.
+  - Still an allowlist, and identical results wherever the setting is absent.
+  - Applied to `procurement_tsg` only, with `migrate.py up --only`. **Not on
+    `procurement`, not on Supabase.**
+- `ALTER DATABASE procurement_tsg SET khmdhs.single_source = 'on'`, then
+  `refresh_analytics()`, then restart the trial server (the setting applies to
+  new connections).
+- The competition views keep their own `khmdhs` filter: they need
+  `bids_submitted`, which Tender Service doesn't fill.
+- Seen on the first data, to check in phase 4:
+  - **CPV 22** (printed matter) shows €3.7B from 361 notices, probably a value
+    parsing or outlier problem. The value ceiling only applies to contracts.
+  - Tender Service labels Diavgeia contracts «Αποτέλεσμα», so they become
+    `auction`. Our Diavgeia ingester calls 37k of September's decisions
+    `contract`.
+
 ---
 
 ## 10. The decision at the end

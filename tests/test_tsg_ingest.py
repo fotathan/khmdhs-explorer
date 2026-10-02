@@ -28,7 +28,8 @@ MIGRATIONS = ["migrations/20260915090000_tender_service_source_tables.sql",
               "migrations/20260915090100_tender_service_analytics_exclusion.sql",
               "migrations/20260915120000_tender_service_skip_reason.sql",
               "migrations/20260917130323_tender_service_duplicates.sql",
-              "migrations/20260917130324_tender_service_duplicates_tsg_record.sql"]
+              "migrations/20260917130324_tender_service_duplicates_tsg_record.sql",
+              "migrations/20261002220000_analytics_sources_switch.sql"]
 NATIVE_ADAM = "26PROC019000001"
 NATIVE_ADA = "ΨΨΨΨ46ΜΤΛΡ-ΑΒΓ"
 FAKE_VAT = "999000111"
@@ -743,3 +744,28 @@ def test_single_source_projection_keeps_cyprus_out(tdb):
     _store(tdb, _rec(internalID="900000231", nutsCodes="CY000"))
     assert tg.project_single_source(tdb, today=TODAY)["out_of_scope"] == 1
     assert _one(tdb, "SELECT 1 FROM proc.procurement_act WHERE adam = 'TSG:900000231'") is None
+
+
+def test_tender_service_counts_for_analytics_only_where_the_database_switches_it_on(tdb):
+    tdb.execute("INSERT INTO proc.procurement_act (adam, type, title, origin, data_source) "
+                "VALUES ('TSG:900000198', 'notice', 'x', 'import', 'tsg')")
+    tdb.commit()
+    eligible = """SELECT proc.is_analytics_eligible('TSG:900000198', NULL, false),
+                         proc.is_analytics_eligible(%s, NULL, false)"""
+    assert _one(tdb, "SELECT proc.analytics_sources()") == (["khmdhs", "manual"],)
+    assert _one(tdb, eligible, NATIVE_ADAM) == (False, True)       # off by default: still an allowlist
+    tdb.execute("SET khmdhs.single_source = 'on'")
+    try:
+        assert _one(tdb, "SELECT proc.analytics_sources()") == (["khmdhs", "manual", "tsg"],)
+        assert _one(tdb, eligible, NATIVE_ADAM) == (True, True)
+        tdb.execute("SET khmdhs.single_source = 'yes'")              # only the exact word turns it on
+        assert _one(tdb, eligible, NATIVE_ADAM) == (False, True)
+    finally:
+        tdb.execute("RESET khmdhs.single_source")
+        tdb.commit()
+
+
+def test_the_analytics_switch_migration_has_no_do_blocks():
+    sql = (ROOT / "migrations/20261002220000_analytics_sources_switch.sql").read_text(encoding="utf-8")
+    code = "\n".join(l for l in sql.splitlines() if not l.lstrip().startswith("--"))
+    assert "DO $$" not in code and "ALTER DATABASE" not in code
