@@ -46,7 +46,8 @@ _SORT_TO_WEB = {
 }
 _WEB_SINGLE = (
     "q", "fulltext", "tables_q", "date_from", "date_to",
-    "deadline_from", "deadline_to", "value_min", "value_max", "status", "sort",
+    "deadline_from", "deadline_to", "value_min", "value_max", "bond_min", "bond_max",
+    "status", "sort",
 )
 _WEB_MULTI = (
     "type", "authority", "contract_type", "procedure_type", "nuts", "cpv",

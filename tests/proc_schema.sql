@@ -35,7 +35,8 @@ CREATE TYPE proc.act_type AS ENUM (
     'notice',
     'auction',
     'contract',
-    'payment'
+    'payment',
+    'prior_info'
 );
 
 
@@ -487,6 +488,18 @@ CREATE SEQUENCE proc.act_annotation_id_seq
 --
 
 ALTER SEQUENCE proc.act_annotation_id_seq OWNED BY proc.act_annotation.id;
+
+
+--
+-- Name: act_bid_bond_fill; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.act_bid_bond_fill (
+    adam text NOT NULL,
+    amount numeric NOT NULL,
+    internal_ids text[] NOT NULL,
+    filled_at timestamp with time zone DEFAULT now() NOT NULL
+);
 
 
 --
@@ -3645,6 +3658,14 @@ ALTER TABLE ONLY proc.act_annotation
 
 
 --
+-- Name: act_bid_bond_fill act_bid_bond_fill_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_bid_bond_fill
+    ADD CONSTRAINT act_bid_bond_fill_pkey PRIMARY KEY (adam);
+
+
+--
 -- Name: act_attachment act_attachment_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
 --
 
@@ -4750,6 +4771,13 @@ CREATE INDEX ix_act_type ON proc.procurement_act USING btree (type);
 
 
 --
+-- Name: ix_act_bid_bond; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_act_bid_bond ON proc.procurement_act USING btree (bid_bond_amount) WHERE (bid_bond_amount IS NOT NULL);
+
+
+--
 -- Name: ix_act_type_signed; Type: INDEX; Schema: proc; Owner: -
 --
 
@@ -5512,6 +5540,14 @@ ALTER TABLE ONLY proc.act_additional_contract_type
 
 ALTER TABLE ONLY proc.act_ai_summary
     ADD CONSTRAINT act_ai_summary_adam_fkey FOREIGN KEY (adam) REFERENCES proc.procurement_act(adam) ON DELETE CASCADE;
+
+
+--
+-- Name: act_bid_bond_fill act_bid_bond_fill_adam_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.act_bid_bond_fill
+    ADD CONSTRAINT act_bid_bond_fill_adam_fkey FOREIGN KEY (adam) REFERENCES proc.procurement_act(adam) ON DELETE CASCADE;
 
 
 --

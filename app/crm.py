@@ -93,6 +93,7 @@ _FILTER_LABELS = {
     "date_from": "από", "date_to": "έως",
     "deadline_from": "προθεσμία από", "deadline_to": "προθεσμία έως",
     "value_min": "αξία από", "value_max": "αξία έως",
+    "bond_min": "εγγύηση από", "bond_max": "εγγύηση έως",
     "status": "κατάσταση", "sort": "ταξινόμηση",
     "type": "είδος", "authority": "αναθέτουσα", "contract_type": "τύπος σύμβασης",
     "procedure_type": "διαδικασία", "nuts": "περιοχή", "cpv": "CPV",

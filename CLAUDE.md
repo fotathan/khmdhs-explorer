@@ -323,6 +323,24 @@ ingester's mapping.
 - /analytics is an ALLOWLIST (khmdhs, manual, NULL) in is_analytics_eligible and
   mv_analytics_cpv. Don't turn it back into a list of excluded sources.
 
+## Bid bond & «Προηγούμενες Πληροφορίες»
+- procurement_act.bid_bond_amount (Εγγύηση συμμετοχής): the manual form, a
+  Tender Service record's own bidBond, and the COPY step. EUR only, > 0.
+- tsg_ingest.sync_bid_bonds copies a bond onto the act we SHOW from a Tender
+  Service record hidden behind it (match_outcome 'hidden' only — a fuzzy flag
+  never writes into another source's act). Fill only if empty; copies that
+  disagree write nothing. proc.act_bid_bond_fill is the ledger: an undone match
+  clears the act only while it still holds exactly what we wrote. Runs at the
+  end of project_all and after _tsg_recheck.
+- The search filter (bond_min / bond_max) matches only acts that STATE a bond:
+  unknown is not zero. It is shown only once some act has one (lk.has_bid_bond).
+- act_type 'prior_info' = Tender Service's «Προηγούμενες Πληροφορίες», for
+  every record with that label (owner, 2026-10-03), REQ ΑΔΑΜ included. It is
+  in OPTIONAL_TYPE_FILTERS, NOT TYPE_FILTER_ORDER: that list is the public SEO
+  facet set, and an empty facet must never be indexable.
+- Διόρθωση / Ακύρωση / Άλλες Πληροφορίες / Πλάνο προμηθειών / Διαβούλευση
+  still fall back to notice, counted as unknown labels — not decided yet.
+
 ## Tender Service duplicates
 tsg_match.py decides, per Tender Service record, hidden / flagged / new.
 Spec: docs/specs/tender-service-duplicates.md (measured on one week). The web
