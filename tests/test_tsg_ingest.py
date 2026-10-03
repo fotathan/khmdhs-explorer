@@ -960,3 +960,48 @@ def test_payments_and_contracts_take_the_awarded_value_too():
                                      contractVatIncluded="NO", contractVatRate="13.0"), TODAY)
         assert cols["type"] == t
         assert cols["total_cost_with_vat"] == Decimal("1130.00")
+
+
+# --------------------------------------------------------------------------- #
+# trial: the summary views follow a projection
+# --------------------------------------------------------------------------- #
+def test_single_source_projection_refreshes_the_summary_pages(tdb, monkeypatch):
+    import db as dbmod
+    adam = "26SYMV019000901"
+    _store(tdb, _rec(internalID="900000901", externalId=adam, typeOfDocument="Σύμβαση",
+                     dataSource="eprocurement-gov-gr", contractValue="1.000,00 EUR",
+                     contractVatIncluded="NO", contractVatRate="24.0"))
+    tdb.commit()
+    # The test schema is a schema-only dump: its views were never populated,
+    # and a CONCURRENT refresh (what refresh_analytics does) refuses those.
+    for (v,) in tdb.query("SELECT matviewname FROM pg_matviews WHERE schemaname = 'proc' "
+                          "AND NOT ispopulated"):
+        tdb.execute(f"REFRESH MATERIALIZED VIEW proc.{v}")
+    tdb.commit()
+    args = argparse.Namespace(limit=None, reproject=False, single_source=True)
+    try:
+        out = dbmod.cmd_tsg_project(args)
+        assert out["summaries_refreshed"] is True
+        # What /authorities counts, straight from the rebuilt view.
+        assert _one(tdb, "SELECT n_contracts FROM proc.mv_authority_counts m "
+                         "JOIN proc.procurement_act a ON a.authority_id = m.org_id "
+                         "WHERE a.adam = %s", adam) == (1,)
+        # Nothing new: no rebuild.
+        called = []
+        monkeypatch.setattr(tg, "refresh_summaries", lambda d: called.append(1))
+        assert dbmod.cmd_tsg_project(args)["summaries_refreshed"] is False and not called
+    finally:
+        tdb.execute("DELETE FROM proc.procurement_act WHERE adam = %s", (adam,))
+        tdb.commit()
+        tg.refresh_summaries(tdb)
+
+
+def test_a_failed_refresh_is_reported_not_raised(tdb, monkeypatch):
+    class Broken:
+        def execute(self, *a):
+            raise RuntimeError("view missing")
+
+        def rollback(self):
+            pass
+
+    assert tg.refresh_summaries(Broken()) == "RuntimeError: view missing"

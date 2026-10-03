@@ -1154,12 +1154,21 @@ def cmd_tsg_project(args):
     if getattr(args, "single_source", False):
         with Database() as db:
             out = tg.project_single_source(db, limit=args.limit, reproject=args.reproject)
-        labels = out.pop("unknown_labels", {})
+            labels = out.pop("unknown_labels", {})
+            # Anything written → the summary pages are stale until rebuilt.
+            changed = any(k.startswith(("inserted", "refreshed")) or k == "out_of_scope"
+                          for k in out)
+            err = tg.refresh_summaries(db) if changed else None
         print("Tender Service projection (single-source): "
               + (", ".join(f"{k}={v}" for k, v in sorted(out.items())) or "nothing to do"))
         if labels:
             print(f"labels with no act type (imported as notice): {labels}")
+        if changed:
+            print("summary views (/authorities, /explore, /analytics): "
+                  + (f"NOT refreshed — {err}; run SELECT proc.refresh_analytics();" if err
+                     else "refreshed"))
         out["unknown_labels"] = labels
+        out["summaries_refreshed"] = changed and err is None
         return out
     with Database() as db:
         out = tg.project_all(db, limit=args.limit, reproject=args.reproject)

@@ -1330,6 +1330,20 @@ def _project_single(cur, internal: str, r: dict, h: str, caches: dict,
     return f"{written}:{kind}"
 
 
+def refresh_summaries(db) -> str | None:
+    """Rebuild the summary views (proc.refresh_analytics) that /authorities,
+    /explore and /analytics read: they are snapshots, so a projection is not
+    on those pages until this runs. A few seconds on the trial. Returns the
+    error, if any; the projection itself has already been committed."""
+    try:
+        db.execute("SELECT proc.refresh_analytics()")
+        db.commit()
+        return None
+    except Exception as e:  # noqa: BLE001 — reported, never fails the projection
+        db.rollback()
+        return f"{type(e).__name__}: {e}"
+
+
 def project_single_source(db, *, limit: int | None = None, today: dt.date | None = None,
                           reproject: bool = False) -> dict:
     """Project every stored record whose content changed since its last
