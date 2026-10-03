@@ -642,3 +642,65 @@ def test_a_fuzzy_flag_never_feeds_another_sources_act(tdb):
     _project(tdb, _rec(bidBond="2.400,00 EUR"))
     assert _bond(tdb) is None
     assert _bond(tdb, "TSG:900000101") == Decimal("2400.00")
+
+
+# --------------------------------------------------------------------------- #
+# values: total_cost_with_vat / _without_vat (what every page sums)
+# --------------------------------------------------------------------------- #
+def _vals(r):
+    cols, _ = tg.map_record(r, TODAY)
+    return cols["total_cost_without_vat"], cols["total_cost_with_vat"]
+
+
+def test_an_estimate_without_vat_gets_its_rate_added():
+    assert _vals(_rec(estimatedPricesBelow="1.000,00 EUR", estimatedPricesBelowVatIncluded="Όχι",
+                      estimatedPricesBelowVatRate="24.0")) == (Decimal("1000.00"), Decimal("1240.00"))
+
+
+def test_an_estimate_with_vat_included_is_split_back():
+    assert _vals(_rec(estimatedPricesBelow="1.240,00 EUR", estimatedPricesBelowVatIncluded="Ναι",
+                      estimatedPricesBelowVatRate="24.0")) == (Decimal("1000.00"), Decimal("1240.00"))
+
+
+def test_lots_are_summed_each_with_its_own_rate():
+    # A multi-lot notice used to get no value at all (the parser read one line).
+    r = _rec(estimatedPrices=None, estimatedPricesBelow="100,00 EUR\n200,00 EUR",
+             estimatedPricesBelowVatIncluded="Όχι\nΌχι", estimatedPricesBelowVatRate="24.0\n13.0")
+    assert _vals(r) == (Decimal("300.00"), Decimal("350.00"))      # 124 + 226
+
+
+def test_a_lot_whose_vat_is_unknown_empties_the_total_rather_than_understate_it():
+    # Three lots, two rates: which lot has which is unknowable.
+    r = _rec(estimatedPrices=None, estimatedPricesBelow="100,00 EUR\n200,00 EUR\n50,00 EUR",
+             estimatedPricesBelowVatIncluded="Όχι", estimatedPricesBelowVatRate="24.0\n13.0")
+    assert _vals(r) == (Decimal("350.00"), None)
+
+
+def test_one_stated_rate_applies_to_every_lot():
+    r = _rec(estimatedPrices=None, estimatedPricesBelow="100,00 EUR\n200,00 EUR",
+             estimatedPricesBelowVatIncluded="Όχι", estimatedPricesBelowVatRate="24.0")
+    assert _vals(r) == (Decimal("300.00"), Decimal("372.00"))
+
+
+def test_an_unflagged_amount_is_net_except_from_diavgeia_which_never_says():
+    assert _vals(_rec(estimatedPrices="500,00 EUR")) == (Decimal("500.00"), None)
+    assert _vals(_rec(estimatedPrices="500,00 EUR", dataSource="http://opendata.diavgeia.gov.gr")) == (
+        Decimal("500.00"), Decimal("500.00"))
+
+
+def test_an_award_is_worth_its_awarded_value_not_its_estimate():
+    r = _award(contractValue="430,00 EUR", contractVatIncluded="NO", contractVatRate="24.0",
+               estimatedPricesBelow="9.999,00 EUR", estimatedPricesBelowVatIncluded="Όχι",
+               estimatedPricesBelowVatRate="24.0")
+    cols, _ = tg.map_record(r, TODAY)
+    assert (cols["total_cost_without_vat"], cols["total_cost_with_vat"]) == (Decimal("430.00"), Decimal("533.20"))
+    assert cols["budget"] == Decimal("9999.00")                  # the estimate stays the budget
+    assert cols["contract_value"] == Decimal("430.00")
+
+
+def test_payments_and_contracts_take_the_awarded_value_too():
+    for label, t in (("Εντολή πληρωμής", "payment"), ("Σύμβαση", "contract")):
+        cols, _ = tg.map_record(_rec(typeOfDocument=label, contractValue="1.000,00 EUR",
+                                     contractVatIncluded="NO", contractVatRate="13.0"), TODAY)
+        assert cols["type"] == t
+        assert cols["total_cost_with_vat"] == Decimal("1130.00")
