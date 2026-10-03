@@ -249,6 +249,71 @@ def parse_amount(value: str | None) -> tuple[Decimal | None, Decimal | None, str
     return lo, hi, cur
 
 
+_YES = {"ναι", "yes", "true", "1"}
+_NO = {"οχι", "no", "false", "0"}
+
+
+def _flag(s: str | None) -> bool | None:
+    f = fold(s)
+    return True if f in _YES else False if f in _NO else None
+
+
+def _rate(s: str | None) -> Decimal | None:
+    try:
+        r = Decimal(str(s).strip().replace(",", "."))
+    except (InvalidOperation, ValueError):
+        return None
+    return r if r.is_finite() and 0 <= r <= 100 else None
+
+
+def net_and_gross(amounts, included, rates, *,
+                  unflagged_is_both: bool = False) -> tuple[Decimal | None, Decimal | None]:
+    """(without VAT, with VAT), summed over the lines (one per lot).
+
+    Tender Service sends each amount with its own "VAT included?" flag and
+    rate (estimatedPricesBelowVatIncluded / …VatRate for an estimate,
+    contractVatIncluded / contractVatRate for an award). Measured against the
+    same acts in ΚΗΜΔΗΣ (2026-10-03): an estimate flagged «Όχι» equals the
+    without-VAT total in 4,021 of 4,056, one flagged «Ναι» the with-VAT total;
+    an award flagged NO is the value without VAT (its text says «χωρίς ΦΠΑ»).
+    With no flag and no rate the amount is the without-VAT one (other portals:
+    16 of 20 matched), except from Diavgeia, which never says: there it is
+    both, exactly as our own Diavgeia ingester stores it (unflagged_is_both).
+
+    A line whose VAT cannot be worked out leaves that total EMPTY, never a
+    partial sum: a missing value is visible, an understated one is not."""
+    net, gross = Decimal(0), Decimal(0)
+    if not amounts:
+        return None, None
+    for i, a in enumerate(amounts):
+        if a is None:
+            return None, None
+        inc = included[i] if i < len(included) else (included[0] if len(included) == 1 else None)
+        r = rates[i] if i < len(rates) else (rates[0] if len(rates) == 1 else None)
+        if inc is None and not r:
+            n, g = a, (a if unflagged_is_both else None)
+        elif inc:
+            n, g = (a / (1 + r / 100) if r is not None else None), a
+        else:
+            n, g = a, (a * (1 + r / 100) if r is not None else None)
+        net = None if net is None or n is None else net + n
+        gross = None if gross is None or g is None else gross + g
+    q = Decimal("0.01")
+    return (net.quantize(q) if net is not None else None,
+            gross.quantize(q) if gross is not None else None)
+
+
+def estimate_lines(r: dict) -> tuple[list, str | None]:
+    """The estimate, one amount per lot line, and its currency."""
+    raw = r.get("estimatedPricesBelow") or r.get("estimatedPrices")
+    out, cur = [], None
+    for line in _lines(raw):
+        a, _, c = parse_amount(line)
+        out.append(a)
+        cur = cur or c
+    return out, cur
+
+
 def parse_date(value: str | None, today: dt.date | None = None) -> dt.datetime | None:
     """'dd.MM.yy', 'dd.MM.yy HH:mm' or ISO. A year outside 2000..today+10 is
     refused: hand-entered archive records carry values like '12.11.55' for a
@@ -383,6 +448,27 @@ def map_record(r: dict, today: dt.date | None = None) -> tuple[dict, dict]:
         if shares and all(s is not None for s in shares):
             value = sum(shares, Decimal(0))
             value_cur = parse_amount(_lines(r.get("contractorPrices"))[0])[2]
+    # Values (net_and_gross). An estimate is what a notice is worth; an award,
+    # contract or payment is worth its awarded value, never its estimate
+    # (ΚΗΜΔΗΣ puts the awarded amount in total_cost_* for those types too).
+    from_diavgeia = "diavgeia" in str(r.get("dataSource") or "")
+    est_lines, est_lines_cur = estimate_lines(r)
+    est_net, est_gross = net_and_gross(
+        est_lines,
+        [_flag(x) for x in _lines(r.get("estimatedPricesBelowVatIncluded"))],
+        [_rate(x) for x in _lines(r.get("estimatedPricesBelowVatRate"))],
+        unflagged_is_both=from_diavgeia)
+    if len(est_lines) > 1:
+        est, est_max, est_cur = est_net, None, est_lines_cur
+    val_net, val_gross = net_and_gross(
+        [value] if value is not None else [],
+        [_flag(r.get("contractVatIncluded"))] if r.get("contractVatIncluded") else [],
+        [_rate(r.get("contractVatRate"))] if r.get("contractVatRate") not in (None, "") else [],
+        unflagged_is_both=from_diavgeia)
+    if act_type in ("auction", "contract", "payment"):
+        net, gross = val_net, val_gross
+    else:
+        net, gross = est_net, est_gross
     bond = bond_of(r)
     if bond is None and str(r.get("bidBond") or "").strip():
         issues.append(f"bid bond not stored: {r.get('bidBond')!r}")
@@ -409,8 +495,9 @@ def map_record(r: dict, today: dt.date | None = None) -> tuple[dict, dict]:
         "short_description": desc if desc and desc != title else None,
         "submission_date": parse_date(r.get("publicationDate"), today),
         "final_submission_date": parse_date(r.get("deadlineDate"), today),
-        "budget": est,
-        "total_cost_without_vat": est,
+        "budget": est_net if est_net is not None else est,
+        "total_cost_without_vat": net,
+        "total_cost_with_vat": gross,
         "estimated_price_min": est,
         "estimated_price_max": est_max,
         "contract_value": value,
