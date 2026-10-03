@@ -126,6 +126,13 @@ _SEARCH = {
     "Τύπος διαδικασίας": "Procedure type",
     "Γεωγραφία — Περιφέρεια": "Geography — Region",
     "Εκτιμώμενη αξία / προϋπολογισμός (€)": "Estimated value / budget (€)",
+    "Εγγύηση συμμετοχής (€)": "Bid bond (€)",
+    "Ελάχιστο / μέγιστο ποσό εγγυητικής συμμετοχής. Βρίσκει μόνο πράξεις που αναφέρουν ποσό: όσες δεν το αναφέρουν δεν εμφανίζονται, γιατί «άγνωστο» δεν σημαίνει «μηδέν». Το φίλτρο εμφανίζεται όταν υπάρχουν τέτοιες πράξεις.":
+        "Minimum / maximum bid bond amount. Finds only acts that state an amount: acts that do not are left out, because unknown is not zero. The filter appears once such acts exist.",
+    "Όταν υπάρχουν, εμφανίζονται και οι «Προηγούμενες Πληροφορίες»: προκαταρκτικές ανακοινώσεις και αιτήματα πριν από τον διαγωνισμό, χωρίς προθεσμία υποβολής.":
+        "When there are any, «Prior information» also appears: preliminary announcements and requests ahead of a tender, with no submission deadline.",
+    "Μόνο πράξεις που αναφέρουν ποσό εγγύησης. Οι υπόλοιπες δεν εμφανίζονται.":
+        "Only acts that state a bid bond amount. The others are left out.",
     "από": "from",
     "έως": "to",
     "Κατηγορία / Υποκατηγορία": "Category / Subcategory",
@@ -2906,6 +2913,8 @@ _DIGESTS = {
     "προθεσμία έως": "deadline to",
     "αξία από": "value from",
     "αξία έως": "value to",
+    "εγγύηση από": "bid bond from",
+    "εγγύηση έως": "bid bond to",
     "κατάσταση": "status",
     "είδος": "type",
     "αναθέτουσα": "authority",

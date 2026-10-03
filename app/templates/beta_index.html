@@ -180,7 +180,7 @@
       <div class="fgroup">
         <div class="fgroup-h">{{ t("Τύπος πράξης") }}</div>
         <div class="chips">
-          {% for code in TYPE_FILTER_ORDER %}
+          {% for code in (lk.type_options or TYPE_FILTER_ORDER) %}
           <label class="chip {% if code in sel_types %}on{% endif %}">
             <input type="checkbox" name="type" value="{{ code }}" {% if code in sel_types %}checked{% endif %}>{{ code | type_label }}
           </label>
@@ -256,6 +256,19 @@
           <input type="text" name="value_max" value="{{ params.value_max or '' }}" placeholder="{{ t('έως') }}">
         </div>
       </div>
+
+      {# Bid bond: offered once some act states one (lk.has_bid_bond), or when
+         the URL already carries a bound, so a saved search can be edited. #}
+      {% if lk.has_bid_bond or params.bond_min or params.bond_max %}
+      <div class="fgroup">
+        <div class="fgroup-h">{{ t("Εγγύηση συμμετοχής (€)") }}</div>
+        <div class="frow-2">
+          <input type="text" name="bond_min" value="{{ params.bond_min or '' }}" placeholder="{{ t('από') }}">
+          <input type="text" name="bond_max" value="{{ params.bond_max or '' }}" placeholder="{{ t('έως') }}">
+        </div>
+        <p style="font-size:11px;color:var(--ink-3);margin:8px 0 0;">{{ t("Μόνο πράξεις που αναφέρουν ποσό εγγύησης. Οι υπόλοιπες δεν εμφανίζονται.") }}</p>
+      </div>
+      {% endif %}
 
       {% set sel_cat = request.query_params.getlist('cat') %}
       <div class="fgroup">

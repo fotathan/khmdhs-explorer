@@ -219,7 +219,8 @@ def canonical_for(request) -> str:
 # cheaper than serving the crawl and then telling it not to index the result.
 _BLOCKED_PARAMS = ("q", "fulltext", "tables_q", "page", "sort", "per_page",
                    "date_from", "date_to", "deadline_from", "deadline_to",
-                   "value_min", "value_max", "cpv", "cat", "authority")
+                   "value_min", "value_max", "bond_min", "bond_max",
+                   "cpv", "cat", "authority")
 
 _DISALLOW_PATHS = ("/admin", "/account", "/api/", "/export/", "/digests/",
                    "/login", "/logout", "/register", "/set-lang", "/tables",

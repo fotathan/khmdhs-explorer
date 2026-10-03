@@ -34,6 +34,7 @@ import uuid
 from collections import OrderedDict as _OrderedDict
 from contextlib import contextmanager, asynccontextmanager
 from datetime import date
+from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 import psycopg
@@ -182,6 +183,8 @@ TYPE_LABELS = {
     "contract": "Σύμβαση",
     "payment":  "Εντολή Πληρωμής",
     "request":  "Πρωτογενές Αίτημα",
+    # Tender Service's «Προηγούμενες Πληροφορίες» (PRIOR_INFORMATION).
+    "prior_info": "Προηγούμενες Πληροφορίες",
     # Diavgeia decision type (Δ.2.2), distinct from the KHMDHS 'auction' award.
     "award":    "Ανάθεση",
 }
@@ -191,6 +194,11 @@ TYPE_LABELS = {
 # Both the main page and the aggregations page iterate this, so the two stay
 # uniform. The label for the "all types" option is also defined once here.
 TYPE_FILTER_ORDER = ["notice", "auction", "contract", "payment"]
+# Types offered in the filter only once the database holds an act of them
+# (_build_lookups → lk.type_options). Kept out of TYPE_FILTER_ORDER on purpose:
+# that list is also the public SEO facet set and the sitemap, and an empty
+# facet must never be indexable (same reason 'tsg' is not in _SOURCE_LABELS).
+OPTIONAL_TYPE_FILTERS = ["prior_info"]
 TYPE_ALL_LABEL = "Όλες οι πράξεις"
 
 # Curated NUTS-2 regions (περιφέρειες) for the geography filter. The data has
@@ -654,6 +662,24 @@ def _as_list(v) -> list[str]:
 from app.act_visibility import VISIBLE_SQL  # noqa: E402
 
 
+def _amount(v) -> Decimal | None:
+    """A typed euro amount, or None. Accepts '5000', '5000.50', '5.000,50',
+    '5000,50' and '10.000' (Greek thousands: dot groups of exactly three digits
+    with no comma); refuses anything else (and negatives) rather than guess."""
+    s = str(v or "").strip().replace(" ", "").replace("€", "")
+    if not s:
+        return None
+    if "," in s:
+        s = s.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"\d{1,3}(?:\.\d{3})+", s):
+        s = s.replace(".", "")
+    try:
+        d = Decimal(s)
+    except InvalidOperation:
+        return None
+    return d if d.is_finite() and d >= 0 else None
+
+
 def build_where(params: dict) -> tuple[str, list]:
     """Translate query parameters into a parameterised WHERE clause."""
     where: list[str] = [VISIBLE_SQL]
@@ -882,6 +908,18 @@ def build_where(params: dict) -> tuple[str, list]:
     if value_max not in (None, ""):
         where.append("a.total_cost_with_vat <= %s")
         args.append(value_max)
+
+    # Bid bond (εγγύηση συμμετοχής) range. Only acts that STATE an amount can
+    # match: an act with no bid bond on record is unknown, not zero, so any
+    # bound leaves it out. A value that is not a number is ignored.
+    bond_min = _amount(params.get("bond_min"))
+    if bond_min is not None:
+        where.append("a.bid_bond_amount >= %s")
+        args.append(bond_min)
+    bond_max = _amount(params.get("bond_max"))
+    if bond_max is not None:
+        where.append("a.bid_bond_amount <= %s")
+        args.append(bond_max)
 
     status = params.get("status")
     if status == "active":
@@ -1202,6 +1240,18 @@ def _build_lookups() -> dict:
             if parent is not None:
                 parent["subs"].append({"id": r["id"], "name": r["name"], "name_en": r["name_en"]})
         built["categories"] = cats
+        # Filters that only make sense once some act carries the data. Both
+        # are index lookups (ix_act_type, ix_act_bid_bond), so instant even
+        # when the answer is "none".
+        opts = list(TYPE_FILTER_ORDER)
+        for t in OPTIONAL_TYPE_FILTERS:
+            c.execute("SELECT EXISTS (SELECT 1 FROM proc.procurement_act WHERE type = %s) AS x", (t,))
+            if c.fetchone()["x"]:
+                opts.append(t)
+        built["type_options"] = opts
+        c.execute("""SELECT EXISTS (SELECT 1 FROM proc.procurement_act
+                                    WHERE bid_bond_amount IS NOT NULL) AS x""")
+        built["has_bid_bond"] = bool(c.fetchone()["x"])
     return built
 
 
@@ -3653,7 +3703,7 @@ def explore(request: Request):
     # live aggregation below, but that population is narrower so it is acceptable.
     fine_keys = ("q", "fulltext", "cpv", "contract_type", "procedure_type",
                  "nuts", "date_from", "date_to", "deadline_from", "deadline_to",
-                 "value_min", "value_max", "authority", "status")
+                 "value_min", "value_max", "bond_min", "bond_max", "authority", "status")
     has_fine = any(_as_list(params.get(k)) if k in ("type", "authority",
                    "contract_type", "procedure_type", "nuts", "cpv")
                    else (params.get(k) or "").strip() for k in fine_keys)

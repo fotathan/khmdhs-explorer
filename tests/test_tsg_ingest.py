@@ -128,6 +128,42 @@ def test_titles_are_entity_decoded():
     assert cols["title"] == "ΠΟΛΙΤΙΣΤΙΚΟΣ & ΕΞΩΡΑΪΣΤΙΚΟΣ"
 
 
+@pytest.mark.parametrize("label,act_type", [
+    ("Προκήρυξη", "notice"),
+    ("Αποτέλεσμα", "auction"),
+    ("Σύμβαση", "contract"),
+    ("Εντολή πληρωμής", "payment"),       # once folded past the 'πληρωμη' key: a notice
+    ("Προηγούμενες Πληροφορίες", "prior_info"),
+])
+def test_every_label_we_have_a_type_for_maps_to_it(label, act_type):
+    assert tg.type_of(label) == (act_type, True)
+    cols, extras = tg.map_record(_rec(typeOfDocument=label), TODAY)
+    assert cols["type"] == act_type
+    assert not any("unknown typeOfDocument" in i for i in extras["issues"])
+
+
+def test_a_label_without_a_type_is_a_counted_notice():
+    cols, extras = tg.map_record(_rec(typeOfDocument="Διαβούλευση"), TODAY)
+    assert cols["type"] == "notice"
+    assert any("unknown typeOfDocument" in i for i in extras["issues"])
+
+
+@pytest.mark.parametrize("raw,stored", [
+    ("30.000,00 EUR", Decimal("30000.00")),   # Greek: '.' groups, ',' decimals
+    ("2.311,60 EUR", Decimal("2311.60")),
+    ("53,50", Decimal("53.50")),
+    (None, None),
+    ("", None),
+    ("0,00 EUR", None),                         # a zero bond is no bond on record
+    ("1.000,00 USD", None),                     # the filter is in euro: never mixed
+])
+def test_bid_bond_is_stored_in_euro_only(raw, stored):
+    cols, extras = tg.map_record(_rec(bidBond=raw), TODAY)
+    assert cols["bid_bond_amount"] == stored
+    if raw and stored is None:
+        assert any("bid bond not stored" in i for i in extras["issues"])
+
+
 def test_content_hash_ignores_bookkeeping_and_key_order():
     a = {"internalID": "1", "title": "x", "_feed": "10-tender"}
     b = {"title": "x", "internalID": "1"}
@@ -434,7 +470,7 @@ def test_cyprus_is_stored_but_never_shown(tdb):
               nutsCodes="CY000")
     s = tg.backfill(tdb, FakeClient(_by_slice({("TENDER", None): [cy]})), DAY, DAY,
                     resume=False, today=TODAY)
-    proj = {k: v for k, v in s["projection"].items() if k != "matching"}
+    proj = {k: v for k, v in s["projection"].items() if k not in ("matching", "bid_bonds")}
     assert s["stored"] == {"new": 1} and proj == {"skipped (outside Greece)": 1, "rechecked": 0}
     assert s["projection"]["matching"]["outcomes"] == {"out_of_scope": 1}
     assert _one(tdb, "SELECT 1 FROM proc.procurement_act WHERE adam = %s", "TSG:900000104") is None
@@ -519,3 +555,90 @@ def test_tender_service_acts_are_out_of_analytics(tdb):
                              FROM proc.procurement_act WHERE adam = ANY(%s)""",
                           (["TSG:900000199", NATIVE_ADAM],)))
     assert rows == {"TSG:900000199": False, NATIVE_ADAM: True}
+
+
+# --------------------------------------------------------------------------- #
+# bid bonds copied onto the act we show (sync_bid_bonds)
+# --------------------------------------------------------------------------- #
+def _held(internal="900000102", bond="2.400,00 EUR", **over):
+    return _rec(internalID=internal, externalId=NATIVE_ADAM, dataSource="eprocurement-gov-gr",
+                bidBond=bond, **over)
+
+
+def _bond(d, adam=NATIVE_ADAM):
+    return _one(d, "SELECT bid_bond_amount FROM proc.procurement_act WHERE adam = %s", adam)[0]
+
+
+def _ledger(d, adam=NATIVE_ADAM):
+    return _one(d, "SELECT amount, internal_ids FROM proc.act_bid_bond_fill WHERE adam = %s", adam)
+
+
+def _project(d, *recs):
+    tg.backfill(d, FakeClient(_by_slice({("TENDER", None): list(recs)})), DAY, DAY,
+                resume=False, today=TODAY)
+
+
+def _undo_match(d, internal="900000102"):
+    d.execute("UPDATE proc.tsg_record SET match_outcome = 'flagged' WHERE internal_id = %s",
+              (internal,))
+    d.commit()
+
+
+def test_an_exact_duplicates_bid_bond_fills_our_act_once(tdb):
+    _project(tdb, _held())
+    assert _bond(tdb) == Decimal("2400.00")
+    assert _ledger(tdb) == (Decimal("2400.00"), ["900000102"])
+    assert tg.sync_bid_bonds(tdb) == {"conflict": 0, "filled": 0, "reverted": 0,
+                                      "released": 0, "kept": 1}
+
+
+def test_a_value_already_on_our_act_is_never_overwritten(tdb):
+    tdb.execute("UPDATE proc.procurement_act SET bid_bond_amount = 999 WHERE adam = %s", (NATIVE_ADAM,))
+    tdb.commit()
+    _project(tdb, _held())
+    assert _bond(tdb) == Decimal("999")
+    assert _ledger(tdb) is None
+
+
+def test_copies_that_disagree_write_nothing(tdb):
+    _project(tdb, _held(), _held(internal="900000105", bond="2.400,40 EUR"))
+    assert _bond(tdb) is None
+    assert tg.sync_bid_bonds(tdb)["conflict"] == 1
+
+
+def test_copies_that_agree_fill_once_and_name_both(tdb):
+    _project(tdb, _held(), _held(internal="900000105"))
+    assert _ledger(tdb) == (Decimal("2400.00"), ["900000102", "900000105"])
+
+
+def test_an_undone_match_takes_its_bond_back(tdb):
+    _project(tdb, _held())
+    _undo_match(tdb)
+    assert tg.sync_bid_bonds(tdb)["reverted"] == 1
+    assert _bond(tdb) is None and _ledger(tdb) is None
+
+
+def test_an_admins_later_edit_survives_an_undone_match(tdb):
+    _project(tdb, _held())
+    tdb.execute("UPDATE proc.procurement_act SET bid_bond_amount = 5000 WHERE adam = %s", (NATIVE_ADAM,))
+    tdb.commit()
+    _undo_match(tdb)
+    assert tg.sync_bid_bonds(tdb)["released"] == 1
+    assert _bond(tdb) == Decimal("5000") and _ledger(tdb) is None
+
+
+def test_a_changed_amount_replaces_the_one_we_wrote(tdb):
+    _project(tdb, _held())
+    tdb.execute("""UPDATE proc.tsg_record SET raw_json = jsonb_set(raw_json, '{bidBond}', '"3.000,00 EUR"')
+                   WHERE internal_id = '900000102'""")
+    tdb.commit()
+    out = tg.sync_bid_bonds(tdb)
+    assert out["reverted"] == 1 and out["filled"] == 1
+    assert _ledger(tdb) == (Decimal("3000.00"), ["900000102"])
+
+
+def test_a_fuzzy_flag_never_feeds_another_sources_act(tdb):
+    # A notice of ours without the identity link: projected as its own act, never hidden.
+    _project(tdb, _rec(bidBond="2.400,00 EUR"))
+    assert _bond(tdb) is None
+    assert _bond(tdb, "TSG:900000101") == Decimal("2400.00")
