@@ -1148,9 +1148,11 @@ def cmd_tsg_project(args):
     with Database() as db:
         out = tg.project_all(db, limit=args.limit, reproject=args.reproject)
     import tsg_match as tm
-    proj = {k: v for k, v in out.items() if k != "matching"}
+    proj = {k: v for k, v in out.items() if k not in ("matching", "bid_bonds")}
     print("Tender Service projection: " + (", ".join(f"{k}={v}" for k, v in sorted(proj.items())) or "nothing to do"))
     print(tm.format_counts(out["matching"]))
+    print("Bid bonds copied onto acts we show: "
+          + ", ".join(f"{k}={v}" for k, v in out["bid_bonds"].items()))
     return out
 
 
@@ -1165,6 +1167,11 @@ def _tsg_recheck(db, trigger: str):
         print("\n=== Tender Service: re-checking duplicates ===")
         out = tm.recheck(db, trigger)
         print(tm.format_counts(out))
+        # A record the re-check just hid may carry a bid bond for our act.
+        import tsg_ingest as tg
+        bonds = tg.sync_bid_bonds(db)
+        print("Bid bonds copied onto acts we show: "
+              + ", ".join(f"{k}={v}" for k, v in bonds.items()))
         return out
     except Exception as e:  # noqa: BLE001
         db.rollback()

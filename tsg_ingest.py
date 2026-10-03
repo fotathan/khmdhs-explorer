@@ -130,13 +130,20 @@ _DMY = re.compile(r"^(\d{2})\.(\d{2})\.(\d{2}|\d{4})(?:[ T](\d{2}):(\d{2})(?::(\
 _ISO = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?")
 
 # Display label (folded) → our act type. 'Αποτέλεσμα' is an award decision,
-# which is what KHMDHS calls 'auction' (ΑΔΑΜ kind AWRD).
+# which is what KHMDHS calls 'auction' (ΑΔΑΜ kind AWRD). The keys are the
+# labels as the API spells them, folded: «Εντολή πληρωμής» folds to
+# 'εντολη πληρωμησ', which a bare 'πληρωμη' key never matched, so payment
+# orders were filed as notices. Labels with no type of ours yet (Διόρθωση,
+# Ακύρωση, Άλλες Πληροφορίες, Πλάνο προμηθειών, Διαβούλευση) still fall back
+# to notice and are counted as unknown (owner, 2026-10-03: decide later).
 TYPE_BY_LABEL = {
     "προκηρυξη": "notice",
     "αποτελεσμα": "auction",
     "συμβαση": "contract",
+    "εντολη πληρωμησ": "payment",
     "πληρωμη": "payment",
     "αιτημα": "request",
+    "προηγουμενεσ πληροφοριεσ": "prior_info",
 }
 
 
@@ -351,6 +358,9 @@ def map_record(r: dict, today: dt.date | None = None) -> tuple[dict, dict]:
         if shares and all(s is not None for s in shares):
             value = sum(shares, Decimal(0))
             value_cur = parse_amount(_lines(r.get("contractorPrices"))[0])[2]
+    bond = bond_of(r)
+    if bond is None and str(r.get("bidBond") or "").strip():
+        issues.append(f"bid bond not stored: {r.get('bidBond')!r}")
     html_text, text = import_full_text(r.get("tenderText"))
     nuts = next(iter((r.get("nutsCodes") or "").split()), None)
     url = str(r.get("sourceUrl") or "").strip()
@@ -390,6 +400,7 @@ def map_record(r: dict, today: dt.date | None = None) -> tuple[dict, dict]:
         "source_status": r.get("status"),
         "divided_into_lots": _bool(r.get("divisionIntoLots")),
         "is_framework_agreement": _bool(r.get("frameworkAgreement")),
+        "bid_bond_amount": bond,
         "number_of_offers": _int(r.get("numberOfOffers")),
         "full_text": text,
         "full_text_html": html_text,
@@ -876,6 +887,81 @@ def project_record(db, internal: str, r: dict, h: str, caches: dict,
     return "held" if d.outcome == "hidden" else written
 
 
+def bond_of(r: dict) -> Decimal | None:
+    """The record's bid bond as we store it: euro, above zero, else None."""
+    bond, _, cur = parse_amount(r.get("bidBond"))
+    if bond is None or bond <= 0 or (cur or "EUR") != "EUR":
+        return None
+    return bond
+
+
+def sync_bid_bonds(db) -> dict:
+    """Copy Tender Service bid bonds onto the acts we show instead of them.
+
+    ΚΗΜΔΗΣ publishes no bid bond, and most bonds Tender Service sends belong to
+    a tender we already show from ΚΗΜΔΗΣ, so its record is hidden (or never
+    projected) and the bond would be lost. The source is ONLY an exact
+    duplicate: match_outcome 'hidden' (an exact number, a twin, or an admin's
+    confirm), whose matched_adam is the act we keep. A fuzzy flag never feeds
+    a value into another source's act.
+
+    Fill only if empty. Copies that disagree on the amount write nothing
+    (counted as 'conflict'). proc.act_bid_bond_fill is the ledger: when the
+    match is undone or the amount changes, the act is cleared only while it
+    still holds exactly what we wrote, so an admin's own value always survives
+    and its ledger row is simply dropped. Runs at the end of project_all; an
+    admin confirm/reject on the web is picked up by the next run."""
+    rows = db.query("""SELECT t.matched_adam, t.internal_id, t.raw_json
+                         FROM proc.tsg_record t
+                         JOIN proc.procurement_act p ON p.adam = t.matched_adam
+                        WHERE t.match_outcome = 'hidden'
+                          AND t.raw_json ? 'bidBond'""")
+    found: dict[str, dict[Decimal, list[str]]] = collections.defaultdict(dict)
+    for adam, internal, raw in rows:
+        raw = raw if isinstance(raw, dict) else json.loads(raw)
+        bond = bond_of(raw)
+        if bond is not None:
+            found[adam].setdefault(bond, []).append(internal)
+    want = {adam: next(iter(b.items())) for adam, b in found.items() if len(b) == 1}
+    out = {"conflict": len(found) - len(want), "filled": 0, "reverted": 0,
+           "released": 0, "kept": 0}
+
+    cur = db.cur
+    cur.execute("SELECT f.adam, f.amount, p.bid_bond_amount FROM proc.act_bid_bond_fill f "
+                "JOIN proc.procurement_act p ON p.adam = f.adam")
+    for adam, written, now in cur.fetchall():
+        w = want.get(adam)
+        if now is not None and now != written:
+            # Someone else's value now (an admin, the act's own source): theirs.
+            out["released"] += 1
+            want.pop(adam, None)
+        elif w and w[0] == written and now == written:
+            out["kept"] += 1
+            cur.execute("UPDATE proc.act_bid_bond_fill SET internal_ids = %s WHERE adam = %s",
+                        (sorted(w[1]), adam))
+            continue
+        elif now == written:
+            # Ours, and no longer wanted at this amount: clear it (the fill
+            # below writes the new amount, if there is one).
+            cur.execute("UPDATE proc.procurement_act SET bid_bond_amount = NULL WHERE adam = %s",
+                        (adam,))
+            out["reverted"] += 1
+        # now is None: already empty; the fill below writes it again if wanted.
+        cur.execute("DELETE FROM proc.act_bid_bond_fill WHERE adam = %s", (adam,))
+    for adam, (bond, internals) in want.items():
+        cur.execute("""UPDATE proc.procurement_act SET bid_bond_amount = %s
+                        WHERE adam = %s AND bid_bond_amount IS NULL""", (bond, adam))
+        if cur.rowcount:
+            cur.execute("""INSERT INTO proc.act_bid_bond_fill (adam, amount, internal_ids)
+                           VALUES (%s, %s, %s)
+                           ON CONFLICT (adam) DO UPDATE
+                           SET amount = EXCLUDED.amount, internal_ids = EXCLUDED.internal_ids,
+                               filled_at = now()""", (adam, bond, sorted(internals)))
+            out["filled"] += 1
+    db.commit()
+    return out
+
+
 def project_all(db, *, limit: int | None = None, today: dt.date | None = None,
                 reproject: bool = False, trigger: str = "tsg-project",
                 job_id: int | None = None) -> dict:
@@ -941,6 +1027,7 @@ def project_all(db, *, limit: int | None = None, today: dt.date | None = None,
     result = dict(out)
     result["matching"] = run.finish()
     db.commit()
+    result["bid_bonds"] = sync_bid_bonds(db)
     return result
 
 
@@ -952,8 +1039,11 @@ def format_summary(s: dict) -> str:
     if "requests" in s:
         lines.append(f"requests spent: {s['requests']}")
     if s.get("projection") is not None:
-        proj = {k: v for k, v in s["projection"].items() if k != "matching"}
+        proj = {k: v for k, v in s["projection"].items() if k not in ("matching", "bid_bonds")}
         lines.append("projection: " + ", ".join(f"{k}={v}" for k, v in sorted(proj.items())))
+        if s["projection"].get("bid_bonds"):
+            lines.append("bid bonds copied onto acts we show: " + ", ".join(
+                f"{k}={v}" for k, v in s["projection"]["bid_bonds"].items()))
         if s["projection"].get("matching"):
             import tsg_match as tm
             lines.append(tm.format_counts(s["projection"]["matching"]))
