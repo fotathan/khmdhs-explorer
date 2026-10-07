@@ -1,0 +1,26 @@
+KHMDHS production baseline
+Captured: 2026-09-11T08:21:17Z
+Target: https://khmdhs-explorer.onrender.com
+Deployed commit: 8692b86930dd7559d4b32cb9d3d96f7b62c7257a
+Command: SSL_CERT_FILE=<Python certifi CA bundle> python3 loadtest.py --base-url https://khmdhs-explorer.onrender.com --requests 200
+Mode: anonymous HTTP client, 10 workers
+
+target https://khmdhs-explorer.onrender.com · 10 workers · 50 act ΑΔΑΜs in the detail pool
+
+==============================================================================
+scenario         reqs   err     rps     p50     p90     p99     max   (ms)
+------------------------------------------------------------------------------
+act_detail         52     0     1.6     614    1739    3224    3419
+analytics          18     0     0.5    1261    2463    4835    4835
+authorities         9     0     0.3     825    2082    2169    2169
+contractors        12     0     0.4    1030    1171    2699    2699
+explore            10     0     0.3    1049    1927    3244    3244
+search             99     0     3.0    1848    2933    5924    6220
+------------------------------------------------------------------------------
+TOTAL             200     0     6.1    1695    2459    5363    6220
+==============================================================================
+wall 32.8s · 6.1 req/s · 0.0% errors · mean 1612 ms
+
+Note: an initial run without SSL_CERT_FILE was discarded because the local
+Python installation had no default CA file and every request failed TLS
+verification before reaching Render.
