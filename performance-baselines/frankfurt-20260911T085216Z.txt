@@ -1,0 +1,22 @@
+KHMDHS Frankfurt test baseline
+Captured: 2026-09-11T08:52:16Z
+Target: https://khmdhs-explorer-eu.onrender.com
+Deployed commit: d2abfc1e0b9a1d3473664d66953f9e0790103dc3
+Command: SSL_CERT_FILE=<Python certifi CA bundle> python3 loadtest.py --base-url https://khmdhs-explorer-eu.onrender.com --requests 200
+Mode: anonymous HTTP client, 10 workers
+
+target https://khmdhs-explorer-eu.onrender.com · 10 workers · 50 act ΑΔΑΜs in the detail pool
+
+==============================================================================
+scenario         reqs   err     rps     p50     p90     p99     max   (ms)
+------------------------------------------------------------------------------
+act_detail         64     0     3.5     449     979    1601    1676
+analytics          19     0     1.0     650    1023    2418    2418
+authorities         8     0     0.4     605     693    1400    1400
+contractors         8     0     0.4     711     898    2615    2615
+explore             9     0     0.5     687    1390    3936    3936
+search             92     0     5.0    1046    1656    2533    2546
+------------------------------------------------------------------------------
+TOTAL             200     0    11.0     832    1556    2546    3936
+==============================================================================
+wall 18.2s · 11.0 req/s · 0.0% errors · mean 901 ms

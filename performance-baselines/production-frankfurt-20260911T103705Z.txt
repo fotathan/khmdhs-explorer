@@ -1,0 +1,33 @@
+KHMDHS production baseline — Frankfurt, after cutover
+Captured: 2026-09-11 (UTC)
+Target: https://khmdhs-explorer-eu.onrender.com
+Note: this IS production. The service is NAMED khmdhs-explorer and runs in
+      Frankfurt, but answers on the -eu hostname — renaming a Render service
+      does not move its onrender.com subdomain. khmdhs-explorer.onrender.com
+      belongs to the retired, suspended Oregon service.
+Command: SSL_CERT_FILE=<Python certifi CA bundle> python3 loadtest.py --base-url https://khmdhs-explorer-eu.onrender.com --requests 200
+Mode: anonymous HTTP client, 10 workers, warm instance
+
+==============================================================================
+scenario         reqs   err     rps     p50     p90     p99     max   (ms)
+------------------------------------------------------------------------------
+act_detail         54     0     2.8     401     614    1077    2806
+analytics          13     0     0.7     555    1292    1295    1295
+authorities         6     0     0.3     461     803    1242    1242
+contractors         8     0     0.4     755     840     972     972
+explore             8     0     0.4     895    1325    1415    1415
+search            111     0     5.8    1033    1555    1818    2093
+------------------------------------------------------------------------------
+TOTAL             200     0    10.4     869    1401    1818    2806
+==============================================================================
+wall 19.2s · 10.4 req/s · 0.0% errors · mean 863 ms
+
+Against the pre-cutover Oregon baseline (prod-20260911T082117Z.txt):
+  p50  1695 -> 869 ms      mean 1612 -> 863 ms
+  rps   6.1 -> 10.4        wall 32.8 -> 19.2 s
+
+An earlier run on this host showed 5.0% errors; that was the service restarting
+after an env var change, not a fault. Re-run once settled before recording.
+
+STILL ON plan: free. A cold start was measured at 22.8s, which dwarfs every
+number above — these figures are the warm case only.
