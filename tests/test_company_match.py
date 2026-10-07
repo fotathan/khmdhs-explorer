@@ -185,6 +185,73 @@ def test_sharing_one_word_of_two_is_not_a_strong_name_match():
     assert CM.name_similarity("food prime", "OPTIMUS PRIME") <= 0.5
 
 
+# The three real prospects, 2026-10-07: each scored 1.0 against a different
+# company because normalize_name drops one-letter words, initials included.
+def test_initials_are_read_without_the_legal_form():
+    assert CM.initials("Θ.ΑΛΕΞΑΝΔΡΙΔΗΣ ΚΑΙ ΣΙΑ Ε.Ε.") == {"θ"}
+    assert CM.initials("Γ.ΑΛΕΞΑΝΔΡΙΔΗΣ ΚΑΙ ΣΙΑ Ο.Ε") == {"γ"}
+    assert CM.initials("Π. & Σ.ΚΑΡΑΒΙΤΗΣ Ο.Ε") == {"π", "σ"}
+    assert CM.initials("ΠΑΠΑΣ Γ. Ο.Ε.") == {"γ"}
+    for no_initials in ("ΚΑΡΑΒΙΤΗΣ", "ΑΛΦΑ Α.Ε.", "ΒΗΤΑ Ι.Κ.Ε.", "ΓΑΜΜΑ Ε.Π.Ε.",
+                        "ΔΕΛΤΑ Α.Β.Ε.Ε.", "Κ/Ξ ΑΛΦΑ - ΒΗΤΑ", "ΕΨΙΛΟΝ Μ.Ι.Κ.Ε.",
+                        "ZETA S.A."):
+        assert CM.initials(no_initials) == frozenset(), no_initials
+
+
+def test_different_initials_are_different_companies():
+    for query, other in (
+        ("Θ.ΑΛΕΞΑΝΔΡΙΔΗΣ ΚΑΙ ΣΙΑ Ε.Ε.", "Γ.ΑΛΕΞΑΝΔΡΙΔΗΣ ΚΑΙ ΣΙΑ Ο.Ε"),
+        ("Δ. ΑΝΑΓΝΩΣΤΟΠΟΥΛΟΣ ΣΙΑ ΕΕ", "Π. ΑΝΑΓΝΩΣΤΟΠΟΥΛΟΣ & ΣΙΑ Ε.Ε."),
+    ):
+        sim = CM.name_similarity(query, other)
+        assert sim <= CM.INITIALS_CONFLICT_CAP < 0.82, (query, other, sim)
+        # ...in either direction
+        assert CM.name_similarity(other, query) == sim
+    # the same initials are still a perfect match
+    assert CM.name_similarity("Θ.ΑΛΕΞΑΝΔΡΙΔΗΣ ΚΑΙ ΣΙΑ Ε.Ε.",
+                              "Θ. ΑΛΕΞΑΝΔΡΙΔΗΣ & ΣΙΑ ΕΕ") == 1.0
+
+
+def test_initials_on_one_side_are_strong_but_never_perfect():
+    sim = CM.name_similarity("Π. & Σ.ΚΑΡΑΒΙΤΗΣ Ο.Ε", "ΚΑΡΑΒΙΤΗΣ")
+    assert 0.82 <= sim < 1.0
+    assert sim == CM.INITIALS_UNCONFIRMED_CAP
+    # the docstring example still matches, and above any disagreeing name
+    sim = CM.name_similarity("Π.ΠΑΠΑΔΟΠΟΥΛΟΣ ΚΑΙ ΣΙΑ Ο.Ε.", "ΠΑΠΑΔΟΠΟΥΛΟΣ Ο.Ε.")
+    assert 0.82 <= sim < 1.0
+    assert sim > CM.name_similarity("Π.ΠΑΠΑΔΟΠΟΥΛΟΣ ΚΑΙ ΣΙΑ Ο.Ε.",
+                                    "Γ.ΠΑΠΑΔΟΠΟΥΛΟΣ ΚΑΙ ΣΙΑ Ο.Ε.")
+    # sharing one initial of two is not a disagreement
+    assert CM.name_similarity("Π. & Σ.ΚΑΡΑΒΙΤΗΣ Ο.Ε", "Π.ΚΑΡΑΒΙΤΗΣ Ο.Ε.") >= 0.82
+
+
+def test_a_trade_title_cannot_hide_a_legal_name_with_other_initials():
+    """Initials are pooled over all of one company's names."""
+    assert CM.name_similarity("Θ.ΑΛΕΞΑΝΔΡΙΔΗΣ ΚΑΙ ΣΙΑ Ε.Ε.",
+                              "Γ.ΑΛΕΞΑΝΔΡΙΔΗΣ ΚΑΙ ΣΙΑ Ο.Ε",
+                              ["ΑΛΕΞΑΝΔΡΙΔΗΣ"]) <= CM.INITIALS_CONFLICT_CAP
+
+
+def test_the_right_initials_outrank_the_wrong_ones_and_say_why():
+    cands = [
+        CM._from_record(_rec("111111111", "Γ.ΑΛΕΞΑΝΔΡΙΔΗΣ ΚΑΙ ΣΙΑ Ο.Ε")),
+        CM._from_record(_rec("222222222", "ΑΛΕΞΑΝΔΡΙΔΗΣ ΘΕΟΔΩΡΟΣ ΚΑΙ ΣΙΑ Ε.Ε.")),
+        CM._from_record(_rec("333333333", "Θ.ΑΛΕΞΑΝΔΡΙΔΗΣ ΚΑΙ ΣΙΑ Ε.Ε.")),
+    ]
+    cands[0]["operator_id"] = 1          # the ledger bonus must not rescue it
+    profile = {"company": "Θ.ΑΛΕΞΑΝΔΡΙΔΗΣ ΚΑΙ ΣΙΑ Ε.Ε."}
+    for cand in cands:
+        cand["score"], cand["signals"] = _score(cand, profile)
+    ranked = sorted(cands, key=lambda x: -x["score"])
+    assert ranked[0]["afm"] == "333333333"
+    assert ranked[-1]["afm"] == "111111111"
+    wrong = cands[0]["signals"]
+    assert "διαφορετικά αρχικά: Θ. / Γ." in wrong["penalties"]
+    assert {"why": "μειωμένη βαθμολογία", "detail": "διαφορετικά αρχικά: Θ. / Γ."} \
+        in CM.explain(wrong)
+    assert cands[2]["signals"]["penalties"] == []
+
+
 def test_the_ledger_bonus_is_a_tie_breaker():
     """Being a contractor says nothing about WHICH company this is."""
     assert CM.W_LEDGER < CM.W_NAME * 0.15

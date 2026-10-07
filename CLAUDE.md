@@ -158,6 +158,12 @@ company-match/ (search / link / unlink), one HTMX panel.
   letters alone scored BT PRIME 67% like 'food prime'. The ledger bonus is a
   tie-breaker (W_LEDGER 0.05 vs W_NAME 0.50) — at 0.10 it outranked a better
   name. Don't raise it back.
+- normalize_name drops one-letter words, so initials are judged apart
+  (initials_check): initials on BOTH sides sharing none cap the name at 0.6
+  (Θ.ΑΛΕΞΑΝΔΡΙΔΗΣ ≠ Γ.ΑΛΕΞΑΝΔΡΙΔΗΣ, measured 1.0 before); on ONE side only at
+  0.95 — strong, never perfect. Pooled over all of a company's names, so a
+  trade title can't hide its legal name's initials. Legal forms spelled in
+  letters (Ο.Ε., Ι.Κ.Ε., Κ/Ξ) are not initials.
 - Candidates = our contractor ledger (trigram) + the registry, merged on ΑΦΜ.
   The ledger SQL must spell the fold as `translate(proc.f_unaccent(lower(x)),
   'ς','σ')` — the nesting order of `ix_eo_name_trgm`. `leads._fold_sql` builds

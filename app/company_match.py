@@ -102,6 +102,16 @@ W_LEDGER = 0.05
 PENALTY_INACTIVE = 0.6   # struck off / in liquidation — demoted, never hidden
 PENALTY_BRANCH = 0.9     # a branch (υποκατάστημα) of another entity
 
+# First-name initials. normalize_name drops every one-letter word (so the legal
+# form 'Ο.Ε.' goes), which made Θ.ΑΛΕΞΑΝΔΡΙΔΗΣ and Γ.ΑΛΕΞΑΝΔΡΙΔΗΣ a 100% match —
+# measured on a real prospect list, 2026-10-07. Initials on BOTH sides that
+# share none are two different people: capped well under the 0.82 containment
+# floor. Initials on ONE side only are unconfirmed, not wrong (the registry
+# often leaves them out): still a strong match, just never a perfect one, so
+# the name that agrees on everything ranks first.
+INITIALS_CONFLICT_CAP = 0.6
+INITIALS_UNCONFIRMED_CAP = 0.95
+
 ACTIVE_STATUS_ID = 3     # ΓΕΜΗ status.id for 'Ενεργή'
 
 LEDGER_CANDIDATES = 60   # rows pulled from the ledger before re-ranking
@@ -117,7 +127,7 @@ _LEGAL_NOISE = (
     "ανωνυμη", "ανωνυμος", "εταιρεια", "εταιρια", "μονοπροσωπη", "ιδιωτικη",
     "κεφαλαιουχικη", "εμπορικη", "βιομηχανικη", "και", "σια", "υιοι", "αφοι",
     "αε", "επε", "οε", "εε", "ικε", "αβεε", "αεβε", "ατε", "αξτε", "ltd",
-    "sa", "ae", "ike", "oe", "ee",
+    "sa", "ae", "ike", "oe", "ee", "epe", "pc", "κξ", "μικε", "μεπε",
 )
 _STATUS_PREFIX_RE = re.compile(r"^\s*\([^)]*\)\s*")
 _NON_WORD_RE = re.compile(r"[^0-9a-zα-ω]+")
@@ -150,12 +160,62 @@ def normalize_name(s: str) -> str:
 
     'Π.ΠΑΠΑΔΟΠΟΥΛΟΣ ΚΑΙ ΣΙΑ Ο.Ε.' and 'ΠΑΠΑΔΟΠΟΥΛΟΣ Ο.Ε.' both reduce to
     something built from 'παπαδοπουλοσ', which is the part worth comparing.
+    The initials it drops are judged separately, by initials_check.
     """
     s = _STATUS_PREFIX_RE.sub("", _s(s))
     s = fold(s)
     words = [w for w in _NON_WORD_RE.split(s) if w]
     kept = [w for w in words if w not in _LEGAL_NOISE and len(w) > 1]
     return " ".join(kept or words)
+
+
+def _strip_legal_letters(run: list[str]) -> list[str]:
+    """A run of one-letter words minus a legal form spelled in it: 'Ο.Ε.',
+    'Ι.Κ.Ε.', 'Α.Β.Ε.Ε.' and 'Κ/Ξ' split into single letters exactly like
+    initials do. Longest form first, at the end and then at the start."""
+    for i in range(len(run) - 1):
+        if "".join(run[i:]) in _LEGAL_NOISE:
+            run = run[:i]
+            break
+    for j in range(len(run), 1, -1):
+        if "".join(run[:j]) in _LEGAL_NOISE:
+            run = run[j:]
+            break
+    return run
+
+
+def initials(s: str) -> frozenset:
+    """The first-name initials in a company name, folded: 'Π. & Σ.ΚΑΡΑΒΙΤΗΣ
+    Ο.Ε' -> {'π', 'σ'}. The one-letter words normalize_name throws away, minus
+    the legal form those same letters can spell."""
+    s = fold(_STATUS_PREFIX_RE.sub("", _s(s)))
+    found, run = set(), []
+    for w in [w for w in _NON_WORD_RE.split(s) if w] + [""]:  # "" flushes the last run
+        if len(w) == 1:
+            run.append(w)
+        else:
+            found.update(_strip_legal_letters(run))
+            run = []
+    return frozenset(found)
+
+
+def initials_check(query: str, *names) -> tuple[str, frozenset, frozenset]:
+    """('conflict' | 'unconfirmed' | '', query initials, name initials).
+
+    The names are ONE company (legal name, trade titles, ledger name), so their
+    initials are pooled: a trade title without initials cannot launder a legal
+    name whose initials disagree."""
+    qi = initials(query)
+    ci = set()
+    for n in names:
+        for candidate in (n if isinstance(n, (list, tuple)) else [n]):
+            ci |= initials(candidate)
+    ci = frozenset(ci)
+    if qi and ci and not (qi & ci):
+        return "conflict", qi, ci
+    if qi != ci:
+        return "unconfirmed", qi, ci
+    return "", qi, ci
 
 
 def _word_coverage(q: str, cn: str) -> float:
@@ -207,6 +267,12 @@ def best_name_match(query: str, *names) -> tuple[float, str]:
             ratio *= 0.5 + 0.5 * _word_coverage(q, cn)
             if ratio > best:
                 best, matched = ratio, _s(candidate)
+    # After the loop, not per string: see initials_check on pooling.
+    verdict = initials_check(query, *names)[0]
+    if verdict == "conflict":
+        best = min(best, INITIALS_CONFLICT_CAP)
+    elif verdict == "unconfirmed":
+        best = min(best, INITIALS_UNCONFIRMED_CAP)
     return round(best, 4), matched
 
 
@@ -298,9 +364,21 @@ def score_candidate(cand: dict, profile: dict, cust: dict,
     if cand.get("is_branch"):
         total *= PENALTY_BRANCH
         penalties.append("υποκατάστημα")
+    # Already inside the name value (best_name_match caps it); listed so the
+    # admin sees WHY a same-surname company is not near the top.
+    verdict, qi, ci = initials_check(query, cand.get("name"),
+                                     cand.get("titles") or [],
+                                     cand.get("ledger_name"))
+    if verdict == "conflict":
+        penalties.append("διαφορετικά αρχικά: "
+                         + _initials_label(qi) + " / " + _initials_label(ci))
     signals["penalties"] = penalties
 
     return round(min(total, 1.0), 3), signals
+
+
+def _initials_label(letters) -> str:
+    return " ".join(f"{x.upper()}." for x in sorted(letters))
 
 
 SIGNAL_LABELS = {
