@@ -585,6 +585,9 @@ def test_a_competitor_shares_both_the_code_and_the_buyer(market):
     top = out["rows"][0]
     assert top["n_shared"] == 2 and top["n_buyers"] == 1
     assert out["n_buyers"] == 1
+    # the value is summed only for the rows shown (the query's slow part), but
+    # over the same awards that were counted
+    assert float(top["total_value"]) == 20_000
 
 
 def test_the_firm_is_never_its_own_competitor(market):

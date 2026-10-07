@@ -1,0 +1,141 @@
+{# _crm_brief.html — the sales brief: one screen before calling a customer.
+
+   docs/specs/crm-brief-kad.md. Rendered two ways from the same markup:
+     * swapped into #brief-dlg-body on the CRM card (HX-Request), where the
+       competitor lists load lazily (hx-trigger="load"), and
+     * inside admin_crm_brief.html (full = true), the printable page, where
+       they arrive computed in `section_data`.
+   Context: cust, cust_id, b (crm_brief.build()), full, section_data.
+   History and the ΚΑΔ estimate are separate blocks with separate numbers —
+   never one blended figure. #}
+{% from "_fit_macros.html" import fit_table, eur, kadfmt with context %}
+{% set base = "/admin/crm/" ~ cust_id %}
+{% set BASIS = {
+     'history': 'Από το ιστορικό αναθέσεων',
+     'history+kad': 'Λίγες αναθέσεις — ιστορικό και εκτίμηση από ΚΑΔ',
+     'kad': 'Εκτίμηση από ΚΑΔ — όχι από ιστορικό',
+     'none': 'Δεν υπάρχουν αρκετά στοιχεία'} %}
+
+{% macro stats(h, extra=none) %}
+  <div class="brief-stats">
+    <div><b>{{ "{:,}".format(h.n_good).replace(",", ".") }}</b>
+      <span>{{ t("ανοικτοί διαγωνισμοί ταιριάζουν") }}</span></div>
+    <div><b>{{ eur(h.value_good) }}</b><span>{{ t("συνολική αξία τους") }}</span></div>
+    <div><b>{{ h.n_soon }}</b><span>{{ t("κλείνουν σε 14 ημέρες") }}</span></div>
+    {% if extra %}{{ extra }}{% endif %}
+  </div>
+{% endmacro %}
+
+<div class="brief">
+  <div class="brief-h">
+    <div>
+      <div class="brief-kicker">{{ t("Σύνοψη πελάτη") }}</div>
+      <h2 class="brief-title">{{ b.company or cust.full_name or cust.username }}</h2>
+      <div class="brief-sub">
+        {% if b.afm %}{{ t("ΑΦΜ") }} {{ b.afm }}{% endif %}
+        {% if b.gemi and b.gemi.status %} · {{ t("ΓΕΜΗ") }}: {{ b.gemi.status }}{% endif %}
+        {% if b.region_label %} · {{ t(b.region_label) }}{% endif %}
+      </div>
+    </div>
+    <div class="brief-tools">
+      <span class="brief-basis is-{{ b.basis | replace('+', '-') }}">{{ t(BASIS[b.basis]) }}</span>
+      {% if not full %}<a href="{{ base }}/brief" target="_blank" rel="noopener" hx-boost="false">{{ t("Σελίδα για εκτύπωση") }} ↗</a>{% endif %}
+    </div>
+  </div>
+
+  {% set pk = (b.kads | selectattr("primary") | first) %}
+  {% if pk %}
+  <p class="brief-kad">{{ t("Κύριος ΚΑΔ") }}: <strong>{{ kadfmt(pk.kad) }}</strong> {{ pk.descr or "" }}
+    {% set n_sec = b.kads | length - 1 %}{% if n_sec > 0 %}<span class="muted"> · +{{ n_sec }} {{ t("δευτερεύοντες") }}</span>{% endif %}</p>
+  {% endif %}
+
+  {# ===== From the award history ======================================= #}
+  {% if b.history %}
+  {% set h = b.history %}
+  <section class="brief-sec">
+    <h3>{{ t("Από το ιστορικό αναθέσεων") }}</h3>
+    {% set band %}{% if h.row and h.row.value_p10 %}<div><b class="nowrap">{{ "{:,.0f}".format(h.row.value_p10|float).replace(",", ".") }}–{{ "{:,.0f}".format(h.row.value_p90|float).replace(",", ".") }} €</b><span>{{ t("συνήθεις αξίες") }}</span></div>{% endif %}<div><b>{{ h.n_awards }}</b><span>{{ t("αναθέσεις") }}</span></div><div><b>{{ h.row.n_buyers if h.row else "—" }}</b><span>{{ t("αναθέτουσες") }}</span></div>{% endset %}
+    {{ stats(h.headline, band) }}
+    {% if h.top %}
+    <h4>{{ t("Οι καλύτεροι ανοικτοί διαγωνισμοί") }}</h4>
+    {{ fit_table(h.top) }}
+    {% endif %}
+    <div class="brief-cols">
+      <div>
+        <h4>{{ t("Κύριες αναθέτουσες") }}</h4>
+        <ol class="brief-list">
+          {% for r in h.buyers %}
+          <li><a href="/authority/{{ r.authority_id }}" target="_blank" rel="noopener">{{ r.authority_name or r.authority_id }}</a>
+            <span class="muted">· {{ r.n_acts }} {{ t("αναθέσεις") }}{% if r.total_value %} · {{ eur(r.total_value) }}{% endif %}</span></li>
+          {% else %}<li class="muted">—</li>{% endfor %}
+        </ol>
+      </div>
+      <div>
+        <h4>{{ t("Κύρια αντικείμενα (CPV)") }}</h4>
+        <ol class="brief-list">
+          {% for g in h.groups %}
+          <li><code>{{ g.prefix }}</code> {{ g.label or "" }} <span class="muted">· {{ g.n }}</span></li>
+          {% else %}<li class="muted">—</li>{% endfor %}
+        </ol>
+      </div>
+    </div>
+    <h4>{{ t("Κύριοι ανταγωνιστές") }}</h4>
+    {% if full %}{% with kind = "competitors", data = section_data["competitors"] %}{% include "_crm_brief_section.html" %}{% endwith %}
+    {% else %}<div hx-get="{{ base }}/brief/competitors" hx-trigger="load" hx-swap="outerHTML"><p class="brief-note">{{ t("Φόρτωση… (οι ανταγωνιστές χρειάζονται μερικά δευτερόλεπτα)") }}</p></div>{% endif %}
+  </section>
+  {% elif b.needs_derive %}
+  <section class="brief-sec">
+    <h3>{{ t("Από το ιστορικό αναθέσεων") }}</h3>
+    <p class="brief-note">{{ t("Ο πελάτης είναι ανάδοχος, αλλά το προφίλ του δεν έχει υπολογιστεί ακόμη.") }}
+      <a href="{{ base }}?tab=fit" hx-boost="false">{{ t("Ανοίξτε το «Ταίριασμα» και πατήστε «Υπολογισμός από το ιστορικό».") }}</a></p>
+  </section>
+  {% endif %}
+
+  {# ===== The ΚΑΔ estimate ============================================= #}
+  {% if b.kad %}
+  {% set est = b.kad.est %}
+  <section class="brief-sec brief-est">
+    <h3>{{ t("Εκτίμηση από ΚΑΔ") }} <span class="fit-kad-tag">{{ t("όχι από ιστορικό") }}</span></h3>
+    {% if est.usable %}
+    <p class="brief-note">{{ t("Δεν προκύπτει από αναθέσεις της εταιρείας: είναι οι κωδικοί CPV που ταιριάζουν στην περιγραφή του ΚΑΔ της στο ΓΕΜΗ. Χωρίς ιστορικό η βαθμολογία δεν ξεπερνά το 75, γιατί η αναθέτουσα μετρά μηδέν και το μέγεθος ουδέτερα.") }}</p>
+    {{ stats(b.kad.headline) }}
+    <h4>{{ t("Τι πιθανότατα πουλά") }}</h4>
+    <table class="crm-tbl brief-areas">
+      <thead><tr><th>CPV</th><th>{{ t("Αντικείμενο") }}</th><th>{{ t("Βάση") }}</th></tr></thead>
+      <tbody>
+      {% for a in est.areas %}
+        <tr><td><code>{{ a.prefix }}</code></td><td>{{ a.label or "—" }}</td>
+          <td title="{{ t('ΚΑΔ') }} {{ kadfmt(a.kad) }}">{{ t("ταιριάζει στην περιγραφή του ΚΑΔ") }} <span class="muted">({{ (a.score * 100)|round|int }}%)</span>{% if not a.primary %} <span class="muted">· {{ t("δευτερεύων ΚΑΔ") }}</span>{% endif %}</td></tr>
+      {% else %}<tr><td colspan="3" class="muted">—</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% if b.kad.top %}
+    <h4>{{ t("Οι καλύτεροι ανοικτοί διαγωνισμοί") }}</h4>
+    {{ fit_table(b.kad.top) }}
+    {% endif %}
+    <div class="brief-cols">
+      <div>
+        <h4>{{ t("Ομοειδείς επιχειρήσεις που ήδη κερδίζουν") }}</h4>
+        {% if full %}{% with kind = "peers", data = section_data["peers"] %}{% include "_crm_brief_section.html" %}{% endwith %}
+        {% else %}<div hx-get="{{ base }}/brief/peers" hx-trigger="load" hx-swap="outerHTML"><p class="brief-note">{{ t("Φόρτωση…") }}</p></div>{% endif %}
+      </div>
+      <div>
+        <h4>{{ t("Ποιοι κερδίζουν στα ίδια αντικείμενα") }}</h4>
+        {% if full %}{% with kind = "leaders", data = section_data["leaders"] %}{% include "_crm_brief_section.html" %}{% endwith %}
+        {% else %}<div hx-get="{{ base }}/brief/leaders" hx-trigger="load" hx-swap="outerHTML"><p class="brief-note">{{ t("Φόρτωση… (οι ανταγωνιστές χρειάζονται μερικά δευτερόλεπτα)") }}</p></div>{% endif %}
+      </div>
+    </div>
+    {% else %}
+    <p class="brief-note">{{ t(est.reason) }}</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if b.basis == "none" and not b.needs_derive and not b.kad %}
+  <p class="brief-note">{{ t("Δεν υπάρχουν αρκετά στοιχεία") }}.</p>
+  {% endif %}
+
+  <p class="brief-foot muted">{{ t("Υπολογίστηκε") }} {{ b.generated_at.strftime("%d/%m/%Y %H:%M") }} ·
+    {{ t("Καθαρή αριθμητική πάνω στα δημόσια δεδομένα — δεν αποθηκεύεται και δεν φτάνει σε μοντέλο.") }}
+    {% if not full %}· <a href="{{ base }}?tab=fit" hx-boost="false">{{ t("Πλήρης λίστα στο «Ταίριασμα»") }}</a>{% endif %}</p>
+</div>

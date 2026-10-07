@@ -1,0 +1,38 @@
+{# _fit_macros.html — shared by the CRM card's Ταίριασμα tab and the brief.
+   Import WITH CONTEXT (they call t()):
+     {% from "_fit_macros.html" import fit_table, eur, kadfmt with context %}
+   fit_table(rows) takes fit.score_open()/rank() rows: score, components,
+   adam, title, authority_name, resolved_value, final_submission_date. #}
+
+{% macro eur(v) %}{% if v %}{{ "{:,.0f}".format(v|float).replace(",", ".") }} €{% else %}—{% endif %}{% endmacro %}
+
+{# '46460212' -> '46.46.02.12', the way the registry and ΑΑΔΕ print a ΚΑΔ. #}
+{% macro kadfmt(k) %}{% if k and k|length == 8 %}{{ k[:2] }}.{{ k[2:4] }}.{{ k[4:6] }}.{{ k[6:] }}{% else %}{{ k }}{% endif %}{% endmacro %}
+
+{% macro fit_table(rows) %}
+  <table class="crm-tbl fit-tbl">
+    <thead><tr>
+      <th>{{ t("Βαθμός") }}</th><th>{{ t("Διαγωνισμός") }}</th>
+      <th>{{ t("Γιατί") }}</th><th>{{ t("Προθεσμία") }}</th>
+    </tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><span class="fit-score {% if r.score >= 70 %}hi{% elif r.score >= 45 %}mid{% else %}lo{% endif %}">{{ r.score }}</span></td>
+        <td>
+          <a href="/act/{{ r.adam }}" hx-boost="false">{{ (r.title or r.adam)[:90] }}</a>
+          <div class="muted">{{ r.authority_name or "—" }}{% if r.resolved_value %} · {{ "{:,.2f}".format(r.resolved_value|float).replace(",", "@").replace(".", ",").replace("@", ".") }} €{% endif %}</div>
+        </td>
+        <td class="fit-why">
+          {% for comp in r.components %}
+          <span class="fit-comp {% if comp.score >= 0.7 %}ok{% elif comp.score >= 0.35 %}mid{% else %}no{% endif %}"
+                title="{{ comp.label }} · {{ t('βαρύτητα') }} {{ (comp.weight * 100)|round|int }}%">
+            {{ t(comp.label) }}: {{ t(comp.why) }}{% if comp.detail %} {{ comp.detail }}{% endif %}</span>
+          {% endfor %}
+        </td>
+        <td class="nowrap">{{ r.final_submission_date.strftime("%d/%m/%Y") if r.final_submission_date else "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endmacro %}

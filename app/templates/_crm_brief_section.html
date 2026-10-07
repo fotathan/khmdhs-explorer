@@ -1,0 +1,64 @@
+{# _crm_brief_section.html — one competitor list on the sales brief.
+   GET /admin/crm/<uid>/brief/<kind> (lazy, swapped over its placeholder) or
+   included inline by the print page. Context: kind, data, cust_id.
+     competitors — fit.competitors(): shares an exact CPV AND a buyer
+     peers       — kad_cpv.peers(): same primary ΚΑΔ, already winning
+     leaders     — kad_cpv.leaders(): most awards in the estimated codes #}
+{% from "_fit_macros.html" import kadfmt with context %}
+<div class="brief-part">
+{% if data is none %}
+  <p class="brief-note">{{ t("Ο υπολογισμός δεν ολοκληρώθηκε εγκαίρως. Ανοίξτε ξανά τη σύνοψη σε λίγο.") }}</p>
+{% elif kind == "competitors" %}
+  {% if data.rows %}
+  <p class="brief-note">{{ t("Ίδιοι κωδικοί CPV ΚΑΙ ίδιες αναθέτουσες με τον πελάτη.") }}</p>
+  <table class="crm-tbl brief-tbl">
+    <thead><tr><th>{{ t("Ανάδοχος") }}</th><th class="num">{{ t("Κοινές αναθέσεις") }}</th>
+      <th class="num">{{ t("Κοινές αναθέτουσες") }}</th></tr></thead>
+    <tbody>
+    {% for r in data.rows %}
+      <tr><td>{% if r.vat_number %}<a href="/contractor/{{ r.vat_number }}" target="_blank" rel="noopener">{{ r.name }}</a>{% else %}{{ r.name }}{% endif %}</td>
+        <td class="num">{{ "{:,}".format(r.n_shared).replace(",", ".") }}</td>
+        <td class="num">{{ r.n_buyers }} / {{ data.n_buyers }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="brief-note">{{ t("Δεν βρέθηκαν ανταγωνιστές στους ίδιους κωδικούς και αναθέτουσες.") }}</p>
+  {% endif %}
+
+{% elif kind == "peers" %}
+  {% if data.rows %}
+  <p class="brief-note">{{ t("Κύριος ΚΑΔ ίδιος με του πελάτη") }}{% if data.level and data.level|length < 8 %} ({{ t("στο επίπεδο") }} {{ data.level }}){% endif %} · {{ t("αναθέσεις τελευταίας τριετίας") }}.</p>
+  <table class="crm-tbl brief-tbl">
+    <thead><tr><th>{{ t("Ανάδοχος") }}</th><th class="num">{{ t("Αναθέσεις") }}</th><th>{{ t("Έδρα") }}</th></tr></thead>
+    <tbody>
+    {% for r in data.rows %}
+      <tr><td>{% if r.vat_number %}<a href="/contractor/{{ r.vat_number }}" target="_blank" rel="noopener">{{ r.name }}</a>{% else %}{{ r.name }}{% endif %}</td>
+        <td class="num">{{ "{:,}".format(r.n_awards).replace(",", ".") }}</td>
+        <td>{% if r.region_label %}<span class="{{ 'brief-same' if r.same_region else '' }}">{{ t(r.region_label) }}</span>{% else %}—{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="brief-note">{{ t("Δεν βρέθηκε ανάδοχος με τον ίδιο ΚΑΔ και αναθέσεις την τελευταία τριετία, ανάμεσα σε όσους έχει αναζητηθεί ο ΚΑΔ στο ΓΕΜΗ") }} ({{ "{:,}".format(data.n_known or 0).replace(",", ".") }}).</p>
+  {% endif %}
+
+{% else %}
+  {% if data.rows %}
+  <p class="brief-note">{{ t("Αναθέσεις τελευταίας τριετίας στους κωδικούς CPV της εκτίμησης") }} ({{ data.n_codes }}).</p>
+  <table class="crm-tbl brief-tbl">
+    <thead><tr><th>{{ t("Ανάδοχος") }}</th><th class="num">{{ t("Αναθέσεις") }}</th>
+      <th class="num">{{ t("Στην περιφέρεια του πελάτη") }}</th></tr></thead>
+    <tbody>
+    {% for r in data.rows %}
+      <tr><td>{% if r.vat_number %}<a href="/contractor/{{ r.vat_number }}" target="_blank" rel="noopener">{{ r.name }}</a>{% else %}{{ r.name }}{% endif %}</td>
+        <td class="num">{{ "{:,}".format(r.n_awards).replace(",", ".") }}</td>
+        <td class="num">{{ r.n_region or "—" }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="brief-note">{{ t("Δεν βρέθηκαν αναθέσεις στους κωδικούς της εκτίμησης.") }}</p>
+  {% endif %}
+{% endif %}
+</div>

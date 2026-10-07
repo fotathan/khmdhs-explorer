@@ -501,6 +501,33 @@ def seed_from_ledger(c, user_id: int, *, by: int | None = None) -> dict:
             "operator_ids": op_ids, "banded": banded}
 
 
+def normalise_within_depth(raw: dict[str, float]) -> dict[str, float]:
+    """prefix -> raw strength, rescaled 0..1 against the peak OF ITS DEPTH.
+
+    Weight WITHIN each depth, not across all of them. Normalising globally
+    measures every prefix against the busiest division, so an 8-digit code —
+    necessarily a fraction of its own division — always scores near zero and
+    the deepest, most specific match is punished hardest. That is backwards,
+    and it showed up immediately on a real firm: a medical supplier's core
+    CPV group scored 0.36 on its own speciality.
+
+    Depth is measured WITHOUT the check digit, so a derived '33184100-4' and
+    a declared '33184100' are the same depth and share one peak.
+
+    Shared by the ledger profile (raw = award counts) and the ΚΑΔ estimate
+    (raw = share of peer firms, kad_cpv.estimate), so both grade alike.
+    """
+    def depth(prefix: str) -> int:
+        return len(_cpv_base(prefix))
+
+    peak: dict[int, float] = {}
+    for prefix, n in raw.items():
+        d = depth(prefix)
+        peak[d] = max(peak.get(d, 0.0), float(n))
+    return {prefix: min(1.0, float(n) / (peak[depth(prefix)] or 1.0))
+            for prefix, n in raw.items()}
+
+
 def load_profile(c, user_id: int) -> Profile | None:
     """The stored profile, shaped for the scorer. None when there is none."""
     c.execute("""SELECT * FROM proc.company_profile WHERE user_id = %s""",
@@ -512,25 +539,8 @@ def load_profile(c, user_id: int) -> Profile | None:
     c.execute("""SELECT cpv_prefix, sum(n_acts) AS n
                    FROM proc.company_profile_cpv WHERE user_id = %s
                   GROUP BY cpv_prefix""", (user_id,))
-    cpv_rows = c.fetchall()
-    # Weight WITHIN each depth, not across all of them. Normalising globally
-    # measures every prefix against the busiest division, so an 8-digit code —
-    # necessarily a fraction of its own division — always scores near zero and
-    # the deepest, most specific match is punished hardest. That is backwards,
-    # and it showed up immediately on a real firm: a medical supplier's core
-    # CPV group scored 0.36 on its own speciality.
-    #
-    # Depth is measured WITHOUT the check digit, so a derived '33184100-4' and
-    # a declared '33184100' are the same depth and share one peak.
-    def depth(prefix: str) -> int:
-        return len(_cpv_base(prefix))
-
-    peak: dict[int, int] = {}
-    for r in cpv_rows:
-        d = depth(r["cpv_prefix"])
-        peak[d] = max(peak.get(d, 0), int(r["n"]))
-    cpv = {r["cpv_prefix"]: min(1.0, int(r["n"]) / (peak[depth(r["cpv_prefix"])] or 1))
-           for r in cpv_rows}
+    cpv = normalise_within_depth({r["cpv_prefix"]: float(r["n"])
+                                  for r in c.fetchall()})
 
     c.execute("""SELECT DISTINCT nuts_prefix FROM proc.company_profile_nuts
                   WHERE user_id = %s""", (user_id,))
@@ -609,6 +619,15 @@ def rank(c, user_id: int, *, limit: int = 25) -> dict:
     if not profile.is_usable:
         return {"profile": profile, "rows": [],
                 "reason": "το προφίλ δεν έχει ιστορικό CPV για ταίριασμα"}
+    scored = score_open(c, profile)
+    return {"profile": profile, "rows": scored[:limit],
+            "n_candidates": len(scored), "reason": None}
+
+
+def score_open(c, profile: Profile) -> list[dict]:
+    """Every open candidate for this profile, scored and explained, best
+    first. Any Profile — the stored one (rank) or a ΚΑΔ estimate built in
+    memory (kad_cpv.estimate) — goes through the same arithmetic."""
     scored = []
     for act in open_tenders(c, profile):
         detail = explain(profile, act, list(act.get("cpvs") or []))
@@ -616,8 +635,7 @@ def rank(c, user_id: int, *, limit: int = 25) -> dict:
     # Deadline breaks ties: between two equally good fits, the one closing
     # sooner is the one worth looking at today.
     scored.sort(key=lambda r: (-r["score"], r["final_submission_date"]))
-    return {"profile": profile, "rows": scored[:limit],
-            "n_candidates": len(scored), "reason": None}
+    return scored
 
 
 # --------------------------------------------------------------------------- #
@@ -746,8 +764,8 @@ def competitors(c, user_id: int, *, limit: int = COMPETITORS_MAX) -> dict:
              WHERE oc.cpv_code IN (SELECT cpv_prefix FROM codes)),
         pool AS (
             SELECT a.adam, a.authority_id, ao.operator_id,
-                   coalesce(ao.awarded_value_with_vat,
-                            proc.resolved_value(a.adam, a.total_cost_with_vat)) AS val
+                   ao.awarded_value_with_vat AS awarded,
+                   a.total_cost_with_vat AS cost
               FROM hits h
               JOIN proc.procurement_act a ON a.adam = h.adam
               JOIN proc.act_operator ao ON ao.adam = a.adam
@@ -756,16 +774,25 @@ def competitors(c, user_id: int, *, limit: int = COMPETITORS_MAX) -> dict:
                                        WHERE user_id = %(uid)s)
                AND a.type = ANY(%(types)s)
                AND NOT coalesce(a.cancelled, false)
-               AND ao.operator_id <> ALL(%(ops)s))
-        SELECT p.operator_id, eo.name, eo.vat_number,
-               count(DISTINCT p.adam) AS n_shared,
-               count(DISTINCT p.authority_id) AS n_buyers,
-               coalesce(sum(p.val), 0) AS total_value
-          FROM pool p
-          JOIN proc.economic_operator eo ON eo.operator_id = p.operator_id
-         GROUP BY p.operator_id, eo.name, eo.vat_number
-         ORDER BY n_shared DESC, n_buyers DESC, p.operator_id
-         LIMIT %(limit)s
+               AND ao.operator_id <> ALL(%(ops)s)),
+        ranked AS (
+            SELECT operator_id,
+                   count(DISTINCT adam) AS n_shared,
+                   count(DISTINCT authority_id) AS n_buyers
+              FROM pool
+             GROUP BY operator_id
+             ORDER BY n_shared DESC, n_buyers DESC, operator_id
+             LIMIT %(limit)s)
+        -- The value only for the rows shown. resolved_value() per pool row
+        -- (~200k on a large hospital supplier) was most of the cost: 14-20 s,
+        -- past the pool's 15 s statement timeout, so the dialog failed.
+        SELECT r.operator_id, eo.name, eo.vat_number, r.n_shared, r.n_buyers,
+               (SELECT coalesce(sum(coalesce(p.awarded,
+                                    proc.resolved_value(p.adam, p.cost))), 0)
+                  FROM pool p WHERE p.operator_id = r.operator_id) AS total_value
+          FROM ranked r
+          JOIN proc.economic_operator eo ON eo.operator_id = r.operator_id
+         ORDER BY r.n_shared DESC, r.n_buyers DESC, r.operator_id
     """, {"uid": user_id, "ops": op_ids, "types": list(_AWARD_TYPES),
           "limit": limit})
     return {"rows": c.fetchall(), "n_codes": n_codes, "n_buyers": n_buyers}

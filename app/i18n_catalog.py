@@ -3693,6 +3693,80 @@ _COMPETITION = {
 }
 
 
+# The CRM sales brief and the ΚΑΔ estimate (crm_brief.py, kad_cpv.py,
+# _crm_brief*.html, the Ταίριασμα tab's ΚΑΔ block). docs/specs/crm-brief-kad.md.
+_CRM_BRIEF = {
+    'Σύνοψη πελάτη': 'Customer brief',
+    'Σελίδα για εκτύπωση': 'Printable page',
+    'πίσω στον πελάτη': 'back to the customer',
+    'ΓΕΜΗ': 'GEMI',
+    'ΚΑΔ': 'KAD',
+    'Κύριος ΚΑΔ': 'Primary KAD',
+    'δευτερεύοντες': 'secondary',
+    'δευτερεύων ΚΑΔ': 'secondary KAD',
+    'Από το ιστορικό αναθέσεων': 'From the award history',
+    'Λίγες αναθέσεις — ιστορικό και εκτίμηση από ΚΑΔ':
+        'Few awards — history and a KAD estimate',
+    'Εκτίμηση από ΚΑΔ — όχι από ιστορικό': 'Estimate from KAD — not from history',
+    'Δεν υπάρχουν αρκετά στοιχεία': 'Not enough data',
+    'Εκτίμηση από ΚΑΔ': 'Estimate from KAD',
+    'όχι από ιστορικό': 'not from history',
+    'ανοικτοί διαγωνισμοί ταιριάζουν': 'open tenders fit',
+    'συνολική αξία τους': 'their total value',
+    'κλείνουν σε 14 ημέρες': 'close within 14 days',
+    'Οι καλύτεροι ανοικτοί διαγωνισμοί': 'Best open tenders',
+    'Κύριες αναθέτουσες': 'Main authorities',
+    'Κύρια αντικείμενα (CPV)': 'Main subjects (CPV)',
+    'Ο πελάτης είναι ανάδοχος, αλλά το προφίλ του δεν έχει υπολογιστεί ακόμη.':
+        'The customer is a contractor, but their profile has not been computed yet.',
+    'Ανοίξτε το «Ταίριασμα» και πατήστε «Υπολογισμός από το ιστορικό».':
+        'Open «Fit» and press «Rebuild from history».',
+    'Τι πιθανότατα πουλά': 'What they most likely sell',
+    'Ομοειδείς επιχειρήσεις που ήδη κερδίζουν': 'Similar companies already winning',
+    'Ποιοι κερδίζουν στα ίδια αντικείμενα': 'Who wins in the same subjects',
+    'Υπολογίστηκε': 'Computed',
+    'Καθαρή αριθμητική πάνω στα δημόσια δεδομένα — δεν αποθηκεύεται και δεν φτάνει σε μοντέλο.':
+        'Plain arithmetic on public data — not stored, never sent to a model.',
+    'Πλήρης λίστα στο «Ταίριασμα»': 'Full list under «Fit»',
+    'Ίδιοι κωδικοί CPV ΚΑΙ ίδιες αναθέτουσες με τον πελάτη.':
+        'Same CPV codes AND same authorities as the customer.',
+    'Κύριος ΚΑΔ ίδιος με του πελάτη': 'Same primary KAD as the customer',
+    'στο επίπεδο': 'at level',
+    'αναθέσεις τελευταίας τριετίας': 'awards in the last three years',
+    'Έδρα': 'Registered seat',
+    'Αναθέσεις τελευταίας τριετίας στους κωδικούς CPV της εκτίμησης':
+        'Awards in the last three years in the estimate\'s CPV codes',
+    'Στην περιφέρεια του πελάτη': "In the customer's region",
+    'Δεν βρέθηκαν αναθέσεις στους κωδικούς της εκτίμησης.':
+        "No awards found in the estimate's codes.",
+    # kad_cpv.estimate() reasons
+    'δεν υπάρχει ΑΦΜ — συνδέστε πρώτα την εταιρεία από το ΓΕΜΗ':
+        'no tax number (ΑΦΜ) — link the company from the GEMI registry first',
+    'δεν υπάρχουν στοιχεία ΓΕΜΗ για αυτό το ΑΦΜ':
+        'no GEMI registry record for this tax number',
+    'η εταιρεία δεν έχει ενεργό ΚΑΔ στο ΓΕΜΗ':
+        'the company has no active KAD in the GEMI registry',
+    'Ο υπολογισμός δεν ολοκληρώθηκε εγκαίρως. Ανοίξτε ξανά τη σύνοψη σε λίγο.':
+        'The computation did not finish in time. Open the brief again in a moment.',
+    'Δεν προκύπτει από αναθέσεις της εταιρείας: είναι οι κωδικοί CPV που ταιριάζουν στην περιγραφή του ΚΑΔ της στο ΓΕΜΗ. Χωρίς ιστορικό η βαθμολογία δεν ξεπερνά το 75, γιατί η αναθέτουσα μετρά μηδέν και το μέγεθος ουδέτερα.':
+        "Not derived from the company's own awards: these are the CPV codes that match the description of its KAD in GEMI. Without a history the score cannot exceed 75, because the authority counts zero and the size counts neutral.",
+    'Βάση': 'Basis',
+    'ταιριάζει στην περιγραφή του ΚΑΔ': 'matches the KAD description',
+    'Δεν βρέθηκε ανάδοχος με τον ίδιο ΚΑΔ και αναθέσεις την τελευταία τριετία, ανάμεσα σε όσους έχει αναζητηθεί ο ΚΑΔ στο ΓΕΜΗ':
+        'No contractor with the same KAD and awards in the last three years, among those whose KAD has been looked up in GEMI',
+    'η περιγραφή του ΚΑΔ δεν ταιριάζει σε κανέναν κωδικό CPV':
+        'the KAD description matches no CPV code',
+    # /help, section #fit
+    'Το κουμπί «Σύνοψη πελάτη» στη λωρίδα στοιχείων πάνω από τις καρτέλες ανοίγει σε παράθυρο ό,τι χρειάζεται ένας πωλητής πριν από ένα τηλεφώνημα: ποια εταιρεία είναι (ΑΦΜ, κατάσταση στο ΓΕΜΗ, κύριος ΚΑΔ, περιφέρεια), πόσοι ανοικτοί διαγωνισμοί της ταιριάζουν, τι αξίας και πόσοι κλείνουν σε 14 ημέρες, οι καλύτεροι από αυτούς, οι κύριες αναθέτουσες και οι ανταγωνιστές. Η «Σελίδα για εκτύπωση» δείχνει την ίδια σύνοψη σε σελίδα Α4 — και σε PDF από την εκτύπωση του browser.':
+        "The «Customer brief» button in the summary strip above the tabs opens, in a window, what a salesperson needs before a call: which company it is (ΑΦΜ, GEMI status, primary KAD, region), how many open tenders fit it, their value and how many close within 14 days, the best of them, the main authorities and the competitors. The «Printable page» shows the same brief as an A4 page — and as a PDF through the browser's print dialog.",
+    'Για εταιρεία χωρίς αναθέσεις, ή με λιγότερες από πέντε, η σύνοψη και η καρτέλα «Ταίριασμα» δείχνουν επιπλέον μια «Εκτίμηση από ΚΑΔ»: τους κωδικούς CPV που ταιριάζουν στην περιγραφή των ΚΑΔ της στο ΓΕΜΗ, τους ανοικτούς διαγωνισμούς σε αυτούς, ποιοι παίρνουν τις περισσότερες αναθέσεις στα ίδια αντικείμενα και, όπου ο ΚΑΔ τους είναι γνωστός, ομοειδείς επιχειρήσεις που ήδη κερδίζουν. Η περιφέρεια προκύπτει από τον ταχυδρομικό κώδικα της έδρας και ανεβάζει τη βαθμολογία, χωρίς να αποκλείει διαγωνισμούς σε άλλες περιοχές.':
+        "For a company with no awards, or fewer than five, the brief and the «Fit» tab also show an «Estimate from KAD»: the CPV codes that match the description of its KAD in GEMI, the open tenders in them, who takes the most awards in the same subjects and, where their KAD is known, similar companies already winning. The region comes from the registered seat's postal code and raises the score, without excluding tenders elsewhere.",
+    'Η εκτίμηση από ΚΑΔ': 'The KAD estimate',
+    "Χρειάζεται μόνο συνδεδεμένη εταιρεία στον πίνακα «Εταιρεία στο ΓΕΜΗ». Επίσημος πίνακας αντιστοίχισης ΚΑΔ→CPV δεν υπάρχει, γι' αυτό η περιγραφή κάθε ΚΑΔ συγκρίνεται με τις περιγραφές των CPV: ένας έμπορος ή μια βιομηχανία παίρνει μόνο κωδικούς αγαθών και μια κατασκευαστική εταιρεία μόνο έργα. Είναι εκτίμηση, όχι ιστορικό: φαίνεται πάντα χωριστά, δεν εμφανίζεται στον πελάτη, και όταν η περιγραφή δεν ταιριάζει πουθενά δεν δίνεται εκτίμηση.":
+        "It only needs a linked company in the «Company in GEMI» panel. There is no official KAD→CPV correspondence table, so each KAD's description is compared with the CPV descriptions: a trader or manufacturer only gets goods codes and a construction company only works. It is an estimate, not a history: it is always shown apart, it is never shown to the customer, and when the description matches nothing no estimate is given.",
+}
+
+
 # Evaluation layer — declared certificates against the checklist
 # (app/eligibility_eval.py, docs/specs/evaluation-layer.md).
 _CERTS = {
@@ -3799,5 +3873,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY, _DIGESTS,
              _SELF_SERVE, _PUBLIC, _HELP_PUBLIC, _AI_POLICY, _FIT,
              _COMPANY_MATCH, _MATCH, _TSG_DUP, _ONBOARDING, _CHECKLIST, _CERTS,
-             _COMPETITION):
+             _COMPETITION, _CRM_BRIEF):
     UI_EN.update(_grp)

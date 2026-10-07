@@ -115,3 +115,4 @@ migrations/20260924160000_certificate_reminders.sql
 migrations/20261001082952_competition_indicator.sql
 migrations/20261003090000_analytics_cpv_count_once.sql
 migrations/20261003120000_prior_info_type_bid_bond_index.sql
+migrations/20261007120000_kad_cpv_map.sql
