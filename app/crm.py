@@ -34,6 +34,12 @@ try:
     from app import fit as _fit
 except ImportError:                      # flat layout (run with --app-dir=app)
     import fit as _fit
+try:
+    from app import kad_cpv as _kad
+    from app import crm_brief as _brief
+except ImportError:                      # flat layout (run with --app-dir=app)
+    import kad_cpv as _kad
+    import crm_brief as _brief
 
 try:
     from app import call_pipeline as _pipeline
@@ -462,13 +468,28 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
                     (uid,)).fetchone()
         except Exception:                # noqa: BLE001 — a panel, not the page
             fit_data, fit_row = {"rows": [], "reason": "could not be computed"}, None
+        # The ΚΑΔ estimate (docs/specs/crm-brief-kad.md), for a firm with no
+        # award history or a thin one — its own block under the list above,
+        # never merged into it. Same rule as the brief: crm_brief.build.
+        fit_kad = None
+        try:
+            with cursor() as c:
+                n_awards = int((fit_row or {}).get("n_awards") or 0)
+                if not fit_data.get("rows") or n_awards < _fit.MIN_AWARDS_FOR_BAND:
+                    est = _kad.estimate(c, uid, lang=lang)
+                    if est.kads:
+                        fit_kad = {"est": est,
+                                   "rows": (_fit.score_open(c, est.profile)[:25]
+                                            if est.usable else [])}
+        except Exception:                # noqa: BLE001 — a panel, not the page
+            fit_kad = None
         # Declared certificates (docs/specs/evaluation-layer.md). Admin-entered
         # in this slice; the checklist shows them under the items that ask.
         with cursor() as c:
             certs = _eval.certificates(c, uid)
 
         return {**digest,
-                "fit": fit_data, "fit_row": fit_row,
+                "fit": fit_data, "fit_row": fit_row, "fit_kad": fit_kad,
                 "certs": certs, "cert_schemes": _eval.CATALOGUE,
                 "cust": cust, "profile": profile or {}, "history": history,
                 "products": products, "current": current,
@@ -600,6 +621,41 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
             else:
                 ctx["data"] = _fit.competitors(c, uid)
         return templates.TemplateResponse(request, "_crm_fit_dialog.html", ctx)
+
+    # ---- The sales brief (docs/specs/crm-brief-kad.md) ----------------- #
+    # One GET, two renders: the dialog on the card asks with HX-Request and
+    # gets the fragment (competitor lists then load lazily, they take
+    # seconds); a plain GET is the printable page with everything inline.
+    @router.get("/{uid}/brief", response_class=HTMLResponse)
+    def crm_brief(uid: int, request: Request):
+        lang = _i18n.lang_from_request(request)
+        partial = request.headers.get("HX-Request") == "true"
+        with cursor() as c:
+            cust = _auth.get_customer(c, uid)
+            if not cust:
+                raise HTTPException(404, "customer not found")
+            data = _brief.build(c, uid, lang=lang)
+            section_data = {} if partial else {
+                kind: _brief.section(c, uid, kind, est=data["est"], lang=lang)
+                for kind in data["sections"]}
+        ctx = {"cust": cust, "cust_id": uid, "b": data, "full": not partial,
+               "section_data": section_data}
+        return templates.TemplateResponse(
+            request, "_crm_brief.html" if partial else "admin_crm_brief.html", ctx)
+
+    @router.get("/{uid}/brief/{kind}", response_class=HTMLResponse)
+    def crm_brief_section(uid: int, kind: str, request: Request):
+        """One competitor list of the brief, loaded after the brief itself."""
+        if kind not in _brief.SECTIONS:
+            raise HTTPException(404, "unknown section")
+        lang = _i18n.lang_from_request(request)
+        with cursor() as c:
+            if not _auth.get_customer(c, uid):
+                raise HTTPException(404, "customer not found")
+            data = _brief.section(c, uid, kind, lang=lang)
+        return templates.TemplateResponse(
+            request, "_crm_brief_section.html",
+            {"cust_id": uid, "kind": kind, "data": data})
 
     # ---- ΓΕΜΗ company match ------------------------------------------- #
     # Three POSTs, all returning the same HTMX fragment so the card never

@@ -7046,3 +7046,100 @@ CREATE UNIQUE INDEX ux_mv_competition_cpv ON proc.mv_competition_cpv USING btree
 --
 
 CREATE UNIQUE INDEX ux_mv_competition_fill ON proc.mv_competition_fill USING btree (month);
+
+
+--
+-- Name: kad_cpv_build; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.kad_cpv_build (
+    id integer NOT NULL,
+    built_at timestamp with time zone DEFAULT now() NOT NULL,
+    n_firms integer NOT NULL,
+    n_pairs integer NOT NULL,
+    window_years integer NOT NULL,
+    params jsonb DEFAULT '{}'::jsonb NOT NULL
+);
+
+
+--
+-- Name: kad_cpv_build_id_seq; Type: SEQUENCE; Schema: proc; Owner: -
+--
+
+CREATE SEQUENCE proc.kad_cpv_build_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: kad_cpv_build_id_seq; Type: SEQUENCE OWNED BY; Schema: proc; Owner: -
+--
+
+ALTER SEQUENCE proc.kad_cpv_build_id_seq OWNED BY proc.kad_cpv_build.id;
+
+
+--
+-- Name: kad_cpv_map; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.kad_cpv_map (
+    kad_prefix text NOT NULL,
+    cpv_prefix text NOT NULL,
+    n_firms integer NOT NULL,
+    kad_firms integer NOT NULL,
+    support real NOT NULL,
+    lift real NOT NULL
+);
+
+
+--
+-- Name: operator_kad; Type: TABLE; Schema: proc; Owner: -
+--
+
+CREATE TABLE proc.operator_kad (
+    afm text NOT NULL,
+    kad text NOT NULL,
+    nuts2 text
+);
+
+
+--
+-- Name: kad_cpv_build id; Type: DEFAULT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.kad_cpv_build ALTER COLUMN id SET DEFAULT nextval('proc.kad_cpv_build_id_seq'::regclass);
+
+
+--
+-- Name: kad_cpv_build kad_cpv_build_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.kad_cpv_build
+    ADD CONSTRAINT kad_cpv_build_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: kad_cpv_map kad_cpv_map_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.kad_cpv_map
+    ADD CONSTRAINT kad_cpv_map_pkey PRIMARY KEY (kad_prefix, cpv_prefix);
+
+
+--
+-- Name: operator_kad operator_kad_pkey; Type: CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.operator_kad
+    ADD CONSTRAINT operator_kad_pkey PRIMARY KEY (afm);
+
+
+--
+-- Name: ix_operator_kad_kad; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_operator_kad_kad ON proc.operator_kad USING btree (kad text_pattern_ops);

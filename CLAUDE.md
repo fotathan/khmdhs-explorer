@@ -225,6 +225,33 @@ on the CRM card's Ταίριασμα tab. Deterministic arithmetic, NO model.
 - n_awards counts award ACTS (decision + contract), so customer copy says
   "αναθέσεις", never "συμβάσεις".
 
+## CRM sales brief + ΚΑΔ estimate (docs/specs/crm-brief-kad.md)
+app/crm_brief.py (the brief), app/kad_cpv.py (the estimate), kad_cpv_map.py
+(build locally / push to prod). «Σύνοψη πελάτη» on the CRM card's glance strip
+opens a dialog; a plain GET of /admin/crm/<uid>/brief is the print page.
+- **The estimate reads the ΚΑΔ DESCRIPTION** (kad_cpv.describe): Greek-stemmed
+  word match against the CPV descriptions, filler words dropped (DESC_STOP),
+  CPV type limited by NACE section (traders/manufacturers → goods, builders →
+  works). There is NO official ΚΑΔ/NACE→CPV table (the 2002 CPA 96 annex is
+  gone). Measured: hit 86% vs 66% naive (`kad_cpv_map.py evaluate`).
+- The LEARNED mapping (build) did worse than guessing, even in-sample — it is
+  NOT a source. It only feeds operator_kad (peers) and `evaluate`. ΓΕΜΗ
+  rate-limits to one call every 6–8 s: never plan a bulk enrichment.
+- The estimate is an ordinary fit.Profile through the same fit.score_open —
+  never a second scorer. Always its own labelled block ("όχι από ιστορικό"),
+  never merged into the history list. Max score 75 (no buyer, neutral value).
+- History ≥ fit.MIN_AWARDS_FOR_BAND awards → history only; fewer → both.
+- ΑΦΜ: the admin-linked company match, else customer_profile. NEVER
+  onboarding's declared_afm (test-enforced).
+- Region = registered postal code → NUTS-2 (POSTAL_NUTS2). Scores, never
+  filters. kad_cpv.REGION_LABELS must equal main.NUTS_REGIONS (tested).
+- Prod cannot hold raw registry records: the optional build runs locally and
+  `kad_cpv_map.py push` copies only kad_cpv_map / operator_kad / kad_cpv_build.
+- Admin-only, never shown to customers, stored nowhere, never reads
+  act_ai_summary (test-enforced).
+- #brief-dlg sits OUTSIDE the tab panels: a modal inside a display:none panel
+  never shows.
+
 ## Two providers for the AI summary
 **DeepSeek is production; Anthropic is the second option.** AI_SUMMARY_MODEL
 defaults to `deepseek-flash`, and the MODEL NAME is the whole switch — deepseek-*

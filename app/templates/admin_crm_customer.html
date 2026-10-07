@@ -1,6 +1,7 @@
 {% extends "admin_base.html" %}
 {% block title %}{{ cust.full_name or cust.username }} · CRM{% endblock %}
 {% block admin_content %}
+{% from "_fit_macros.html" import fit_table, kadfmt with context %}
 {% set STATUS_LABELS = {
   'prospective': 'Δυνητικός πελάτης',
   'tester': 'Δοκιμαστής', 'subscriber': 'Συνδρομητής',
@@ -81,7 +82,34 @@
   <div><dt>{{ t("Δραστηριότητα") }}</dt><dd>
     {{ notes|length }} · {{ calls|length }} · {{ tasks|length }}
     <span class="glance-sub">{{ t("σημ./κλήσ./εργ.") }}</span></dd></div>
+  {# The sales brief (crm_brief.py): a real link — without JS it opens the
+     print page; with JS briefDialog() loads the fragment into #brief-dlg. #}
+  <div class="glance-brief">
+    <a href="/admin/crm/{{ cust.id }}/brief" class="brief-btn" hx-boost="false"
+       onclick="return briefDialog(this)">{{ t("Σύνοψη πελάτη") }} →</a>
+  </div>
 </div>
+
+{# Outside every tab panel on purpose: a hidden panel (display:none) would
+   hide a modal opened inside it too. #}
+<dialog id="brief-dlg" class="fit-dlg brief-dlg" aria-label="{{ t('Σύνοψη πελάτη') }}">
+  <div class="fit-dlg-h">
+    <button type="button" class="fit-dlg-x" onclick="document.getElementById('brief-dlg').close()">{{ t("Κλείσιμο παραθύρου ✕") }}</button>
+  </div>
+  <div id="brief-dlg-body"></div>
+</dialog>
+<script>
+  window.briefDialog = function (a) {
+    var d = document.getElementById('brief-dlg');
+    if (!d || !d.showModal || !window.htmx) return true;   // fall back to the page
+    document.getElementById('brief-dlg-body').innerHTML =
+      '<p class="fit-dlg-note">{{ t("Φόρτωση…") }}</p>';
+    if (!d.open) d.showModal();
+    htmx.ajax('GET', a.getAttribute('href'), {target: '#brief-dlg-body', swap: 'innerHTML'});
+    return false;
+  };
+</script>
+{% include "_crm_brief_css.html" %}
 
 {# ===== TABS ================================================================
    The card had grown to four unrelated jobs stacked down one page: the record
@@ -322,33 +350,30 @@
 
   {% if fit and fit.rows %}
   <p class="fit-note">{{ t("Οι ανοικτοί διαγωνισμοί που ταιριάζουν, με φθίνουσα σειρά. Κάθε βαθμολογία αναλύεται στα μέρη της: αν η σειρά φαίνεται λάθος, τα μέρη δείχνουν ποιο σκέλος φταίει.") }}</p>
-  <table class="crm-tbl fit-tbl">
-    <thead><tr>
-      <th>{{ t("Βαθμός") }}</th><th>{{ t("Διαγωνισμός") }}</th>
-      <th>{{ t("Γιατί") }}</th><th>{{ t("Προθεσμία") }}</th>
-    </tr></thead>
-    <tbody>
-      {% for r in fit.rows %}
-      <tr>
-        <td><span class="fit-score {% if r.score >= 70 %}hi{% elif r.score >= 45 %}mid{% else %}lo{% endif %}">{{ r.score }}</span></td>
-        <td>
-          <a href="/act/{{ r.adam }}" hx-boost="false">{{ (r.title or r.adam)[:90] }}</a>
-          <div class="muted">{{ r.authority_name or "—" }}{% if r.resolved_value %} · {{ "{:,.2f}".format(r.resolved_value|float).replace(",", "@").replace(".", ",").replace("@", ".") }} €{% endif %}</div>
-        </td>
-        <td class="fit-why">
-          {% for comp in r.components %}
-          <span class="fit-comp {% if comp.score >= 0.7 %}ok{% elif comp.score >= 0.35 %}mid{% else %}no{% endif %}"
-                title="{{ comp.label }} · {{ t('βαρύτητα') }} {{ (comp.weight * 100)|round|int }}%">
-            {{ t(comp.label) }}: {{ t(comp.why) }}{% if comp.detail %} {{ comp.detail }}{% endif %}</span>
-          {% endfor %}
-        </td>
-        <td class="nowrap">{{ r.final_submission_date.strftime("%d/%m/%Y") if r.final_submission_date else "—" }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {{ fit_table(fit.rows) }}
   {% else %}
   <p class="fit-note">{{ t(fit.reason) if fit and fit.reason else t("Δεν βρέθηκαν ανοικτοί διαγωνισμοί που να ταιριάζουν.") }}</p>
+  {% endif %}
+
+  {# ---- ΚΑΔ estimate (docs/specs/crm-brief-kad.md) ----------------------
+     For a firm with no award history, or fewer than fit.MIN_AWARDS_FOR_BAND
+     awards: what contractors under the SAME ΚΑΔ win, scored by the same
+     arithmetic. Its own block, never merged into the list above. #}
+  {% if fit_kad %}
+  {% set est = fit_kad.est %}
+  <div class="fit-kad" id="fit-kad">
+    <h3>{{ t("Εκτίμηση από ΚΑΔ") }} <span class="fit-kad-tag">{{ t("όχι από ιστορικό") }}</span></h3>
+    {% if est.usable %}
+    <p class="fit-note">{{ t("Δεν προκύπτει από αναθέσεις της εταιρείας: είναι οι κωδικοί CPV που ταιριάζουν στην περιγραφή του ΚΑΔ της στο ΓΕΜΗ. Χωρίς ιστορικό η βαθμολογία δεν ξεπερνά το 75, γιατί η αναθέτουσα μετρά μηδέν και το μέγεθος ουδέτερα.") }}
+      {% set pk = (est.kads | selectattr("primary") | first) %}
+      {% if pk %}<br>{{ t("Κύριος ΚΑΔ") }}: <strong>{{ kadfmt(pk.kad) }}</strong> {{ pk.descr or "" }}{% endif %}
+      {% if est.region_label %} · {{ t("Περιοχή") }}: {{ t(est.region_label) }}{% endif %}</p>
+    {% if fit_kad.rows %}{{ fit_table(fit_kad.rows) }}
+    {% else %}<p class="fit-note">{{ t("Δεν βρέθηκαν ανοικτοί διαγωνισμοί που να ταιριάζουν.") }}</p>{% endif %}
+    {% else %}
+    <p class="fit-note">{{ t(est.reason) }}</p>
+    {% endif %}
+  </div>
   {% endif %}
 
   {# ---- Declared certificates (evaluation layer) ------------------------
@@ -1160,6 +1185,14 @@
   .fit-dlg-tbl .num{text-align:right;font-variant-numeric:tabular-nums;}
   .fit-dlg-pager{display:flex;gap:16px;align-items:center;justify-content:center;
     margin-top:12px;font-size:13px;}
+  .fit-kad{margin-top:22px;padding-top:14px;border-top:1px dashed var(--rule);}
+  .fit-kad h3{display:flex;gap:8px;align-items:center;}
+  .fit-kad-tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;
+    background:#fdf3e7;color:#8a5a1c;}
+  .glance-brief{display:flex;align-items:center;margin-left:auto;}
+  .brief-btn{font-weight:600;font-size:13px;color:var(--accent);text-decoration:none;
+    border:1px solid var(--accent);border-radius:8px;padding:5px 12px;white-space:nowrap;}
+  .brief-btn:hover{background:var(--accent);color:#fff;}
 </style>
 
 <script>
