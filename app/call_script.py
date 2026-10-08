@@ -89,7 +89,9 @@ def fill(text: str, values: dict) -> list[tuple[str, bool]] | None:
             return None
         if m.start() > pos:
             segs.append((text[pos:m.start()], False))
-        segs.append((str(value), True))
+        # Source data carries runs of spaces («ΔΥΠΕ   Α'  ΑΤΤΙΚΗΣ», measured on
+        # prod 2026-10-08); a value is read aloud as one clean line.
+        segs.append((" ".join(str(value).split()), True))
         pos = m.end()
     if pos < len(text):
         segs.append((text[pos:], False))

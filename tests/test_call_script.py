@@ -129,6 +129,30 @@ def test_both_languages_have_the_same_words():
                 re.findall(r"\[\[([a-z_]+)\]\]", cst.TEXT["el"][key])), key
 
 
+def test_every_name_a_note_points_at_exists():
+    """A note sends the salesperson to a tab, a section or a button: each «name»
+    it quotes must be on the card (or be a result label / the script's own
+    words). «Σύνταξη email» once pointed at a tab called «Σύνθεση email»."""
+    card = (ROOT / "app/templates/admin_crm_customer.html").read_text()
+    own = " ".join(v for k, v in cst.TEXT["el"].items() if not k.endswith("_note"))
+    for key, text in cst.TEXT["el"].items():
+        if not key.endswith("_note"):
+            continue
+        for name in re.findall(r"«([^»]+)»", text):
+            name = name.rstrip("…").strip()
+            assert (name in card or name in cs.RESULT_LABELS.values()
+                    or name in own), (key, name)
+
+
+def test_the_trial_close_does_not_rely_on_sign_in_links():
+    """LOGIN_LINKS_ENABLED is off in production (render.yaml) until email
+    deliverability is done; the trial goes out as a temporary password."""
+    for lang in ("el", "en"):
+        note = cst.TEXT[lang]["c2_note"]
+        assert "σύνδεσμο" not in note and "sign-in link" not in note
+    assert "προσωρινό συνθηματικό" in cst.TEXT["el"]["c2_note"]
+
+
 def test_fill_refuses_a_missing_value_instead_of_leaving_a_hole():
     assert cs.fill("κερδίσατε [[n]] αναθέσεις", {"n": None}) is None
     assert cs.fill("κερδίσατε [[n]] αναθέσεις", {"n": " "}) is None
@@ -225,6 +249,14 @@ def test_h1_names_the_tender_and_cuts_a_long_title():
     hook = cs.plain(cs.build(brief, _sig("self"), now=NOW)["parts"][1]["blocks"][0]["segs"])
     assert "ΓΝ ΘΕΣΣΑΛΟΝΙΚΗΣ" in hook and "13/10/2026" in hook
     assert "…" in hook and len(hook) < 400
+
+
+def test_a_value_is_read_as_one_clean_line():
+    """Real authority names carry runs of spaces and line breaks."""
+    assert cs.plain(cs.fill("από [[a]].", {"a": "ΔΥΠΕ   Α'  ΑΤΤΙΚΗΣ\n"})) == "από ΔΥΠΕ Α' ΑΤΤΙΚΗΣ."
+    brief = _brief("history", history=_history(top=[_row(authority="ΔΥΠΕ   Α'  ΑΤΤΙΚΗΣ")]))
+    hook = cs.plain(cs.build(brief, _sig("self"), now=NOW)["parts"][1]["blocks"][0]["segs"])
+    assert "ΔΥΠΕ Α' ΑΤΤΙΚΗΣ" in hook and "  " not in hook
 
 
 def test_a_quoted_title_is_not_quoted_twice():

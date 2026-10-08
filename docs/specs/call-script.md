@@ -203,10 +203,13 @@ terms («κάθε πρωί σας έρχονται οι νέοι διαγωνι�
 | C4 Alert | entitled, no alert on | «Μπορώ τώρα, όσο μιλάμε, να σας ρυθμίσω μια ειδοποίηση…» (§11.5) |
 
 C2 with a contractor-database lead: that account was created with a random
-password and maybe a generated `@prospective.com` address. The salesperson
-sets the real email and grants the test product on the card; the customer
-then signs in with «Στείλτε μου σύνδεσμο εισόδου» on /login. The script says
-exactly that, in those words.
+password and maybe a generated `@prospective.com` address. Sign-in links are
+OFF in production (render.yaml, until email deliverability is done; owner,
+2026-10-08), so the note says: set the real email on «Στοιχεία», grant the
+test product, issue a «προσωρινό συνθηματικό», and send the username + the
+temporary password from «Σύνθεση email». The customer sets their own password
+at the first sign-in. A test pins that every «name» a note quotes exists on
+the card.
 
 ### 7.5 Objections (always visible beside the script)
 

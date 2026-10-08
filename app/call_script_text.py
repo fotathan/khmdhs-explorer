@@ -13,7 +13,7 @@ version it was given, so the results of two wordings never mix.
 """
 from __future__ import annotations
 
-SCRIPT_VERSION = "1"
+SCRIPT_VERSION = "2"
 
 BRANDS = ("Promitheies.gr", "Tender Service")
 
@@ -160,14 +160,16 @@ TEXT: dict[str, dict[str, str]] = {
                "σας διαγωνισμούς; Ποια μέρα σας βολεύει;"),
         "c1_note": "Αποτέλεσμα: «Κλείστηκε παρουσίαση», με την ημερομηνία.",
         "c2": ("Μπορώ να σας ανοίξω τώρα δοκιμαστική πρόσβαση, για να τη δείτε "
-               "μόνοι σας. Σε ποιο email να έρχεται;"),
-        "c2_note": ("Στην καρτέλα: γράψτε το email στα «Στοιχεία» και δώστε το "
-                    "δοκιμαστικό προϊόν. Μετά πείτε: «Στη σελίδα εισόδου πατήστε "
-                    "\"Στείλτε μου σύνδεσμο σύνδεσης με email\" και θα σας έρθει ο "
-                    "σύνδεσμος.» Αποτέλεσμα: «Ξεκίνησε δοκιμή»."),
+               "μόνοι σας. Σε ποιο email να σας στείλω τα στοιχεία σύνδεσης;"),
+        "c2_note": ("Στην καρτέλα «Στοιχεία»: γράψτε το email στην «Επικοινωνία», "
+                    "πατήστε «ανάθεση» στην «Ανάθεση προϊόντος» (δοκιμαστικό) και "
+                    "«προσωρινό συνθηματικό» στην «Ασφάλεια». Στείλτε στον πελάτη "
+                    "από την καρτέλα «Σύνθεση email» το όνομα χρήστη και το "
+                    "προσωρινό συνθηματικό· στην πρώτη σύνδεση θα ορίσει δικό του. "
+                    "Αποτέλεσμα: «Ξεκίνησε δοκιμή»."),
         "c3": ("Μπορώ να σας επεκτείνω τη δοκιμαστική πρόσβαση, για να τη δείτε "
                "με την ησυχία σας."),
-        "c3_note": "Στην καρτέλα: «Προϊόν» → επέκταση.",
+        "c3_note": "Στην καρτέλα «Στοιχεία» → «Τρέχουσα συνδρομή» → «παράταση».",
         "c4": ("Μπορώ τώρα, όσο μιλάμε, να σας ρυθμίσω μια ειδοποίηση, ώστε να σας "
                "έρχονται με email οι νέοι διαγωνισμοί στο αντικείμενό σας. Πείτε "
                "μου δύο-τρεις λέξεις για το τι πουλάτε."),
@@ -183,7 +185,8 @@ TEXT: dict[str, dict[str, str]] = {
         "o2_note": "Αποτέλεσμα: «Ξανακαλέστε», με την ημερομηνία.",
         "o3_q": "«Στείλτε μου ένα email»",
         "o3": "Βεβαίως. Σε ποια διεύθυνση να σας το στείλω;",
-        "o3_note": "Αποτέλεσμα: «Θέλει υλικό με email». Το email γράφεται από την καρτέλα «Σύνταξη email».",
+        "o3_note": ("Αποτέλεσμα: «Θέλει υλικό με email». Το email γράφεται από την "
+                    "καρτέλα «Σύνθεση email»."),
         "o4_q": "«Πόσο κοστίζει;»",
         "o4": ("Την τιμή θα σας τη στείλω γραπτώς, μαζί με την προσφορά, για να την "
                "έχετε μπροστά σας. Πρώτα θα ήθελα να δείτε αν σας είναι χρήσιμη — "
@@ -344,12 +347,14 @@ TEXT: dict[str, dict[str, str]] = {
                "own tenders? Which day suits you?"),
         "c1_note": "Result: «Presentation booked», with the date.",
         "c2": ("I can open a trial for you right now, so you can look for yourself. "
-               "Which email should it go to?"),
-        "c2_note": ("On the card: enter the email under «Details» and grant the test "
-                    "product. Then say: «On the sign-in page, click \"Email me a "
-                    "sign-in link\" and the link will arrive.» Result: «Trial started»."),
+               "Which email should I send your sign-in details to?"),
+        "c2_note": ("On the «Details» tab: enter the email under «Contact», press "
+                    "«grant» under «Grant product» (test) and «temp password» under "
+                    "«Security». From the «Compose email» tab, send the customer the "
+                    "username and the temporary password; they set their own at the "
+                    "first sign-in. Result: «Trial started»."),
         "c3": "I can extend your trial so you can look at it at your own pace.",
-        "c3_note": "On the card: «Product» → extend.",
+        "c3_note": "On the «Details» tab → «Current subscription» → «extend».",
         "c4": ("While we are talking I can set up an alert, so new tenders in your "
                "line of business arrive by email. Give me two or three words for "
                "what you sell."),
