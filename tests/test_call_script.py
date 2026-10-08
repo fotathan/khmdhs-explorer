@@ -129,6 +129,30 @@ def test_both_languages_have_the_same_words():
                 re.findall(r"\[\[([a-z_]+)\]\]", cst.TEXT["el"][key])), key
 
 
+def test_every_name_a_note_points_at_exists():
+    """A note sends the salesperson to a tab, a section or a button: each «name»
+    it quotes must be on the card (or be a result label / the script's own
+    words). «Σύνταξη email» once pointed at a tab called «Σύνθεση email»."""
+    card = (ROOT / "app/templates/admin_crm_customer.html").read_text()
+    own = " ".join(v for k, v in cst.TEXT["el"].items() if not k.endswith("_note"))
+    for key, text in cst.TEXT["el"].items():
+        if not key.endswith("_note"):
+            continue
+        for name in re.findall(r"«([^»]+)»", text):
+            name = name.rstrip("…").strip()
+            assert (name in card or name in cs.RESULT_LABELS.values()
+                    or name in own), (key, name)
+
+
+def test_the_trial_close_does_not_rely_on_sign_in_links():
+    """LOGIN_LINKS_ENABLED is off in production (render.yaml) until email
+    deliverability is done; the trial goes out as a temporary password."""
+    for lang in ("el", "en"):
+        note = cst.TEXT[lang]["c2_note"]
+        assert "σύνδεσμο" not in note and "sign-in link" not in note
+    assert "προσωρινό συνθηματικό" in cst.TEXT["el"]["c2_note"]
+
+
 def test_fill_refuses_a_missing_value_instead_of_leaving_a_hole():
     assert cs.fill("κερδίσατε [[n]] αναθέσεις", {"n": None}) is None
     assert cs.fill("κερδίσατε [[n]] αναθέσεις", {"n": " "}) is None
