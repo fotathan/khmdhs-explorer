@@ -3767,6 +3767,37 @@ _CRM_BRIEF = {
 }
 
 
+# The first-call sales script (call_script.py, _call_script*.html). Only the
+# chrome is here: the script's own words are content in call_script_text.py,
+# in the CALL's language. docs/specs/call-script.md.
+_CALL_SCRIPT = {
+    'Σενάριο κλήσης': 'Call script',
+    'Εγγράφηκε μόνος του': 'Signed up themselves',
+    'Από τη βάση αναδόχων': 'From the contractor database',
+    'Άλλη πηγή': 'Other source',
+    'Αποτέλεσμα κλήσης': 'Call result',
+    'Δεν απάντησε': 'No answer',
+    'Λάθος αριθμός / όχι αρμόδιος': 'Wrong number / not the right person',
+    'Ξανακαλέστε': 'Call back',
+    'Δεν ενδιαφέρεται': 'Not interested',
+    'Θέλει υλικό με email': 'Wants material by email',
+    'Κλείστηκε παρουσίαση': 'Presentation booked',
+    'Ξεκίνησε δοκιμή': 'Trial started',
+    'Να μην ξανακληθεί': 'Do not call again',
+    'Ημερομηνία (για επανάκληση ή παρουσίαση)': 'Date (for a call-back or presentation)',
+    'Καταχώριση αποτελέσματος': 'Record result',
+    'Ο πελάτης δέχεται ξανά κλήσεις;': 'Does the customer accept calls again?',
+    'Άρση': 'Lift',
+    # /help, section #fit
+    'Δίπλα της, το «Σενάριο κλήσης» γράφει για τον πωλητή τι να πει στο πρώτο τηλεφώνημα: άνοιγμα, ένα συγκεκριμένο στοιχείο, ερωτήσεις με απαντήσεις που ανοίγουν την επόμενη φράση, επόμενο βήμα και απαντήσεις σε συνηθισμένες αντιρρήσεις. Αλλάζει ανάλογα με το πώς ήρθε η επαφή (εγγράφηκε μόνη της, από τη βάση αναδόχων, από άλλη πηγή) και με το πόσα ξέρουμε (ιστορικό αναθέσεων, μόνο εκτίμηση από ΚΑΔ, ή τίποτα). Γλώσσα κλήσης (ΕΛ/EN) και επωνυμία (Promitheies.gr / Tender Service) επιλέγονται πάνω στο σενάριο.':
+        'Next to it, the «Call script» writes out what the salesperson says on the first call: an opening, one concrete fact, questions whose answers reveal the next line, a next step, and answers to common objections. It changes with how the contact reached us (signed up themselves, from the contractor database, from another source) and with how much we know (award history, only a KAD estimate, or nothing). The call language (EL/EN) and the brand name (Promitheies.gr / Tender Service) are chosen on the script itself.',
+    'Το ιστορικό αναθέσεων λέγεται ως γεγονός· η εκτίμηση από ΚΑΔ μόνο ως ερώτηση· το ΑΦΜ της εγγραφής μόνο ως επιβεβαίωση. Τιμή δεν αναφέρεται ποτέ στο τηλέφωνο. Ένα κόκκινο πλαίσιο σταματά την πώληση όταν ο πελάτης είναι ήδη συνδρομητής, η εταιρεία δεν είναι ενεργή στο ΓΕΜΗ ή ο πελάτης ζήτησε να μην τον ξανακαλέσουμε. Στις ψυχρές κλήσεις ο πωλητής ελέγχει πρώτα τον αριθμό στο μητρώο του άρθρου 11 του ν. 3471/2006.':
+        'The award history is said as a fact; the KAD estimate only as a question; the tax number given at sign-up only as a confirmation. A price is never quoted on the phone. A red box stops the sale when the customer is already a subscriber, the company is not active in GEMI, or the customer asked not to be called again. On cold calls the salesperson first checks the number against the register of article 11 of Law 3471/2006.',
+    'Στο τέλος του σεναρίου ο πωλητής καταχωρίζει το αποτέλεσμα (δεν απάντησε, ξανακαλέστε, κλείστηκε παρουσίαση, ξεκίνησε δοκιμή, να μην ξανακληθεί κ.ά.). Γράφεται ως κλήση στη «Δραστηριότητα», μαζί με το ποιο σενάριο δόθηκε, ώστε αργότερα να φαίνεται ποια ανοίγματα φέρνουν παρουσιάσεις· με ημερομηνία ανοίγει και εργασία. Το «Να μην ξανακληθεί» το αίρει μόνο διαχειριστής, από τη λωρίδα στοιχείων. Η «Σελίδα για εκτύπωση» δείχνει όλο το σενάριο ανοιχτό, για χαρτί.':
+        'At the end of the script the salesperson records the result (no answer, call back, presentation booked, trial started, do not call again, and so on). It is saved as a call under «Activity», together with which script was shown, so it later shows which openings lead to presentations; with a date it also opens a task. Only an admin lifts «Do not call again», from the summary strip. The «Printable page» shows the whole script expanded, for paper.',
+}
+
+
 # Evaluation layer — declared certificates against the checklist
 # (app/eligibility_eval.py, docs/specs/evaluation-layer.md).
 _CERTS = {
@@ -3873,5 +3904,5 @@ for _grp in (_NAV, _ADMIN_TABS, _BASE_LEGACY, _COMMON, _SEARCH, _ACT, _PARTY,
              _SEARCH_PROFILES, _EXPORT, _SCAN, _LEADS, _TELEPHONY, _DIGESTS,
              _SELF_SERVE, _PUBLIC, _HELP_PUBLIC, _AI_POLICY, _FIT,
              _COMPANY_MATCH, _MATCH, _TSG_DUP, _ONBOARDING, _CHECKLIST, _CERTS,
-             _COMPETITION, _CRM_BRIEF):
+             _COMPETITION, _CRM_BRIEF, _CALL_SCRIPT):
     UI_EN.update(_grp)

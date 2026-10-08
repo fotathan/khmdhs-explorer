@@ -1181,8 +1181,12 @@ CREATE TABLE proc.customer_call (
     summary_error text,
     transcribed_at timestamp with time zone,
     summarized_at timestamp with time zone,
+    script_version text,
+    script_branch text,
+    script_result text,
     CONSTRAINT customer_call_direction_check CHECK ((direction = ANY (ARRAY['incoming'::text, 'outgoing'::text]))),
-    CONSTRAINT customer_call_status_check CHECK ((status = ANY (ARRAY['planned'::text, 'held'::text, 'not_held'::text, 'not_answered'::text, 'cancelled'::text])))
+    CONSTRAINT customer_call_status_check CHECK ((status = ANY (ARRAY['planned'::text, 'held'::text, 'not_held'::text, 'not_answered'::text, 'cancelled'::text]))),
+    CONSTRAINT customer_call_script_result_check CHECK (((script_result IS NULL) OR (script_result = ANY (ARRAY['no_answer'::text, 'wrong_person'::text, 'callback'::text, 'not_interested'::text, 'send_material'::text, 'demo_booked'::text, 'trial_started'::text, 'do_not_call'::text]))))
 );
 
 
@@ -1347,7 +1351,9 @@ CREATE TABLE proc.customer_profile (
     reg_number text,
     postal_code text,
     is_recipient boolean DEFAULT false NOT NULL,
-    tender_experience boolean
+    tender_experience boolean,
+    do_not_call_at timestamp with time zone,
+    do_not_call_by bigint
 );
 
 
@@ -4967,6 +4973,13 @@ CREATE INDEX ix_customer_profile_operator ON proc.customer_profile USING btree (
 
 
 --
+-- Name: ix_customer_call_script; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE INDEX ix_customer_call_script ON proc.customer_call USING btree (script_branch, script_result) WHERE (script_result IS NOT NULL);
+
+
+--
 -- Name: ix_customer_profile_stage; Type: INDEX; Schema: proc; Owner: -
 --
 
@@ -5884,6 +5897,14 @@ ALTER TABLE ONLY proc.customer_note
 
 ALTER TABLE ONLY proc.customer_note
     ADD CONSTRAINT customer_note_user_id_fkey FOREIGN KEY (user_id) REFERENCES proc.app_user(id) ON DELETE CASCADE;
+
+
+--
+-- Name: customer_profile customer_profile_manager_id_fkey; Type: FK CONSTRAINT; Schema: proc; Owner: -
+--
+
+ALTER TABLE ONLY proc.customer_profile
+    ADD CONSTRAINT customer_profile_do_not_call_by_fkey FOREIGN KEY (do_not_call_by) REFERENCES proc.app_user(id) ON DELETE SET NULL;
 
 
 --

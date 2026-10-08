@@ -10,6 +10,20 @@ truth; this is a curated digest.
 
 ## Unreleased
 
+### Added — first-call sales script on the CRM card
+- «Σενάριο κλήσης» next to «Σύνοψη πελάτη»: what a salesperson says on the
+  first call, chosen by how the contact reached us (self-registered /
+  contractor database / other) and how much the brief knows. Award history is
+  said, the ΚΑΔ estimate only asked, a declared ΑΦΜ only confirmed; no price
+  on the phone. Greek or English, Promitheies.gr or Tender Service.
+- Call results are logged as calls with the script branch frozen at call time
+  (`customer_call.script_*`), plus a "do not call again" flag
+  (`customer_profile.do_not_call_at`) only an admin lifts.
+- `/register` now records `creation_source = 'register'` and admin-created
+  customers `'admin'`; the migration backfills self-registered accounts.
+- Migration `20261008145739_call_script.sql`. Spec: docs/specs/call-script.md.
+  Tests: `tests/test_call_script.py`.
+
 ### Fixed — a catch-up no longer re-mails every Diavgeia and TED act
 - Re-projecting Diavgeia and TED after each catch-up stamped `ingested_at=now()`
   on every row it touched, so every act re-entered the next result email. It now

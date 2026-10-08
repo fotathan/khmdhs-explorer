@@ -37,9 +37,11 @@ except ImportError:                      # flat layout (run with --app-dir=app)
 try:
     from app import kad_cpv as _kad
     from app import crm_brief as _brief
+    from app import call_script as _script
 except ImportError:                      # flat layout (run with --app-dir=app)
     import kad_cpv as _kad
     import crm_brief as _brief
+    import call_script as _script
 
 try:
     from app import call_pipeline as _pipeline
@@ -656,6 +658,62 @@ def make_crm_router(templates: Jinja2Templates, cursor) -> APIRouter:
         return templates.TemplateResponse(
             request, "_crm_brief_section.html",
             {"cust_id": uid, "kind": kind, "data": data})
+
+    # ---- The first-call script (docs/specs/call-script.md) -------------- #
+    # Same two renders as the brief: HX-Request → the dialog fragment with the
+    # result form; a plain GET → the printable page, every answer expanded.
+    # `lang` is the CALL's language (default Greek), not the admin's UI
+    # language; `brand` is which name the salesperson introduces us with.
+    @router.get("/{uid}/script", response_class=HTMLResponse)
+    def crm_script(uid: int, request: Request, lang: str = "el", brand: int = 0):
+        partial = request.headers.get("HX-Request") == "true"
+        lang = lang if lang in ("el", "en") else "el"
+        with cursor() as c:
+            cust = _auth.get_customer(c, uid)
+            if not cust:
+                raise HTTPException(404, "customer not found")
+            brief = _brief.build(c, uid, lang=lang)
+            sig = _script.signals(c, uid)
+        s = _script.build(brief, sig, lang=lang, brand=brand)
+        ctx = {"cust": cust, "cust_id": uid, "s": s, "full": not partial,
+               "company": brief["company"] or sig["company"] or cust["username"],
+               "results": _script.RESULTS}
+        return templates.TemplateResponse(
+            request, "_call_script.html" if partial else "admin_crm_script.html", ctx)
+
+    @router.post("/{uid}/script/result")
+    async def crm_script_result(uid: int, request: Request):
+        """Log the call made from the script. The branch comes from the form
+        because it is the one the salesperson was SHOWN — recomputing it now
+        would record today's brief, not the call's."""
+        form = await request.form()
+        try:
+            with cursor() as c:
+                _ensure_customer(c, uid)
+                _script.save_result(c, uid, code=form.get("result"),
+                                    branch=form.get("branch"),
+                                    version=form.get("version"),
+                                    note=form.get("note"), due_at=form.get("due_at"),
+                                    admin_id=_admin_uid(request))
+        except HTTPException:
+            raise
+        except ValueError:
+            flash = ("Το αποτέλεσμα δεν καταχωρίστηκε: ανοίξτε ξανά το σενάριο "
+                     "και δοκιμάστε πάλι.")
+            return RedirectResponse(
+                f"/admin/crm/{uid}?tab=activity&flash={quote(flash)}", status_code=303)
+        flash = "Το αποτέλεσμα της κλήσης καταχωρίστηκε."
+        return RedirectResponse(
+            f"/admin/crm/{uid}?tab=activity&flash={quote(flash)}", status_code=303)
+
+    @router.post("/{uid}/do-not-call/clear")
+    def crm_do_not_call_clear(uid: int, request: Request):
+        """Only an admin lifts "do not call", and only by pressing this."""
+        with cursor() as c:
+            _ensure_customer(c, uid)
+            _script.clear_do_not_call(c, uid)
+        flash = "Ο πελάτης μπορεί ξανά να κληθεί."
+        return RedirectResponse(f"/admin/crm/{uid}?flash={quote(flash)}", status_code=303)
 
     # ---- ΓΕΜΗ company match ------------------------------------------- #
     # Three POSTs, all returning the same HTMX fragment so the card never
