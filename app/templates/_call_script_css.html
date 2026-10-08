@@ -1,0 +1,59 @@
+{# _call_script_css.html — styles for _call_script.html, included once by the
+   CRM card (the dialog) and once by admin_crm_script.html (the print page).
+   Shares the brief's header classes (_crm_brief_css.html); every colour has a
+   fallback because the print page has no site stylesheet. #}
+<style>
+  .script-dlg{width:min(1100px,calc(100vw - 32px));}
+  .cs{font-size:13.5px;line-height:1.55;color:var(--ink,#1b1b1b);}
+  .cs-togs{display:flex;flex-wrap:wrap;gap:4px;align-items:center;justify-content:flex-end;}
+  .cs-tog{font-size:12px;padding:2px 9px;border:1px solid var(--rule,#d0d0d0);border-radius:999px;
+    text-decoration:none;color:var(--ink-2,#444);background:var(--paper,#fff);}
+  .cs-tog.on{background:#1f3a5f;border-color:#1f3a5f;color:#fff;font-weight:600;}
+  .cs-sep{color:var(--ink-3,#6b6b6b);padding:0 2px;}
+  .cs-banners{margin-top:12px;display:flex;flex-direction:column;gap:6px;}
+  .cs-banners p{margin:0;padding:8px 12px;border-radius:8px;font-size:13px;}
+  .cs-stop{background:#fbeaea;color:#8a1c1c;border:1px solid #e9b8b8;font-weight:600;}
+  .cs-warn{background:#fdf3e7;color:#6b4513;border:1px solid #f0d5b0;}
+  .cs-blocked{margin:14px 0 0;font-weight:600;}
+  .cs-cols{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:4px 24px;}
+  @media (max-width:820px){ .cs-cols{grid-template-columns:minmax(0,1fr);} }
+  .cs-part{margin-top:16px;padding-top:12px;border-top:1px solid var(--rule,#d9d9d9);}
+  .cs-part h3{margin:0 0 8px;font-size:15px;}
+  .cs-blk{position:relative;margin:6px 0;padding:8px 12px 8px 12px;border-left:4px solid #1f3a5f;
+    background:var(--paper,#fff);border-radius:0 8px 8px 0;}
+  .cs-blk.cs-ask{border-left-color:#1f8a63;}
+  .cs-blk.cs-confirm{border-left-color:#8a5a1c;}
+  .cs-blk.cs-note{border-left-color:var(--rule,#d0d0d0);background:#f6f6f4;}
+  .cs-blk.cs-note .cs-text{font-size:12.5px;color:var(--ink-2,#444);}
+  .cs-kind{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--ink-3,#6b6b6b);margin-bottom:2px;}
+  .cs-say>.cs-kind{color:#1f3a5f;}
+  .cs-ask>.cs-kind{color:#1f8a63;}
+  .cs-confirm>.cs-kind{color:#8a5a1c;}
+  .cs-text{margin:0;}
+  .cs-text b{font-weight:700;}
+  .cs-ans{display:flex;flex-direction:column;gap:4px;margin-top:6px;}
+  .cs-ans details,.cs-obj{border:1px solid var(--rule,#d9d9d9);border-radius:8px;padding:4px 10px;
+    background:var(--paper,#fff);}
+  .cs-ans summary,.cs-obj summary{cursor:pointer;font-weight:600;font-size:13px;}
+  .cs-ans details[open]>summary,.cs-obj[open]>summary{color:#1f8a63;}
+  .cs-obj{margin:6px 0;}
+  .cs-then{padding:2px 0 4px;}
+  .cs-donts ul{margin:0;padding-left:20px;}
+  .cs-donts li{margin:3px 0;}
+  .cs-result .cs-radios{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 16px;}
+  .cs-result label{font-size:13px;}
+  .cs-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px 16px;margin:10px 0;}
+  .cs-fields label{display:flex;flex-direction:column;gap:3px;}
+  .cs-fields input,.cs-fields textarea{font:inherit;padding:5px 8px;border:1px solid var(--rule,#d0d0d0);border-radius:6px;}
+  .cs-result button{cursor:pointer;background:var(--paper,#fff);}
+  .cs-code{font-size:11px;margin-left:10px;}
+  .cs-boxes{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(2,1fr);gap:4px 16px;}
+  .cs-lines{margin:12px 0 4px;}
+  @media print{
+    .cs-cols{grid-template-columns:minmax(0,1fr);}
+    .cs-blk,.cs-obj,.cs-ans details{break-inside:avoid;page-break-inside:avoid;}
+    .cs-part h3{break-after:avoid;page-break-after:avoid;}
+    .cs-togs{display:none;}
+  }
+</style>

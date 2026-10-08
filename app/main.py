@@ -2361,6 +2361,8 @@ async def register_submit(request: Request):
                 # Self-service signup gets the test product (7-day default);
                 # granted_by NULL marks it as self-granted, not admin-issued.
                 _auth.grant_product(c, user["id"], "test", granted_by=None)
+                # The call script opens differently for someone who came to us.
+                _auth.set_creation_source(c, user["id"], "register")
             except ValueError as e:
                 failure = (str(e), 400)
                 raise psycopg.Rollback()

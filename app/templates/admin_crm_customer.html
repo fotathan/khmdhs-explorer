@@ -84,9 +84,23 @@
     <span class="glance-sub">{{ t("σημ./κλήσ./εργ.") }}</span></dd></div>
   {# The sales brief (crm_brief.py): a real link — without JS it opens the
      print page; with JS briefDialog() loads the fragment into #brief-dlg. #}
+  {% if profile.do_not_call_at %}
+  <div><dt>{{ t("Κλήσεις") }}</dt><dd>
+    <span class="dnc-badge">{{ t("Να μην ξανακληθεί") }}</span>
+    <span class="glance-sub">{{ profile.do_not_call_at.strftime('%Y-%m-%d') }}</span>
+    <form method="post" action="/admin/crm/{{ cust.id }}/do-not-call/clear" class="dnc-clear"
+          onsubmit="return confirm('{{ t("Ο πελάτης δέχεται ξανά κλήσεις;") }}')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">{{ t("Άρση") }}</button>
+    </form></dd></div>{% endif %}
+  {# The sales brief (crm_brief.py) and the first-call script
+     (call_script.py): real links — without JS they open the print pages;
+     with JS openDlg() loads the fragment into its dialog. #}
   <div class="glance-brief">
     <a href="/admin/crm/{{ cust.id }}/brief" class="brief-btn" hx-boost="false"
        onclick="return briefDialog(this)">{{ t("Σύνοψη πελάτη") }} →</a>
+    <a href="/admin/crm/{{ cust.id }}/script" class="brief-btn" hx-boost="false"
+       onclick="return scriptDialog(this)">{{ t("Σενάριο κλήσης") }} →</a>
   </div>
 </div>
 
@@ -98,18 +112,27 @@
   </div>
   <div id="brief-dlg-body"></div>
 </dialog>
+<dialog id="script-dlg" class="fit-dlg script-dlg" aria-label="{{ t('Σενάριο κλήσης') }}">
+  <div class="fit-dlg-h">
+    <button type="button" class="fit-dlg-x" onclick="document.getElementById('script-dlg').close()">{{ t("Κλείσιμο παραθύρου ✕") }}</button>
+  </div>
+  <div id="script-dlg-body"></div>
+</dialog>
 <script>
-  window.briefDialog = function (a) {
-    var d = document.getElementById('brief-dlg');
+  function openDlg(a, id) {
+    var d = document.getElementById(id);
     if (!d || !d.showModal || !window.htmx) return true;   // fall back to the page
-    document.getElementById('brief-dlg-body').innerHTML =
+    document.getElementById(id + '-body').innerHTML =
       '<p class="fit-dlg-note">{{ t("Φόρτωση…") }}</p>';
     if (!d.open) d.showModal();
-    htmx.ajax('GET', a.getAttribute('href'), {target: '#brief-dlg-body', swap: 'innerHTML'});
+    htmx.ajax('GET', a.getAttribute('href'), {target: '#' + id + '-body', swap: 'innerHTML'});
     return false;
-  };
+  }
+  window.briefDialog = function (a) { return openDlg(a, 'brief-dlg'); };
+  window.scriptDialog = function (a) { return openDlg(a, 'script-dlg'); };
 </script>
 {% include "_crm_brief_css.html" %}
+{% include "_call_script_css.html" %}
 
 {# ===== TABS ================================================================
    The card had grown to four unrelated jobs stacked down one page: the record
@@ -1189,7 +1212,10 @@
   .fit-kad h3{display:flex;gap:8px;align-items:center;}
   .fit-kad-tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;
     background:#fdf3e7;color:#8a5a1c;}
-  .glance-brief{display:flex;align-items:center;margin-left:auto;}
+  .glance-brief{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto;}
+  .dnc-badge{font-weight:700;color:#8a1c1c;}
+  .dnc-clear{display:inline;margin-left:6px;}
+  .dnc-clear button{font-size:11.5px;padding:1px 8px;cursor:pointer;}
   .brief-btn{font-weight:600;font-size:13px;color:var(--accent);text-decoration:none;
     border:1px solid var(--accent);border-radius:8px;padding:5px 12px;white-space:nowrap;}
   .brief-btn:hover{background:var(--accent);color:#fff;}

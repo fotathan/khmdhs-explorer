@@ -252,6 +252,30 @@ opens a dialog; a plain GET of /admin/crm/<uid>/brief is the print page.
 - #brief-dlg sits OUTSIDE the tab panels: a modal inside a display:none panel
   never shows.
 
+## First-call sales script (docs/specs/call-script.md)
+app/call_script.py (logic), app/call_script_text.py (the words, el + en),
+_call_script.html. «Σενάριο κλήσης» on the CRM glance strip opens #script-dlg
+(OUTSIDE the tab panels); a plain GET of /admin/crm/<uid>/script is the print
+page with every answer expanded.
+- A VIEW over crm_brief.build() + call_script.signals(): no arithmetic of its
+  own, no model, stored nowhere except the call results. Never reads
+  act_ai_summary (test-enforced).
+- **Truth rules** (test-enforced): ledger facts are SAID, the ΚΑΔ estimate is
+  only ASKED, onboarding's declared_afm only CONFIRMED (and never read out).
+  Account activity picks the branch but is never spoken. No title guessed
+  from a name. No price on the phone (owner, 2026-10-08).
+- Origin = customer_profile.creation_source: 'OrgDB' → contractor_db,
+  'register' → self, anything else → external. /register and admin creation
+  write it via auth.set_creation_source (fill-only).
+- A text whose [[token]] has no value is NOT offered (call_script.fill returns
+  None) — unlike digests._soft_resolve, nothing drops out of a spoken sentence.
+  Change a spoken text → bump SCRIPT_VERSION.
+- Results: one customer_call row per press, script_branch FROZEN from the form
+  (what the salesperson was shown), codes CHECK-constrained. do_not_call sets
+  customer_profile.do_not_call_at; only an admin clears it (card glance strip).
+- Cold calls (not self) always carry the art. 11 Law 3471/2006 register
+  reminder: the salesperson checks the number (owner, 2026-10-08).
+
 ## Two providers for the AI summary
 **DeepSeek is production; Anthropic is the second option.** AI_SUMMARY_MODEL
 defaults to `deepseek-flash`, and the MODEL NAME is the whole switch — deepseek-*

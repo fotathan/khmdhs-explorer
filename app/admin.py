@@ -299,7 +299,9 @@ def make_router(templates: Jinja2Templates, cursor) -> APIRouter:
             with cursor() as c:
                 if _auth.get_by_username(c, username):
                     raise ValueError("Το όνομα χρήστη χρησιμοποιείται ήδη.")
-                _auth.create_user(c, username, password, role=role, email=email)
+                row = _auth.create_user(c, username, password, role=role, email=email)
+                if role == "customer":
+                    _auth.set_creation_source(c, row["id"], "admin")
             return RedirectResponse("/admin/users?ok=created", status_code=303)
         except ValueError as e:
             return templates.TemplateResponse(

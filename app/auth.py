@@ -479,6 +479,25 @@ def get_profile(c, uid):
     return c.fetchone()
 
 
+# How an account came to exist. 'OrgDB' is written by leads.py; the call
+# script (docs/specs/call-script.md) reads all three to pick its opener.
+CREATION_SOURCES = ("register", "admin", "OrgDB")
+
+
+def set_creation_source(c, uid, source):
+    """Record how the account came to exist. Fill-only: an origin is a fact
+    about the past, so a later write never replaces one already there."""
+    if source not in CREATION_SOURCES:
+        raise ValueError("unknown creation source")
+    c.execute("""INSERT INTO proc.customer_profile (user_id, creation_source, updated_at)
+                 VALUES (%s, %s, now())
+                 ON CONFLICT (user_id) DO UPDATE
+                   SET creation_source = EXCLUDED.creation_source
+                 WHERE proc.customer_profile.creation_source IS NULL
+                    OR btrim(proc.customer_profile.creation_source) = ''""",
+              (uid, source))
+
+
 def list_customer_contacts(c, uid):
     """Contacts for a customer (main first, then by order). Used on the CRM page
     and by the prospective-lead import."""

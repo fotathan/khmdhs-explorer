@@ -1,0 +1,140 @@
+{# _call_script.html — the first-call sales script (docs/specs/call-script.md).
+
+   Rendered two ways from the same markup, like _crm_brief.html:
+     * swapped into #script-dlg-body on the CRM card (HX-Request), with the
+       result form at the end, and
+     * inside admin_crm_script.html (full = true), the printable page, where
+       every answer is expanded (paper cannot click) and the result is a
+       paper box.
+   Context: cust, cust_id, company, s (call_script.build()), full, results.
+
+   The SCRIPT text is in the call's language (s.tx, call_script_text.py); the
+   chrome around it (labels, the result form) follows the admin's UI language
+   through t(). The answers are <details>: conditional without any script. #}
+{% set tx = s.tx %}
+{% set base = "/admin/crm/" ~ cust_id ~ "/script" %}
+{% set ORIGIN = {'self': 'Εγγράφηκε μόνος του',
+                 'contractor_db': 'Από τη βάση αναδόχων',
+                 'external': 'Άλλη πηγή'} %}
+{% set BASIS = {
+     'history': 'Από το ιστορικό αναθέσεων',
+     'history+kad': 'Λίγες αναθέσεις — ιστορικό και εκτίμηση από ΚΑΔ',
+     'kad': 'Εκτίμηση από ΚΑΔ — όχι από ιστορικό',
+     'none': 'Δεν υπάρχουν αρκετά στοιχεία'} %}
+
+{% macro segs(xs) %}{% for piece, is_val in xs %}{% if is_val %}<b>{{ piece }}</b>{% else %}{{ piece }}{% endif %}{% endfor %}{% endmacro %}
+
+{% macro block(blk) %}
+  <div class="cs-blk cs-{{ blk.kind }}">
+    <span class="cs-kind">{{ tx["kind_" ~ blk.kind] }}</span>
+    <p class="cs-text">{{ segs(blk.segs) }}</p>
+    {% if blk.answers %}
+    <div class="cs-ans">
+      {% for a in blk.answers %}
+      <details{% if full %} open{% endif %}>
+        <summary>{{ a.label }}</summary>
+        <div class="cs-then">{% for x in a.then %}{{ block(x) }}{% endfor %}</div>
+      </details>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{# A toggle: in the dialog it re-fetches the panel in place; on paper it is a
+   plain link to the same page with the other choice. #}
+{% macro toggle(href, label, on) %}
+  {% if on %}<span class="cs-tog on">{{ label }}</span>
+  {% elif full %}<a class="cs-tog" href="{{ href }}">{{ label }}</a>
+  {% else %}<a class="cs-tog" href="{{ href }}" hx-get="{{ href }}"
+       hx-target="#script-dlg-body" hx-swap="innerHTML">{{ label }}</a>{% endif %}
+{% endmacro %}
+
+<div class="cs" data-branch="{{ s.branch }}">
+  <div class="brief-h">
+    <div>
+      <div class="brief-kicker">{{ tx.title }}</div>
+      <h2 class="brief-title">{{ company }}</h2>
+      <div class="brief-sub">{{ t(ORIGIN[s.origin]) }} · {{ t(BASIS[s.basis]) }}</div>
+    </div>
+    <div class="brief-tools">
+      <div class="cs-togs">
+        {% for code, label in (('el', 'ΕΛ'), ('en', 'EN')) %}
+          {{ toggle(base ~ "?lang=" ~ code ~ "&brand=" ~ s.brand, label, s.lang == code) }}
+        {% endfor %}
+        <span class="cs-sep" aria-hidden="true">·</span>
+        {% for name in s.brands %}
+          {{ toggle(base ~ "?lang=" ~ s.lang ~ "&brand=" ~ loop.index0, name, s.brand == loop.index0) }}
+        {% endfor %}
+      </div>
+      {% if not full %}<a href="{{ base }}?lang={{ s.lang }}&brand={{ s.brand }}" target="_blank" rel="noopener" hx-boost="false">{{ t("Σελίδα για εκτύπωση") }} ↗</a>{% endif %}
+    </div>
+  </div>
+
+  {% if s.stops or s.warnings %}
+  <section class="cs-banners" aria-label="{{ tx.h_stops }}">
+    {% for x in s.stops %}<p class="cs-stop">⛔ {{ segs(x) }}</p>{% endfor %}
+    {% for x in s.warnings %}<p class="cs-warn">⚠ {{ segs(x) }}</p>{% endfor %}
+  </section>
+  {% endif %}
+
+  {% if s.blocked %}
+  <p class="cs-blocked">{{ tx.blocked }}</p>
+  {% else %}
+  <div class="cs-cols">
+    <div class="cs-main">
+      {% for part in s.parts %}{% if part.blocks %}
+      <section class="cs-part cs-part-{{ part.key }}">
+        <h3>{{ part.title }}</h3>
+        {% for blk in part.blocks %}{{ block(blk) }}{% endfor %}
+      </section>
+      {% endif %}{% endfor %}
+    </div>
+    <aside class="cs-side">
+      <section class="cs-part">
+        <h3>{{ tx.h_objections }}</h3>
+        {% for o in s.objections %}
+        <details class="cs-obj"{% if full %} open{% endif %}>
+          <summary>{{ o.q }}</summary>
+          <div class="cs-then">{% for x in o.blocks %}{{ block(x) }}{% endfor %}</div>
+        </details>
+        {% endfor %}
+      </section>
+      <section class="cs-part cs-donts">
+        <h3>{{ tx.h_donts }}</h3>
+        <ul>{% for d in s.donts %}<li>{{ d }}</li>{% endfor %}</ul>
+      </section>
+    </aside>
+  </div>
+
+  {# ===== The result ===================================================== #}
+  {% if full %}
+  <section class="cs-part cs-paper">
+    <h3>{{ t("Αποτέλεσμα κλήσης") }}</h3>
+    <ul class="cs-boxes">{% for code, label, _ in results %}<li>☐ {{ t(label) }}</li>{% endfor %}</ul>
+    <p class="cs-lines">{{ t("Ημερομηνία") }}: ____________ &nbsp; {{ t("Σημείωση") }}: ______________________________________</p>
+    <p class="muted cs-code">{{ s.branch }} · v{{ s.version }}</p>
+  </section>
+  {% else %}
+  <form method="post" action="{{ base }}/result" class="cs-part cs-result" hx-boost="false">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="branch" value="{{ s.branch }}">
+    <input type="hidden" name="version" value="{{ s.version }}">
+    <h3>{{ t("Αποτέλεσμα κλήσης") }}</h3>
+    <div class="cs-radios">
+      {% for code, label, _ in results %}
+      <label><input type="radio" name="result" value="{{ code }}" required> {{ t(label) }}</label>
+      {% endfor %}
+    </div>
+    <div class="cs-fields">
+      <label>{{ t("Ημερομηνία (για επανάκληση ή παρουσίαση)") }}
+        <input type="datetime-local" name="due_at"></label>
+      <label>{{ t("Σημείωση") }}
+        <textarea name="note" rows="2" maxlength="1000"></textarea></label>
+    </div>
+    <button type="submit" class="brief-btn">{{ t("Καταχώριση αποτελέσματος") }}</button>
+    <span class="muted cs-code">{{ s.branch }} · v{{ s.version }}</span>
+  </form>
+  {% endif %}
+  {% endif %}
+</div>
