@@ -227,6 +227,14 @@ def test_h1_names_the_tender_and_cuts_a_long_title():
     assert "…" in hook and len(hook) < 400
 
 
+def test_a_value_is_read_as_one_clean_line():
+    """Real authority names carry runs of spaces and line breaks."""
+    assert cs.plain(cs.fill("από [[a]].", {"a": "ΔΥΠΕ   Α'  ΑΤΤΙΚΗΣ\n"})) == "από ΔΥΠΕ Α' ΑΤΤΙΚΗΣ."
+    brief = _brief("history", history=_history(top=[_row(authority="ΔΥΠΕ   Α'  ΑΤΤΙΚΗΣ")]))
+    hook = cs.plain(cs.build(brief, _sig("self"), now=NOW)["parts"][1]["blocks"][0]["segs"])
+    assert "ΔΥΠΕ Α' ΑΤΤΙΚΗΣ" in hook and "  " not in hook
+
+
 def test_a_quoted_title_is_not_quoted_twice():
     brief = _brief("history", history=_history(top=[_row(title="«Προμήθεια γαντιών»")]))
     hook = cs.plain(cs.build(brief, _sig("self"), now=NOW)["parts"][1]["blocks"][0]["segs"])
