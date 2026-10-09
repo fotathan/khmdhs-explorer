@@ -114,6 +114,13 @@ try:
 except ImportError:  # flat layout
     import authority_profile as _authority_profile
 
+# Public CPV pages (spec slice 4): /cpv and /cpv/<code>, with the stored AI
+# paragraph from app/cpv_notes.py and our own 12-month figures.
+try:
+    from app import cpv_page as _cpv_page
+except ImportError:  # flat layout
+    import cpv_page as _cpv_page
+
 # The redesigned act page's extra blocks (spec slice 5): related tenders, the
 # buyer card, glossary cards and — for subscribers — CPV codes with notes.
 try:
@@ -2609,7 +2616,7 @@ def robots_txt(request: Request):
                              headers={"Cache-Control": "public, max-age=3600"})
 
 
-_SITEMAP_KINDS = ("pages", "acts", "authorities", "contractors")
+_SITEMAP_KINDS = ("pages", "acts", "authorities", "contractors", "cpv")
 
 
 def _sitemap_response(body: str) -> Response:
@@ -2631,6 +2638,10 @@ def sitemap_index(request: Request):
                       ("contractors", "contractors")):
         for i in range(1, _seo.chunks_for(n[key]) + 1):
             files.append(f"/sitemap-{kind}-{i}.xml")
+    # CPV pages with a visible paragraph: ~9.5k at most, one chunk.
+    with cursor() as c:
+        if _cpv_page.sitemap_codes(c):
+            files.append("/sitemap-cpv-1.xml")
     body = ('<?xml version="1.0" encoding="UTF-8"?>\n'
             '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
             + "\n".join(f"<sitemap><loc>{_seo.xml_escape(_seo.absolute(request, f))}"
@@ -2646,7 +2657,7 @@ def sitemap_pages(request: Request):
     if not _seo.enabled():
         raise HTTPException(status_code=404, detail="not found")
     paths = ["/", "/authorities", "/contractors", "/glossary", "/data-sources",
-             "/ai"]
+             "/ai", "/cpv"]
     paths += [f"/?type={v}" for v in TYPE_FILTER_ORDER]
     paths += [f"/?procedure_type={v}" for v in PROCEDURE_TYPES]
     paths += [f"/?contract_type={v}" for v in CONTRACT_TYPES]
@@ -2683,6 +2694,11 @@ def sitemap_chunk(kind: str, page: int, request: Request):
                 entries.append(_seo.url_entry(
                     _seo.loc(request, f"/contractor/{r['vat_number']}"),
                     changefreq="weekly"))
+        elif kind == "cpv":
+            if page == 1:
+                for code in _cpv_page.sitemap_codes(c):
+                    entries.append(_seo.url_entry(_seo.loc(request, f"/cpv/{code}"),
+                                                  changefreq="monthly"))
         else:
             raise HTTPException(status_code=404, detail="not found")
     if not entries:
@@ -2742,6 +2758,48 @@ def glossary_term(slug: str, request: Request):
          "disclaimer": (_glossary.DISCLAIMER_EN if L == "en"
                         else _glossary.DISCLAIMER_EL),
          "nav_active": "glossary"})
+
+
+@app.get("/cpv", response_class=HTMLResponse)
+def cpv_index(request: Request):
+    """The 45 CPV divisions — the crawl entry to every /cpv/<code> page."""
+    lang = _i18n.lang_from_request(request)
+    with cursor() as c:
+        rows = _cpv_page.divisions(c, lang)
+    crumbs = _seo.breadcrumbs(request, [("CPV", "/cpv")])
+    return templates.TemplateResponse(
+        request, "cpv_index.html",
+        {"divisions": rows, "crumbs": crumbs, "cp": _cpv_page,
+         "ap": _authority_profile, "nav_active": "search"})
+
+
+@app.get("/cpv/{raw}", response_class=HTMLResponse)
+def cpv_detail(raw: str, request: Request):
+    """One CPV code, public (spec slice 4). A code without its check digit
+    redirects to the canonical one; anything else is a 404."""
+    lang = _i18n.lang_from_request(request)
+    with cursor() as c:
+        code = _cpv_page.canonical(c, raw)
+        if code is None:
+            raise HTTPException(status_code=404, detail="not an official CPV code")
+        if code != raw:
+            return _Redirect(f"/cpv/{code}", status_code=301)
+        p = _cpv_page.page(c, code, lang)
+    trail = [("CPV", "/cpv")] + [(a["name"], f"/cpv/{a['code']}") for a in p["ancestors"]]
+    trail.append((p["name"], f"/cpv/{code}"))
+    term = {"@context": "https://schema.org", "@type": "DefinedTerm",
+            "name": p["name"], "termCode": code,
+            "url": _seo.absolute(request, f"/cpv/{code}"),
+            "inDefinedTermSet": {"@type": "DefinedTermSet",
+                                 "name": "Common Procurement Vocabulary (CPV)",
+                                 "url": _seo.absolute(request, "/cpv")}}
+    if p["note"]:
+        term["description"] = p["note"]
+    return templates.TemplateResponse(
+        request, "cpv.html",
+        {"p": p, "crumbs": _seo.breadcrumbs(request, trail),
+         "termld": _seo.json_ld(term), "ap": _authority_profile,
+         "nav_active": "search"})
 
 
 @app.get("/healthz")
@@ -3129,9 +3187,19 @@ def ai_policy_page(request: Request):
         summary_provider_id = _ai_mod.provider_of()
     except Exception:                        # noqa: BLE001 — never 500 here
         summary_provider_id = "anthropic"
+    # CPV notes are "on" once any visible note exists (app/cpv_notes.py) —
+    # read from the table, like the other badges are read from the config.
+    try:
+        with cursor() as c:
+            c.execute("SELECT EXISTS (SELECT 1 FROM proc.cpv_note "
+                      "WHERE hidden_at IS NULL) AS on_")
+            cpv_notes_on = bool(c.fetchone()["on_"])
+    except Exception:                        # noqa: BLE001 — never 500 here
+        cpv_notes_on = False
     return templates.TemplateResponse(
         request, "ai_policy.html",
         {"ai_summary_on": _flag(_ai_mod.can_generate),
+         "cpv_notes_on": cpv_notes_on,
          # Whether the summary also reads attached tender documents — the live
          # switch ai_summary.load_inputs checks, not a sentence in the prose.
          "attachments_on": _flag(lambda: _attachments_mod().enabled()),

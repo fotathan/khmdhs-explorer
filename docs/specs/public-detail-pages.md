@@ -1,7 +1,6 @@
 # Richer public act & authority pages
 
-Status: slices 1, 2 and 5 built (2026-10-09). Slices 3–4 (CPV) are built on
-their own branch, waiting for the CPV descriptions batch.
+Status: slices 1–5 built (2026-10-09).
 
 Source: Tender Service's "Enrich Tender Detail Views" and "Enrich Authority
 public pages" (the "AI in Sales / Marketing ideas" document), adapted to
@@ -38,6 +37,12 @@ each structured field, and to add statistics computed from our own data.
    size, regions) and its open tenders. Contacts are shown as blurred
    placeholders. Main suppliers stay subscriber-only.
 6. **Subscribers get the same profile section**, above everything they had.
+7. **CPV descriptions are written by AI** (Claude, Batch API), one paragraph
+   per official code — all 9,454 — in Greek and English. Buyer examples
+   («για σχολεία, νοσοκομεία…») are allowed even though the official names do
+   not state them (owner, after reading a 40-code sample).
+8. **They are public on new CPV pages** (/cpv, /cpv/<code>). On act pages
+   CPV codes stay subscriber-only.
 
 ## 3. Slices
 
@@ -180,7 +185,85 @@ HTML (test-enforced).
 **Deploy:** apply the migration on prod BEFORE merging (it builds the views
 WITH DATA, ~1–2 min). Prod takes it with `migrate.py up --only`.
 
-## 8. Slice 5 — the redesign
+## 8. Slice 3 — CPV descriptions
+
+`app/cpv_notes.py` (prompt, checks, storage), `cpv_notes_gen.py` (the CLI, run
+LOCALLY), table `proc.cpv_note` (migration `20261009150000_cpv_note`).
+
+**Input per code:** official el/en names, the ancestors' names, and the direct
+sub-codes' names (up to 40, the rest counted). Nothing else, and in particular
+no act, authority or customer data.
+
+**Request:**
+- `claude-opus-5-5`, effort `low`, structured output `{el, en}`;
+- no forced tool and no fallbacks, which Opus 5.5 and the Batch API reject;
+- the project's own HTTP transport (app/ai_summary.py), not a second SDK.
+
+**Checks before storing:**
+- both languages present; el ≥ 80% Greek letters; en has none;
+- 120–900 characters each, one paragraph;
+- no number of 3+ digits, no €/%/link, never the code itself.
+
+Refusals and `max_tokens` are failures; failed codes stay pending and are
+retried by the next `submit`.
+
+**Staleness:** `input_hash` covers model + PROMPT_VERSION + the whole request,
+so a prompt change or a renamed (sub-)code makes exactly those notes stale.
+
+**Hiding:** `cpv_notes_gen.py hide <code>` sets `hidden_at`. A re-run that
+produces the same words keeps it hidden; new words clear the hide.
+
+**Cost, measured:** the 40-code sample cost $0.51 at full price (~1,000 in /
+~400 out tokens per code). The batch of 9,414 is estimated at ~$59.
+
+**Release:**
+1. migration on prod;
+2. `cpv_notes_gen.py push --to <prod>` copies the rows (it replaces the target's
+   table);
+3. merge.
+
+## 9. Slice 4 — public CPV pages
+
+`app/cpv_page.py`, `cpv.html`, `cpv_index.html`; view `proc.mv_cpv_activity`
+(migration `20261009160000_cpv_activity`, ~2 min to build).
+
+**URLs:**
+- `/cpv` lists the 45 divisions;
+- `/cpv/<code>` is the page (8 digits → 301 to the full code; a supplementary
+  or unknown code → 404).
+
+Both are public and indexable. The `?cpv=` search filter stays blocked in
+robots.txt: these pages are its crawlable counterpart.
+
+**A page shows:**
+- the exact official name in the reader's language, with the other language
+  under it;
+- the paragraph, labelled «γραμμένη με τεχνητή νοημοσύνη» with a link to /ai;
+- the ancestors (breadcrumb) and the direct sub-codes with their own counts;
+- 12-month figures for the code and everything under it: notices, contracts,
+  value, authorities;
+- up to 5 open tenders;
+- a link to the search (`/?cpv=<stem>`).
+
+**Figures:** one row per CPV prefix (2–8 digits). An act counts once per
+prefix (DISTINCT before counting). The rules are the authority profile's:
+window, allowlist, eligibility.
+
+**Sitemap:** `/sitemap-cpv-1.xml` lists only codes with a VISIBLE note. A
+page with only a name is thin content.
+
+**JSON-LD:** DefinedTerm (termCode, inDefinedTermSet CPV) + breadcrumbs.
+
+**/ai:** a «Περιγραφές κωδικών CPV» entry.
+- Its badge is on once any visible note exists.
+- What is sent: the official names only.
+- Anthropic is declared as its processor whatever the summary provider.
+- The lede now says AI works on "public material: the tender documents and
+  the CPV code list".
+
+**Links in:** the authority profile's «Τι αγοράζει» rows link to the
+division's CPV page. Act pages keep CPV subscriber-only.
+## 10. Slice 5 — the redesign
 
 After Tender Service's two Bolt designs (tender-detail-page-r-71um,
 design-replication-a-5i1t). Styles in `app/static/css/detail.css` (linked

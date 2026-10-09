@@ -91,16 +91,19 @@ def load(c, member_ids: list[str], lang: str = "el") -> dict | None:
                  WHERE authority_id = ANY(%s)
                  GROUP BY division""", (member_ids,))
     cpv_rows = c.fetchall()
-    labels = {}
+    labels, root_codes = {}, {}
     divisions = [r["division"] for r in cpv_rows]
     if divisions:
         col = ("coalesce(description_en, description)" if lang == "en"
                else "description")
-        c.execute(f"""SELECT substr(cpv_code, 1, 2) AS division, {col} AS label
+        c.execute(f"""SELECT substr(cpv_code, 1, 2) AS division, {col} AS label,
+                             cpv_code
                       FROM proc.cpv_code
                       WHERE substr(cpv_code, 1, 2) = ANY(%s)
                         AND substr(cpv_code, 3, 6) = '000000'""", (divisions,))
-        labels = {r["division"]: r["label"] for r in c.fetchall()}
+        roots = c.fetchall()
+        labels = {r["division"]: r["label"] for r in roots}
+        root_codes = {r["division"]: r["cpv_code"] for r in roots}
     if not rows:
         # The views exist, but nothing in the window. Read the window itself,
         # so the page can still say which 12 months it looked at.
@@ -108,7 +111,10 @@ def load(c, member_ids: list[str], lang: str = "el") -> dict | None:
                      LIMIT 1""")
         p = c.fetchone()
         return summarise([], [], {}, period=(p["period_start"], p["period_end"]) if p else None)
-    return summarise(rows, cpv_rows, labels)
+    out = summarise(rows, cpv_rows, labels)
+    for x in out["cpv"]:          # the public CPV page for the division (slice 4)
+        x["code"] = root_codes.get(x["division"])
+    return out
 
 
 def open_tenders(c, member_ids: list[str], limit: int = 5) -> list[dict]:
