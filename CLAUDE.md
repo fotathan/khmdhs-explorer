@@ -357,6 +357,28 @@ visitor getting the same teaser.
   indexed legal summary — when a threshold or percentage changes, fix it.
 - /help has a "Δημόσια σελίδα & γλωσσάρι" section; keep it in sync.
 
+## Field notes on the act page (docs/specs/public-detail-pages.md)
+app/field_notes.py: one or two fixed sentences (el + en, content like
+glossary.py) explaining a coded value — act type, procedure, contract type,
+award criterion. Slice 1 of 5; the spec lists the rest (authority profile,
+CPV texts, CPV pages, redesign).
+- **A note follows its field** (owner, 2026-10-09). The act-type note is
+  public because the type badge is; procedure / contract type / criterion
+  notes render only inside the `not gated` sections. Test-enforced.
+- Public act fields stay: title, publication date, deadline, authority, type
+  badge, amounts. Authority descriptions (slice 2) are built from DATA only,
+  never a model.
+- Procedure notes key on procurement_act.procedure_family (the SQL-normalised
+  label), never the raw procedure_type_code (~25 spellings). «Άλλο / Άγνωστο»
+  has no note.
+- Contract criterion notes key on assign_criteria_LABEL: on contracts
+  assign_criteria_code holds the contract type (measured).
+- A note explains the value, never this authority's choice, never repeats a
+  page figure, and states only what the law's text supports. «Διαδικασία
+  άρθρου 128» does not match today's article 128 (small purchases, median
+  €6,200) — its note says only what was declared. A new code / family / act
+  type needs a text in both languages (tests walk them).
+
 ## Tender Service ingester (fourth source, NOT in production)
 tsg_ingest.py; db.py tsg-backfill / tsg-catchup / tsg-project. tsg_probe.py
 measures the key, tsg_preview_import.py loads a probe sample and shares the
