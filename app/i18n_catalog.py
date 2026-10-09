@@ -275,6 +275,26 @@ _ACT = {
 
 # Authority / contractor detail + list pages (beta_authority/contractor[_results])
 _PARTY = {
+    # public authority profile (_authority_profile.html)
+    "Η σελίδα κάθε αναθέτουσας αρχής ξεκινά με τους τελευταίους 12 μήνες της, ορατούς σε όλους: μια πρόταση γραμμένη μόνο από τα δεδομένα (πόσες προκηρύξεις και συμβάσεις, συνολική αξία, κύριες κατηγορίες CPV, περιφέρεια εκτέλεσης), τα σύνολα, τι αγοράζει, με ποιες διαδικασίες, σε τι μεγέθη και πού, και τους ανοιχτούς διαγωνισμούς της. Ο ανώνυμος επισκέπτης βλέπει ότι υπάρχουν στοιχεία επικοινωνίας, όχι τις τιμές τους. Τα στοιχεία ανανεώνονται με τα στατιστικά, μετά από κάθε εισαγωγή.":
+        "Every authority page opens with its last 12 months, visible to everyone: a sentence written from the data alone (how many notices and contracts, total value, main CPV categories, region of performance), the totals, what it buys, through which procedures, at what sizes and where, and its open tenders. An anonymous visitor sees that contact details exist, not their values. The figures are refreshed with the statistics, after every import.",
+    "Λοιπά": "Other",
+    "συμβάσεις δεν το δηλώνουν.": "contracts do not state it.",
+    "Τους τελευταίους 12 μήνες": "The last 12 months",
+    "αξία συμβάσεων με ΦΠΑ": "contract value incl. VAT",
+    "Τι αγοράζει": "What it buys",
+    "Κατηγορία CPV (2 ψηφία), μερίδιο των συμβάσεων· μια σύμβαση μπορεί να ανήκει σε περισσότερες.": "CPV division (2 digits), share of contracts; a contract can fall in more than one.",
+    "Περιφέρεια εκτέλεσης": "Region of performance",
+    "Μέγεθος συμβάσεων": "Contract size",
+    "Αξία με ΦΠΑ.": "Value incl. VAT.",
+    "Ανοιχτοί διαγωνισμοί": "Open tenders",
+    "Πηγή: ΚΗΜΔΗΣ. Μετρούν οι προκηρύξεις και οι συμβάσεις που δημοσιεύτηκαν": "Source: KIMDIS. Counts the contract notices and contracts published",
+    ", χωρίς ακυρωμένες πράξεις και διπλοεγγραφές. Οι αναλύσεις αφορούν τις συμβάσεις.": ", excluding cancelled acts and duplicates. The breakdowns are of the contracts.",
+    "Στοιχεία επικοινωνίας": "Contact details",
+    "Ορατό με εγγραφή": "Visible after signing up",
+    "Όλο το ιστορικό": "All years",
+    "Σύμπραξη καινοτομίας": "Innovation partnership",
+    "Διαδικασία κάτω των ορίων εκτός ν.4412/2016": "Below-threshold procedure outside Law 4412/2016",
     "‹ πίσω στις αναθέτουσες": "‹ back to authorities",
     "‹ πίσω στους αναδόχους": "‹ back to contractors",
     "‹ πίσω στη σύνοψη": "‹ back to summary",

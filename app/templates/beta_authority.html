@@ -1,6 +1,8 @@
 {% extends "beta_base.html" %}
 {% block title %}{{ a.name }} · {{ t("Αναθέτουσα") }}{% endblock %}
-{% block meta_description %}{{ seo_entity_description("authority", a.name, grand_total, lang) }}{% endblock %}
+{# The profile sentence is the best description this page has: it is built
+   from the authority's own figures and is what the page itself says. #}
+{% block meta_description %}{% if profile_sentence %}{{ profile_sentence | truncate(300, true, '…', 0) }}{% else %}{{ seo_entity_description("authority", a.name, grand_total, lang) }}{% endif %}{% endblock %}
 {% block head_json_ld %}{% if orgld %}<script type="application/ld+json">{{ orgld | safe }}</script>{% endif %}{% endblock %}
 {% block content %}
 <main>
@@ -48,9 +50,29 @@
     {% endif %}
   </div>
 
+  {# The last 12 months, for everyone (docs/specs/public-detail-pages.md
+     slice 2). #}
+  {% include "_authority_profile.html" %}
+
   {% if gated %}
+  {# Contacts exist but are for subscribers: the LABEL is public, the value is
+     replaced on the server — the real address never reaches this HTML. #}
+  {% if a.street_address or a.contact_email or a.contact_phone or a.contact_url %}
+  <div class="panel">
+    <h3 class="panel-h">{{ t("Στοιχεία επικοινωνίας") }}</h3>
+    <dl class="facts">
+      {% if a.street_address %}<dt>{{ t("Διεύθυνση") }}</dt><dd><span class="ap-blur" aria-label="{{ t('Ορατό με εγγραφή') }}">•••••••••••••</span></dd>{% endif %}
+      {% if a.contact_email %}<dt>Email</dt><dd><span class="ap-blur" aria-label="{{ t('Ορατό με εγγραφή') }}">•••••••••••</span></dd>{% endif %}
+      {% if a.contact_phone %}<dt>{{ t("Τηλέφωνο") }}</dt><dd><span class="ap-blur" aria-label="{{ t('Ορατό με εγγραφή') }}">••• ••• ••••</span></dd>{% endif %}
+      {% if a.contact_url %}<dt>{{ t("Ιστότοπος") }}</dt><dd><span class="ap-blur" aria-label="{{ t('Ορατό με εγγραφή') }}">•••••••••••</span></dd>{% endif %}
+    </dl>
+    <p class="ap-note">{{ t("Ορατό με εγγραφή") }}</p>
+  </div>
+  {% endif %}
   {% include "_register_cta.html" %}
   {% else %}
+
+  <h2 class="ap-h">{{ t("Όλο το ιστορικό") }}</h2>
 
   {% if a.identifier or a.orgdb_id or a.street_address or a.contact_email or a.contact_phone or a.contact_fax or a.contact_url %}
   <div class="panel">
