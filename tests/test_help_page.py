@@ -151,3 +151,30 @@ def test_gated_section_follows_its_switch(client, flag, global_name, marker):
     flag(global_name, False)
     off = client.get("/help", follow_redirects=False).text
     assert marker not in off and marker.replace("&", "&amp;") not in off
+
+
+# --------------------------------------------------------------------------- #
+# Structure: every table-of-contents entry lands on a section, and every
+# section is reachable from the table of contents. A section added without its
+# TOC line (or the reverse) is how the sales brief and call script ended up as
+# paragraphs nobody could find.
+# --------------------------------------------------------------------------- #
+def test_table_of_contents_matches_the_sections():
+    import pathlib
+    import re
+
+    src = pathlib.Path("app/templates/beta_help.html").read_text(encoding="utf-8")
+    toc = src[src.index('<nav class="help-toc"'):src.index("</nav>")]
+    toc_ids = re.findall(r'href="#([a-z0-9_-]+)"', toc)
+    section_ids = re.findall(r'<section id="([a-z0-9_-]+)"', src)
+    assert toc_ids == section_ids
+
+
+def test_sales_section_documents_the_trial_close_as_it_is(client):
+    """The call script's trial close hands out a temporary password (sign-in
+    links stay off in production). The manual must say the same thing."""
+    _as_admin(client)
+    body = client.get("/help", follow_redirects=False).text
+    assert 'id="sales"' in body
+    assert "Δοκιμαστική πρόσβαση από το τηλέφωνο" in body
+    assert "Στην «Ασφάλεια» πατήστε «προσωρινό συνθηματικό»." in body

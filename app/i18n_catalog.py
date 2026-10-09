@@ -2314,8 +2314,10 @@ _HELP = {
     "Σημειώσεις, κλήσεις και εργασίες.": "Notes, calls and tasks.",
     "Σύνταξη μηνύματος προς τον πελάτη από τα πρότυπα email, με τα πεδία του ήδη συμπληρωμένα.":
         "Drafting a message to the customer from the email templates, with their fields already filled in.",
-    "Οι αριθμοί πάνω στις καρτέλες δείχνουν πόσα υπάρχουν σε καθεμία. Πάνω από όλες, μια γραμμή με τα βασικά — εταιρεία, ΑΦΜ, τηλέφωνο, τρέχον προϊόν, ενεργές ειδοποιήσεις — παραμένει ορατή σε όποια καρτέλα κι αν βρίσκεστε, και η ανοιχτή καρτέλα επιβιώνει μιας αποθήκευσης.":
-        "The numbers on the tabs show how many items each holds. Above them all, a strip with the essentials — company, Tax ID, phone, current product, active alerts — stays visible whichever tab you are on, and the open tab survives a save.",
+    "Οι αριθμοί πάνω στις καρτέλες δείχνουν πόσα υπάρχουν σε καθεμία. Πάνω από όλες, μια λωρίδα με τα βασικά — εταιρεία, ΑΦΜ, εμπειρία σε διαγωνισμούς (όπως τη δήλωσε στην εγγραφή), τηλέφωνο, τρέχον προϊόν και λήξη του, ενεργές ειδοποιήσεις, πλήθος σημειώσεων / κλήσεων / εργασιών — παραμένει ορατή σε όποια καρτέλα κι αν βρίσκεστε, και η ανοιχτή καρτέλα επιβιώνει μιας αποθήκευσης.":
+        "The numbers on the tabs show how many items each holds. Above them all, a strip with the essentials — company, Tax ID, tender experience (as declared at sign-up), phone, current product and its expiry, active alerts, the number of notes / calls / tasks — stays visible whichever tab you are on, and the open tab survives a save.",
+    "Στην ίδια λωρίδα βρίσκονται τα κουμπιά «Σύνοψη πελάτη» και «Σενάριο κλήσης», και — όταν ο πελάτης ζήτησε να μην τον ξανακαλέσουμε — η σήμανση «Να μην ξανακληθεί» με την ημερομηνία και το κουμπί «Άρση». Περισσότερα στην ενότητα":
+        "The same strip holds the «Customer brief» and «Call script» buttons and — when the customer asked not to be called again — the «Do not call again» badge with its date and a «Lift» button. More in the section",
     "Σύνθεση email προς τον πελάτη": "Composing an email to the customer",
     "Η καρτέλα «Σύνθεση email» ξεκινά από ένα πρότυπο του":
         "The “Compose email” tab starts from a template in",
@@ -3756,7 +3758,7 @@ _CRM_BRIEF = {
         'No contractor with the same KAD and awards in the last three years, among those whose KAD has been looked up in GEMI',
     'η περιγραφή του ΚΑΔ δεν ταιριάζει σε κανέναν κωδικό CPV':
         'the KAD description matches no CPV code',
-    # /help, section #fit
+    # /help, sections #sales (the brief) and #fit (the ΚΑΔ estimate)
     'Το κουμπί «Σύνοψη πελάτη» στη λωρίδα στοιχείων πάνω από τις καρτέλες ανοίγει σε παράθυρο ό,τι χρειάζεται ένας πωλητής πριν από ένα τηλεφώνημα: ποια εταιρεία είναι (ΑΦΜ, κατάσταση στο ΓΕΜΗ, κύριος ΚΑΔ, περιφέρεια), πόσοι ανοικτοί διαγωνισμοί της ταιριάζουν, τι αξίας και πόσοι κλείνουν σε 14 ημέρες, οι καλύτεροι από αυτούς, οι κύριες αναθέτουσες και οι ανταγωνιστές. Η «Σελίδα για εκτύπωση» δείχνει την ίδια σύνοψη σε σελίδα Α4 — και σε PDF από την εκτύπωση του browser.':
         "The «Customer brief» button in the summary strip above the tabs opens, in a window, what a salesperson needs before a call: which company it is (ΑΦΜ, GEMI status, primary KAD, region), how many open tenders fit it, their value and how many close within 14 days, the best of them, the main authorities and the competitors. The «Printable page» shows the same brief as an A4 page — and as a PDF through the browser's print dialog.",
     'Για εταιρεία χωρίς αναθέσεις, ή με λιγότερες από πέντε, η σύνοψη και η καρτέλα «Ταίριασμα» δείχνουν επιπλέον μια «Εκτίμηση από ΚΑΔ»: τους κωδικούς CPV που ταιριάζουν στην περιγραφή των ΚΑΔ της στο ΓΕΜΗ, τους ανοικτούς διαγωνισμούς σε αυτούς, ποιοι παίρνουν τις περισσότερες αναθέσεις στα ίδια αντικείμενα και, όπου ο ΚΑΔ τους είναι γνωστός, ομοειδείς επιχειρήσεις που ήδη κερδίζουν. Η περιφέρεια προκύπτει από τον ταχυδρομικό κώδικα της έδρας και ανεβάζει τη βαθμολογία, χωρίς να αποκλείει διαγωνισμούς σε άλλες περιοχές.':
@@ -3788,13 +3790,59 @@ _CALL_SCRIPT = {
     'Καταχώριση αποτελέσματος': 'Record result',
     'Ο πελάτης δέχεται ξανά κλήσεις;': 'Does the customer accept calls again?',
     'Άρση': 'Lift',
-    # /help, section #fit
-    'Δίπλα της, το «Σενάριο κλήσης» γράφει για τον πωλητή τι να πει στο πρώτο τηλεφώνημα: άνοιγμα, ένα συγκεκριμένο στοιχείο, ερωτήσεις με απαντήσεις που ανοίγουν την επόμενη φράση, επόμενο βήμα και απαντήσεις σε συνηθισμένες αντιρρήσεις. Αλλάζει ανάλογα με το πώς ήρθε η επαφή (εγγράφηκε μόνη της, από τη βάση αναδόχων, από άλλη πηγή) και με το πόσα ξέρουμε (ιστορικό αναθέσεων, μόνο εκτίμηση από ΚΑΔ, ή τίποτα). Γλώσσα κλήσης (ΕΛ/EN) και επωνυμία (Promitheies.gr / Tender Service) επιλέγονται πάνω στο σενάριο.':
-        'Next to it, the «Call script» writes out what the salesperson says on the first call: an opening, one concrete fact, questions whose answers reveal the next line, a next step, and answers to common objections. It changes with how the contact reached us (signed up themselves, from the contractor database, from another source) and with how much we know (award history, only a KAD estimate, or nothing). The call language (EL/EN) and the brand name (Promitheies.gr / Tender Service) are chosen on the script itself.',
+    # /help, section #sales
+    'Πωλήσεις: σύνοψη πελάτη & σενάριο κλήσης': 'Sales: customer brief & call script',
+    'Δύο κουμπιά στη λωρίδα στοιχείων της καρτέλας πελάτη, πάνω από τις καρτέλες, ετοιμάζουν τον πωλητή για το πρώτο τηλεφώνημα: η «Σύνοψη πελάτη» λέει ποιος είναι ο πελάτης και τι μπορεί να διεκδικήσει, το «Σενάριο κλήσης» τι να του πει. Είναι μόνο για διαχειριστές· ο πελάτης δεν βλέπει ποτέ κανένα από τα δύο.':
+        "Two buttons in the customer card's summary strip, above the tabs, prepare the salesperson for the first call: the «Customer brief» says who the customer is and what they can bid for, the «Call script» what to say to them. They are for admins only; the customer never sees either.",
+    'Τα στοιχεία της βγαίνουν από το ιστορικό αναθέσεων του ΑΦΜ — το ίδιο με την καρτέλα «Ταίριασμα». Με πέντε αναθέσεις και πάνω η σύνοψη δείχνει μόνο το ιστορικό· με λιγότερες προσθέτει την «Εκτίμηση από ΚΑΔ» σε χωριστό μπλοκ με την ένδειξη «όχι από ιστορικό», και χωρίς καμία ανάθεση δείχνει μόνο αυτήν. Το ΑΦΜ είναι της εταιρείας που συνδέσατε από το ΓΕΜΗ, αλλιώς του προφίλ — ποτέ αυτό που έγραψε ο πελάτης στην εγγραφή, που μένει ισχυρισμός μέχρι να το επιβεβαιώσετε.':
+        "Its figures come from the award history of the tax number (ΑΦΜ) — the same one the «Fit» tab uses. With five awards or more the brief shows the history only; with fewer it adds the «Estimate from KAD» in a separate block marked «not from history», and with no awards at all it shows only that. The ΑΦΜ is that of the company you linked from GEMI, otherwise the profile's — never the one the customer typed at sign-up, which stays a claim until you confirm it.",
+    'Υπολογίζεται κάθε φορά που την ανοίγετε και δεν αποθηκεύεται πουθενά· οι ανταγωνιστές φορτώνουν λίγα δευτερόλεπτα μετά τα υπόλοιπα. Είναι καθαρή αριθμητική πάνω στα δημόσια δεδομένα — κανένα μοντέλο δεν τη διαβάζει.':
+        'It is computed each time you open it and stored nowhere; the competitors load a few seconds after the rest. It is plain arithmetic on public data — no model reads it.',
+    'Πριν από το τηλεφώνημα': 'Before the call',
+    'Χωρίς ΑΦΜ η σύνοψη έχει λίγα να πει. Συνδέστε πρώτα την εταιρεία του πελάτη από το «Εταιρεία στο ΓΕΜΗ» (καρτέλα «Στοιχεία»). Αν ο πελάτης είναι ανάδοχος αλλά το προφίλ του δεν έχει υπολογιστεί, η σύνοψη το λέει: ανοίξτε το «Ταίριασμα» και πατήστε «Υπολογισμός από το ιστορικό».':
+        "Without a tax number the brief has little to say. First link the customer's company from «Company in GEMI» (the «Details» tab). If the customer is a contractor but their profile has not been computed, the brief says so: open «Fit» and press «Rebuild from history».",
+    'Το «Σενάριο κλήσης», δίπλα στη «Σύνοψη πελάτη», γράφει για τον πωλητή τι να πει στο πρώτο τηλεφώνημα: άνοιγμα, ένα συγκεκριμένο στοιχείο, ερωτήσεις με απαντήσεις που ανοίγουν την επόμενη φράση, επόμενο βήμα και απαντήσεις σε συνηθισμένες αντιρρήσεις. Αλλάζει ανάλογα με το πώς ήρθε η επαφή (εγγράφηκε μόνη της, από τη βάση αναδόχων, από άλλη πηγή) και με το πόσα ξέρουμε (ιστορικό αναθέσεων, μόνο εκτίμηση από ΚΑΔ, ή τίποτα). Γλώσσα κλήσης (ΕΛ/EN) και επωνυμία (Promitheies.gr / Tender Service) επιλέγονται πάνω στο σενάριο.':
+        'The «Call script», next to the «Customer brief», writes out what the salesperson says on the first call: an opening, one concrete fact, questions whose answers reveal the next line, a next step, and answers to common objections. It changes with how the contact reached us (signed up themselves, from the contractor database, from another source) and with how much we know (award history, only a KAD estimate, or nothing). The call language (EL/EN) and the brand name (Promitheies.gr / Tender Service) are chosen on the script itself.',
+    'Τα στοιχεία που διαβάζει ο πωλητής — αριθμοί, αναθέτουσες, τίτλοι διαγωνισμών — φαίνονται με έντονα γράμματα και είναι οι ίδιοι αριθμοί με τη σύνοψη. Αν για μια φράση λείπει κάποιο στοιχείο, το σενάριο δεν τη δείχνει με κενό: διαλέγει άλλη. Η δραστηριότητα του πελάτη στην εφαρμογή επηρεάζει ποια φράση θα δοθεί, αλλά δεν λέγεται ποτέ στο τηλέφωνο.':
+        "The facts the salesperson reads out — figures, authorities, tender titles — are shown in bold and are the same figures as in the brief. If a line is missing one of its facts, the script does not show it with a gap: it picks another. The customer's activity in the app affects which line is offered, but it is never said on the phone.",
+    'Τι λέγεται και τι όχι': 'What is said and what is not',
     'Το ιστορικό αναθέσεων λέγεται ως γεγονός· η εκτίμηση από ΚΑΔ μόνο ως ερώτηση· το ΑΦΜ της εγγραφής μόνο ως επιβεβαίωση. Τιμή δεν αναφέρεται ποτέ στο τηλέφωνο. Ένα κόκκινο πλαίσιο σταματά την πώληση όταν ο πελάτης είναι ήδη συνδρομητής, η εταιρεία δεν είναι ενεργή στο ΓΕΜΗ ή ο πελάτης ζήτησε να μην τον ξανακαλέσουμε. Στις ψυχρές κλήσεις ο πωλητής ελέγχει πρώτα τον αριθμό στο μητρώο του άρθρου 11 του ν. 3471/2006.':
         'The award history is said as a fact; the KAD estimate only as a question; the tax number given at sign-up only as a confirmation. A price is never quoted on the phone. A red box stops the sale when the customer is already a subscriber, the company is not active in GEMI, or the customer asked not to be called again. On cold calls the salesperson first checks the number against the register of article 11 of Law 3471/2006.',
-    'Στο τέλος του σεναρίου ο πωλητής καταχωρίζει το αποτέλεσμα (δεν απάντησε, ξανακαλέστε, κλείστηκε παρουσίαση, ξεκίνησε δοκιμή, να μην ξανακληθεί κ.ά.). Γράφεται ως κλήση στη «Δραστηριότητα», μαζί με το ποιο σενάριο δόθηκε, ώστε αργότερα να φαίνεται ποια ανοίγματα φέρνουν παρουσιάσεις· με ημερομηνία ανοίγει και εργασία. Το «Να μην ξανακληθεί» το αίρει μόνο διαχειριστής, από τη λωρίδα στοιχείων. Η «Σελίδα για εκτύπωση» δείχνει όλο το σενάριο ανοιχτό, για χαρτί.':
-        'At the end of the script the salesperson records the result (no answer, call back, presentation booked, trial started, do not call again, and so on). It is saved as a call under «Activity», together with which script was shown, so it later shows which openings lead to presentations; with a date it also opens a task. Only an admin lifts «Do not call again», from the summary strip. The «Printable page» shows the whole script expanded, for paper.',
+    'Δοκιμαστική πρόσβαση από το τηλέφωνο': 'A trial, from the phone',
+    'Όταν ο πελάτης δέχεται δοκιμή, το σενάριο δείχνει στον πωλητή τα βήματα στην ίδια καρτέλα πελάτη:':
+        'When the customer accepts a trial, the script shows the salesperson the steps, on the same customer card:',
+    'Στην καρτέλα «Στοιχεία», γράψτε το email του πελάτη στην «Επικοινωνία».':
+        "On the «Details» tab, enter the customer's email under «Contact».",
+    'Στην «Ανάθεση προϊόντος» επιλέξτε το δοκιμαστικό προϊόν και πατήστε «ανάθεση».':
+        'Under «Grant product», choose the trial product and press «grant».',
+    'Στην «Ασφάλεια» πατήστε «προσωρινό συνθηματικό».':
+        'Under «Security», press «temp password».',
+    'Από την καρτέλα «Σύνθεση email» στείλτε στον πελάτη το όνομα χρήστη και το προσωρινό συνθηματικό. Στην πρώτη σύνδεση ορίζει δικό του.':
+        'From the «Compose email» tab, send the customer the username and the temporary password. At the first sign-in they set their own.',
+    'Καταχωρίστε το αποτέλεσμα «Ξεκίνησε δοκιμή».': 'Record the result «Trial started».',
+    'Για να επεκτείνετε μια δοκιμή που ήδη τρέχει: «Στοιχεία» → «Τρέχουσα συνδρομή» → «παράταση». Το σενάριο δεν παραπέμπει τον πελάτη στη σύνδεση με σύνδεσμο από email, γιατί αυτή μένει κλειστή στην παραγωγή μέχρι να ολοκληρωθεί η ρύθμιση παράδοσης email.':
+        'To extend a trial that is already running: «Details» → «Current subscription» → «extend». The script does not send the customer to sign in with an emailed link, because that stays switched off in production until email delivery is set up.',
+    'Στο τέλος του σεναρίου ο πωλητής καταχωρίζει τι έγινε. Κάθε καταχώριση γράφεται ως κλήση στη «Δραστηριότητα», μαζί με το ποιο σενάριο δόθηκε, ώστε αργότερα να φαίνεται ποια ανοίγματα φέρνουν παρουσιάσεις. Μια σημείωση μπορεί να συνοδεύει κάθε αποτέλεσμα.':
+        'At the end of the script the salesperson records what happened. Each result is saved as a call under «Activity», together with which script was shown, so it later shows which openings lead to presentations. A note can go with any result.',
+    'Τι γίνεται': 'What happens',
+    'Γράφεται ως κλήση που δεν απαντήθηκε.': 'Logged as an unanswered call.',
+    'Γράφεται ως κλήση.': 'Logged as a call.',
+    'Με ημερομηνία ανοίγει εργασία «Επανάκληση» εκείνη την ημέρα.':
+        'With a date, it opens a «Call back» task on that day.',
+    'Το email το γράφετε από την καρτέλα «Σύνθεση email».':
+        'You write the email from the «Compose email» tab.',
+    'Με ημερομηνία ανοίγει εργασία «Παρουσίαση πλατφόρμας» εκείνη την ημέρα.':
+        'With a date, it opens a «Platform presentation» task on that day.',
+    'Μετά τα βήματα της δοκιμαστικής πρόσβασης παραπάνω.':
+        'After the trial steps above.',
+    'Σημαδεύει τον πελάτη: η λωρίδα στοιχείων δείχνει «Να μην ξανακληθεί» με την ημερομηνία και το σενάριο σταματά την πώληση με κόκκινο πλαίσιο. Μόνο διαχειριστής το αίρει, με το «Άρση» στη λωρίδα.':
+        'Flags the customer: the summary strip shows «Do not call again» with the date, and the script stops the sale with a red box. Only an admin lifts it, with «Lift» in the strip.',
+    'Η «Σελίδα για εκτύπωση» του σεναρίου δείχνει όλο το σενάριο ανοιχτό, με όλες τις απαντήσεις, για χαρτί.':
+        "The script's «Printable page» shows the whole script expanded, with every answer, for paper.",
+    # /help, section #fit
+    'Εταιρεία χωρίς ιστορικό: εκτίμηση από ΚΑΔ': 'A company with no history: the KAD estimate',
+    'Η ίδια βαθμολόγηση τροφοδοτεί τη «Σύνοψη πελάτη» και το «Σενάριο κλήσης» — δείτε την επόμενη ενότητα,':
+        'The same scoring feeds the «Customer brief» and the «Call script» — see the next section,',
 }
 
 
