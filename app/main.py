@@ -114,6 +114,35 @@ try:
 except ImportError:  # flat layout
     import authority_profile as _authority_profile
 
+# The redesigned act page's extra blocks (spec slice 5): related tenders, the
+# buyer card, glossary cards and — for subscribers — CPV codes with notes.
+try:
+    from app import act_extras as _act_extras
+except ImportError:  # flat layout
+    import act_extras as _act_extras
+
+
+def _act_redesign_ctx(c, notice: dict, *, gated: bool, lang: str) -> dict:
+    """What the redesigned act page adds, for either render. Never a 500."""
+    import datetime as _dt
+    dl = notice.get("final_submission_date")
+    deadline_open = bool(
+        (notice.get("act_type") or "notice") == "notice" and dl
+        and not notice.get("cancelled")
+        and dl >= _dt.datetime.now(dl.tzinfo or _dt.timezone.utc))
+    members = [notice["authority_id"]] if notice.get("authority_id") else []
+    try:
+        if members:
+            grp = resolve_entity_group(c, "authority", notice["authority_id"])
+            if grp:
+                members = grp["members"]
+        extras = _act_extras.build(c, notice, member_ids=members, gated=gated, lang=lang)
+    except Exception:      # noqa: BLE001
+        _obs.log_event(logging.WARNING, "act_extras_failed",
+                       adam=notice.get("adam"), exc_info=True)
+        extras = {"related": [], "buyer": None, "learn": [], "cpvs": [], "divisions": []}
+    return {"x": extras, "deadline_open": deadline_open, "ap": _authority_profile}
+
 
 def _i18n_context(request):
     lang = _i18n.lang_from_request(request)
@@ -3994,7 +4023,8 @@ def act_detail(adam: str, request: Request):
             # hidden client-side.
             return templates.TemplateResponse(
                 request, "beta_act.html",
-                {"n": notice, "gated": True, "match": None,
+                {**_act_redesign_ctx(c, notice, gated=True, lang=lang),
+                 "n": notice, "gated": True, "match": None,
                  "line_items": [], "operators": [], "act_cpvs": [],
                  "attachments": [], "act_categories": [], "downstream": [],
                  "incoming": [], "annotation": None, "excluded_reason": None,
@@ -4235,9 +4265,12 @@ def act_detail(adam: str, request: Request):
         except Exception:      # noqa: BLE001 — a star is a nicety, never a 500
             is_favorite = False
 
+    with cursor() as c:
+        redesign = _act_redesign_ctx(c, notice, gated=False, lang=lang)
     return templates.TemplateResponse(
         request, "beta_act.html",
-        {"n": notice, "gated": False, "match": match,
+        {**redesign,
+         "n": notice, "gated": False, "match": match,
          "is_favorite": is_favorite,
          "ft_paragraphs": ft_paragraphs,
          "act_authorities": act_authorities, "act_contractors": act_contractors,
@@ -5127,17 +5160,29 @@ def authority_detail(org_id: str, request: Request,
         # largest authority), so the teaser — the crawler's page — carries it.
         # A profile is a nicety: a failure here must never 500 the page.
         profile, profile_sentence, tenders = None, None, []
+        n_open, latest, related, faq = 0, [], [], []
         try:
             profile = _authority_profile.load(c, member_ids, lang)
             profile_sentence = _authority_profile.sentence(
                 profile, auth["name"] or org_id, lang)
             tenders = _authority_profile.open_tenders(c, member_ids)
+            # The redesign's extra blocks (spec slice 5) — all public facts.
+            n_open = _authority_profile.open_count(c, member_ids)
+            latest = _authority_profile.latest_acts(c, member_ids)
+            related = _authority_profile.related(c, member_ids, profile,
+                                                 auth["name"] or "")
+            faq = _authority_profile.faq(
+                profile, auth["name"] or org_id, org_id, lang,
+                label_ct=lambda k: _i18n.enum_label("contract_type", k, CONTRACT_TYPES, lang),
+                label_pr=lambda k: _i18n.translate(k, lang))
         except Exception:      # noqa: BLE001
             _obs.log_event(logging.WARNING, "authority_profile_failed",
                            org_id=org_id, exc_info=True)
             profile, profile_sentence, tenders = None, None, []
         profile_ctx = {"profile": profile, "profile_sentence": profile_sentence,
-                       "tenders": tenders, "ap": _authority_profile}
+                       "tenders": tenders, "ap": _authority_profile,
+                       "n_open": n_open, "latest": latest, "related": related,
+                       "faq": faq}
 
         if _is_gated(request):
             # Freemium teaser: header, the public profile, contacts blurred,

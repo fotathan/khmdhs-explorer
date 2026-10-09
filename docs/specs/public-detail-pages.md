@@ -1,6 +1,7 @@
 # Richer public act & authority pages
 
-Status: slices 1 and 2 built (2026-10-09). Later slices are proposals.
+Status: slices 1, 2 and 5 built (2026-10-09). Slices 3–4 (CPV) are built on
+their own branch, waiting for the CPV descriptions batch.
 
 Source: Tender Service's "Enrich Tender Detail Views" and "Enrich Authority
 public pages" (the "AI in Sales / Marketing ideas" document), adapted to
@@ -178,4 +179,67 @@ HTML (test-enforced).
 
 **Deploy:** apply the migration on prod BEFORE merging (it builds the views
 WITH DATA, ~1–2 min). Prod takes it with `migrate.py up --only`.
+
+## 8. Slice 5 — the redesign
+
+After Tender Service's two Bolt designs (tender-detail-page-r-71um,
+design-replication-a-5i1t). Styles in `app/static/css/detail.css` (linked
+only from the detail pages); icons in `_icons.html` (inline SVG, decoration
+only, every icon next to a text label).
+
+**Act page** (`beta_act.html`): two columns, with a sticky side card on desktop
+and stacked on a phone.
+
+Main column, in order:
+1. the act card: status pill (open / deadline passed / cancelled), type and
+   source badges, title, buyer + ΑΔΑΜ, value / publication / deadline boxes;
+2. «Στοιχεία διαγωνισμού»;
+3. «Κωδικοί CPV» (official names, linked to the search; the stored AI
+   notes and links to /cpv/<code> come with slices 3–4);
+4. the buyer card (the authority's 12-month sentence and figures);
+5. explanation boxes (act type; procedure for subscribers);
+6. [subscriber tabs, unchanged];
+7. related open tenders;
+8. «Μάθετε & προετοιμαστείτε» (glossary cards);
+9. [gated: the register box].
+
+Side card:
+- the deadline band, value and deadline;
+- gated: «Δείτε όλα τα στοιχεία» → register, the benefits, sign-in;
+- subscriber: the act actions (document, zip, favourite, calendar, print);
+- then «Μη χάσετε παρόμοιο διαγωνισμό» (register, or a search for the act's
+  CPV divisions).
+
+**Locked rows** (owner, 2026-10-09: keep the earlier decision rather than
+the design's public fields): for a gated reader, procedure, contract type,
+criterion, place of performance and the CPV card show their LABEL with a
+lock and «Ορατό με εγγραφή». The value is never rendered, and neither is the
+region in the breadcrumb. Test-enforced.
+
+**Related tenders** (`app/act_extras.py`): open, visible, uncancelled
+notices sharing a 2-digit CPV division with the act, the same buyer first,
+soonest deadline. Starts from the open notices, so cost does not depend on
+the division's size. They show other acts' public hero facts only.
+
+**Authority page** (`beta_authority.html`, `_authority_profile.html`):
+1. the crimson hero band: breadcrumb, badges (active in the window, main
+   region, code), name, the data-only sentence, four tiles (notices,
+   contracts, value, open tenders now);
+2. «Στοιχεία αναθέτουσας» (contacts locked for gated);
+3. card rows: what it buys / contract type / procedure, then region /
+   contract size, then open tenders / latest acts (notices, award decisions
+   and contracts only);
+4. related authorities: same main region, same kind (first word of the name)
+   first;
+5. the FAQ, answered from the figures only («περίπου N τον μήνα» only from
+   12 notices up);
+6. [gated: the register box; subscriber: «Όλο το ιστορικό», unchanged].
+
+**Not taken from the designs:**
+- an average contract value (a mean is skewed by a few large contracts;
+  size bands instead);
+- awarding-criteria weights (not in our data);
+- bidder averages (competition.py rules: median, subscribers);
+- suppliers on the public page (owner);
+- donut charts (bars carry the same shares, numbers as text).
 

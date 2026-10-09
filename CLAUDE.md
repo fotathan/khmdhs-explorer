@@ -399,6 +399,21 @@ get the same section above their own panels.
 - Reads acts only: no profile, customer data or act_ai_summary
   (test-enforced). Apply the migration on prod BEFORE merging.
 
+## Redesigned act + authority pages (spec §8, slice 5)
+detail.css (linked only from detail pages), _icons.html, app/act_extras.py.
+- Act page: two columns + sticky side card. A gated reader's subscriber
+  fields (procedure, contract type, criterion, place, CPV) are LOCKED rows:
+  label + «Ορατό με εγγραφή», value never rendered, region not in the
+  breadcrumb (owner, 2026-10-09; test_detail_redesign.py). The subscriber
+  tabs are unchanged inside the main column; act-actions moved to the side
+  card.
+- act_extras.build never returns a field of THIS act that the teaser hides;
+  related tenders are other open notices in the act's CPV division. CPV
+  codes link to the search filter and show a stored note only once
+  proc.cpv_note exists (slices 3–4 ship separately).
+- Authority page: hero band + cards. FAQ, latest acts and related
+  authorities are data-only; suppliers stay subscriber-only.
+
 ## Tender Service ingester (fourth source, NOT in production)
 tsg_ingest.py; db.py tsg-backfill / tsg-catchup / tsg-project. tsg_probe.py
 measures the key, tsg_preview_import.py loads a probe sample and shares the
