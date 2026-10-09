@@ -384,3 +384,41 @@ def test_a_page_without_the_views_still_renders(client, db):
         assert r.status_code == 200 and 'class="ap"' not in r.text
     finally:
         cur.execute("DELETE FROM proc.authority WHERE org_id = %s", (QUIET,))
+
+
+# --------------------------------------------------------------------------- #
+# The redesign's extra blocks (spec slice 5)
+# --------------------------------------------------------------------------- #
+def test_the_faq_answers_from_the_figures(acts, db):
+    p = ap.load(db.cursor(), [ORG])
+    qa = ap.faq(p, "ΔΗΜΟΣ ΠΡΟΦΙΛ", ORG, label_ct=lambda k: {"13": "Προμήθειες"}.get(k, k))
+    assert qa[0]["a"] == "Τους τελευταίους 12 μήνες δημοσίευσε 3 προκηρύξεις."   # < 12: no "per month"
+    assert "«Προμήθειες»" in qa[1]["a"] and "«Απευθείας ανάθεση»" in qa[1]["a"]
+    assert qa[-1]["href"] == f"/?authority={ORG}"
+    many = ap.summarise([{**r, "n": 30} for r in [
+        {"act_type": "notice", "contract_type": "", "procedure_family": "", "nuts2": "",
+         "value_band": -1, "n": 30, "n_valued": 0, "value": 0,
+         "period_start": None, "period_end": None}]], [], {})
+    assert "περίπου 3 τον μήνα" in ap.faq(many, "Χ", ORG)[0]["a"]
+
+
+def test_latest_acts_skip_requests_and_payments(acts, db):
+    rows = ap.latest_acts(db.cursor(), [ORG], limit=50)
+    types = {r["type"] for r in rows}
+    assert "payment" not in types and types <= {"notice", "auction", "contract"}
+    assert "APRF-X-HIDDEN" not in {r["adam"] for r in rows}
+
+
+def test_related_authorities_share_the_main_region(acts, db):
+    cur = db.cursor()
+    p = ap.load(cur, [ORG])
+    rel = ap.related(cur, [ORG], p, "ΔΗΜΟΣ ΠΡΟΦΙΛ")
+    assert [r["org_id"] for r in rel] == [TWIN]          # same region, same kind
+    assert ap.related(cur, [ORG, TWIN], p, "ΔΗΜΟΣ ΠΡΟΦΙΛ") == []
+
+
+def test_the_page_carries_the_faq_and_the_hero_figures(client, acts):
+    body = client.get(f"/authority/{ORG}").text
+    assert "Συχνές ερωτήσεις" in body and "Πόσο συχνά προκηρύσσει" in body
+    assert 'class="dv-stats"' in body and "ανοιχτοί διαγωνισμοί τώρα" in body
+    assert f'href="/authority/{TWIN}"' in body           # related authorities

@@ -311,3 +311,106 @@ def sentence(p: dict | None, name: str, lang: str = "el") -> str | None:
                            if lang == "en" else
                            f"Εκτελούνται σε περισσότερες περιφέρειες, συχνότερα {where} ({pct}).")
     return " ".join(out)
+
+
+# --------------------------------------------------------------------------- #
+# The redesigned page's extra blocks (spec slice 5). All public, all data-only.
+# --------------------------------------------------------------------------- #
+def open_count(c, member_ids: list[str]) -> int:
+    """How many of its notices are open right now (the hero's 4th figure)."""
+    try:
+        from app.act_visibility import VISIBLE_SQL
+    except ImportError:  # flat layout
+        from act_visibility import VISIBLE_SQL
+    c.execute(f"""SELECT count(*) AS n FROM proc.procurement_act a
+                  WHERE a.authority_id = ANY(%s) AND a.type = 'notice'
+                    AND a.final_submission_date >= now()
+                    AND NOT coalesce(a.cancelled, false) AND {VISIBLE_SQL}""",
+              (member_ids,))
+    return int(c.fetchone()["n"])
+
+
+def latest_acts(c, member_ids: list[str], limit: int = 5) -> list[dict]:
+    """Its most recent notices, award decisions and contracts (requests and
+    payments are noise here): title, type, date, value — the facts
+    every act page's public hero already shows."""
+    try:
+        from app.act_visibility import VISIBLE_SQL
+    except ImportError:  # flat layout
+        from act_visibility import VISIBLE_SQL
+    c.execute(f"""SELECT a.adam, a.type, a.title, a.submission_date,
+                         a.total_cost_with_vat, a.cancelled
+                  FROM proc.procurement_act a
+                  WHERE a.authority_id = ANY(%s) AND {VISIBLE_SQL}
+                    AND a.type IN ('notice', 'auction', 'contract')
+                  ORDER BY a.submission_date DESC NULLS LAST
+                  LIMIT %s""", (member_ids, limit))
+    return c.fetchall()
+
+
+def related(c, member_ids: list[str], p: dict | None, name: str,
+            limit: int = 5) -> list[dict]:
+    """Other authorities whose contracts are performed in the same main
+    region, the same KIND first (same first word: ΔΗΜΟΣ, ΝΟΣΟΚΟΜΕΙΟ…), then by
+    how many contracts they published in the window."""
+    if not p or not p["region"]["rows"] or not views_exist(c):
+        return []
+    region = p["region"]["rows"][0]["key"]
+    first = (name or "").split()[0].upper() if (name or "").split() else ""
+    c.execute("""
+        SELECT x.authority_id AS org_id, au.name, sum(x.n)::int AS n
+        FROM proc.mv_authority_profile x
+        JOIN proc.authority au ON au.org_id = x.authority_id
+        WHERE x.nuts2 = %s AND x.act_type = 'contract'
+          AND NOT x.authority_id = ANY(%s)
+        GROUP BY 1, 2
+        ORDER BY (upper(split_part(au.name, ' ', 1)) = %s) DESC, 3 DESC
+        LIMIT %s""", (region, member_ids, first, limit))
+    return c.fetchall()
+
+
+def faq(p: dict | None, name: str, org_id: str, lang: str = "el", *,
+        label_ct=lambda k: k, label_pr=lambda k: k) -> list[dict]:
+    """Questions a visitor asks about an authority, answered from its figures
+    only. Nothing is said that the page does not show."""
+    if not p:
+        return []
+    en = lang == "en"
+    out = []
+    n = p["notices"]
+    if en:
+        a = (f"In the last 12 months it published {fmt_int(n, lang)} contract "
+             f"notice{'' if n == 1 else 's'}"
+             + (f", about {fmt_int(int(n / 12 + 0.5), lang)} a month." if n >= 12 else ".")
+             if n else "It published no contract notices in the last 12 months.")
+        out.append({"q": f"How often does «{name}» publish tenders?", "a": a})
+    else:
+        a = (f"Τους τελευταίους 12 μήνες δημοσίευσε {fmt_int(n, lang)} "
+             f"{'προκήρυξη' if n == 1 else 'προκηρύξεις'}"
+             + (f", περίπου {fmt_int(int(n / 12 + 0.5), lang)} τον μήνα." if n >= 12 else ".")
+             if n else "Δεν δημοσίευσε προκηρύξεις τους τελευταίους 12 μήνες.")
+        out.append({"q": f"Πόσο συχνά προκηρύσσει διαγωνισμούς η αναθέτουσα «{name}»;", "a": a})
+
+    ct, pr = p["contract_type"]["rows"], p["procedure"]["rows"]
+    if p["contracts"] and (ct or pr):
+        bits = []
+        if ct:
+            bits.append(("Most of its contracts are «{l}» ({s})" if en
+                         else "Οι περισσότερες συμβάσεις της είναι «{l}» ({s})")
+                        .format(l=label_ct(ct[0]["key"]), s=fmt_pct(ct[0]["share"])))
+        if pr:
+            bits.append(("most often awarded by «{l}» ({s})" if en
+                         else "συχνότερα με «{l}» ({s})")
+                        .format(l=label_pr(pr[0]["key"]), s=fmt_pct(pr[0]["share"])))
+        out.append({"q": (f"What kind of contracts does «{name}» award?" if en
+                          else f"Τι είδους συμβάσεις αναθέτει;"),
+                    "a": ", ".join(bits) + "."})
+
+    out.append({"q": ("How can I get alerts for its new tenders?" if en
+                      else "Πώς λαμβάνω ειδοποιήσεις για τους νέους διαγωνισμούς της;"),
+                "a": ("Create a free account and save a search filtered on this "
+                      "authority: every new notice it publishes reaches you by email." if en
+                      else "Δημιουργήστε δωρεάν λογαριασμό και αποθηκεύστε μια αναζήτηση "
+                           "με αυτή την αναθέτουσα: κάθε νέα προκήρυξή της θα σας έρχεται με email."),
+                "href": f"/?authority={org_id}"})
+    return out

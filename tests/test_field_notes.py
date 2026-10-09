@@ -180,7 +180,7 @@ def _texts(lang="el"):
 def test_a_gated_visitor_gets_the_type_note_and_nothing_else(client, act):
     body = client.get(f"/act/{act}").text
     texts = _texts()
-    assert 'class="type-note"' in body and texts["type"] in body
+    assert 'class="td-explain type-note"' in body and texts["type"] in body
     assert 'href="/glossary/prokiryxi"' in body
     for k in ("procedure", "contract", "criteria"):
         assert texts[k] not in body, f"the {k} note leaked into the teaser"

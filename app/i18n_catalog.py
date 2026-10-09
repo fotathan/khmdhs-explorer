@@ -275,6 +275,97 @@ _ACT = {
 
 # Authority / contractor detail + list pages (beta_authority/contractor[_results])
 _PARTY = {
+    # redesigned act + authority pages (spec slice 5)
+    'Οι διαγωνισμοί με αυτόν τον κωδικό':
+        'Tenders under this code',
+    'Πώς χρησιμοποιούμε την ΤΝ':
+        'How we use AI',
+    'Άλλες αναθέτουσες στην ίδια περιφέρεια':
+        'Other authorities in the same region',
+    'Έληξε η προθεσμία':
+        'Deadline passed',
+    'Όλα για αυτή την αναθέτουσα':
+        'Everything about this authority',
+    'Ανοιχτός':
+        'Open',
+    'Δέχεται προσφορές':
+        'Accepting tenders',
+    'Δείτε την αναζήτηση':
+        'See the search',
+    'Δείτε τους διαγωνισμούς της ίδιας κατηγορίας και αποθηκεύστε την αναζήτηση ως ειδοποίηση.':
+        'See the tenders in the same category and save the search as an alert.',
+    'Δείτε όλα τα στοιχεία':
+        'See all the details',
+    'Διαδικασία, κριτήριο και κωδικοί CPV':
+        'Procedure, award criterion and CPV codes',
+    'Δωρεάν λογαριασμός.':
+        'Free account.',
+    'Είδος πράξης':
+        'Act type',
+    'Είδος φορέα':
+        'Type of body',
+    'Ειδοποιήσεις με email για νέους διαγωνισμούς':
+        'Email alerts for new tenders',
+    'Ενεργή αναθέτουσα':
+        'Active authority',
+    'Η αναθέτουσα αρχή':
+        'The contracting authority',
+    'Η διαδικασία:':
+        'The procedure:',
+    'Η πράξη ακυρώθηκε':
+        'This act was cancelled',
+    'Η πράξη δεν δηλώνει κωδικούς CPV.':
+        'This act states no CPV codes.',
+    'Η προθεσμία έληξε':
+        'The deadline has passed',
+    'Η πρόσβασή σας έχει λήξει. Επικοινωνήστε με τον διαχειριστή για ανανέωση.':
+        'Your access has expired. Contact the administrator to renew it.',
+    'Κύρια περιφέρεια εκτέλεσης':
+        'Main region of performance',
+    'Λάβετε με email κάθε νέα προκήρυξη που ταιριάζει σε αυτό που κάνετε.':
+        'Get every new notice that matches what you do by email.',
+    'Μάθετε & προετοιμαστείτε':
+        'Learn & prepare',
+    'Μη χάσετε παρόμοιο διαγωνισμό':
+        'Never miss a tender like this',
+    'Ο κωδικός και οι διαγωνισμοί του':
+        'The code and its tenders',
+    'Οι κωδικοί CPV της πράξης είναι ορατοί με εγγραφή.':
+        "This act's CPV codes are visible after signing up.",
+    'Οι περιγραφές είναι γραμμένες με τεχνητή νοημοσύνη από τις επίσημες ονομασίες του καταλόγου CPV.':
+        'The descriptions are written with AI from the official names in the CPV list.',
+    'Παρόμοιοι διαγωνισμοί':
+        'Similar tenders',
+    'Πλήρες κείμενο και έγγραφα της πράξης':
+        "The act's full text and documents",
+    'Προθεσμίες στο ημερολόγιό σας':
+        'Deadlines in your calendar',
+    'Πρόσφατες πράξεις':
+        'Latest acts',
+    'Ρυθμίστε μια δωρεάν ειδοποίηση':
+        'Set up a free alert',
+    'Στοιχεία αναθέτουσας':
+        'Authority details',
+    'Στοιχεία διαγωνισμού':
+        'Tender details',
+    'Συχνές ερωτήσεις':
+        'Frequently asked questions',
+    'Σχετικοί ανοιχτοί διαγωνισμοί':
+        'Related open tenders',
+    'Σύνοψη διαγωνισμού και λίστα ελέγχου':
+        'Tender summary and checklist',
+    'Σύνοψη και ενέργειες':
+        'Summary and actions',
+    'Τι είναι οι κωδικοί CPV':
+        'What CPV codes are',
+    'Τι είναι:':
+        'What it is:',
+    'ανοιχτοί διαγωνισμοί τώρα':
+        'open tenders now',
+    'προκηρύξεις, 12 μήνες':
+        'notices, 12 months',
+    'συμβάσεις, 12 μήνες':
+        'contracts, 12 months',
     # public authority profile (_authority_profile.html)
     "Η σελίδα κάθε αναθέτουσας αρχής ξεκινά με τους τελευταίους 12 μήνες της, ορατούς σε όλους: μια πρόταση γραμμένη μόνο από τα δεδομένα (πόσες προκηρύξεις και συμβάσεις, συνολική αξία, κύριες κατηγορίες CPV, περιφέρεια εκτέλεσης), τα σύνολα, τι αγοράζει, με ποιες διαδικασίες, σε τι μεγέθη και πού, και τους ανοιχτούς διαγωνισμούς της. Ο ανώνυμος επισκέπτης βλέπει ότι υπάρχουν στοιχεία επικοινωνίας, όχι τις τιμές τους. Τα στοιχεία ανανεώνονται με τα στατιστικά, μετά από κάθε εισαγωγή.":
         "Every authority page opens with its last 12 months, visible to everyone: a sentence written from the data alone (how many notices and contracts, total value, main CPV categories, region of performance), the totals, what it buys, through which procedures, at what sizes and where, and its open tenders. An anonymous visitor sees that contact details exist, not their values. The figures are refreshed with the statistics, after every import.",
