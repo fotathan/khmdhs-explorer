@@ -5,6 +5,14 @@
    the caller omits the row entirely (nothing useful to show); only an explicit
    Yes/No is rendered here. #}
 {% macro yn(val) -%}{{ "ναι" | t if val else "όχι" | t }}{%- endmacro %}
+{# The fixed explanation of a coded value (app/field_notes.py), placed inside
+   its <dd>. Only ever called inside the `not gated` sections: procedure,
+   contract type and criterion are subscriber fields, so their notes are too
+   (docs/specs/public-detail-pages.md §2). #}
+{% macro fnote(kind, value) -%}
+{%- set fn = field_note(kind, value, lang) -%}
+{%- if fn %}<span class="fnote">{{ fn.text }}{% if fn.href %} <a href="{{ fn.href }}">{{ t("Γλωσσάρι ›") }}</a>{% endif %}</span>{% endif -%}
+{%- endmacro %}
 {% block title %}{{ n.title or n.adam }} · {{ type_label_el }}{% endblock %}
 {# The description a person reads in a search-results page, built from the
    record's own facts rather than a template sentence. #}
@@ -112,6 +120,10 @@
       <div class="vbox vbox-text"><div class="v v-text">{{ n.nuts_label or n.nuts_code }}</div><div class="vl">{{ t("Τόπος εκτέλεσης") }}</div></div>
       {% endif %}
     </div>
+    {# What this kind of act is (app/field_notes.py). PUBLIC on purpose: it
+       explains the type badge, which the teaser already shows. #}
+    {% set type_note = field_note('act_type', atype, lang) %}
+    {% if type_note %}<p class="type-note">{{ type_note.text }}{% if type_note.href %} <a href="{{ type_note.href }}">{{ t("Γλωσσάρι ›") }}</a>{% endif %}</p>{% endif %}
 
     {% if not gated %}
     <div class="act-actions">
@@ -217,7 +229,7 @@
             {% if n.start_date %}<dt>{{ t("Έναρξη") }}</dt><dd>{{ n.start_date.strftime('%d/%m/%Y') }}</dd>{% endif %}
             {% if n.end_date %}<dt>{{ t("Λήξη") }}</dt><dd>{{ n.end_date.strftime('%d/%m/%Y') }}</dd>{% elif n.no_end_date %}<dt>{{ t("Λήξη") }}</dt><dd><em>{{ t("χωρίς προκαθορισμένη λήξη") }}</em></dd>{% endif %}
             {% if n.bids_submitted is not none %}<dt>{{ t("Προσφορές") }}</dt><dd>{{ n.bids_submitted }}{% if n.max_bids_submitted %} ({{ t("μέγ.") }} {{ n.max_bids_submitted }}){% endif %}</dd>{% endif %}
-            {% if n.assign_criteria_label or n.assign_criteria_code %}<dt>{{ t("Κριτήριο ανάθεσης") }}</dt><dd>{{ n.assign_criteria_label or (n.assign_criteria_code | assign_criteria_label) }}</dd>{% endif %}
+            {% if n.assign_criteria_label or n.assign_criteria_code %}<dt>{{ t("Κριτήριο ανάθεσης") }}</dt><dd>{{ n.assign_criteria_label or (n.assign_criteria_code | assign_criteria_label) }}{{ fnote('criteria', n.assign_criteria_label) }}</dd>{% endif %}
           {% endif %}
 
           {% if atype == 'payment' %}
@@ -236,10 +248,10 @@
           </dd>
           {% endif %}
 
-          {% if n.contract_type_code %}<dt>{{ t("Είδος σύμβασης") }}</dt><dd>{{ n.contract_type_code | contract_type_label }}</dd>{% endif %}
-          {% if n.procedure_type_code %}<dt>{{ t("Διαδικασία") }}</dt><dd>{{ n.procedure_type_code | procedure_type_label }}</dd>{% endif %}
+          {% if n.contract_type_code %}<dt>{{ t("Είδος σύμβασης") }}</dt><dd>{{ n.contract_type_code | contract_type_label }}{{ fnote('contract_type', n.contract_type_code) }}</dd>{% endif %}
+          {% if n.procedure_type_code %}<dt>{{ t("Διαδικασία") }}</dt><dd>{{ n.procedure_type_code | procedure_type_label }}{{ fnote('procedure', n.procedure_family) }}</dd>{% endif %}
           {% if n.award_procedure_code %}<dt>{{ t("Αιτιολόγηση διαδικασίας") }}</dt><dd>{{ n.award_procedure_code | code_label('award_procedure') }}</dd>{% endif %}
-          {% if n.criteria_code %}<dt>{{ t("Κριτήριο") }}</dt><dd>{{ n.criteria_code | assign_criteria_label }}</dd>{% endif %}
+          {% if n.criteria_code %}<dt>{{ t("Κριτήριο") }}</dt><dd>{{ n.criteria_code | assign_criteria_label }}{{ fnote('criteria', n.criteria_code) }}</dd>{% endif %}
           {% if n.legal_context_code %}<dt>{{ t("Νομικό πλαίσιο") }}</dt><dd>{{ n.legal_context_code | code_label('legal_context') }}</dd>{% endif %}
           {% if n.notice_type_code %}<dt>{{ t("Τύπος προκήρυξης") }}</dt><dd>{{ n.notice_type_code | code_label('notice_type') }}</dd>{% endif %}
           {% if n.conducting_proceedings_code %}<dt>{{ t("Τρόπος διεξαγωγής") }}</dt><dd>{{ n.conducting_proceedings_code | code_label('conducting_proceedings') }}</dd>{% endif %}

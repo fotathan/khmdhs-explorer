@@ -99,6 +99,14 @@ try:
 except ImportError:  # flat layout
     import glossary as _glossary
 
+# Fixed explanations next to an act's coded fields (docs/specs/
+# public-detail-pages.md, slice 1). The template decides which a gated
+# visitor sees: the act type is public, the rest follow their field.
+try:
+    from app import field_notes as _field_notes
+except ImportError:  # flat layout
+    import field_notes as _field_notes
+
 
 def _i18n_context(request):
     lang = _i18n.lang_from_request(request)
@@ -1639,6 +1647,7 @@ def _seo_context(request):
 
 templates.context_processors.append(_seo_context)
 templates.env.globals["seo_act_description"] = _seo.describe_act
+templates.env.globals["field_note"] = _field_notes.note
 templates.env.globals["seo_entity_description"] = _seo.describe_entity
 
 
