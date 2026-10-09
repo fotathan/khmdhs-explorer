@@ -1,0 +1,143 @@
+{# _authority_profile.html — the authority's last 12 months in cards, for
+   EVERYONE (docs/specs/public-detail-pages.md slices 2 and 5).
+
+   The sentence and the four figures live in the page's hero; this partial is
+   the rest of the design: what it buys / how / where / at what size, open
+   tenders, latest acts, related authorities and the FAQ. Built by
+   app/authority_profile.py from two precomputed views; `profile` is None
+   until the migration is applied, and then nothing here renders.
+
+   Every bar is a share of the contracts that DECLARE that field; how many did
+   not is said under the card, never folded into a bar. #}
+{% if profile %}
+{% from "_icons.html" import icon %}
+{# One bar: its label (optionally a link), count and share as TEXT — the bar
+   only repeats the share — and a title for hover. #}
+{% macro bar(lbl, n, share, href=none) -%}
+<li title="{{ lbl }}: {{ ap.fmt_int(n, lang) }} ({{ ap.fmt_pct(share) }})">
+  <span class="ap-l">{% if href %}<a href="{{ href }}">{{ lbl }}</a>{% else %}{{ lbl }}{% endif %}</span>
+  <span class="ap-v">{{ ap.fmt_int(n, lang) }} · {{ ap.fmt_pct(share) }}</span>
+  <span class="ap-t" aria-hidden="true"><span class="ap-f" style="width:{{ '%.1f' | format(share * 100) }}%"></span></span>
+</li>
+{%- endmacro %}
+{% macro card_h(ic, title) -%}
+<h2 class="dv-card-h"><span class="dv-card-ic">{{ icon(ic) }}</span>{{ title }}</h2>
+{%- endmacro %}
+
+<div class="ap">
+  {% if profile.contracts %}
+  <div class="dv-row dv-row-3">
+    {% if profile.cpv %}
+    <section class="dv-card">
+      {{ card_h('tag', t("Τι αγοράζει")) }}
+      <ul class="ap-bars">
+        {% for r in profile.cpv %}
+        {% if r.code %}{{ bar(r.label or r.division, r.n, r.share, '/cpv/' ~ r.code) }}{% else %}{{ bar(r.label or r.division, r.n, r.share) }}{% endif %}
+        {% endfor %}
+      </ul>
+      <p class="ap-note">{{ t("Κατηγορία CPV (2 ψηφία), μερίδιο των συμβάσεων· μια σύμβαση μπορεί να ανήκει σε περισσότερες.") }}</p>
+    </section>
+    {% endif %}
+    {% for key, ic, title in [('contract_type', 'package', t("Είδος σύμβασης")), ('procedure', 'scale', t("Διαδικασία"))] %}
+    {% set b = profile[key] %}
+    {% if b.rows %}
+    <section class="dv-card">
+      {{ card_h(ic, title) }}
+      <ul class="ap-bars">
+        {% for r in b.rows %}
+        {% if key == 'contract_type' %}{% set lbl = r.key | contract_type_label %}{% else %}{% set lbl = t(r.key) %}{% endif %}
+        {{ bar(lbl, r.n, r.share) }}
+        {% endfor %}
+        {% if b.other %}{{ bar(t("Λοιπά"), b.other, b.other_share) }}{% endif %}
+      </ul>
+      {% if b.unknown %}<p class="ap-note">{{ ap.fmt_int(b.unknown, lang) }} {{ t("συμβάσεις δεν το δηλώνουν.") }}</p>{% endif %}
+    </section>
+    {% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="dv-row dv-row-2">
+    {% set b = profile.region %}
+    {% if b.rows %}
+    <section class="dv-card">
+      {{ card_h('pin', t("Περιφέρεια εκτέλεσης")) }}
+      <ul class="ap-bars">
+        {% for r in b.rows %}{{ bar(ap.region_label(r.key, lang), r.n, r.share) }}{% endfor %}
+        {% if b.other %}{{ bar(t("Λοιπά"), b.other, b.other_share) }}{% endif %}
+      </ul>
+      {% if b.unknown %}<p class="ap-note">{{ ap.fmt_int(b.unknown, lang) }} {{ t("συμβάσεις δεν το δηλώνουν.") }}</p>{% endif %}
+    </section>
+    {% endif %}
+    {% if profile.band_total %}
+    <section class="dv-card">
+      {{ card_h('chart', t("Μέγεθος συμβάσεων")) }}
+      <ul class="ap-bars">
+        {% for r in profile.bands %}{{ bar(r.en if lang == 'en' else r.el, r.n, r.share) }}{% endfor %}
+      </ul>
+      <p class="ap-note">{{ t("Αξία με ΦΠΑ.") }}</p>
+    </section>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if tenders or latest %}
+  <div class="dv-row dv-row-2">
+    {% if tenders %}
+    <section class="dv-card">
+      {{ card_h('clock', t("Ανοιχτοί διαγωνισμοί")) }}
+      <ul class="ap-open">
+        {% for r in tenders %}
+        <li>
+          <a href="/act/{{ r.adam }}">{{ r.title or r.adam }}</a>
+          <span class="ap-open-m">{{ t("λήξη υποβολής") }} {{ r.final_submission_date.strftime('%d/%m/%Y') }}{% if r.total_cost_with_vat %} · {{ ap.fmt_money(r.total_cost_with_vat, lang) }}{% endif %}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+    {% if latest %}
+    <section class="dv-card">
+      {{ card_h('list', t("Πρόσφατες πράξεις")) }}
+      <ul class="ap-open">
+        {% for r in latest %}
+        <li>
+          <a href="/act/{{ r.adam }}">{{ r.title or r.adam }}</a>
+          <span class="ap-open-m"><span class="dv-chip">{{ r.type | type_label }}</span>{% if r.submission_date %} {{ r.submission_date.strftime('%d/%m/%Y') }}{% endif %}{% if r.total_cost_with_vat and r.total_cost_with_vat >= 1 %} · {{ ap.fmt_money(r.total_cost_with_vat, lang) }}{% endif %}{% if r.cancelled %} · {{ t("ακυρωμένη") }}{% endif %}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if related %}
+  <section class="dv-card">
+    {{ card_h('users', t("Άλλες αναθέτουσες στην ίδια περιφέρεια")) }}
+    <ul class="dv-rel">
+      {% for r in related %}
+      <li><a href="/authority/{{ r.org_id }}">{{ r.name }}</a><span class="ap-open-m">{{ ap.fmt_int(r.n, lang) }} {{ t("συμβάσεις, 12 μήνες") }}</span></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if faq %}
+  <section class="dv-card">
+    {{ card_h('help', t("Συχνές ερωτήσεις")) }}
+    <div class="dv-faq">
+      {% for f in faq %}
+      <details{% if loop.first %} open{% endif %}>
+        <summary>{{ f.q }}</summary>
+        <p>{{ f.a }}{% if f.href %} <a href="{{ f.href }}">{{ t("Δείτε την αναζήτηση") }} ›</a>{% endif %}</p>
+      </details>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if profile.period %}
+  <p class="ap-foot">{{ t("Πηγή: ΚΗΜΔΗΣ. Μετρούν οι προκηρύξεις και οι συμβάσεις που δημοσιεύτηκαν") }} {{ ap.period_label(profile, lang) }}{{ t(", χωρίς ακυρωμένες πράξεις και διπλοεγγραφές. Οι αναλύσεις αφορούν τις συμβάσεις.") }}</p>
+  {% endif %}
+</div>
+{% endif %}

@@ -275,6 +275,158 @@ _ACT = {
 
 # Authority / contractor detail + list pages (beta_authority/contractor[_results])
 _PARTY = {
+    # public CPV pages + /ai entry (cpv.html, cpv_index.html, ai_policy.html)
+    'Κάθε κωδικός CPV έχει δική του δημόσια σελίδα (/cpv/κωδικός, με αφετηρία το /cpv): την επίσημη ονομασία, μια σύντομη περιγραφή σε απλή γλώσσα γραμμένη με τεχνητή νοημοσύνη και επισημασμένη ως τέτοια, τις κατηγορίες στις οποίες ανήκει και τις υποκατηγορίες του, τις προκηρύξεις και συμβάσεις των τελευταίων 12 μηνών και τους ανοιχτούς διαγωνισμούς. Οι περιγραφές γράφονται μία φορά, εκτός εφαρμογής, και ένας διαχειριστής μπορεί να αποκρύψει όποια κρίνει λανθασμένη.':
+        'Every CPV code has its own public page (/cpv/code, starting from /cpv): the official name, a short plain-language description written with AI and labelled as such, the categories it belongs to and its sub-codes, the contract notices and contracts of the last 12 months, and the open tenders. The descriptions are written once, outside the application, and an administrator can hide any that is wrong.',
+    'Περιγραφές κωδικών CPV':
+        'CPV code descriptions',
+    'Κάθε κωδικός CPV έχει, δίπλα στην επίσημη ονομασία του, μια σύντομη περιγραφή σε απλή γλώσσα. Τη γράφει μία φορά μοντέλο Claude της Anthropic και αποθηκεύεται· η σελίδα την επισημαίνει ως γραμμένη με τεχνητή νοημοσύνη, και έγκυρη παραμένει η επίσημη ονομασία.':
+        'Every CPV code has, next to its official name, a short plain-language description. It is written once by an Anthropic Claude model and stored; the page labels it as AI-written, and the official name remains the authoritative one.',
+    'οι επίσημες ονομασίες του κωδικού, των κατηγοριών στις οποίες ανήκει και των υποκατηγοριών του, από τον δημόσιο κατάλογο CPV της ΕΕ.':
+        "the official names of the code, of the categories it belongs to and of its sub-codes, from the EU's public CPV list.",
+    'τίποτα για επισκέπτες, πελάτες ή πράξεις.':
+        'nothing about visitors, customers or acts.',
+    'Οι περιγραφές κωδικών CPV γράφτηκαν με το API της Anthropic (μοντέλα Claude). Σύμφωνα με τους εμπορικούς όρους του API, τα δεδομένα που αποστέλλονται και οι απαντήσεις δεν χρησιμοποιούνται για την εκπαίδευση μοντέλων· οι όροι είναι διαθέσιμοι στο':
+        "The CPV code descriptions were written with Anthropic's API (Claude models). Under the API's commercial terms, the data sent and the responses are not used to train models; the terms are available at",
+    'Ιεραρχία CPV':
+        'CPV hierarchy',
+    'Κωδικός CPV':
+        'CPV code',
+    'Περιγραφή γραμμένη με τεχνητή νοημοσύνη από τις επίσημες ονομασίες του καταλόγου CPV. Έγκυρη είναι η επίσημη ονομασία παραπάνω.':
+        'Description written with AI from the official names in the CPV list. The official name above is the authoritative one.',
+    'Πώς χρησιμοποιούμε την ΤΝ':
+        'How we use AI',
+    'Δεν δημοσιεύτηκαν προκηρύξεις ή συμβάσεις με αυτόν τον κωδικό τους τελευταίους 12 μήνες.':
+        'No contract notices or contracts were published under this code in the last 12 months.',
+    'Όλες οι πράξεις με αυτόν τον κωδικό':
+        'All acts under this code',
+    'Ειδοποιήσεις για νέους διαγωνισμούς':
+        'Alerts for new tenders',
+    'Υποκατηγορίες':
+        'Sub-codes',
+    'Πηγή: ΚΗΜΔΗΣ. Μετρούν οι προκηρύξεις και οι συμβάσεις με αυτόν τον κωδικό ή κάποια υποκατηγορία του, δημοσιευμένες':
+        'Source: KIMDIS. Counts the contract notices and contracts under this code or any of its sub-codes, published',
+    ', χωρίς ακυρωμένες πράξεις και διπλοεγγραφές. Κάθε πράξη μετρά μία φορά.':
+        ', excluding cancelled acts and duplicates. Each act counts once.',
+    'κατάλογος κατηγοριών δημοσίων συμβάσεων':
+        'public procurement category list',
+    'Οι 45 κατηγορίες του κοινού λεξιλογίου δημοσίων συμβάσεων (CPV), με περιγραφή κάθε κωδικού και τις προκηρύξεις και συμβάσεις των τελευταίων 12 μηνών στην Ελλάδα.':
+        'The 45 divisions of the Common Procurement Vocabulary (CPV), with a description of every code and the contract notices and contracts of the last 12 months in Greece.',
+    'Το κοινό λεξιλόγιο δημοσίων συμβάσεων της ΕΕ: κάθε προμήθεια, υπηρεσία ή έργο έχει έναν κωδικό. Διαλέξτε κατηγορία για να δείτε τι περιλαμβάνει και τι δημοσιεύτηκε.':
+        "The EU's Common Procurement Vocabulary: every supply, service or work has a code. Pick a division to see what it includes and what was published.",
+    'τελευταίοι 12 μήνες':
+        'last 12 months',
+    'Τι είναι ο κωδικός CPV':
+        'What a CPV code is',
+    # redesigned act + authority pages (spec slice 5)
+    'Οι διαγωνισμοί με αυτόν τον κωδικό':
+        'Tenders under this code',
+    'Άλλες αναθέτουσες στην ίδια περιφέρεια':
+        'Other authorities in the same region',
+    'Έληξε η προθεσμία':
+        'Deadline passed',
+    'Όλα για αυτή την αναθέτουσα':
+        'Everything about this authority',
+    'Ανοιχτός':
+        'Open',
+    'Δέχεται προσφορές':
+        'Accepting tenders',
+    'Δείτε την αναζήτηση':
+        'See the search',
+    'Δείτε τους διαγωνισμούς της ίδιας κατηγορίας και αποθηκεύστε την αναζήτηση ως ειδοποίηση.':
+        'See the tenders in the same category and save the search as an alert.',
+    'Δείτε όλα τα στοιχεία':
+        'See all the details',
+    'Διαδικασία, κριτήριο και κωδικοί CPV':
+        'Procedure, award criterion and CPV codes',
+    'Δωρεάν λογαριασμός.':
+        'Free account.',
+    'Είδος πράξης':
+        'Act type',
+    'Είδος φορέα':
+        'Type of body',
+    'Ειδοποιήσεις με email για νέους διαγωνισμούς':
+        'Email alerts for new tenders',
+    'Ενεργή αναθέτουσα':
+        'Active authority',
+    'Η αναθέτουσα αρχή':
+        'The contracting authority',
+    'Η διαδικασία:':
+        'The procedure:',
+    'Η πράξη ακυρώθηκε':
+        'This act was cancelled',
+    'Η πράξη δεν δηλώνει κωδικούς CPV.':
+        'This act states no CPV codes.',
+    'Η προθεσμία έληξε':
+        'The deadline has passed',
+    'Η πρόσβασή σας έχει λήξει. Επικοινωνήστε με τον διαχειριστή για ανανέωση.':
+        'Your access has expired. Contact the administrator to renew it.',
+    'Κύρια περιφέρεια εκτέλεσης':
+        'Main region of performance',
+    'Λάβετε με email κάθε νέα προκήρυξη που ταιριάζει σε αυτό που κάνετε.':
+        'Get every new notice that matches what you do by email.',
+    'Μάθετε & προετοιμαστείτε':
+        'Learn & prepare',
+    'Μη χάσετε παρόμοιο διαγωνισμό':
+        'Never miss a tender like this',
+    'Ο κωδικός και οι διαγωνισμοί του':
+        'The code and its tenders',
+    'Οι κωδικοί CPV της πράξης είναι ορατοί με εγγραφή.':
+        "This act's CPV codes are visible after signing up.",
+    'Οι περιγραφές είναι γραμμένες με τεχνητή νοημοσύνη από τις επίσημες ονομασίες του καταλόγου CPV.':
+        'The descriptions are written with AI from the official names in the CPV list.',
+    'Παρόμοιοι διαγωνισμοί':
+        'Similar tenders',
+    'Πλήρες κείμενο και έγγραφα της πράξης':
+        "The act's full text and documents",
+    'Προθεσμίες στο ημερολόγιό σας':
+        'Deadlines in your calendar',
+    'Πρόσφατες πράξεις':
+        'Latest acts',
+    'Ρυθμίστε μια δωρεάν ειδοποίηση':
+        'Set up a free alert',
+    'Στοιχεία αναθέτουσας':
+        'Authority details',
+    'Στοιχεία διαγωνισμού':
+        'Tender details',
+    'Συχνές ερωτήσεις':
+        'Frequently asked questions',
+    'Σχετικοί ανοιχτοί διαγωνισμοί':
+        'Related open tenders',
+    'Σύνοψη διαγωνισμού και λίστα ελέγχου':
+        'Tender summary and checklist',
+    'Σύνοψη και ενέργειες':
+        'Summary and actions',
+    'Τι είναι οι κωδικοί CPV':
+        'What CPV codes are',
+    'Τι είναι:':
+        'What it is:',
+    'ανοιχτοί διαγωνισμοί τώρα':
+        'open tenders now',
+    'προκηρύξεις, 12 μήνες':
+        'notices, 12 months',
+    'συμβάσεις, 12 μήνες':
+        'contracts, 12 months',
+    # public authority profile (_authority_profile.html)
+    "Η σελίδα κάθε αναθέτουσας αρχής ξεκινά με τους τελευταίους 12 μήνες της, ορατούς σε όλους: μια πρόταση γραμμένη μόνο από τα δεδομένα (πόσες προκηρύξεις και συμβάσεις, συνολική αξία, κύριες κατηγορίες CPV, περιφέρεια εκτέλεσης), τα σύνολα, τι αγοράζει, με ποιες διαδικασίες, σε τι μεγέθη και πού, και τους ανοιχτούς διαγωνισμούς της. Ο ανώνυμος επισκέπτης βλέπει ότι υπάρχουν στοιχεία επικοινωνίας, όχι τις τιμές τους. Τα στοιχεία ανανεώνονται με τα στατιστικά, μετά από κάθε εισαγωγή.":
+        "Every authority page opens with its last 12 months, visible to everyone: a sentence written from the data alone (how many notices and contracts, total value, main CPV categories, region of performance), the totals, what it buys, through which procedures, at what sizes and where, and its open tenders. An anonymous visitor sees that contact details exist, not their values. The figures are refreshed with the statistics, after every import.",
+    "Λοιπά": "Other",
+    "συμβάσεις δεν το δηλώνουν.": "contracts do not state it.",
+    "Τους τελευταίους 12 μήνες": "The last 12 months",
+    "αξία συμβάσεων με ΦΠΑ": "contract value incl. VAT",
+    "Τι αγοράζει": "What it buys",
+    "Κατηγορία CPV (2 ψηφία), μερίδιο των συμβάσεων· μια σύμβαση μπορεί να ανήκει σε περισσότερες.": "CPV division (2 digits), share of contracts; a contract can fall in more than one.",
+    "Περιφέρεια εκτέλεσης": "Region of performance",
+    "Μέγεθος συμβάσεων": "Contract size",
+    "Αξία με ΦΠΑ.": "Value incl. VAT.",
+    "Ανοιχτοί διαγωνισμοί": "Open tenders",
+    "Πηγή: ΚΗΜΔΗΣ. Μετρούν οι προκηρύξεις και οι συμβάσεις που δημοσιεύτηκαν": "Source: KIMDIS. Counts the contract notices and contracts published",
+    ", χωρίς ακυρωμένες πράξεις και διπλοεγγραφές. Οι αναλύσεις αφορούν τις συμβάσεις.": ", excluding cancelled acts and duplicates. The breakdowns are of the contracts.",
+    "Στοιχεία επικοινωνίας": "Contact details",
+    "Ορατό με εγγραφή": "Visible after signing up",
+    "Όλο το ιστορικό": "All years",
+    "Σύμπραξη καινοτομίας": "Innovation partnership",
+    "Διαδικασία κάτω των ορίων εκτός ν.4412/2016": "Below-threshold procedure outside Law 4412/2016",
     "‹ πίσω στις αναθέτουσες": "‹ back to authorities",
     "‹ πίσω στους αναδόχους": "‹ back to contractors",
     "‹ πίσω στη σύνοψη": "‹ back to summary",
@@ -3062,8 +3214,8 @@ _AI_POLICY = {
         'AI & data handling',
     'Πού χρησιμοποιείται τεχνητή νοημοσύνη στον Εξερευνητή, τι ακριβώς αποστέλλεται σε πάροχο μοντέλου, και τι δεν φεύγει ποτέ από την υπηρεσία.':
         'Where artificial intelligence is used in the Explorer, exactly what is sent to a model provider, and what never leaves the service.',
-    'Η σύντομη απάντηση: η τεχνητή νοημοσύνη χρησιμοποιείται εδώ σε λίγα, συγκεκριμένα σημεία, και πάντοτε πάνω σε δημόσια έγγραφα διαγωνισμών. Ο λογαριασμός σας, οι αναζητήσεις σας, οι ειδοποιήσεις σας και το τι κοιτάξατε δεν αποστέλλονται ποτέ σε μοντέλο. Τίποτα από όσα κάνετε εδώ δεν χρησιμοποιείται για την εκπαίδευση μοντέλων.':
-        'The short answer: AI is used here in a few specific places, always on public tender documents. Your account, your searches, your alerts and what you looked at are never sent to a model. Nothing you do here is used to train models.',
+    'Η σύντομη απάντηση: η τεχνητή νοημοσύνη χρησιμοποιείται εδώ σε λίγα, συγκεκριμένα σημεία, και πάντοτε πάνω σε δημόσιο υλικό: τα έγγραφα των διαγωνισμών και τον κατάλογο κωδικών CPV. Ο λογαριασμός σας, οι αναζητήσεις σας, οι ειδοποιήσεις σας και το τι κοιτάξατε δεν αποστέλλονται ποτέ σε μοντέλο. Τίποτα από όσα κάνετε εδώ δεν χρησιμοποιείται για την εκπαίδευση μοντέλων.':
+        'The short answer: AI is used here in a few specific places, always on public material: the tender documents and the CPV code list. Your account, your searches, your alerts and what you looked at are never sent to a model. Nothing you do here is used to train models.',
     'Πού χρησιμοποιείται':
         'Where it is used',
     'Σύνοψη διαγωνισμού':

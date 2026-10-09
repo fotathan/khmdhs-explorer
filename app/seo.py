@@ -104,12 +104,14 @@ _INDEXABLE_PATHS = frozenset({
     # configuration — unlike /privacy and /terms, which are draft legal text
     # and stay out of the index until a lawyer has been over them.
     "/ai",
+    # The CPV divisions (public reference data + our figures, spec slice 4).
+    "/cpv",
 })
 
 # Two-segment detail pages: /act/<adam>, /authority/<org_id>, …. A third
 # segment is always a sub-resource (/act/X/ai, /act/X/occurrences,
 # /contractor/X/gemi-refresh) and never a page in its own right.
-_INDEXABLE_PREFIXES = ("/act/", "/authority/", "/contractor/", "/glossary/")
+_INDEXABLE_PREFIXES = ("/act/", "/authority/", "/contractor/", "/glossary/", "/cpv/")
 
 # Never indexed, whatever else is true: the private surface, the machine
 # endpoints, the two aggregation pages (expensive, and a crawler has no use for

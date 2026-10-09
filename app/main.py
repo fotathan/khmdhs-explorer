@@ -107,6 +107,49 @@ try:
 except ImportError:  # flat layout
     import field_notes as _field_notes
 
+# The public authority profile (docs/specs/public-detail-pages.md, slice 2):
+# 12-month figures and a sentence built from them, shown to everyone.
+try:
+    from app import authority_profile as _authority_profile
+except ImportError:  # flat layout
+    import authority_profile as _authority_profile
+
+# Public CPV pages (spec slice 4): /cpv and /cpv/<code>, with the stored AI
+# paragraph from app/cpv_notes.py and our own 12-month figures.
+try:
+    from app import cpv_page as _cpv_page
+except ImportError:  # flat layout
+    import cpv_page as _cpv_page
+
+# The redesigned act page's extra blocks (spec slice 5): related tenders, the
+# buyer card, glossary cards and — for subscribers — CPV codes with notes.
+try:
+    from app import act_extras as _act_extras
+except ImportError:  # flat layout
+    import act_extras as _act_extras
+
+
+def _act_redesign_ctx(c, notice: dict, *, gated: bool, lang: str) -> dict:
+    """What the redesigned act page adds, for either render. Never a 500."""
+    import datetime as _dt
+    dl = notice.get("final_submission_date")
+    deadline_open = bool(
+        (notice.get("act_type") or "notice") == "notice" and dl
+        and not notice.get("cancelled")
+        and dl >= _dt.datetime.now(dl.tzinfo or _dt.timezone.utc))
+    members = [notice["authority_id"]] if notice.get("authority_id") else []
+    try:
+        if members:
+            grp = resolve_entity_group(c, "authority", notice["authority_id"])
+            if grp:
+                members = grp["members"]
+        extras = _act_extras.build(c, notice, member_ids=members, gated=gated, lang=lang)
+    except Exception:      # noqa: BLE001
+        _obs.log_event(logging.WARNING, "act_extras_failed",
+                       adam=notice.get("adam"), exc_info=True)
+        extras = {"related": [], "buyer": None, "learn": [], "cpvs": [], "divisions": []}
+    return {"x": extras, "deadline_open": deadline_open, "ap": _authority_profile}
+
 
 def _i18n_context(request):
     lang = _i18n.lang_from_request(request)
@@ -2573,7 +2616,7 @@ def robots_txt(request: Request):
                              headers={"Cache-Control": "public, max-age=3600"})
 
 
-_SITEMAP_KINDS = ("pages", "acts", "authorities", "contractors")
+_SITEMAP_KINDS = ("pages", "acts", "authorities", "contractors", "cpv")
 
 
 def _sitemap_response(body: str) -> Response:
@@ -2595,6 +2638,10 @@ def sitemap_index(request: Request):
                       ("contractors", "contractors")):
         for i in range(1, _seo.chunks_for(n[key]) + 1):
             files.append(f"/sitemap-{kind}-{i}.xml")
+    # CPV pages with a visible paragraph: ~9.5k at most, one chunk.
+    with cursor() as c:
+        if _cpv_page.sitemap_codes(c):
+            files.append("/sitemap-cpv-1.xml")
     body = ('<?xml version="1.0" encoding="UTF-8"?>\n'
             '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
             + "\n".join(f"<sitemap><loc>{_seo.xml_escape(_seo.absolute(request, f))}"
@@ -2610,7 +2657,7 @@ def sitemap_pages(request: Request):
     if not _seo.enabled():
         raise HTTPException(status_code=404, detail="not found")
     paths = ["/", "/authorities", "/contractors", "/glossary", "/data-sources",
-             "/ai"]
+             "/ai", "/cpv"]
     paths += [f"/?type={v}" for v in TYPE_FILTER_ORDER]
     paths += [f"/?procedure_type={v}" for v in PROCEDURE_TYPES]
     paths += [f"/?contract_type={v}" for v in CONTRACT_TYPES]
@@ -2647,6 +2694,11 @@ def sitemap_chunk(kind: str, page: int, request: Request):
                 entries.append(_seo.url_entry(
                     _seo.loc(request, f"/contractor/{r['vat_number']}"),
                     changefreq="weekly"))
+        elif kind == "cpv":
+            if page == 1:
+                for code in _cpv_page.sitemap_codes(c):
+                    entries.append(_seo.url_entry(_seo.loc(request, f"/cpv/{code}"),
+                                                  changefreq="monthly"))
         else:
             raise HTTPException(status_code=404, detail="not found")
     if not entries:
@@ -2706,6 +2758,48 @@ def glossary_term(slug: str, request: Request):
          "disclaimer": (_glossary.DISCLAIMER_EN if L == "en"
                         else _glossary.DISCLAIMER_EL),
          "nav_active": "glossary"})
+
+
+@app.get("/cpv", response_class=HTMLResponse)
+def cpv_index(request: Request):
+    """The 45 CPV divisions — the crawl entry to every /cpv/<code> page."""
+    lang = _i18n.lang_from_request(request)
+    with cursor() as c:
+        rows = _cpv_page.divisions(c, lang)
+    crumbs = _seo.breadcrumbs(request, [("CPV", "/cpv")])
+    return templates.TemplateResponse(
+        request, "cpv_index.html",
+        {"divisions": rows, "crumbs": crumbs, "cp": _cpv_page,
+         "ap": _authority_profile, "nav_active": "search"})
+
+
+@app.get("/cpv/{raw}", response_class=HTMLResponse)
+def cpv_detail(raw: str, request: Request):
+    """One CPV code, public (spec slice 4). A code without its check digit
+    redirects to the canonical one; anything else is a 404."""
+    lang = _i18n.lang_from_request(request)
+    with cursor() as c:
+        code = _cpv_page.canonical(c, raw)
+        if code is None:
+            raise HTTPException(status_code=404, detail="not an official CPV code")
+        if code != raw:
+            return _Redirect(f"/cpv/{code}", status_code=301)
+        p = _cpv_page.page(c, code, lang)
+    trail = [("CPV", "/cpv")] + [(a["name"], f"/cpv/{a['code']}") for a in p["ancestors"]]
+    trail.append((p["name"], f"/cpv/{code}"))
+    term = {"@context": "https://schema.org", "@type": "DefinedTerm",
+            "name": p["name"], "termCode": code,
+            "url": _seo.absolute(request, f"/cpv/{code}"),
+            "inDefinedTermSet": {"@type": "DefinedTermSet",
+                                 "name": "Common Procurement Vocabulary (CPV)",
+                                 "url": _seo.absolute(request, "/cpv")}}
+    if p["note"]:
+        term["description"] = p["note"]
+    return templates.TemplateResponse(
+        request, "cpv.html",
+        {"p": p, "crumbs": _seo.breadcrumbs(request, trail),
+         "termld": _seo.json_ld(term), "ap": _authority_profile,
+         "nav_active": "search"})
 
 
 @app.get("/healthz")
@@ -3093,9 +3187,19 @@ def ai_policy_page(request: Request):
         summary_provider_id = _ai_mod.provider_of()
     except Exception:                        # noqa: BLE001 — never 500 here
         summary_provider_id = "anthropic"
+    # CPV notes are "on" once any visible note exists (app/cpv_notes.py) —
+    # read from the table, like the other badges are read from the config.
+    try:
+        with cursor() as c:
+            c.execute("SELECT EXISTS (SELECT 1 FROM proc.cpv_note "
+                      "WHERE hidden_at IS NULL) AS on_")
+            cpv_notes_on = bool(c.fetchone()["on_"])
+    except Exception:                        # noqa: BLE001 — never 500 here
+        cpv_notes_on = False
     return templates.TemplateResponse(
         request, "ai_policy.html",
         {"ai_summary_on": _flag(_ai_mod.can_generate),
+         "cpv_notes_on": cpv_notes_on,
          # Whether the summary also reads attached tender documents — the live
          # switch ai_summary.load_inputs checks, not a sentence in the prose.
          "attachments_on": _flag(lambda: _attachments_mod().enabled()),
@@ -3987,7 +4091,8 @@ def act_detail(adam: str, request: Request):
             # hidden client-side.
             return templates.TemplateResponse(
                 request, "beta_act.html",
-                {"n": notice, "gated": True, "match": None,
+                {**_act_redesign_ctx(c, notice, gated=True, lang=lang),
+                 "n": notice, "gated": True, "match": None,
                  "line_items": [], "operators": [], "act_cpvs": [],
                  "attachments": [], "act_categories": [], "downstream": [],
                  "incoming": [], "annotation": None, "excluded_reason": None,
@@ -4228,9 +4333,12 @@ def act_detail(adam: str, request: Request):
         except Exception:      # noqa: BLE001 — a star is a nicety, never a 500
             is_favorite = False
 
+    with cursor() as c:
+        redesign = _act_redesign_ctx(c, notice, gated=False, lang=lang)
     return templates.TemplateResponse(
         request, "beta_act.html",
-        {"n": notice, "gated": False, "match": match,
+        {**redesign,
+         "n": notice, "gated": False, "match": match,
          "is_favorite": is_favorite,
          "ft_paragraphs": ft_paragraphs,
          "act_authorities": act_authorities, "act_contractors": act_contractors,
@@ -5115,12 +5223,43 @@ def authority_detail(org_id: str, request: Request,
                 "n": len(member_rows),
             }
 
+        # The 12-month profile (app/authority_profile.py). PUBLIC: read from two
+        # precomputed views (< 1 ms) plus the open notices (~40 ms for the
+        # largest authority), so the teaser — the crawler's page — carries it.
+        # A profile is a nicety: a failure here must never 500 the page.
+        profile, profile_sentence, tenders = None, None, []
+        n_open, latest, related, faq = 0, [], [], []
+        try:
+            profile = _authority_profile.load(c, member_ids, lang)
+            profile_sentence = _authority_profile.sentence(
+                profile, auth["name"] or org_id, lang)
+            tenders = _authority_profile.open_tenders(c, member_ids)
+            # The redesign's extra blocks (spec slice 5) — all public facts.
+            n_open = _authority_profile.open_count(c, member_ids)
+            latest = _authority_profile.latest_acts(c, member_ids)
+            related = _authority_profile.related(c, member_ids, profile,
+                                                 auth["name"] or "")
+            faq = _authority_profile.faq(
+                profile, auth["name"] or org_id, org_id, lang,
+                label_ct=lambda k: _i18n.enum_label("contract_type", k, CONTRACT_TYPES, lang),
+                label_pr=lambda k: _i18n.translate(k, lang))
+        except Exception:      # noqa: BLE001
+            _obs.log_event(logging.WARNING, "authority_profile_failed",
+                           org_id=org_id, exc_info=True)
+            profile, profile_sentence, tenders = None, None, []
+        profile_ctx = {"profile": profile, "profile_sentence": profile_sentence,
+                       "tenders": tenders, "ap": _authority_profile,
+                       "n_open": n_open, "latest": latest, "related": related,
+                       "faq": faq}
+
         if _is_gated(request):
-            # Freemium teaser: header + merge banner only, then a register CTA.
-            # Skip the totals/act-list/CPV queries entirely for anonymous.
+            # Freemium teaser: header, the public profile, contacts blurred,
+            # then a register CTA. The totals/act-list/top-CPV queries are
+            # still skipped entirely for anonymous callers.
             return templates.TemplateResponse(
                 request, "beta_authority.html",
-                {"a": auth, "merge_info": merge_info, "gated": True,
+                {**profile_ctx,
+                 "a": auth, "merge_info": merge_info, "gated": True,
                  "by_type": [], "top_cpv": [], "acts": [], "total": 0,
                  "type_filter": type, "grand_total": 0, "grand_value": 0,
                  # The teaser IS the crawler's view of this page — a search
@@ -5194,7 +5333,8 @@ def authority_detail(org_id: str, request: Request,
 
     return templates.TemplateResponse(
         request, "beta_authority.html",
-        {"a": auth, "gated": False, "by_type": by_type,
+        {**profile_ctx,
+         "a": auth, "gated": False, "by_type": by_type,
          "acts": acts, "total": total, "type_filter": type, "merge_info": merge_info,
          "grand_total": grand_total, "grand_value": grand_value,
          "orgld": _seo.organization_ld(request, name=auth["name"] or org_id,

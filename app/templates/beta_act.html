@@ -23,7 +23,7 @@
    CSS is a stylesheet rather than an inline style block riding along with each
    swap. Linked only when the feature is on — an act page with
    AI_SUMMARY_ENABLED unset must fetch nothing extra. #}
-{% block head_extra %}{% if ai_summary_enabled %}<link rel="stylesheet" href="{{ asset('/static/css/ai_summary.css') }}">{% endif %}{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="{{ asset('/static/css/detail.css') }}">{% if ai_summary_enabled %}<link rel="stylesheet" href="{{ asset('/static/css/ai_summary.css') }}">{% endif %}{% endblock %}
 {% block content %}
 {% set doc_url = source_doc_url(n) %}
 <main>
@@ -63,16 +63,33 @@
   </div>
   {% endif %}
 
-  {# ===== HERO =====
-     What a GATED visitor sees is exactly what it always was: badges, title,
-     authority, the amounts, publication date and deadline. Anything added to
-     the hero for a subscriber sits behind `not gated` — the teaser is a
-     commercial decision, not a layout detail (test_act_page_tabs.py pins it). #}
-  <div class="act-hero">
-    <div class="badges">
+  {# ===== REDESIGN (docs/specs/public-detail-pages.md slice 5) =====
+     Two columns after Tender Service's tender-detail design: the act in the
+     main column, a sticky side card with the deadline and the next step.
+     What a GATED visitor sees is still decided field by field: title,
+     authority, amounts, publication date, deadline and the act-type note are
+     public; procedure, contract type, criterion, place of performance and CPV
+     codes show as LOCKED rows, their values never in the HTML (owner,
+     2026-10-09; test_act_page_tabs.py / test_field_notes.py pin it). #}
+  {% from "_icons.html" import icon %}
+  <nav class="td-crumbs" aria-label="{{ t('Διαδρομή') }}">
+    <a href="/">{{ t("Πράξεις") }}</a> <span aria-hidden="true">›</span>
+    <a href="/?type={{ atype }}">{{ type_label_el }}</a>
+    {% if not gated and n.nuts_label %}<span aria-hidden="true">›</span> <span>{{ n.nuts_label }}</span>{% endif %}
+  </nav>
+
+  <div class="td-grid">
+  <div class="td-main">
+
+  <section class="dv-card td-hero">
+    <div class="td-pills badges">
+      {% if n.cancelled %}<span class="td-pill td-pill-cancel">{{ t("ακυρωμένη") }}</span>
+      {% elif atype == 'notice' and n.final_submission_date %}
+        {% if deadline_open %}<span class="td-pill td-pill-open">● {{ t("Ανοιχτός") }}</span>
+        {% else %}<span class="td-pill td-pill-closed">{{ t("Έληξε η προθεσμία") }}</span>{% endif %}
+      {% endif %}
       <span class="card-type t-{{ atype }}">{{ type_label_el }}</span>
       {% if n.data_source == 'diavgeia' %}<span class="src-badge src-diavgeia">{{ t("Διαύγεια") }}</span>{% elif n.data_source == 'ted' %}<span class="src-badge src-ted">TED</span>{% elif n.data_source == 'tsg' %}<span class="src-badge src-tsg">Tender Service</span>{% else %}<span class="src-badge src-khmdhs">ΚΗΜΔΗΣ</span>{% endif %}
-      {% if n.cancelled %}<span class="pill cancel">{{ t("ακυρωμένη") }}</span>{% endif %}
       {% if n.is_modified %}<span class="pill amend">{{ t("ορθή επανάληψη") }}</span>{% endif %}
       {% if excluded_reason == 'over_threshold' %}
         <span class="pill cancel" title="{{ t('Η αξία υπερβαίνει το όριο λογικού ελέγχου και πιθανότατα είναι σφάλμα στα δεδομένα της πηγής.') }}">{{ t("ύποπτη τιμή · εκτός στατιστικών") }}</span>
@@ -80,33 +97,35 @@
         <span class="pill cancel" title="{{ t('Έχει επισημανθεί ως ύποπτη.') }}">{{ t("επισημασμένη · εκτός στατιστικών") }}</span>
       {% endif %}
     </div>
-    <h1>{% if match and match.title_html %}{{ match.title_html | safe }}{% else %}{{ n.title or '—' }}{% endif %}</h1>
-    <div class="auth-line">
+    <h1 class="td-title">{% if match and match.title_html %}{{ match.title_html | safe }}{% else %}{{ n.title or '—' }}{% endif %}</h1>
+    <div class="td-sub auth-line">
+      {{ icon('building', 14) }}
       {% if n.authority_id %}<a href="/authority/{{ n.authority_id }}">{{ n.authority_name or '—' }}</a>
       {% else %}{{ n.authority_name or '—' }}{% endif %}
+      <span class="td-ref">· {{ n.adam }}</span>
     </div>
-    <div class="value-row">
+    <div class="td-boxes">
       {% if n.total_cost_with_vat %}
-      <div class="vbox">
+      <div class="td-box">
         {% if annotation and annotation.corrected_value is not none %}
-          <div class="v corrected">€ {{ "{:,.0f}".format(annotation.corrected_value).replace(",", ".") }}</div>
-          <div class="vl">{{ t("αξία με ΦΠΑ (διορθωμένη)") }}</div>
+          <div class="td-box-l">{{ t("αξία με ΦΠΑ (διορθωμένη)") }}</div>
+          <div class="td-box-v corrected">€ {{ "{:,.0f}".format(annotation.corrected_value).replace(",", ".") }}</div>
         {% else %}
-          <div class="v">€ {{ "{:,.0f}".format(n.total_cost_with_vat).replace(",", ".") }}</div>
-          <div class="vl">{{ t("αξία με ΦΠΑ") }}</div>
+          <div class="td-box-l">{{ t("αξία με ΦΠΑ") }}</div>
+          <div class="td-box-v">€ {{ "{:,.0f}".format(n.total_cost_with_vat).replace(",", ".") }}</div>
         {% endif %}
       </div>
       {% endif %}
       {% if n.budget %}
-      <div class="vbox"><div class="v">€ {{ "{:,.0f}".format(n.budget).replace(",", ".") }}</div><div class="vl">{{ t("προϋπολογισμός") }}</div></div>
+      <div class="td-box"><div class="td-box-l">{{ t("προϋπολογισμός") }}</div><div class="td-box-v">€ {{ "{:,.0f}".format(n.budget).replace(",", ".") }}</div></div>
       {% endif %}
       {% if n.submission_date %}
-      <div class="vbox"><div class="v v-date">{{ n.submission_date.strftime('%d/%m/%Y') }}</div><div class="vl">{{ t("δημοσίευση") }}</div></div>
+      <div class="td-box"><div class="td-box-l">{{ t("δημοσίευση") }}</div><div class="td-box-v">{{ n.submission_date.strftime('%d/%m/%Y') }}</div></div>
       {% endif %}
       {% if atype == 'notice' and n.final_submission_date %}
-      <div class="vbox vbox-deadline">
-        <div class="v v-date v-deadline">{{ n.final_submission_date.strftime('%d/%m/%Y') }}</div>
-        <div class="vl">{{ t("λήξη υποβολής") }}</div>
+      <div class="td-box td-box-deadline">
+        <div class="td-box-l">{{ t("λήξη υποβολής") }}</div>
+        <div class="td-box-v">{{ n.final_submission_date.strftime('%d/%m/%Y') }}</div>
         {# Filled by act_page.js from the viewer's clock — the date above is the
            fact; this is only arithmetic on it. A cancelled act is never chased. #}
         {% if not n.cancelled %}
@@ -116,58 +135,98 @@
         {% endif %}
       </div>
       {% endif %}
-      {% if not gated and n.nuts_code %}
-      <div class="vbox vbox-text"><div class="v v-text">{{ n.nuts_label or n.nuts_code }}</div><div class="vl">{{ t("Τόπος εκτέλεσης") }}</div></div>
-      {% endif %}
     </div>
-    {# What this kind of act is (app/field_notes.py). PUBLIC on purpose: it
-       explains the type badge, which the teaser already shows. #}
-    {% set type_note = field_note('act_type', atype, lang) %}
-    {% if type_note %}<p class="type-note">{{ type_note.text }}{% if type_note.href %} <a href="{{ type_note.href }}">{{ t("Γλωσσάρι ›") }}</a>{% endif %}</p>{% endif %}
-
     {% if not gated %}
-    <div class="act-actions">
-      {% if doc_url %}
-      {% set is_diavgeia = n.data_source == 'diavgeia' %}
-      {% set is_ted = n.data_source == 'ted' %}
-      <a class="act-btn primary" href="{{ doc_url }}" target="_blank" rel="noopener">
-        <span aria-hidden="true">↗</span>
-        {% if is_ted %}{{ t("Προκήρυξη στο TED") }}{% elif is_diavgeia %}{{ t("Έγγραφο στη Διαύγεια") }}{% else %}{{ t("Έγγραφο στο ΚΗΜΔΗΣ") }}{% endif %}
-      </a>
-      {% endif %}
-      {% if attachments|length > 1 %}
-      <a class="act-btn" href="/act/{{ n.adam }}/attachments.zip"><span aria-hidden="true">⭳</span> {{ t("Λήψη όλων (zip)") }}</a>
-      {% endif %}
-      {% if user %}
-      {% with adam = n.adam, favorited = is_favorite, compact = false %}
-        {% include "_favorite_toggle.html" %}
-      {% endwith %}
-      {% endif %}
-      {% if n.final_submission_date %}
-      <a class="act-btn" href="/act/{{ n.adam }}/calendar.ics"
-         title="{{ t('Προσθήκη της προθεσμίας στο ημερολόγιό σας') }}"><span aria-hidden="true">⭳</span> {{ t('Προθεσμία στο ημερολόγιο') }}</a>
-      {% endif %}
-      <button type="button" class="act-btn" data-act-print hidden><span aria-hidden="true">⎙</span> {{ t("Εκτύπωση") }}</button>
-    </div>
-    {# Fit with the customer's own firm (app/account_fit.py). Loaded after the
-       page; the endpoint answers empty unless an admin switched their
-       profile on, so for everyone else this div simply disappears. #}
+    {# Fit with the customer's own firm (app/account_fit.py), and the
+       competition line (app/competition.py): both answer empty when there is
+       nothing to say, so for most readers these divs simply disappear. #}
     {% if user and atype == 'notice' %}
     <div hx-get="/act/{{ n.adam }}/fit" hx-trigger="load" hx-swap="outerHTML"></div>
     {% endif %}
-    {# Competition (app/competition.py): on a notice, how much competition this
-       authority usually gets; on a contract or an award decision, how many
-       bids this award got against the authority's usual. Empty for a gated
-       reader and whenever there is nothing to say. #}
     {% if user and atype in ('notice', 'contract', 'auction') %}
     <div hx-get="/act/{{ n.adam }}/competition" hx-trigger="load" hx-swap="outerHTML"></div>
     {% endif %}
     {% endif %}
-  </div>
+  </section>
 
-  {% if gated %}
-  {% include "_register_cta.html" %}
-  {% else %}
+  {# ---------- Details: public rows plain, subscriber rows locked ---------- #}
+  {% macro row(ic, label, value, public=false) -%}
+    {% if public or not gated %}<div><dt>{{ icon(ic, 13) }} {{ label }}</dt><dd>{{ value }}</dd></div>
+    {% else %}<div class="dv-locked"><dt>{{ icon(ic, 13) }} {{ label }}</dt><dd>{{ icon('lock', 12) }} {{ t("Ορατό με εγγραφή") }}</dd></div>{% endif %}
+  {%- endmacro %}
+  <section class="dv-card" aria-labelledby="td-details-h">
+    <h2 class="dv-card-h" id="td-details-h"><span class="dv-card-ic">{{ icon('file') }}</span>{{ t("Στοιχεία διαγωνισμού") }}</h2>
+    <dl class="dv-fields">
+      {{ row('file', t("Είδος πράξης"), type_label_el, true) }}
+      {% if n.procedure_type_code %}{{ row('scale', t("Διαδικασία"), (n.procedure_type_code | procedure_type_label) if not gated else '') }}{% endif %}
+      {% if n.contract_type_code %}{{ row('package', t("Είδος σύμβασης"), (n.contract_type_code | contract_type_label) if not gated else '') }}{% endif %}
+      {% if n.criteria_code or n.assign_criteria_label %}{{ row('tag', t("Κριτήριο ανάθεσης"), (n.assign_criteria_label or (n.criteria_code | assign_criteria_label)) if not gated else '') }}{% endif %}
+      {% if n.nuts_code %}{{ row('pin', t("Τόπος εκτέλεσης"), (n.nuts_label or n.nuts_code) if not gated else '') }}{% endif %}
+      {% if n.submission_date %}{{ row('calendar', t("Δημοσίευση"), n.submission_date.strftime('%d/%m/%Y'), true) }}{% endif %}
+      {% if atype == 'notice' and n.final_submission_date %}{{ row('clock', t("Λήξη υποβολής"), n.final_submission_date.strftime('%d/%m/%Y %H:%M'), true) }}{% endif %}
+    </dl>
+  </section>
+
+  {# ---------- CPV: subscriber field; codes link to the public CPV pages ---------- #}
+  <section class="dv-card" aria-labelledby="td-cpv-h">
+    <h2 class="dv-card-h" id="td-cpv-h"><span class="dv-card-ic">{{ icon('tag') }}</span>{{ t("Κωδικοί CPV") }}</h2>
+    {% if gated %}
+    <p class="ap-note">{{ icon('lock', 12) }} {{ t("Οι κωδικοί CPV της πράξης είναι ορατοί με εγγραφή.") }} <a href="/cpv">{{ t("Τι είναι οι κωδικοί CPV") }} ›</a></p>
+    {% elif x.cpvs %}
+    <ul class="td-cpv">
+      {% for r in x.cpvs %}
+      <li>
+        <span class="td-cpv-code">{{ r.cpv_code }}</span><span class="td-cpv-name">{{ r.name or '—' }}</span>
+        {% if r.note %}<p>{{ r.note }}</p>{% endif %}
+        <a class="td-more" href="/cpv/{{ r.cpv_code }}">{{ t("Ο κωδικός και οι διαγωνισμοί του") }} ›</a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% if x.cpvs | selectattr('note') | list %}<p class="ap-note">{{ t("Οι περιγραφές είναι γραμμένες με τεχνητή νοημοσύνη από τις επίσημες ονομασίες του καταλόγου CPV.") }} <a href="/ai">{{ t("Πώς χρησιμοποιούμε την ΤΝ") }}</a></p>{% endif %}
+    {% else %}
+    <p class="ap-note">{{ t("Η πράξη δεν δηλώνει κωδικούς CPV.") }}</p>
+    {% endif %}
+  </section>
+
+  {# ---------- The buyer: its own 12-month profile (public) ---------- #}
+  {% if x.buyer and n.authority_id %}
+  <section class="dv-card td-buyer" aria-labelledby="td-buyer-h">
+    <h2 class="dv-card-h" id="td-buyer-h"><span class="dv-card-ic">{{ icon('building') }}</span>{{ t("Η αναθέτουσα αρχή") }}</h2>
+    <div class="td-buyer-n"><a href="/authority/{{ n.authority_id }}">{{ n.authority_name }}</a></div>
+    {% if x.buyer.sentence %}<p>{{ x.buyer.sentence }}</p>{% endif %}
+    {% set bp = x.buyer.profile %}
+    {% if bp and not bp.empty %}
+    <dl class="dv-fields">
+      <div><dt>{{ icon('file', 13) }} {{ t("προκηρύξεις, 12 μήνες") }}</dt><dd>{{ ap.fmt_int(bp.notices, lang) }}</dd></div>
+      <div><dt>{{ icon('check', 13) }} {{ t("συμβάσεις, 12 μήνες") }}</dt><dd>{{ ap.fmt_int(bp.contracts, lang) }}</dd></div>
+      {% if bp.region.rows %}<div><dt>{{ icon('pin', 13) }} {{ t("Κύρια περιφέρεια εκτέλεσης") }}</dt><dd>{{ ap.region_label(bp.region.rows[0].key, lang) }}</dd></div>{% endif %}
+    </dl>
+    {% endif %}
+    <p class="ap-foot" style="margin:12px 0 0;"><a href="/authority/{{ n.authority_id }}">{{ t("Όλα για αυτή την αναθέτουσα") }} ›</a></p>
+  </section>
+  {% endif %}
+
+  {# ---------- Plain-language explanations (app/field_notes.py) ---------- #}
+  {% set type_note = field_note('act_type', atype, lang) %}
+  {% if type_note %}
+  <aside class="td-explain type-note">
+    {{ icon('info', 20) }}
+    <div><h2>{{ t("Τι είναι:") }} {{ type_label_el }}</h2>
+    <p>{{ type_note.text }}{% if type_note.href %} <a href="{{ type_note.href }}">{{ t("Γλωσσάρι ›") }}</a>{% endif %}</p></div>
+  </aside>
+  {% endif %}
+  {% if not gated %}
+  {% set proc_note = field_note('procedure', n.procedure_family, lang) %}
+  {% if proc_note %}
+  <aside class="td-explain">
+    {{ icon('scale', 20) }}
+    <div><h2>{{ t("Η διαδικασία:") }} {{ n.procedure_type_code | procedure_type_label }}</h2>
+    <p>{{ proc_note.text }}{% if proc_note.href %} <a href="{{ proc_note.href }}">{{ t("Γλωσσάρι ›") }}</a>{% endif %}</p></div>
+  </aside>
+  {% endif %}
+  {% endif %}
+
+  {% if not gated %}
 
   {# ===== SECTIONS =====
      Tabs on a desktop, an accordion on a phone, plain stacked panels with
@@ -725,6 +784,120 @@
   {% endif %}
 
   {% endif %}{# /gated #}
+
+  {# ---------- Related tenders: other OPEN notices in the same CPV division,
+       the same buyer first — their public hero facts only ---------- #}
+  {% if x.related %}
+  <section class="dv-card" aria-labelledby="td-rel-h">
+    <h2 class="dv-card-h" id="td-rel-h"><span class="dv-card-ic">{{ icon('list') }}</span>{{ t("Σχετικοί ανοιχτοί διαγωνισμοί") }}</h2>
+    <ul class="td-related">
+      {% for r in x.related %}
+      <li>
+        <a href="/act/{{ r.adam }}">{{ r.title or r.adam }}</a>
+        <div class="td-meta">
+          {% if r.authority_name %}<span>{{ icon('building', 12) }} {{ r.authority_name }}</span>{% endif %}
+          <span>{{ icon('clock', 12) }} {{ t("λήξη") }} {{ r.final_submission_date.strftime('%d/%m/%Y') }}</span>
+          {% if r.total_cost_with_vat and r.total_cost_with_vat >= 1 %}<span class="td-val">{{ ap.fmt_money(r.total_cost_with_vat, lang) }}</span>{% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {# ---------- Learn & prepare: the glossary terms this act uses ---------- #}
+  {% if x.learn %}
+  <section class="dv-card" aria-labelledby="td-learn-h">
+    <h2 class="dv-card-h" id="td-learn-h"><span class="dv-card-ic">{{ icon('book') }}</span>{{ t("Μάθετε & προετοιμαστείτε") }}</h2>
+    <ul class="td-learn">
+      {% for g in x.learn %}
+      <li><span class="dv-chip">{{ g.section }}</span><br><a href="/glossary/{{ g.slug }}">{{ g.term }}</a><p>{{ g.short }}</p></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if gated %}
+  {% include "_register_cta.html" %}
+  {% endif %}
+  </div>{# /td-main #}
+
+  {# ===== Side card: the deadline and the next step ===== #}
+  <aside class="td-side" aria-label="{{ t('Σύνοψη και ενέργειες') }}">
+    <div class="td-side-card">
+      {% if n.cancelled %}<div class="td-side-band td-side-band-muted">{{ t("Η πράξη ακυρώθηκε") }}</div>
+      {% elif atype == 'notice' and n.final_submission_date %}
+        {% if deadline_open %}<div class="td-side-band">{{ icon('clock', 14) }} {{ t("Δέχεται προσφορές") }}</div>
+        {% else %}<div class="td-side-band td-side-band-muted">{{ t("Η προθεσμία έληξε") }}</div>{% endif %}
+      {% endif %}
+      <div class="td-side-body">
+        <div class="td-side-row">
+          {% if n.total_cost_with_vat or n.budget %}
+          <div><div class="td-box-l">{{ t("αξία με ΦΠΑ") if n.total_cost_with_vat else t("προϋπολογισμός") }}</div>
+               <div class="td-box-v">€ {{ "{:,.0f}".format(n.total_cost_with_vat or n.budget).replace(",", ".") }}</div></div>
+          {% endif %}
+          {% if atype == 'notice' and n.final_submission_date %}
+          <div style="text-align:right;"><div class="td-box-l">{{ t("λήξη υποβολής") }}</div>
+               <div class="td-box-v">{{ n.final_submission_date.strftime('%d/%m/%Y') }}</div></div>
+          {% endif %}
+        </div>
+        {% if gated %}
+          {% if is_authenticated %}
+          <p class="td-fine" style="text-align:left;margin:0;">{{ t("Η πρόσβασή σας έχει λήξει. Επικοινωνήστε με τον διαχειριστή για ανανέωση.") }}</p>
+          {% else %}
+          <a class="td-cta" href="/register?next={{ request.url.path | urlencode }}">{{ t("Δείτε όλα τα στοιχεία") }}</a>
+          <p class="td-fine">{{ t("Δωρεάν λογαριασμός.") }}</p>
+          <ul class="td-perks">
+            <li>{{ icon('check', 14) }} {{ t("Πλήρες κείμενο και έγγραφα της πράξης") }}</li>
+            <li>{{ icon('check', 14) }} {{ t("Διαδικασία, κριτήριο και κωδικοί CPV") }}</li>
+            {% if ai_summary_enabled %}<li>{{ icon('check', 14) }} {{ t("Σύνοψη διαγωνισμού και λίστα ελέγχου") }}</li>{% endif %}
+            <li>{{ icon('check', 14) }} {{ t("Ειδοποιήσεις με email για νέους διαγωνισμούς") }}</li>
+            <li>{{ icon('check', 14) }} {{ t("Προθεσμίες στο ημερολόγιό σας") }}</li>
+          </ul>
+          <a class="td-cta-2" href="/login?next={{ request.url.path | urlencode }}">{{ t("Έχετε ήδη λογαριασμό; Σύνδεση") }}</a>
+          {% endif %}
+        {% else %}
+        <div class="act-actions">
+          {% if doc_url %}
+          {% set is_diavgeia = n.data_source == 'diavgeia' %}
+          {% set is_ted = n.data_source == 'ted' %}
+          <a class="act-btn primary" href="{{ doc_url }}" target="_blank" rel="noopener">
+            <span aria-hidden="true">↗</span>
+            {% if is_ted %}{{ t("Προκήρυξη στο TED") }}{% elif is_diavgeia %}{{ t("Έγγραφο στη Διαύγεια") }}{% else %}{{ t("Έγγραφο στο ΚΗΜΔΗΣ") }}{% endif %}
+          </a>
+          {% endif %}
+          {% if attachments|length > 1 %}
+          <a class="act-btn" href="/act/{{ n.adam }}/attachments.zip"><span aria-hidden="true">⭳</span> {{ t("Λήψη όλων (zip)") }}</a>
+          {% endif %}
+          {% if user %}
+          {% with adam = n.adam, favorited = is_favorite, compact = false %}
+            {% include "_favorite_toggle.html" %}
+          {% endwith %}
+          {% endif %}
+          {% if n.final_submission_date %}
+          <a class="act-btn" href="/act/{{ n.adam }}/calendar.ics"
+             title="{{ t('Προσθήκη της προθεσμίας στο ημερολόγιό σας') }}"><span aria-hidden="true">⭳</span> {{ t('Προθεσμία στο ημερολόγιο') }}</a>
+          {% endif %}
+          <button type="button" class="act-btn" data-act-print hidden><span aria-hidden="true">⎙</span> {{ t("Εκτύπωση") }}</button>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="td-side-card td-alert">
+      <div class="td-side-body">
+        <h3>{{ icon('bell', 15) }} {{ t("Μη χάσετε παρόμοιο διαγωνισμό") }}</h3>
+        {% if gated %}
+        <p>{{ t("Λάβετε με email κάθε νέα προκήρυξη που ταιριάζει σε αυτό που κάνετε.") }}</p>
+        <a class="td-cta" href="/register?next={{ request.url.path | urlencode }}">{{ t("Ρυθμίστε μια δωρεάν ειδοποίηση") }}</a>
+        {% else %}
+        <p>{{ t("Δείτε τους διαγωνισμούς της ίδιας κατηγορίας και αποθηκεύστε την αναζήτηση ως ειδοποίηση.") }}</p>
+        <a class="td-cta" href="/?{% for d in x.divisions %}cpv={{ d }}&amp;{% endfor %}type=notice">{{ t("Παρόμοιοι διαγωνισμοί") }}</a>
+        {% endif %}
+      </div>
+    </div>
+  </aside>
+  </div>{# /td-grid #}
 </main>
 {# Sections + deadline badge. Loaded for gated visitors too: the badge is only
    arithmetic on the deadline the teaser already shows. #}

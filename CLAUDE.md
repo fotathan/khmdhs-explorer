@@ -379,6 +379,61 @@ CPV texts, CPV pages, redesign).
   €6,200) — its note says only what was declared. A new code / family / act
   type needs a text in both languages (tests walk them).
 
+## Public authority profile (spec §7, slice 2)
+app/authority_profile.py + _authority_profile.html: the authority's last 12
+months, under the header of /authority/<id>, for EVERYONE (owner,
+2026-10-09) — sentence, figures, what it buys, open tenders. Subscribers
+get the same section above their own panels.
+- Figures come from mv_authority_profile / _cpv (refresh_analytics), summed
+  per entity-group member in Python. Same allowlist as /analytics; value =
+  eligible CONTRACTS only. Unknowns are ''/-1 so CONCURRENTLY works.
+- The sentence is built from DATA only, never a model, and re-states only
+  figures the page shows. «Όλες» = share of ALL contracts is 1. A CPV
+  division is named only at ≥ 20%. It doubles as the meta description.
+- Bars are shares of contracts that DECLARE the field; the undeclared count
+  is stated, never folded in. fmt_pct never prints 0%/100% for a part.
+- Contacts on the gated page: label + dots; the value never reaches the HTML
+  (test-enforced). Main suppliers stay subscriber-only.
+- No populated views → load() is None → no profile (the test schema keeps
+  them WITH NO DATA; tests that need them refresh and then empty them again).
+- Reads acts only: no profile, customer data or act_ai_summary
+  (test-enforced). Apply the migration on prod BEFORE merging.
+
+## CPV descriptions + public CPV pages (spec §8–§9, slices 3–4)
+app/cpv_notes.py + cpv_notes_gen.py (CLI, LOCAL only), proc.cpv_note;
+app/cpv_page.py, /cpv and /cpv/<code>, proc.mv_cpv_activity.
+- One AI paragraph per official CPV code (9,454), el + en, written once by
+  claude-opus-5-5 through the Batch API (owner, 2026-10-09). The app only
+  READS proc.cpv_note; generation and `push` to prod run locally. Never call
+  the API from a request path.
+- The model sees only official CPV names (the code's, its ancestors', its
+  direct sub-codes'). validate() refuses numbers, €/%/links, the code, the
+  wrong script, bad lengths. Change the prompt → bump PROMPT_VERSION (the hash
+  then marks every note stale).
+- The page always labels the paragraph as AI-written and links /ai; a hidden
+  note (hidden_at) is never shown and never in the sitemap. The official name
+  stays exact and is the authoritative one.
+- /ai has a CPV entry whose badge reads the table; Anthropic is declared for
+  it whatever AI_SUMMARY_MODEL says (test-enforced).
+- Public, indexable, sitemap = codes with a visible note only. The `?cpv=`
+  search filter stays robots-blocked; the CPV pages are its crawlable twin.
+- mv_cpv_activity: one row per 2–8 digit prefix, each act once per prefix,
+  same rules as the authority profile. The hierarchy is cached per process
+  for an hour (tests reset cpv_page._tree_cache).
+## Redesigned act + authority pages (spec §10, slice 5)
+detail.css (linked only from detail pages), _icons.html, app/act_extras.py.
+- Act page: two columns + sticky side card. A gated reader's subscriber
+  fields (procedure, contract type, criterion, place, CPV) are LOCKED rows:
+  label + «Ορατό με εγγραφή», value never rendered, region not in the
+  breadcrumb (owner, 2026-10-09; test_detail_redesign.py). The subscriber
+  tabs are unchanged inside the main column; act-actions moved to the side
+  card.
+- act_extras.build never returns a field of THIS act that the teaser hides;
+  related tenders are other open notices in the act's CPV division. The
+  subscriber CPV list links each code to /cpv/<code> with its stored note.
+- Authority page: hero band + cards. FAQ, latest acts and related
+  authorities are data-only; suppliers stay subscriber-only.
+
 ## Tender Service ingester (fourth source, NOT in production)
 tsg_ingest.py; db.py tsg-backfill / tsg-catchup / tsg-project. tsg_probe.py
 measures the key, tsg_preview_import.py loads a probe sample and shares the
