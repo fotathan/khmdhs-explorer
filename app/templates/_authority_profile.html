@@ -1,0 +1,100 @@
+{# _authority_profile.html — the authority's last 12 months, for EVERYONE.
+
+   docs/specs/public-detail-pages.md slice 2 (owner, 2026-10-09): the sentence,
+   the figures, the "what it buys" breakdowns and the open tenders are public —
+   this is the crawler's page too. Built by app/authority_profile.py from two
+   precomputed views; `profile` is None until the migration is applied, and
+   then nothing here renders.
+
+   Every bar is a share of the contracts that DECLARE that field; how many did
+   not is said under the panel, never folded into a bar. #}
+{% if profile %}
+{# One bar: its label, the count and share as TEXT (the bar only repeats
+   the share), a title for hover. #}
+{% macro bar(lbl, n, share) -%}
+<li title="{{ lbl }}: {{ ap.fmt_int(n, lang) }} ({{ ap.fmt_pct(share) }})">
+  <span class="ap-l">{{ lbl }}</span>
+  <span class="ap-v">{{ ap.fmt_int(n, lang) }} · {{ ap.fmt_pct(share) }}</span>
+  <span class="ap-t" aria-hidden="true"><span class="ap-f" style="width:{{ '%.1f' | format(share * 100) }}%"></span></span>
+</li>
+{%- endmacro %}
+
+<section class="ap" aria-labelledby="ap-h">
+  <h2 class="ap-h" id="ap-h">{{ t("Τους τελευταίους 12 μήνες") }}</h2>
+  {% if profile_sentence %}<p class="ap-lead">{{ profile_sentence }}</p>{% endif %}
+
+  {% if not profile.empty %}
+  <div class="stat-row">
+    <div class="stat-box"><div class="num">{{ ap.fmt_int(profile.notices, lang) }}</div><div class="lbl">{{ t("προκηρύξεις") }}</div></div>
+    <div class="stat-box"><div class="num">{{ ap.fmt_int(profile.contracts, lang) }}</div><div class="lbl">{{ t("συμβάσεις") }}</div></div>
+    {% if profile.valued %}
+    <div class="stat-box"><div class="num">{{ ap.fmt_money(profile.value, lang) }}</div><div class="lbl">{{ t("αξία συμβάσεων με ΦΠΑ") }}</div></div>
+    {% endif %}
+  </div>
+
+  {% if profile.contracts %}
+  <div class="ap-grid">
+    {% if profile.cpv %}
+    <div class="panel">
+      <h3 class="panel-h">{{ t("Τι αγοράζει") }}</h3>
+      <ul class="ap-bars">
+        {% for r in profile.cpv %}
+        {{ bar(r.label or r.division, r.n, r.share) }}
+        {% endfor %}
+      </ul>
+      <p class="ap-note">{{ t("Κατηγορία CPV (2 ψηφία), μερίδιο των συμβάσεων· μια σύμβαση μπορεί να ανήκει σε περισσότερες.") }}</p>
+    </div>
+    {% endif %}
+    {% for key, title in [('contract_type', t("Είδος σύμβασης")), ('procedure', t("Διαδικασία")), ('region', t("Περιφέρεια εκτέλεσης"))] %}
+    {% set b = profile[key] %}
+    {% if b.rows %}
+    <div class="panel">
+      <h3 class="panel-h">{{ title }}</h3>
+      <ul class="ap-bars">
+        {% for r in b.rows %}
+        {% if key == 'contract_type' %}{% set lbl = r.key | contract_type_label %}{% elif key == 'procedure' %}{% set lbl = t(r.key) %}{% else %}{% set lbl = ap.region_label(r.key, lang) %}{% endif %}
+        {{ bar(lbl, r.n, r.share) }}
+        {% endfor %}
+        {% if b.other %}
+        {{ bar(t("Λοιπά"), b.other, b.other_share) }}
+        {% endif %}
+      </ul>
+      {% if b.unknown %}<p class="ap-note">{{ ap.fmt_int(b.unknown, lang) }} {{ t("συμβάσεις δεν το δηλώνουν.") }}</p>{% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+    {% if profile.band_total %}
+    <div class="panel">
+      <h3 class="panel-h">{{ t("Μέγεθος συμβάσεων") }}</h3>
+      <ul class="ap-bars">
+        {% for r in profile.bands %}
+        {% set lbl = r.en if lang == 'en' else r.el %}
+        {{ bar(lbl, r.n, r.share) }}
+        {% endfor %}
+      </ul>
+      <p class="ap-note">{{ t("Αξία με ΦΠΑ.") }}</p>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% endif %}
+
+  {% if tenders %}
+  <div class="panel">
+    <h3 class="panel-h">{{ t("Ανοιχτοί διαγωνισμοί") }}</h3>
+    <ul class="ap-open">
+      {% for r in tenders %}
+      <li>
+        <a href="/act/{{ r.adam }}">{{ r.title or r.adam }}</a>
+        <span class="ap-open-m">{{ t("λήξη υποβολής") }} {{ r.final_submission_date.strftime('%d/%m/%Y') }}{% if r.total_cost_with_vat %} · {{ ap.fmt_money(r.total_cost_with_vat, lang) }}{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if profile.period %}
+  <p class="ap-foot">{{ t("Πηγή: ΚΗΜΔΗΣ. Μετρούν οι προκηρύξεις και οι συμβάσεις που δημοσιεύτηκαν") }} {{ ap.period_label(profile, lang) }}{{ t(", χωρίς ακυρωμένες πράξεις και διπλοεγγραφές. Οι αναλύσεις αφορούν τις συμβάσεις.") }}</p>
+  {% endif %}
+</section>
+{% endif %}

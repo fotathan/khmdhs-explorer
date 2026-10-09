@@ -107,6 +107,13 @@ try:
 except ImportError:  # flat layout
     import field_notes as _field_notes
 
+# The public authority profile (docs/specs/public-detail-pages.md, slice 2):
+# 12-month figures and a sentence built from them, shown to everyone.
+try:
+    from app import authority_profile as _authority_profile
+except ImportError:  # flat layout
+    import authority_profile as _authority_profile
+
 
 def _i18n_context(request):
     lang = _i18n.lang_from_request(request)
@@ -5115,12 +5122,31 @@ def authority_detail(org_id: str, request: Request,
                 "n": len(member_rows),
             }
 
+        # The 12-month profile (app/authority_profile.py). PUBLIC: read from two
+        # precomputed views (< 1 ms) plus the open notices (~40 ms for the
+        # largest authority), so the teaser — the crawler's page — carries it.
+        # A profile is a nicety: a failure here must never 500 the page.
+        profile, profile_sentence, tenders = None, None, []
+        try:
+            profile = _authority_profile.load(c, member_ids, lang)
+            profile_sentence = _authority_profile.sentence(
+                profile, auth["name"] or org_id, lang)
+            tenders = _authority_profile.open_tenders(c, member_ids)
+        except Exception:      # noqa: BLE001
+            _obs.log_event(logging.WARNING, "authority_profile_failed",
+                           org_id=org_id, exc_info=True)
+            profile, profile_sentence, tenders = None, None, []
+        profile_ctx = {"profile": profile, "profile_sentence": profile_sentence,
+                       "tenders": tenders, "ap": _authority_profile}
+
         if _is_gated(request):
-            # Freemium teaser: header + merge banner only, then a register CTA.
-            # Skip the totals/act-list/CPV queries entirely for anonymous.
+            # Freemium teaser: header, the public profile, contacts blurred,
+            # then a register CTA. The totals/act-list/top-CPV queries are
+            # still skipped entirely for anonymous callers.
             return templates.TemplateResponse(
                 request, "beta_authority.html",
-                {"a": auth, "merge_info": merge_info, "gated": True,
+                {**profile_ctx,
+                 "a": auth, "merge_info": merge_info, "gated": True,
                  "by_type": [], "top_cpv": [], "acts": [], "total": 0,
                  "type_filter": type, "grand_total": 0, "grand_value": 0,
                  # The teaser IS the crawler's view of this page — a search
@@ -5194,7 +5220,8 @@ def authority_detail(org_id: str, request: Request,
 
     return templates.TemplateResponse(
         request, "beta_authority.html",
-        {"a": auth, "gated": False, "by_type": by_type,
+        {**profile_ctx,
+         "a": auth, "gated": False, "by_type": by_type,
          "acts": acts, "total": total, "type_filter": type, "merge_info": merge_info,
          "grand_total": grand_total, "grand_value": grand_value,
          "orgld": _seo.organization_ld(request, name=auth["name"] or org_id,

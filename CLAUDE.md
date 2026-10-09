@@ -379,6 +379,26 @@ CPV texts, CPV pages, redesign).
   €6,200) — its note says only what was declared. A new code / family / act
   type needs a text in both languages (tests walk them).
 
+## Public authority profile (spec §7, slice 2)
+app/authority_profile.py + _authority_profile.html: the authority's last 12
+months, under the header of /authority/<id>, for EVERYONE (owner,
+2026-10-09) — sentence, figures, what it buys, open tenders. Subscribers
+get the same section above their own panels.
+- Figures come from mv_authority_profile / _cpv (refresh_analytics), summed
+  per entity-group member in Python. Same allowlist as /analytics; value =
+  eligible CONTRACTS only. Unknowns are ''/-1 so CONCURRENTLY works.
+- The sentence is built from DATA only, never a model, and re-states only
+  figures the page shows. «Όλες» = share of ALL contracts is 1. A CPV
+  division is named only at ≥ 20%. It doubles as the meta description.
+- Bars are shares of contracts that DECLARE the field; the undeclared count
+  is stated, never folded in. fmt_pct never prints 0%/100% for a part.
+- Contacts on the gated page: label + dots; the value never reaches the HTML
+  (test-enforced). Main suppliers stay subscriber-only.
+- No populated views → load() is None → no profile (the test schema keeps
+  them WITH NO DATA; tests that need them refresh and then empty them again).
+- Reads acts only: no profile, customer data or act_ai_summary
+  (test-enforced). Apply the migration on prod BEFORE merging.
+
 ## Tender Service ingester (fourth source, NOT in production)
 tsg_ingest.py; db.py tsg-backfill / tsg-catchup / tsg-project. tsg_probe.py
 measures the key, tsg_preview_import.py loads a probe sample and shares the

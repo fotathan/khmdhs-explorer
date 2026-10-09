@@ -258,6 +258,11 @@ BEGIN
     EXCEPTION WHEN undefined_table THEN NULL; END;
     BEGIN REFRESH MATERIALIZED VIEW CONCURRENTLY proc.mv_competition_fill;
     EXCEPTION WHEN undefined_table THEN NULL; END;
+    -- public authority profile (20261009120000_authority_profile.sql)
+    BEGIN REFRESH MATERIALIZED VIEW CONCURRENTLY proc.mv_authority_profile;
+    EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN REFRESH MATERIALIZED VIEW CONCURRENTLY proc.mv_authority_profile_cpv;
+    EXCEPTION WHEN undefined_table THEN NULL; END;
 END;
 $$;
 
@@ -7164,3 +7169,123 @@ ALTER TABLE ONLY proc.operator_kad
 --
 
 CREATE INDEX ix_operator_kad_kad ON proc.operator_kad USING btree (kad text_pattern_ops);
+
+-- Public authority profile (migrations/20261009120000_authority_profile.sql).
+-- At the END: the views read procurement_act.duplicate_of, added above.
+--
+-- Name: mv_authority_profile; Type: MATERIALIZED VIEW; Schema: proc; Owner: -
+--
+
+CREATE MATERIALIZED VIEW proc.mv_authority_profile AS
+ WITH base AS (
+         SELECT a.authority_id,
+            (a.type)::text AS act_type,
+            COALESCE(a.contract_type_code, ''::text) AS contract_type,
+            COALESCE(a.procedure_family, ''::text) AS procedure_family,
+                CASE
+                    WHEN ((a.nuts_code)::text ~ '^EL[0-9]{2}'::text) THEN "left"((a.nuts_code)::text, 4)
+                    ELSE ''::text
+                END AS nuts2,
+                CASE
+                    WHEN ((a.type = 'contract'::proc.act_type) AND proc.is_analytics_eligible(a.adam, a.total_cost_with_vat, a.cancelled)) THEN proc.resolved_value(a.adam, a.total_cost_with_vat)
+                    ELSE NULL::numeric
+                END AS value
+           FROM proc.procurement_act a
+          WHERE ((a.type = ANY (ARRAY['notice'::proc.act_type, 'contract'::proc.act_type])) AND (a.authority_id IS NOT NULL) AND (NOT COALESCE(a.cancelled, false)) AND (a.submission_date >= (CURRENT_DATE - '1 year'::interval)) AND (a.submission_date < (CURRENT_DATE + 1)) AND (COALESCE(a.data_source, 'khmdhs'::text) = ANY (ARRAY['khmdhs'::text, 'manual'::text])) AND (NOT (EXISTS ( SELECT 1
+                   FROM proc.procurement_act hid
+                  WHERE ((hid.duplicate_of IS NOT NULL) AND (hid.adam = a.adam))))))
+        )
+ SELECT authority_id,
+    act_type,
+    contract_type,
+    procedure_family,
+    nuts2,
+    (
+        CASE
+            WHEN (value IS NULL) THEN '-1'::integer
+            WHEN (value < (10000)::numeric) THEN 0
+            WHEN (value < (30000)::numeric) THEN 1
+            WHEN (value < (100000)::numeric) THEN 2
+            WHEN (value < (500000)::numeric) THEN 3
+            WHEN (value < (1000000)::numeric) THEN 4
+            ELSE 5
+        END)::smallint AS value_band,
+    (count(*))::integer AS n,
+    (count(value))::integer AS n_valued,
+    COALESCE(sum(value), (0)::numeric) AS value,
+    ((CURRENT_DATE - '1 year'::interval))::date AS period_start,
+    CURRENT_DATE AS period_end
+   FROM base
+  GROUP BY authority_id, act_type, contract_type, procedure_family, nuts2, ((
+        CASE
+            WHEN (value IS NULL) THEN '-1'::integer
+            WHEN (value < (10000)::numeric) THEN 0
+            WHEN (value < (30000)::numeric) THEN 1
+            WHEN (value < (100000)::numeric) THEN 2
+            WHEN (value < (500000)::numeric) THEN 3
+            WHEN (value < (1000000)::numeric) THEN 4
+            ELSE 5
+        END)::smallint)
+  WITH NO DATA;
+
+
+--
+-- Name: MATERIALIZED VIEW mv_authority_profile; Type: COMMENT; Schema: proc; Owner: -
+--
+
+COMMENT ON MATERIALIZED VIEW proc.mv_authority_profile IS '12-month notice/contract histogram per authority (public authority profile); refreshed by proc.refresh_analytics().';
+
+
+--
+-- Name: mv_authority_profile_cpv; Type: MATERIALIZED VIEW; Schema: proc; Owner: -
+--
+
+CREATE MATERIALIZED VIEW proc.mv_authority_profile_cpv AS
+ WITH counted AS (
+         SELECT a.adam,
+            a.authority_id,
+                CASE
+                    WHEN proc.is_analytics_eligible(a.adam, a.total_cost_with_vat, a.cancelled) THEN proc.resolved_value(a.adam, a.total_cost_with_vat)
+                    ELSE NULL::numeric
+                END AS value
+           FROM proc.procurement_act a
+          WHERE ((a.type = 'contract'::proc.act_type) AND (a.authority_id IS NOT NULL) AND (NOT COALESCE(a.cancelled, false)) AND (a.submission_date >= (CURRENT_DATE - '1 year'::interval)) AND (a.submission_date < (CURRENT_DATE + 1)) AND (COALESCE(a.data_source, 'khmdhs'::text) = ANY (ARRAY['khmdhs'::text, 'manual'::text])) AND (NOT (EXISTS ( SELECT 1
+                   FROM proc.procurement_act hid
+                  WHERE ((hid.duplicate_of IS NOT NULL) AND (hid.adam = a.adam))))))
+        ), lines AS (
+         SELECT DISTINCT c.authority_id,
+            substr((oc.cpv_code)::text, 1, 2) AS division,
+            c.adam,
+            c.value
+           FROM ((counted c
+             JOIN proc.act_object_detail od ON ((od.adam = c.adam)))
+             JOIN proc.object_detail_cpv oc ON ((oc.object_detail_id = od.id)))
+        )
+ SELECT authority_id,
+    division,
+    (count(*))::integer AS n,
+    COALESCE(sum(value), (0)::numeric) AS value
+   FROM lines
+  GROUP BY authority_id, division
+  WITH NO DATA;
+
+
+--
+-- Name: MATERIALIZED VIEW mv_authority_profile_cpv; Type: COMMENT; Schema: proc; Owner: -
+--
+
+COMMENT ON MATERIALIZED VIEW proc.mv_authority_profile_cpv IS '12-month contracts per authority and 2-digit CPV division (public authority profile); refreshed by proc.refresh_analytics().';
+
+
+--
+-- Name: ux_mv_authority_profile; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_mv_authority_profile ON proc.mv_authority_profile USING btree (authority_id, act_type, contract_type, procedure_family, nuts2, value_band);
+
+
+--
+-- Name: ux_mv_authority_profile_cpv; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_mv_authority_profile_cpv ON proc.mv_authority_profile_cpv USING btree (authority_id, division);
