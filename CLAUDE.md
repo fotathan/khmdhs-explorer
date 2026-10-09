@@ -399,7 +399,28 @@ get the same section above their own panels.
 - Reads acts only: no profile, customer data or act_ai_summary
   (test-enforced). Apply the migration on prod BEFORE merging.
 
-## Redesigned act + authority pages (spec §8, slice 5)
+## CPV descriptions + public CPV pages (spec §8–§9, slices 3–4)
+app/cpv_notes.py + cpv_notes_gen.py (CLI, LOCAL only), proc.cpv_note;
+app/cpv_page.py, /cpv and /cpv/<code>, proc.mv_cpv_activity.
+- One AI paragraph per official CPV code (9,454), el + en, written once by
+  claude-opus-5-5 through the Batch API (owner, 2026-10-09). The app only
+  READS proc.cpv_note; generation and `push` to prod run locally. Never call
+  the API from a request path.
+- The model sees only official CPV names (the code's, its ancestors', its
+  direct sub-codes'). validate() refuses numbers, €/%/links, the code, the
+  wrong script, bad lengths. Change the prompt → bump PROMPT_VERSION (the hash
+  then marks every note stale).
+- The page always labels the paragraph as AI-written and links /ai; a hidden
+  note (hidden_at) is never shown and never in the sitemap. The official name
+  stays exact and is the authoritative one.
+- /ai has a CPV entry whose badge reads the table; Anthropic is declared for
+  it whatever AI_SUMMARY_MODEL says (test-enforced).
+- Public, indexable, sitemap = codes with a visible note only. The `?cpv=`
+  search filter stays robots-blocked; the CPV pages are its crawlable twin.
+- mv_cpv_activity: one row per 2–8 digit prefix, each act once per prefix,
+  same rules as the authority profile. The hierarchy is cached per process
+  for an hour (tests reset cpv_page._tree_cache).
+## Redesigned act + authority pages (spec §10, slice 5)
 detail.css (linked only from detail pages), _icons.html, app/act_extras.py.
 - Act page: two columns + sticky side card. A gated reader's subscriber
   fields (procedure, contract type, criterion, place, CPV) are LOCKED rows:
@@ -408,9 +429,8 @@ detail.css (linked only from detail pages), _icons.html, app/act_extras.py.
   tabs are unchanged inside the main column; act-actions moved to the side
   card.
 - act_extras.build never returns a field of THIS act that the teaser hides;
-  related tenders are other open notices in the act's CPV division. CPV
-  codes link to the search filter and show a stored note only once
-  proc.cpv_note exists (slices 3–4 ship separately).
+  related tenders are other open notices in the act's CPV division. The
+  subscriber CPV list links each code to /cpv/<code> with its stored note.
 - Authority page: hero band + cards. FAQ, latest acts and related
   authorities are data-only; suppliers stay subscriber-only.
 

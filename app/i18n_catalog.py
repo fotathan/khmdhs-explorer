@@ -275,11 +275,52 @@ _ACT = {
 
 # Authority / contractor detail + list pages (beta_authority/contractor[_results])
 _PARTY = {
+    # public CPV pages + /ai entry (cpv.html, cpv_index.html, ai_policy.html)
+    'Κάθε κωδικός CPV έχει δική του δημόσια σελίδα (/cpv/κωδικός, με αφετηρία το /cpv): την επίσημη ονομασία, μια σύντομη περιγραφή σε απλή γλώσσα γραμμένη με τεχνητή νοημοσύνη και επισημασμένη ως τέτοια, τις κατηγορίες στις οποίες ανήκει και τις υποκατηγορίες του, τις προκηρύξεις και συμβάσεις των τελευταίων 12 μηνών και τους ανοιχτούς διαγωνισμούς. Οι περιγραφές γράφονται μία φορά, εκτός εφαρμογής, και ένας διαχειριστής μπορεί να αποκρύψει όποια κρίνει λανθασμένη.':
+        'Every CPV code has its own public page (/cpv/code, starting from /cpv): the official name, a short plain-language description written with AI and labelled as such, the categories it belongs to and its sub-codes, the contract notices and contracts of the last 12 months, and the open tenders. The descriptions are written once, outside the application, and an administrator can hide any that is wrong.',
+    'Περιγραφές κωδικών CPV':
+        'CPV code descriptions',
+    'Κάθε κωδικός CPV έχει, δίπλα στην επίσημη ονομασία του, μια σύντομη περιγραφή σε απλή γλώσσα. Τη γράφει μία φορά μοντέλο Claude της Anthropic και αποθηκεύεται· η σελίδα την επισημαίνει ως γραμμένη με τεχνητή νοημοσύνη, και έγκυρη παραμένει η επίσημη ονομασία.':
+        'Every CPV code has, next to its official name, a short plain-language description. It is written once by an Anthropic Claude model and stored; the page labels it as AI-written, and the official name remains the authoritative one.',
+    'οι επίσημες ονομασίες του κωδικού, των κατηγοριών στις οποίες ανήκει και των υποκατηγοριών του, από τον δημόσιο κατάλογο CPV της ΕΕ.':
+        "the official names of the code, of the categories it belongs to and of its sub-codes, from the EU's public CPV list.",
+    'τίποτα για επισκέπτες, πελάτες ή πράξεις.':
+        'nothing about visitors, customers or acts.',
+    'Οι περιγραφές κωδικών CPV γράφτηκαν με το API της Anthropic (μοντέλα Claude). Σύμφωνα με τους εμπορικούς όρους του API, τα δεδομένα που αποστέλλονται και οι απαντήσεις δεν χρησιμοποιούνται για την εκπαίδευση μοντέλων· οι όροι είναι διαθέσιμοι στο':
+        "The CPV code descriptions were written with Anthropic's API (Claude models). Under the API's commercial terms, the data sent and the responses are not used to train models; the terms are available at",
+    'Ιεραρχία CPV':
+        'CPV hierarchy',
+    'Κωδικός CPV':
+        'CPV code',
+    'Περιγραφή γραμμένη με τεχνητή νοημοσύνη από τις επίσημες ονομασίες του καταλόγου CPV. Έγκυρη είναι η επίσημη ονομασία παραπάνω.':
+        'Description written with AI from the official names in the CPV list. The official name above is the authoritative one.',
+    'Πώς χρησιμοποιούμε την ΤΝ':
+        'How we use AI',
+    'Δεν δημοσιεύτηκαν προκηρύξεις ή συμβάσεις με αυτόν τον κωδικό τους τελευταίους 12 μήνες.':
+        'No contract notices or contracts were published under this code in the last 12 months.',
+    'Όλες οι πράξεις με αυτόν τον κωδικό':
+        'All acts under this code',
+    'Ειδοποιήσεις για νέους διαγωνισμούς':
+        'Alerts for new tenders',
+    'Υποκατηγορίες':
+        'Sub-codes',
+    'Πηγή: ΚΗΜΔΗΣ. Μετρούν οι προκηρύξεις και οι συμβάσεις με αυτόν τον κωδικό ή κάποια υποκατηγορία του, δημοσιευμένες':
+        'Source: KIMDIS. Counts the contract notices and contracts under this code or any of its sub-codes, published',
+    ', χωρίς ακυρωμένες πράξεις και διπλοεγγραφές. Κάθε πράξη μετρά μία φορά.':
+        ', excluding cancelled acts and duplicates. Each act counts once.',
+    'κατάλογος κατηγοριών δημοσίων συμβάσεων':
+        'public procurement category list',
+    'Οι 45 κατηγορίες του κοινού λεξιλογίου δημοσίων συμβάσεων (CPV), με περιγραφή κάθε κωδικού και τις προκηρύξεις και συμβάσεις των τελευταίων 12 μηνών στην Ελλάδα.':
+        'The 45 divisions of the Common Procurement Vocabulary (CPV), with a description of every code and the contract notices and contracts of the last 12 months in Greece.',
+    'Το κοινό λεξιλόγιο δημοσίων συμβάσεων της ΕΕ: κάθε προμήθεια, υπηρεσία ή έργο έχει έναν κωδικό. Διαλέξτε κατηγορία για να δείτε τι περιλαμβάνει και τι δημοσιεύτηκε.':
+        "The EU's Common Procurement Vocabulary: every supply, service or work has a code. Pick a division to see what it includes and what was published.",
+    'τελευταίοι 12 μήνες':
+        'last 12 months',
+    'Τι είναι ο κωδικός CPV':
+        'What a CPV code is',
     # redesigned act + authority pages (spec slice 5)
     'Οι διαγωνισμοί με αυτόν τον κωδικό':
         'Tenders under this code',
-    'Πώς χρησιμοποιούμε την ΤΝ':
-        'How we use AI',
     'Άλλες αναθέτουσες στην ίδια περιφέρεια':
         'Other authorities in the same region',
     'Έληξε η προθεσμία':
@@ -3173,8 +3214,8 @@ _AI_POLICY = {
         'AI & data handling',
     'Πού χρησιμοποιείται τεχνητή νοημοσύνη στον Εξερευνητή, τι ακριβώς αποστέλλεται σε πάροχο μοντέλου, και τι δεν φεύγει ποτέ από την υπηρεσία.':
         'Where artificial intelligence is used in the Explorer, exactly what is sent to a model provider, and what never leaves the service.',
-    'Η σύντομη απάντηση: η τεχνητή νοημοσύνη χρησιμοποιείται εδώ σε λίγα, συγκεκριμένα σημεία, και πάντοτε πάνω σε δημόσια έγγραφα διαγωνισμών. Ο λογαριασμός σας, οι αναζητήσεις σας, οι ειδοποιήσεις σας και το τι κοιτάξατε δεν αποστέλλονται ποτέ σε μοντέλο. Τίποτα από όσα κάνετε εδώ δεν χρησιμοποιείται για την εκπαίδευση μοντέλων.':
-        'The short answer: AI is used here in a few specific places, always on public tender documents. Your account, your searches, your alerts and what you looked at are never sent to a model. Nothing you do here is used to train models.',
+    'Η σύντομη απάντηση: η τεχνητή νοημοσύνη χρησιμοποιείται εδώ σε λίγα, συγκεκριμένα σημεία, και πάντοτε πάνω σε δημόσιο υλικό: τα έγγραφα των διαγωνισμών και τον κατάλογο κωδικών CPV. Ο λογαριασμός σας, οι αναζητήσεις σας, οι ειδοποιήσεις σας και το τι κοιτάξατε δεν αποστέλλονται ποτέ σε μοντέλο. Τίποτα από όσα κάνετε εδώ δεν χρησιμοποιείται για την εκπαίδευση μοντέλων.':
+        'The short answer: AI is used here in a few specific places, always on public material: the tender documents and the CPV code list. Your account, your searches, your alerts and what you looked at are never sent to a model. Nothing you do here is used to train models.',
     'Πού χρησιμοποιείται':
         'Where it is used',
     'Σύνοψη διαγωνισμού':

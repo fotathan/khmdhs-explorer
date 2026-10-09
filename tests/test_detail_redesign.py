@@ -9,8 +9,8 @@ SIDE CARD  a gated reader is offered registration; a subscriber gets the
            act's own actions there (document, favourite, calendar).
 BLOCKS     related open tenders (same CPV division, never the act itself,
            never a closed one), the buyer card and glossary cards, for both.
-SUBSCRIBER CPV codes with their official names, linked to the search (the
-           stored notes and /cpv pages arrive with slices 3-4).
+SUBSCRIBER CPV codes with their official names and stored notes, linked
+           to their public /cpv pages.
 AUTHORITY  the hero carries the four figures; the FAQ and latest acts are
            built from data only.
 """
@@ -23,6 +23,8 @@ OTHER = "RDSN-ACT-2"       # open notice, same division → related
 CLOSED = "RDSN-ACT-3"      # closed notice, same division → never related
 AUTH = "RDSN-AUTH-1"
 CPV = "97100000-3"
+NOTE_EL = ("Η κατηγορία καλύπτει δοκιμαστικές υπηρεσίες επανασχεδιασμού σελίδων, "
+           "όπως διάταξη, κάρτες και ετικέτες για δημόσιους διαγωνισμούς.")
 NUTS = "ZZ8R"
 NUTS_LABEL = "Περιοχή επανασχεδιασμού"
 
@@ -58,6 +60,9 @@ def acts(db):
     cur.execute("INSERT INTO proc.nuts_code (nuts_code, label) VALUES (%s, %s)", (NUTS, NUTS_LABEL))
     cur.execute("INSERT INTO proc.cpv_code (cpv_code, description, description_en) "
                 "VALUES (%s, 'Δοκιμαστικός επανασχεδιασμός', 'Test redesign')", (CPV,))
+    cur.execute("""INSERT INTO proc.cpv_note (cpv_code, text_el, text_en, model,
+                     prompt_version, input_hash) VALUES (%s, %s, 'en', 'm', 1, 'h')""",
+                (CPV, NOTE_EL))
     cur.execute("""INSERT INTO proc.authority (org_id, name, contact_email)
                    VALUES (%s, 'ΔΗΜΟΣ ΕΠΑΝΑΣΧΕΔΙΑΣΜΟΥ', 'desk@rdsn.example')""", (AUTH,))
     _act(cur, ADAM, deadline_days=10, title="Διαγωνισμός επανασχεδιασμού")
@@ -117,7 +122,8 @@ def test_a_subscriber_sees_the_values_and_the_cpv_notes(reader, acts):
     body = reader.get(f"/act/{ADAM}").text
     assert 'class="dv-locked"' not in body
     assert "Ανοιχτή διαδικασία" in body and NUTS_LABEL in body
-    assert f'href="/?cpv={CPV}"' in body and "Δοκιμαστικός επανασχεδιασμός" in body
+    assert f'href="/cpv/{CPV}"' in body and "Δοκιμαστικός επανασχεδιασμός" in body
+    assert NOTE_EL in body
     assert 'href="/glossary/anoikti-diadikasia"' in body
 
 

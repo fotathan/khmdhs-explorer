@@ -1,0 +1,78 @@
+{% extends "beta_base.html" %}
+{# One CPV code, public (docs/specs/public-detail-pages.md slice 4). Built by
+   app/cpv_page.py. The official name is exact; the paragraph under it is the
+   stored AI note (app/cpv_notes.py) and says so. #}
+{% block title %}{{ p.name }} · CPV {{ p.code }}{% endblock %}
+{% block meta_description %}{% if p.note %}{{ p.note | truncate(300, true, '…', 0) }}{% else %}CPV {{ p.code }}: {{ p.name }}{% endif %}{% endblock %}
+{% block head_json_ld %}<script type="application/ld+json">{{ termld | safe }}</script><script type="application/ld+json">{{ crumbs | safe }}</script>{% endblock %}
+{% block content %}
+<main>
+  <nav class="cpv-trail" aria-label="{{ t('Ιεραρχία CPV') }}">
+    <a href="/cpv">CPV</a>
+    {% for a in p.ancestors %} › <a href="/cpv/{{ a.code }}">{{ a.name }}</a>{% endfor %}
+  </nav>
+
+  <div class="detail-head">
+    <div class="detail-kicker">{{ t("Κωδικός CPV") }} · {{ p.code }}</div>
+    <h1 class="cpv-h1">{{ p.name }}</h1>
+    {% if p.other_name and p.other_name != p.name %}<div class="detail-sub"><span lang="{{ 'el' if lang == 'en' else 'en' }}">{{ p.other_name }}</span></div>{% endif %}
+  </div>
+
+  {% if p.note %}
+  <section class="panel cpv-note">
+    <p class="cpv-note-p">{{ p.note }}</p>
+    <p class="ap-note">{{ t("Περιγραφή γραμμένη με τεχνητή νοημοσύνη από τις επίσημες ονομασίες του καταλόγου CPV. Έγκυρη είναι η επίσημη ονομασία παραπάνω.") }} <a href="/ai">{{ t("Πώς χρησιμοποιούμε την ΤΝ") }}</a></p>
+  </section>
+  {% endif %}
+
+  {% set f = p.figures %}
+  <h2 class="ap-h">{{ t("Τους τελευταίους 12 μήνες") }}</h2>
+  {% if f %}
+  <div class="stat-row">
+    <div class="stat-box"><div class="num">{{ ap.fmt_int(f.n_notices, lang) }}</div><div class="lbl">{{ t("προκηρύξεις") }}</div></div>
+    <div class="stat-box"><div class="num">{{ ap.fmt_int(f.n_contracts, lang) }}</div><div class="lbl">{{ t("συμβάσεις") }}</div></div>
+    {% if f.n_valued %}<div class="stat-box"><div class="num">{{ ap.fmt_money(f.value, lang) }}</div><div class="lbl">{{ t("αξία συμβάσεων με ΦΠΑ") }}</div></div>{% endif %}
+    <div class="stat-box"><div class="num">{{ ap.fmt_int(f.n_authorities, lang) }}</div><div class="lbl">{{ t("αναθέτουσες αρχές") }}</div></div>
+  </div>
+  {% else %}
+  <p class="ap-lead">{{ t("Δεν δημοσιεύτηκαν προκηρύξεις ή συμβάσεις με αυτόν τον κωδικό τους τελευταίους 12 μήνες.") }}</p>
+  {% endif %}
+
+  {% if p.tenders %}
+  <div class="panel">
+    <h3 class="panel-h">{{ t("Ανοιχτοί διαγωνισμοί") }}</h3>
+    <ul class="ap-open">
+      {% for r in p.tenders %}
+      <li>
+        <a href="/act/{{ r.adam }}">{{ r.title or r.adam }}</a>
+        <span class="ap-open-m">{% if r.authority_name %}{{ r.authority_name }} · {% endif %}{{ t("λήξη υποβολής") }} {{ r.final_submission_date.strftime('%d/%m/%Y') }}{% if r.total_cost_with_vat %} · {{ ap.fmt_money(r.total_cost_with_vat, lang) }}{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <p class="cpv-actions">
+    <a class="act-btn primary" href="/?cpv={{ p.stem }}">{{ t("Όλες οι πράξεις με αυτόν τον κωδικό") }} ›</a>
+    {% if not user %}<a class="act-btn" href="/register?next={{ request.url.path | urlencode }}">{{ t("Ειδοποιήσεις για νέους διαγωνισμούς") }}</a>{% endif %}
+  </p>
+
+  {% if p.children %}
+  <div class="panel">
+    <h3 class="panel-h">{{ t("Υποκατηγορίες") }} <span class="atab-n">{{ p.children | length }}</span></h3>
+    <ul class="cpv-kids">
+      {% for k in p.children %}
+      <li>
+        <a href="/cpv/{{ k.code }}">{{ k.name }}</a> <code class="adam">{{ k.code }}</code>
+        {% if k.figures %}<span class="ap-open-m">{{ ap.fmt_int(k.figures.n_notices, lang) }} {{ t("προκηρύξεις") }} · {{ ap.fmt_int(k.figures.n_contracts, lang) }} {{ t("συμβάσεις") }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if f %}
+  <p class="ap-foot">{{ t("Πηγή: ΚΗΜΔΗΣ. Μετρούν οι προκηρύξεις και οι συμβάσεις με αυτόν τον κωδικό ή κάποια υποκατηγορία του, δημοσιευμένες") }} {{ ap.fmt_date(f.period_start, lang) }} – {{ ap.fmt_date(f.period_end, lang) }}{{ t(", χωρίς ακυρωμένες πράξεις και διπλοεγγραφές. Κάθε πράξη μετρά μία φορά.") }}</p>
+  {% endif %}
+</main>
+{% endblock %}

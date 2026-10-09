@@ -263,6 +263,9 @@ BEGIN
     EXCEPTION WHEN undefined_table THEN NULL; END;
     BEGIN REFRESH MATERIALIZED VIEW CONCURRENTLY proc.mv_authority_profile_cpv;
     EXCEPTION WHEN undefined_table THEN NULL; END;
+    -- public CPV pages (20261009160000_cpv_activity.sql)
+    BEGIN REFRESH MATERIALIZED VIEW CONCURRENTLY proc.mv_cpv_activity;
+    EXCEPTION WHEN undefined_table THEN NULL; END;
 END;
 $$;
 
@@ -7289,3 +7292,88 @@ CREATE UNIQUE INDEX ux_mv_authority_profile ON proc.mv_authority_profile USING b
 --
 
 CREATE UNIQUE INDEX ux_mv_authority_profile_cpv ON proc.mv_authority_profile_cpv USING btree (authority_id, division);
+
+-- CPV notes (migrations/20261009150000_cpv_note.sql).
+CREATE TABLE proc.cpv_note (
+    cpv_code        varchar(10) PRIMARY KEY
+                    REFERENCES proc.cpv_code(cpv_code) ON DELETE CASCADE,
+    text_el         text        NOT NULL,
+    text_en         text        NOT NULL,
+    model           text        NOT NULL,
+    prompt_version  integer     NOT NULL,
+    input_hash      text        NOT NULL,
+    input_tokens    integer,
+    output_tokens   integer,
+    cost_micro_usd  bigint,
+    batch_id        text,
+    generated_at    timestamptz NOT NULL DEFAULT now(),
+    hidden_at       timestamptz,
+    hidden_reason   text
+);
+
+CREATE TABLE proc.cpv_note_batch (
+    batch_id        text        PRIMARY KEY,
+    model           text        NOT NULL,
+    prompt_version  integer     NOT NULL,
+    n_requests      integer     NOT NULL,
+    submitted_at    timestamptz NOT NULL DEFAULT now(),
+    collected_at    timestamptz,
+    n_stored        integer,
+    n_failed        integer
+);
+
+-- Public CPV pages (migrations/20261009160000_cpv_activity.sql).
+-- At the END: the view reads procurement_act.duplicate_of, added above.
+--
+-- Name: mv_cpv_activity; Type: MATERIALIZED VIEW; Schema: proc; Owner: -
+--
+
+CREATE MATERIALIZED VIEW proc.mv_cpv_activity AS
+ WITH acts AS (
+         SELECT a.adam,
+            (a.type)::text AS act_type,
+            a.authority_id,
+                CASE
+                    WHEN ((a.type = 'contract'::proc.act_type) AND proc.is_analytics_eligible(a.adam, a.total_cost_with_vat, a.cancelled)) THEN proc.resolved_value(a.adam, a.total_cost_with_vat)
+                    ELSE NULL::numeric
+                END AS value
+           FROM proc.procurement_act a
+          WHERE ((a.type = ANY (ARRAY['notice'::proc.act_type, 'contract'::proc.act_type])) AND (NOT COALESCE(a.cancelled, false)) AND (a.submission_date >= (CURRENT_DATE - '1 year'::interval)) AND (a.submission_date < (CURRENT_DATE + 1)) AND (COALESCE(a.data_source, 'khmdhs'::text) = ANY (ARRAY['khmdhs'::text, 'manual'::text])) AND (NOT (EXISTS ( SELECT 1
+                   FROM proc.procurement_act hid
+                  WHERE ((hid.duplicate_of IS NOT NULL) AND (hid.adam = a.adam))))))
+        ), pairs AS (
+         SELECT DISTINCT x.adam,
+            x.act_type,
+            x.authority_id,
+            x.value,
+            substr((oc.cpv_code)::text, 1, k.k) AS prefix
+           FROM (((acts x
+             JOIN proc.act_object_detail od ON ((od.adam = x.adam)))
+             JOIN proc.object_detail_cpv oc ON ((oc.object_detail_id = od.id)))
+             CROSS JOIN generate_series(2, 8) k(k))
+        )
+ SELECT prefix,
+    (count(*) FILTER (WHERE (act_type = 'notice'::text)))::integer AS n_notices,
+    (count(*) FILTER (WHERE (act_type = 'contract'::text)))::integer AS n_contracts,
+    (count(value))::integer AS n_valued,
+    COALESCE(sum(value), (0)::numeric) AS value,
+    (count(DISTINCT authority_id))::integer AS n_authorities,
+    ((CURRENT_DATE - '1 year'::interval))::date AS period_start,
+    CURRENT_DATE AS period_end
+   FROM pairs
+  GROUP BY prefix
+  WITH NO DATA;
+
+
+--
+-- Name: MATERIALIZED VIEW mv_cpv_activity; Type: COMMENT; Schema: proc; Owner: -
+--
+
+COMMENT ON MATERIALIZED VIEW proc.mv_cpv_activity IS '12-month notices/contracts per CPV prefix (public CPV pages); refreshed by proc.refresh_analytics().';
+
+
+--
+-- Name: ux_mv_cpv_activity; Type: INDEX; Schema: proc; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_mv_cpv_activity ON proc.mv_cpv_activity USING btree (prefix);

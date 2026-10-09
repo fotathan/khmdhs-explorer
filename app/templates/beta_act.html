@@ -171,14 +171,14 @@
   <section class="dv-card" aria-labelledby="td-cpv-h">
     <h2 class="dv-card-h" id="td-cpv-h"><span class="dv-card-ic">{{ icon('tag') }}</span>{{ t("Κωδικοί CPV") }}</h2>
     {% if gated %}
-    <p class="ap-note">{{ icon('lock', 12) }} {{ t("Οι κωδικοί CPV της πράξης είναι ορατοί με εγγραφή.") }} <a href="/glossary/cpv">{{ t("Τι είναι οι κωδικοί CPV") }} ›</a></p>
+    <p class="ap-note">{{ icon('lock', 12) }} {{ t("Οι κωδικοί CPV της πράξης είναι ορατοί με εγγραφή.") }} <a href="/cpv">{{ t("Τι είναι οι κωδικοί CPV") }} ›</a></p>
     {% elif x.cpvs %}
     <ul class="td-cpv">
       {% for r in x.cpvs %}
       <li>
         <span class="td-cpv-code">{{ r.cpv_code }}</span><span class="td-cpv-name">{{ r.name or '—' }}</span>
         {% if r.note %}<p>{{ r.note }}</p>{% endif %}
-        <a class="td-more" href="/?cpv={{ r.cpv_code }}">{{ t("Οι διαγωνισμοί με αυτόν τον κωδικό") }} ›</a>
+        <a class="td-more" href="/cpv/{{ r.cpv_code }}">{{ t("Ο κωδικός και οι διαγωνισμοί του") }} ›</a>
       </li>
       {% endfor %}
     </ul>

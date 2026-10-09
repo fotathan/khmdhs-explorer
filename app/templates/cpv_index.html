@@ -1,0 +1,26 @@
+{% extends "beta_base.html" %}
+{# The 45 CPV divisions — public, indexable; every /cpv/<code> page is
+   reachable from here by following sub-codes (app/cpv_page.py). #}
+{% block title %}{{ t("Κωδικοί CPV") }} · {{ t("κατάλογος κατηγοριών δημοσίων συμβάσεων") }}{% endblock %}
+{% block meta_description %}{{ t("Οι 45 κατηγορίες του κοινού λεξιλογίου δημοσίων συμβάσεων (CPV), με περιγραφή κάθε κωδικού και τις προκηρύξεις και συμβάσεις των τελευταίων 12 μηνών στην Ελλάδα.") }}{% endblock %}
+{% block head_json_ld %}<script type="application/ld+json">{{ crumbs | safe }}</script>{% endblock %}
+{% block content %}
+<main>
+  <div class="detail-head">
+    <div class="detail-kicker">CPV</div>
+    <h1 class="cpv-h1">{{ t("Κωδικοί CPV") }}</h1>
+    <div class="detail-sub"><span>{{ t("Το κοινό λεξιλόγιο δημοσίων συμβάσεων της ΕΕ: κάθε προμήθεια, υπηρεσία ή έργο έχει έναν κωδικό. Διαλέξτε κατηγορία για να δείτε τι περιλαμβάνει και τι δημοσιεύτηκε.") }}</span></div>
+  </div>
+  <div class="panel">
+    <ul class="cpv-kids">
+      {% for d in divisions %}
+      <li>
+        <a href="/cpv/{{ d.code }}">{{ d.name }}</a> <code class="adam">{{ d.code }}</code>
+        {% if d.figures %}<span class="ap-open-m">{{ ap.fmt_int(d.figures.n_notices, lang) }} {{ t("προκηρύξεις") }} · {{ ap.fmt_int(d.figures.n_contracts, lang) }} {{ t("συμβάσεις") }} · {{ t("τελευταίοι 12 μήνες") }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  <p class="ap-foot"><a href="/glossary/cpv">{{ t("Τι είναι ο κωδικός CPV") }} ›</a></p>
+</main>
+{% endblock %}
