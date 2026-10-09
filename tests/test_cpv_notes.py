@@ -139,6 +139,16 @@ def test_bad_replies_are_refused(el, en, problem):
     assert any(p.startswith(problem) for p in cn.validate("50220000-3", el, en))
 
 
+def test_a_number_from_the_official_names_is_allowed():
+    """«Καύσιμα ντίζελ (EN 590)»: the standard is in the name the model got."""
+    given = cn.allowed_numbers("Επίσημη ονομασία (EL): Καύσιμα ντίζελ (EN 590)")
+    assert given == {"590"}
+    el = GOOD_EL + " Κατά το πρότυπο EN 590."
+    assert cn.validate("50220000-3", el, GOOD_EN, allowed=given) == []
+    assert cn.validate("50220000-3", GOOD_EL + " Κατά το πρότυπο EN 228.", GOOD_EN,
+                       allowed=given) != []
+
+
 def test_the_code_number_is_never_in_the_text():
     probs = cn.validate("50220000-3", GOOD_EL, GOOD_EN.replace("This", "Code 50220000 -"))
     assert any("number" in p for p in probs)

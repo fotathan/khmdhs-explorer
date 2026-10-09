@@ -210,8 +210,15 @@ def _greek_share(s: str) -> float:
     return (len(_GREEK.findall(s)) / len(letters)) if letters else 0.0
 
 
-def validate(code: str, el: str, en: str) -> list[str]:
-    """Reasons to refuse a reply; empty means store it."""
+def allowed_numbers(text: str) -> set[str]:
+    """Numbers the model was GIVEN (an official name such as «Καύσιμα ντίζελ
+    (EN 590)»): a reply may repeat those, and no others."""
+    return set(re.findall(r"\d{3,}", text or ""))
+
+
+def validate(code: str, el: str, en: str, *, allowed: set[str] = frozenset()) -> list[str]:
+    """Reasons to refuse a reply; empty means store it. `allowed` holds the
+    numbers present in the official names the model was given."""
     problems = []
     for lang, text in (("el", el), ("en", en)):
         if not isinstance(text, str) or not text.strip():
@@ -219,7 +226,7 @@ def validate(code: str, el: str, en: str) -> list[str]:
             continue
         if not 120 <= len(text) <= 900:
             problems.append(f"{lang}: length {len(text)}")
-        if re.search(r"\d{3,}", text):
+        if set(re.findall(r"\d{3,}", text)) - set(allowed) - {code[:8]}:
             problems.append(f"{lang}: contains a number")
         if any(s in text for s in ("€", "%", "http", "www.")):
             problems.append(f"{lang}: amount, percentage or link")
@@ -310,6 +317,19 @@ def submit_batch(requests_: list[dict]) -> str:
     if len(json.dumps(body).encode()) > _ai.BATCH_MAX_BYTES:
         raise _ai.SummaryError("batch body over the size limit — chunk it")
     return _post(_ai.BATCH_URL, body)["id"]
+
+
+def cancel_batch(batch_id: str) -> dict:
+    """Ask Anthropic to cancel a batch. Requests already finished stay
+    finished (and billed); the rest end as 'canceled' and cost nothing."""
+    req = urllib.request.Request(f"{_ai.BATCH_URL}/{batch_id}/cancel", data=b"",
+                                 headers=_ai._anthropic_headers(_key()), method="POST")
+    try:
+        return json.loads(urllib.request.urlopen(
+            req, timeout=_ai.TIMEOUT, context=_ai._SSL_CTX).read())
+    except urllib.error.HTTPError as e:
+        raise _ai.SummaryError(f"Anthropic API error {e.code}: "
+                               f"{e.read().decode(errors='replace')[:300]}") from e
 
 
 def batch_results(batch_id: str):

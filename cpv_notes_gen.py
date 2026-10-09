@@ -13,6 +13,8 @@ default is a dry run that prints what it would do.
     python cpv_notes_gen.py review               # write runs/cpv_notes_review.html
 
     python cpv_notes_gen.py submit --yes         # ONE batch with every code still missing
+    python cpv_notes_gen.py submit --yes --chunk 1900   # …or several smaller ones
+    python cpv_notes_gen.py cancel <batch_id>    # stop one; finished requests stay
     python cpv_notes_gen.py collect              # store the results of ended batches
                                              # (re-run until it says nothing is open)
 
@@ -123,7 +125,9 @@ def cmd_sample(args) -> None:
             except Exception as e:      # noqa: BLE001 — report and continue
                 failed.append((code, str(e)[:120])); continue
             reply, err = cn.parse_message(msg)
-            problems = [err] if err else cn.validate(code, reply["el"], reply["en"])
+            problems = [err] if err else cn.validate(
+                code, reply["el"], reply["en"],
+                allowed=cn.allowed_numbers(params["messages"][0]["content"]))
             if problems:
                 failed.append((code, "; ".join(problems))); continue
             usage = msg.get("usage") or {}
@@ -171,16 +175,23 @@ def cmd_submit(args) -> None:
         pending = _pending(c, codes, parent, children)
         if args.limit:
             pending = pending[: args.limit]
-        print(f"{len(pending):,} codes → one batch, model {cn.MODEL}")
+        n_batches = -(-len(pending) // args.chunk) if args.chunk else 1
+        print(f"{len(pending):,} codes → {n_batches} batch(es), model {cn.MODEL}")
         if not pending:
             return
         if not args.yes:
             print("dry run — add --yes to spend (see `plan` for the estimate)"); return
-        bid = cn.submit_batch([{"custom_id": cn.custom_id(code), "params": params}
-                               for code, params, _h in pending])
-        c.execute("""INSERT INTO proc.cpv_note_batch (batch_id, model, prompt_version, n_requests)
-                     VALUES (%s, %s, %s, %s)""", (bid, cn.MODEL, cn.PROMPT_VERSION, len(pending)))
-    print(f"submitted batch {bid}. Most finish within an hour; run `collect` to store.")
+        size = args.chunk or len(pending)
+        ids = []
+        for i in range(0, len(pending), size):
+            part = pending[i:i + size]
+            bid = cn.submit_batch([{"custom_id": cn.custom_id(code), "params": params}
+                                   for code, params, _h in part])
+            c.execute("""INSERT INTO proc.cpv_note_batch (batch_id, model, prompt_version, n_requests)
+                         VALUES (%s, %s, %s, %s)""", (bid, cn.MODEL, cn.PROMPT_VERSION, len(part)))
+            ids.append((bid, len(part)))
+            print(f"submitted batch {bid} ({len(part):,} codes)")
+    print(f"{len(ids)} batch(es). Most finish within an hour; run `collect` to store.")
 
 
 def cmd_collect(args) -> None:
@@ -204,13 +215,15 @@ def cmd_collect(args) -> None:
                     failed.append((cid, "unknown code")); continue
                 if kind != "succeeded":
                     failed.append((code, f"{kind}: {str(payload)[:100]}")); continue
-                reply, err = cn.parse_message(payload)
-                problems = [err] if err else cn.validate(code, reply["el"], reply["en"])
-                if problems:
-                    failed.append((code, "; ".join(problems))); continue
                 # The hash is recomputed from TODAY's context: a code renamed
                 # since submission stays stale and is regenerated next time.
                 params = cn.request_params(code, codes, parent, children)
+                reply, err = cn.parse_message(payload)
+                problems = [err] if err else cn.validate(
+                    code, reply["el"], reply["en"],
+                    allowed=cn.allowed_numbers(params["messages"][0]["content"]))
+                if problems:
+                    failed.append((code, "; ".join(problems))); continue
                 usage = payload.get("usage") or {}
                 cn.store(c, code, reply, ihash=cn.input_hash(params), usage=usage, batch_id=bid)
                 stored += 1
@@ -223,6 +236,14 @@ def cmd_collect(args) -> None:
                 print(f"  FAILED {code}: {why}")
             if failed:
                 print("  (failed codes stay pending: `submit --yes` retries just those)")
+
+
+def cmd_cancel(args) -> None:
+    """Cancel an open batch. Finished requests stay (collect stores them);
+    the rest are not billed. Once it has ended, `collect` closes it here."""
+    info = cn.cancel_batch(args.batch_id)
+    print(f"{args.batch_id}: {info.get('processing_status')} — {info.get('request_counts')}")
+    print("run `collect` once it reports ended, then `submit --yes` for what is left")
 
 
 def cmd_hide(args) -> None:
@@ -266,7 +287,11 @@ def main() -> None:
     sp.add_argument("--yes", action="store_true")
     sp.add_argument("--limit", type=int)
     sp.add_argument("--force", action="store_true")
+    sp.add_argument("--chunk", type=int, help="codes per batch (default: one batch)")
     sp.set_defaults(fn=cmd_submit)
+    sp = sub.add_parser("cancel", help="cancel an open batch")
+    sp.add_argument("batch_id")
+    sp.set_defaults(fn=cmd_cancel)
     sp = sub.add_parser("collect"); sp.set_defaults(fn=cmd_collect)
     sp = sub.add_parser("hide"); sp.add_argument("code"); sp.add_argument("--reason", required=True)
     sp.set_defaults(fn=cmd_hide)
