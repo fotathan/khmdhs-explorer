@@ -277,8 +277,7 @@ Main column, in order:
 1. the act card: status pill (open / deadline passed / cancelled), type and
    source badges, title, buyer + ΑΔΑΜ, value / publication / deadline boxes;
 2. «Στοιχεία διαγωνισμού»;
-3. «Κωδικοί CPV» (official names, linked to the search; the stored AI
-   notes and links to /cpv/<code> come with slices 3–4);
+3. «Κωδικοί CPV» (official names, stored AI notes, links to /cpv/<code>);
 4. the buyer card (the authority's 12-month sentence and figures);
 5. explanation boxes (act type; procedure for subscribers);
 6. [subscriber tabs, unchanged];

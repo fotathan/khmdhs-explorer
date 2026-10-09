@@ -321,8 +321,6 @@ _PARTY = {
     # redesigned act + authority pages (spec slice 5)
     'Οι διαγωνισμοί με αυτόν τον κωδικό':
         'Tenders under this code',
-    'Πώς χρησιμοποιούμε την ΤΝ':
-        'How we use AI',
     'Άλλες αναθέτουσες στην ίδια περιφέρεια':
         'Other authorities in the same region',
     'Έληξε η προθεσμία':
