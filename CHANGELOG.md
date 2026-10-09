@@ -10,6 +10,19 @@ truth; this is a curated digest.
 
 ## Unreleased
 
+### Changed — /help: a section for the sales brief and call script
+- «Πωλήσεις: σύνοψη πελάτη & σενάριο κλήσης» (`#sales`) is its own section with
+  a TOC entry; it was four paragraphs inside «Ταίριασμα». Adds the trial close
+  as it now works (temporary password, not a sign-in link), what each call
+  result does, and the glance strip's do-not-call badge.
+- `tests/test_help_page.py` now checks the TOC and the sections agree.
+
+### Fixed — call script: trial close and spacing
+- The trial close sends username + temporary password from «Σύνθεση email»
+  (sign-in links stay off in production); notes name the real card tabs.
+  SCRIPT_VERSION 1 → 2.
+- Values read aloud have runs of spaces collapsed («ΔΥΠΕ   Α'  ΑΤΤΙΚΗΣ»).
+
 ### Added — first-call sales script on the CRM card
 - «Σενάριο κλήσης» next to «Σύνοψη πελάτη»: what a salesperson says on the
   first call, chosen by how the contact reached us (self-registered /
